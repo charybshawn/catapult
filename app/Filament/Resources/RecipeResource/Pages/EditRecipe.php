@@ -71,8 +71,9 @@ class EditRecipe extends EditRecord
                                         ->where('is_active', true)
                                         ->get()
                                         ->mapWithKeys(function ($seed) {
-                                            $lotInfo = !empty($seed->notes) ? " (Lot: " . substr($seed->notes, 0, 20) . ")" : "";
-                                            $stockInfo = " - {$seed->current_stock} {$seed->unit} available";
+                                            $lotInfo = $seed->lot_no ? " (Lot: {$seed->lot_no})" : "";
+                                            $totalGrams = $seed->current_stock * $seed->quantity_per_unit;
+                                            $stockInfo = " - {$totalGrams} g available";
                                             return [$seed->id => $seed->name . $lotInfo . $stockInfo];
                                         });
                                 })
@@ -747,6 +748,11 @@ class EditRecipe extends EditRecord
         return [
             Actions\ViewAction::make(),
             Actions\DeleteAction::make(),
+            Actions\Action::make('save')
+                ->label('Save Recipe')
+                ->action(fn () => $this->save())
+                ->keyBindings(['mod+s'])
+                ->color('success'),
         ];
     }
     

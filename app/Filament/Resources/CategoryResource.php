@@ -20,9 +20,9 @@ class CategoryResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-tag';
     
-    protected static ?string $navigationGroup = 'Products';
+    protected static ?string $navigationGroup = 'Sales & Products';
     
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 2;
     
     protected static ?string $navigationLabel = 'Product Categories';
 

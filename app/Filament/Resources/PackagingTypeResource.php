@@ -19,9 +19,9 @@ class PackagingTypeResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-archive-box';
 
-    protected static ?string $navigationGroup = 'Inventory';
+    protected static ?string $navigationGroup = 'Inventory & Supplies';
 
-    protected static ?int $navigationSort = 30;
+    protected static ?int $navigationSort = 3;
     
     protected static ?string $recordTitleAttribute = 'display_name';
 

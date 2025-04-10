@@ -31,7 +31,9 @@ class Consumable extends Model
         'quantity_unit',
         'total_quantity',
         'notes',
+        'lot_no',
         'is_active',
+        'last_ordered_at',
     ];
     
     /**
@@ -47,6 +49,7 @@ class Consumable extends Model
         'quantity_per_unit' => 'decimal:2',
         'total_quantity' => 'decimal:2',
         'is_active' => 'boolean',
+        'last_ordered_at' => 'datetime',
     ];
     
     /**
@@ -157,6 +160,7 @@ class Consumable extends Model
         $newStock = $this->current_stock + $amount;
         $this->update([
             'current_stock' => $newStock,
+            'last_ordered_at' => now(),
         ]);
         
         // Update total quantity if applicable
@@ -186,7 +190,8 @@ class Consumable extends Model
                 'quantity_per_unit',
                 'quantity_unit',
                 'total_quantity',
-                'is_active'
+                'is_active',
+                'last_ordered_at',
             ])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();

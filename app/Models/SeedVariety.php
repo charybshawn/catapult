@@ -57,14 +57,6 @@ class SeedVariety extends Model
     {
         return $this->hasMany(Recipe::class);
     }
-    
-    /**
-     * Get the inventory items for this seed variety.
-     */
-    public function inventoryItems(): HasMany
-    {
-        return $this->hasMany(Inventory::class);
-    }
 
     /**
      * Configure the activity log options for this model.

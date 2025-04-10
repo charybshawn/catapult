@@ -74,7 +74,14 @@ class CreateRecipe extends CreateRecord
                                         ->label('Seed Name/Variety')
                                         ->helperText('Include the variety name (e.g., "Basil - Genovese")')
                                         ->required()
-                                        ->maxLength(255),
+                                        ->maxLength(255)
+                                        ->datalist(function () {
+                                            return Consumable::where('type', 'seed')
+                                                ->where('is_active', true)
+                                                ->pluck('name')
+                                                ->unique()
+                                                ->toArray();
+                                        }),
                                     Forms\Components\Select::make('supplier_id')
                                         ->label('Supplier')
                                         ->options(function () {
@@ -104,10 +111,10 @@ class CreateRecipe extends CreateRecord
                                         ->numeric()
                                         ->required()
                                         ->default(1),
-                                    Forms\Components\TextInput::make('unit')
-                                        ->label('Unit of Measurement')
-                                        ->default('packets')
-                                        ->required(),
+                                    Forms\Components\TextInput::make('lot_no')
+                                        ->label('Lot/Batch Number')
+                                        ->required()
+                                        ->maxLength(100),
                                     Forms\Components\TextInput::make('quantity_per_unit')
                                         ->label('Quantity Per Unit (g)')
                                         ->helperText('Amount of seeds in grams per packet')
@@ -139,8 +146,8 @@ class CreateRecipe extends CreateRecord
                                         ->required()
                                         ->default(2),
                                     Forms\Components\Textarea::make('notes')
-                                        ->label('Lot/Batch Information')
-                                        ->helperText('Include seed variety details, lot numbers, or any other important information')
+                                        ->label('Additional Notes')
+                                        ->helperText('Any additional information about this consumable')
                                         ->rows(3),
                                     Forms\Components\Toggle::make('is_active')
                                         ->label('Active')

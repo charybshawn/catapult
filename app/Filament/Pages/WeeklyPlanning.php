@@ -20,7 +20,7 @@ class WeeklyPlanning extends Page
     protected static ?string $navigationLabel = 'Weekly Planning';
     protected static ?string $title = 'Weekly Planning';
     protected static ?string $navigationGroup = 'Farm Operations';
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 2;
     
     protected static string $view = 'filament.pages.weekly-planning';
     

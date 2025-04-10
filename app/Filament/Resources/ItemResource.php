@@ -32,7 +32,7 @@ class ItemResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-shopping-bag';
     protected static ?string $navigationLabel = 'Products';
-    protected static ?string $navigationGroup = 'Sales';
+    protected static ?string $navigationGroup = 'Sales & Products';
     protected static ?int $navigationSort = 1;
 
     public static function form(Form $form): Form

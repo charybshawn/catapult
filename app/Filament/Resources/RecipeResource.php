@@ -25,8 +25,8 @@ class RecipeResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-beaker';
     protected static ?string $navigationLabel = 'Recipes';
-    protected static ?string $navigationGroup = 'Crop Management';
-    protected static ?int $navigationSort = 2;
+    protected static ?string $navigationGroup = 'Farm Operations';
+    protected static ?int $navigationSort = 1;
 
     public static function form(Form $form): Form
     {
@@ -199,7 +199,7 @@ class RecipeResource extends Resource
                     ->modalSubmitActionLabel('Delete')
                     ->before(function (Tables\Actions\DeleteAction $action, Recipe $record) {
                         // Check if recipe has ACTIVE crops specifically
-                        $activeCropsCount = $record->crops()->where('status', '!=', 'completed')->count();
+                        $activeCropsCount = $record->crops()->where('current_stage', '!=', 'harvested')->count();
                         $totalCropsCount = $record->crops()->count();
                         
                         if ($activeCropsCount > 0) {
@@ -314,7 +314,7 @@ class RecipeResource extends Resource
                         ->before(function (Tables\Actions\DeleteBulkAction $action, Collection $records) {
                             // Check if any of the selected recipes have ACTIVE crops
                             $recipesWithActiveCrops = $records->filter(function ($record) {
-                                return $record->crops()->where('status', '!=', 'completed')->count() > 0;
+                                return $record->crops()->where('current_stage', '!=', 'harvested')->count() > 0;
                             });
                             
                             $recipesWithCrops = $records->filter(function ($record) {
@@ -325,7 +325,7 @@ class RecipeResource extends Resource
                                 // There are recipes with ACTIVE crops, let's confirm with the user
                                 $recipesCount = $recipesWithActiveCrops->count();
                                 $totalRecipesWithCrops = $recipesWithCrops->count();
-                                $activecropsCount = $recipesWithActiveCrops->map(fn ($recipe) => $recipe->crops()->where('status', '!=', 'completed')->count())->sum();
+                                $activecropsCount = $recipesWithActiveCrops->map(fn ($recipe) => $recipe->crops()->where('current_stage', '!=', 'harvested')->count())->sum();
                                 $totalCropsCount = $recipesWithCrops->map(fn ($recipe) => $recipe->crops()->count())->sum();
                                 
                                 $action->requiresConfirmation(false); // Disable the default confirmation

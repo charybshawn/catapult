@@ -4,13 +4,11 @@ namespace Database\Seeders;
 
 use App\Models\Consumable;
 use App\Models\Crop;
-use App\Models\Inventory;
 use App\Models\Item;
 use App\Models\Recipe;
 use App\Models\RecipeMix;
 use App\Models\RecipeStage;
 use App\Models\SeedVariety;
-use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Role;
@@ -36,21 +34,11 @@ class DevelopmentSeeder extends Seeder
             $user->assignRole($employeeRole);
         });
         
-        // Create suppliers (mix of seed, soil, and consumable suppliers)
-        $seedSuppliers = Supplier::factory(2)->create(['type' => 'seed']);
-        $soilSuppliers = Supplier::factory(2)->create(['type' => 'soil']);
-        $consumableSuppliers = Supplier::factory(2)->create(['type' => 'consumable']);
-        
-        $suppliers = $seedSuppliers->merge($soilSuppliers)->merge($consumableSuppliers);
-        
-        // Create 10 seed varieties from seed suppliers
-        $seedVarieties = SeedVariety::factory(10)
-            ->recycle($seedSuppliers)
-            ->create();
+        // Get existing seed varieties
+        $seedVarieties = SeedVariety::all();
             
         // Create 5 recipes
         $recipes = Recipe::factory(5)
-            ->recycle($soilSuppliers)
             ->recycle($seedVarieties)
             ->create();
             
@@ -67,16 +55,6 @@ class DevelopmentSeeder extends Seeder
                 ->create();
         }
             
-        // Create inventory items (mix of soil, seed, and consumables)
-        Inventory::factory(3)->seed()->recycle($seedSuppliers)->create();
-        Inventory::factory(3)->soil()->recycle($soilSuppliers)->create();
-        Inventory::factory(4)->consumable()->recycle($consumableSuppliers)->create();
-            
-        // Create consumables (mix of packaging, label, and other)
-        Consumable::factory()->packaging()->forSupplier($consumableSuppliers->random())->create();
-        Consumable::factory()->label()->forSupplier($consumableSuppliers->random())->create();
-        Consumable::factory(3)->other()->forSupplier($consumableSuppliers->random())->create();
-        
         // Create 10 items for sale
         Item::factory(10)
             ->recycle($recipes)

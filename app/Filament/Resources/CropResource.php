@@ -27,23 +27,19 @@ class CropResource extends Resource
     {
         return $form
             ->schema([
+                Forms\Components\TagsInput::make('tray_numbers')
+                    ->label('Tray Numbers')
+                    ->placeholder('Add tray numbers')
+                    ->separator(',')
+                    ->helperText('Enter multiple tray numbers to create separate records for each tray')
+                    ->rules(['array', 'min:1'])
+                    ->nestedRecursiveRules(['integer', 'min:1', 'max:100']),
                 Forms\Components\Select::make('recipe_id')
                     ->label('Recipe')
                     ->relationship('recipe', 'name')
                     ->required()
                     ->searchable()
                     ->preload(),
-                Forms\Components\Select::make('order_id')
-                    ->label('Order')
-                    ->relationship('order', 'id')
-                    ->searchable()
-                    ->preload(),
-                Forms\Components\TextInput::make('tray_number')
-                    ->label('Tray Number')
-                    ->required()
-                    ->integer()
-                    ->minValue(1)
-                    ->maxValue(100),
                 Forms\Components\DateTimePicker::make('planted_at')
                     ->label('Planted At')
                     ->required()
@@ -59,28 +55,39 @@ class CropResource extends Resource
                     ])
                     ->required()
                     ->default('planting'),
-                Forms\Components\DateTimePicker::make('stage_updated_at')
-                    ->label('Stage Updated At')
-                    ->default(now()),
                 Forms\Components\TextInput::make('harvest_weight_grams')
                     ->label('Harvest Weight (grams)')
                     ->numeric()
                     ->minValue(0)
                     ->maxValue(10000)
-                    ->visible(fn (Forms\Get $get) => $get('current_stage') === 'harvested'),
-                Forms\Components\Toggle::make('watering_suspended')
-                    ->label('Suspend Watering')
-                    ->default(false)
-                    ->reactive()
-                    ->afterStateUpdated(function ($state, Crop $record) {
-                        if ($record && $record->exists) {
-                            if ($state) {
-                                $record->watering_suspended_at = now();
-                            } else {
-                                $record->watering_suspended_at = null;
-                            }
-                        }
-                    }),
+                    ->helperText('Can be added at any stage, but required when harvested')
+                    ->required(fn (Forms\Get $get) => $get('current_stage') === 'harvested'),
+                Forms\Components\Section::make('Growth Stage Timestamps')
+                    ->description('Record of when each growth stage began')
+                    ->schema([
+                        Forms\Components\Grid::make()
+                            ->schema([
+                                Forms\Components\DateTimePicker::make('planting_at')
+                                    ->label('Planting')
+                                    ->disabled(),
+                                Forms\Components\DateTimePicker::make('germination_at')
+                                    ->label('Germination')
+                                    ->disabled(),
+                                Forms\Components\DateTimePicker::make('blackout_at')
+                                    ->label('Blackout')
+                                    ->disabled(),
+                                Forms\Components\DateTimePicker::make('light_at')
+                                    ->label('Light')
+                                    ->disabled(),
+                                Forms\Components\DateTimePicker::make('harvested_at')
+                                    ->label('Harvested')
+                                    ->disabled(),
+                            ])
+                            ->columns(3),
+                    ])
+                    ->collapsible()
+                    ->collapsed()
+                    ->visible(fn ($record) => $record !== null),
                 Forms\Components\Textarea::make('notes')
                     ->label('Notes')
                     ->rows(3)
@@ -91,19 +98,23 @@ class CropResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->recordUrl(fn ($record) => static::getUrl('edit', ['record' => $record]))
             ->columns([
                 Tables\Columns\TextColumn::make('tray_number')
-                    ->label('Tray')
+                    ->label('Tray #')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('recipe.seedVariety.name')
                     ->label('Variety')
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('recipe.name')
-                    ->label('Recipe')
                     ->searchable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('planted_at')
+                    ->label('Planted At')
+                    ->dateTime()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('current_stage')
+                    ->label('Current Stage')
                     ->badge()
+                    ->formatStateUsing(fn (string $state): string => ucfirst($state))
                     ->color(fn (string $state): string => match ($state) {
                         'planting' => 'gray',
                         'germination' => 'info',
@@ -111,28 +122,108 @@ class CropResource extends Resource
                         'light' => 'success',
                         'harvested' => 'gray',
                         default => 'gray',
-                    }),
-                Tables\Columns\TextColumn::make('planted_at')
-                    ->dateTime()
+                    })
                     ->sortable(),
-                Tables\Columns\TextColumn::make('expectedHarvestDate')
-                    ->label('Expected Harvest')
-                    ->date()
-                    ->getStateUsing(fn (Crop $record) => $record->expectedHarvestDate()),
-                Tables\Columns\TextColumn::make('daysInCurrentStage')
+                Tables\Columns\TextColumn::make('stage_age')
                     ->label('Days in Stage')
-                    ->getStateUsing(fn (Crop $record) => $record->daysInCurrentStage()),
-                Tables\Columns\IconColumn::make('watering_suspended_at')
-                    ->label('Watering Suspended')
-                    ->boolean()
-                    ->getStateUsing(fn (Crop $record) => $record->watering_suspended_at !== null),
-                Tables\Columns\TextColumn::make('order.id')
-                    ->label('Order ID')
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->getStateUsing(function (Crop $record): int {
+                        $stageField = "{$record->current_stage}_at";
+                        if ($record->$stageField) {
+                            return $record->$stageField->diffInDays(now());
+                        }
+                        return 0;
+                    })
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('time_to_next_stage')
+                    ->label('Time to Next Stage')
+                    ->getStateUsing(function (Crop $record): string {
+                        // Skip if already harvested
+                        if ($record->current_stage === 'harvested') {
+                            return '-';
+                        }
+                        
+                        $recipe = $record->recipe;
+                        if (!$recipe) {
+                            return 'No recipe';
+                        }
+                        
+                        // Get current stage
+                        $currentStage = $record->current_stage;
+                        
+                        // Get the timestamp for the current stage
+                        $stageField = "{$currentStage}_at";
+                        $stageStartTime = $record->$stageField;
+                        
+                        if (!$stageStartTime) {
+                            return 'Unknown';
+                        }
+                        
+                        // Determine the duration for the current stage
+                        $stageDuration = match ($currentStage) {
+                            'planting' => 1, // Planting is typically just 1 day
+                            'germination' => $recipe->germination_days,
+                            'blackout' => $recipe->blackout_days,
+                            'light' => $recipe->light_days,
+                            default => 0,
+                        };
+                        
+                        // Skip the calculation for blackout if duration is 0
+                        if ($currentStage === 'blackout' && $stageDuration === 0) {
+                            return 'Skip blackout';
+                        }
+                        
+                        // Calculate expected end date for this stage
+                        $expectedEndDate = $stageStartTime->copy()->addDays($stageDuration);
+                        
+                        // Calculate time remaining
+                        if ($expectedEndDate->isPast()) {
+                            return 'Overdue!';
+                        }
+                        
+                        // Get time difference in seconds for more accurate calculations
+                        $now = now();
+                        $diffInSeconds = $now->diffInSeconds($expectedEndDate);
+                        
+                        // Convert to days, hours, minutes
+                        $days = floor($diffInSeconds / 86400); // 86400 seconds in a day
+                        $hours = floor(($diffInSeconds % 86400) / 3600); // 3600 seconds in an hour
+                        $minutes = floor(($diffInSeconds % 3600) / 60); // 60 seconds in a minute
+                        
+                        // Format based on time remaining
+                        if ($days > 0) {
+                            return "{$days}d {$hours}h";
+                        } elseif ($hours > 0) {
+                            return "{$hours}h {$minutes}m";
+                        } else {
+                            return "{$minutes}m";
+                        }
+                    })
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('total_age')
+                    ->label('Total Days')
+                    ->getStateUsing(function (Crop $record): int {
+                        return $record->planted_at->diffInDays(now());
+                    })
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('harvest_weight_grams')
+                    ->label('Harvest Weight')
+                    ->formatStateUsing(fn ($state) => $state ? "{$state}g" : '-')
+                    ->sortable(),
             ])
-            ->defaultSort('planted_at', 'desc')
+            ->groups([
+                Tables\Grouping\Group::make('recipe.seedVariety.name')
+                    ->label('Variety')
+                    ->collapsible(),
+                Tables\Grouping\Group::make('planted_at')
+                    ->label('Plant Date')
+                    ->date(),
+                Tables\Grouping\Group::make('current_stage')
+                    ->label('Growth Stage'),
+            ])
+            ->defaultGroup('recipe.seedVariety.name')
             ->filters([
                 Tables\Filters\SelectFilter::make('current_stage')
+                    ->label('Growth Stage')
                     ->options([
                         'planting' => 'Planting',
                         'germination' => 'Germination',
@@ -140,9 +231,6 @@ class CropResource extends Resource
                         'light' => 'Light',
                         'harvested' => 'Harvested',
                     ]),
-                Tables\Filters\Filter::make('watering_suspended')
-                    ->label('Watering Suspended')
-                    ->query(fn (Builder $query) => $query->whereNotNull('watering_suspended_at')),
             ])
             ->actions([
                 Tables\Actions\Action::make('advance_stage')
@@ -152,16 +240,28 @@ class CropResource extends Resource
                         $record->advanceStage();
                     })
                     ->visible(fn (Crop $record): bool => $record->current_stage !== 'harvested'),
-                Tables\Actions\Action::make('toggle_watering')
-                    ->label(fn (Crop $record): string => $record->watering_suspended_at ? 'Resume Watering' : 'Suspend Watering')
-                    ->icon(fn (Crop $record): string => $record->watering_suspended_at ? 'heroicon-o-play' : 'heroicon-o-pause')
-                    ->action(function (Crop $record): void {
-                        if ($record->watering_suspended_at) {
-                            $record->resumeWatering();
-                        } else {
-                            $record->suspendWatering();
-                        }
-                    }),
+                Tables\Actions\Action::make('set_stage')
+                    ->label('Set Stage')
+                    ->icon('heroicon-o-arrow-path')
+                    ->form([
+                        Forms\Components\Select::make('new_stage')
+                            ->label('Growth Stage')
+                            ->options([
+                                'planting' => 'Planting',
+                                'germination' => 'Germination',
+                                'blackout' => 'Blackout',
+                                'light' => 'Light',
+                                'harvested' => 'Harvested',
+                            ])
+                            ->required()
+                            ->helperText('Warning: Setting to an earlier stage will clear timestamps for all later stages.')
+                    ])
+                    ->action(function (Crop $record, array $data): void {
+                        $record->resetToStage($data['new_stage']);
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading('Set Growth Stage')
+                    ->modalDescription('Set the crop to a specific growth stage. This will clear timestamps for any later stages.'),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])
@@ -178,22 +278,30 @@ class CropResource extends Resource
                                 }
                             }
                         }),
-                    Tables\Actions\BulkAction::make('suspend_watering_bulk')
-                        ->label('Suspend Watering')
-                        ->icon('heroicon-o-pause')
-                        ->action(function ($records) {
+                    Tables\Actions\BulkAction::make('set_stage_bulk')
+                        ->label('Set Stage')
+                        ->icon('heroicon-o-arrow-path')
+                        ->form([
+                            Forms\Components\Select::make('new_stage')
+                                ->label('Growth Stage')
+                                ->options([
+                                    'planting' => 'Planting',
+                                    'germination' => 'Germination',
+                                    'blackout' => 'Blackout',
+                                    'light' => 'Light',
+                                    'harvested' => 'Harvested',
+                                ])
+                                ->required()
+                                ->helperText('Warning: Setting to an earlier stage will clear timestamps for all later stages.')
+                        ])
+                        ->action(function ($records, array $data) {
                             foreach ($records as $record) {
-                                $record->suspendWatering();
+                                $record->resetToStage($data['new_stage']);
                             }
-                        }),
-                    Tables\Actions\BulkAction::make('resume_watering_bulk')
-                        ->label('Resume Watering')
-                        ->icon('heroicon-o-play')
-                        ->action(function ($records) {
-                            foreach ($records as $record) {
-                                $record->resumeWatering();
-                            }
-                        }),
+                        })
+                        ->requiresConfirmation()
+                        ->modalHeading('Set Growth Stage for Selected Crops')
+                        ->modalDescription('Set all selected crops to a specific growth stage. This will clear timestamps for any later stages.'),
                 ]),
             ]);
     }

@@ -24,7 +24,11 @@ class Crop extends Model
         'tray_number',
         'planted_at',
         'current_stage',
-        'stage_updated_at',
+        'planting_at',
+        'germination_at',
+        'blackout_at',
+        'light_at',
+        'harvested_at',
         'harvest_weight_grams',
         'watering_suspended_at',
         'notes',
@@ -37,9 +41,14 @@ class Crop extends Model
      */
     protected $casts = [
         'planted_at' => 'datetime',
-        'stage_updated_at' => 'datetime',
+        'planting_at' => 'datetime',
+        'germination_at' => 'datetime',
+        'blackout_at' => 'datetime',
+        'light_at' => 'datetime',
+        'harvested_at' => 'datetime',
         'watering_suspended_at' => 'datetime',
         'harvest_weight_grams' => 'float',
+        'tray_number' => 'string',
     ];
     
     /**
@@ -56,6 +65,29 @@ class Crop extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
+    }
+    
+    /**
+     * Get the seed variety for this crop through the recipe.
+     */
+    public function seedVariety()
+    {
+        return $this->recipe->seedVariety();
+    }
+    
+    /**
+     * For compatibility with the dashboard template - tray is actually just a string field.
+     */
+    public function tray()
+    {
+        // This is a workaround to provide a tray "object" with tray_number property
+        return new class($this->tray_number) {
+            public $tray_number;
+            
+            public function __construct($tray_number) {
+                $this->tray_number = $tray_number;
+            }
+        };
     }
     
     /**
@@ -90,6 +122,7 @@ class Crop extends Model
     public function advanceStage(): void
     {
         $currentStage = $this->current_stage;
+        $now = now();
         
         $this->current_stage = match ($currentStage) {
             'planting' => 'germination',
@@ -99,7 +132,10 @@ class Crop extends Model
             default => $this->current_stage,
         };
         
-        $this->stage_updated_at = now();
+        // Record timestamp for the new stage
+        $stageTimestampField = "{$this->current_stage}_at";
+        $this->$stageTimestampField = $now;
+        
         $this->save();
     }
     
@@ -123,11 +159,13 @@ class Crop extends Model
      */
     public function daysInCurrentStage(): int
     {
-        if (!$this->stage_updated_at) {
+        $stageField = "{$this->current_stage}_at";
+        
+        if (!$this->$stageField) {
             return 0;
         }
         
-        return $this->stage_updated_at->diffInDays(now());
+        return $this->$stageField->diffInDays(now());
     }
     
     /**
@@ -142,11 +180,78 @@ class Crop extends Model
                 'tray_number',
                 'planted_at',
                 'current_stage',
-                'stage_updated_at',
+                'planting_at',
+                'germination_at',
+                'blackout_at',
+                'light_at',
+                'harvested_at',
                 'harvest_weight_grams',
                 'watering_suspended_at'
             ])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
+    }
+    
+    /**
+     * Set the initial planting timestamp when creating a new crop.
+     */
+    protected static function booted()
+    {
+        static::creating(function ($crop) {
+            // Set planting_at timestamp when creating a new crop in planting stage
+            if ($crop->current_stage === 'planting' && !$crop->planting_at) {
+                $crop->planting_at = $crop->planted_at ?? now();
+            }
+        });
+        
+        static::created(function ($crop) {
+            // Schedule stage transition tasks
+            app(\App\Services\CropTaskService::class)->scheduleAllStageTasks($crop);
+        });
+        
+        static::updated(function ($crop) {
+            // If the stage has changed or planted_at has changed, recalculate tasks
+            if ($crop->isDirty('current_stage') || $crop->isDirty('planted_at')) {
+                app(\App\Services\CropTaskService::class)->scheduleAllStageTasks($crop);
+            }
+        });
+    }
+    
+    /**
+     * Reset to a specific stage and clear future stage timestamps.
+     */
+    public function resetToStage(string $newStage): void
+    {
+        $currentStage = $this->current_stage;
+        $now = now();
+        
+        // Set the new stage
+        $this->current_stage = $newStage;
+        
+        // Update the timestamp for the current stage if it's not already set
+        $stageTimestampField = "{$newStage}_at";
+        if (!$this->$stageTimestampField) {
+            $this->$stageTimestampField = $now;
+        }
+        
+        // Clear all timestamps for stages that come after the current stage
+        $stageOrder = ['planting', 'germination', 'blackout', 'light', 'harvested'];
+        $currentStageIndex = array_search($newStage, $stageOrder);
+        
+        // If we found the stage in our ordered list
+        if ($currentStageIndex !== false) {
+            // Clear timestamps for all stages after the current one
+            for ($i = $currentStageIndex + 1; $i < count($stageOrder); $i++) {
+                $fieldName = "{$stageOrder[$i]}_at";
+                $this->$fieldName = null;
+            }
+            
+            // Also clear harvest weight if we're no longer at the harvested stage
+            if ($newStage !== 'harvested') {
+                $this->harvest_weight_grams = null;
+            }
+        }
+        
+        $this->save();
     }
 }
