@@ -3,9 +3,11 @@
 namespace App\Filament\Resources\ConsumableResource\Pages;
 
 use App\Filament\Resources\ConsumableResource;
+use App\Models\Consumable;
 use App\Models\PackagingType;
 use Filament\Actions;
 use Filament\Forms;
+use Filament\Forms\Components;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Database\Eloquent\Model;
 

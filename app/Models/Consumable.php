@@ -53,6 +53,14 @@ class Consumable extends Model
     ];
     
     /**
+     * Set the lot number to uppercase.
+     */
+    public function setLotNoAttribute($value)
+    {
+        $this->attributes['lot_no'] = $value ? strtoupper($value) : null;
+    }
+    
+    /**
      * The "booted" method of the model.
      */
     protected static function booted(): void
@@ -245,6 +253,19 @@ class Consumable extends Model
             'seed' => 'Seeds',
             'label' => 'Labels',
             'other' => 'Other',
+        ];
+    }
+    
+    /**
+     * Get the valid unit types for inventory storage.
+     */
+    public static function getValidUnitTypes(): array
+    {
+        return [
+            'bag' => 'Bag',
+            'packet' => 'Packet',
+            'box' => 'Box',
+            'bale' => 'Bale',
         ];
     }
 }

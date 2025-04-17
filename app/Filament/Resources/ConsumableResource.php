@@ -25,6 +25,9 @@ class ConsumableResource extends Resource
 
     public static function form(Form $form): Form
     {
+        // Determine if we're in edit mode
+        $isEditMode = $form->getOperation() === 'edit';
+        
         return $form
             ->schema([
                 Forms\Components\Section::make('Basic Information')
@@ -34,6 +37,8 @@ class ConsumableResource extends Resource
                             ->options(Consumable::getValidTypes())
                             ->required()
                             ->reactive()
+                            ->disabled($isEditMode) // Disable in edit mode
+                            ->dehydrated() // Ensure the field value is still submitted
                             ->columnSpanFull()
                             ->afterStateUpdated(function ($state, Forms\Set $set) {
                                 // Reset packaging type when type changes
@@ -71,6 +76,7 @@ class ConsumableResource extends Resource
                             ->visible(fn (Forms\Get $get) => $get('type') === 'packaging'),
                         Forms\Components\TextInput::make('lot_no')
                             ->label('Lot/Batch Number')
+                            ->helperText('Will be converted to uppercase')
                             ->maxLength(100)
                             ->visible(fn (Forms\Get $get) => in_array($get('type'), ['seed', 'soil'])),
                         Forms\Components\Toggle::make('is_active')
@@ -98,19 +104,18 @@ class ConsumableResource extends Resource
                                 ->required()
                                 ->visible(fn (Forms\Get $get) => $get('type') !== 'seed')
                                 ->default(0),
-                            Forms\Components\TextInput::make('unit')
+                            Forms\Components\Select::make('unit')
                                 ->label('Unit Type')
-                                ->helperText('How this item is stored (pieces, boxes, rolls, bags, containers, etc.)')
+                                ->options(Consumable::getValidUnitTypes())
                                 ->required()
-                                ->default(function ($get) {
+                                ->default(function (Forms\Get $get) {
                                     return match ($get('type')) {
-                                        'soil' => 'bags',
-                                        'seed' => 'packets',
-                                        'packaging' => 'pieces',
-                                        default => 'pieces',
+                                        'soil' => 'bag',
+                                        'seed' => 'packet',
+                                        'packaging' => 'box',
+                                        default => 'box',
                                     };
-                                })
-                                ->maxLength(50),
+                                }),
                         ])->columns(2),
                         
                         Forms\Components\Group::make([
