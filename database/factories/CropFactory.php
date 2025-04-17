@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Crop;
 use App\Models\Recipe;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -27,21 +28,38 @@ class CropFactory extends Factory
     {
         $recipe = Recipe::factory()->create();
         $plantedAt = fake()->dateTimeBetween('-30 days', 'now');
-        $stageUpdatedAt = fake()->dateTimeBetween($plantedAt, 'now');
         
         $stages = ['planting', 'germination', 'blackout', 'light', 'harvested'];
         $currentStage = fake()->randomElement($stages);
         
-        return [
+        // Set timestamps for each stage up to and including the current stage
+        $timestamps = [];
+        $currentTime = Carbon::instance($plantedAt);
+        
+        foreach ($stages as $stage) {
+            $timestampField = "{$stage}_at";
+            
+            // Add the timestamp for this stage
+            $timestamps[$timestampField] = $currentTime->copy();
+            
+            // If we've reached the current stage, stop adding timestamps
+            if ($stage === $currentStage) {
+                break;
+            }
+            
+            // Add 1-3 days to move to the next stage
+            $currentTime = $currentTime->copy()->addDays(fake()->numberBetween(1, 3));
+        }
+        
+        return array_merge([
             'recipe_id' => $recipe->id,
             'tray_number' => 'T-' . fake()->unique()->numberBetween(1, 999),
             'planted_at' => $plantedAt,
             'current_stage' => $currentStage,
-            'stage_updated_at' => $stageUpdatedAt,
             'harvest_weight_grams' => $currentStage === 'harvested' ? fake()->randomFloat(2, 50, 500) : null,
             'watering_suspended_at' => fake()->optional(0.2)->dateTimeBetween($plantedAt, 'now'),
             'notes' => fake()->optional(0.7)->paragraph(),
-        ];
+        ], $timestamps);
     }
     
     /**
@@ -61,6 +79,11 @@ class CropFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'current_stage' => 'planting',
+            'planting_at' => $attributes['planted_at'] ?? now(),
+            'germination_at' => null,
+            'blackout_at' => null,
+            'light_at' => null,
+            'harvested_at' => null,
             'harvest_weight_grams' => null,
         ]);
     }
@@ -70,10 +93,20 @@ class CropFactory extends Factory
      */
     public function germination(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'current_stage' => 'germination',
-            'harvest_weight_grams' => null,
-        ]);
+        return $this->state(function (array $attributes) {
+            $plantedAt = $attributes['planted_at'] ?? fake()->dateTimeBetween('-30 days', '-7 days');
+            $germinationAt = fake()->dateTimeBetween($plantedAt, 'now');
+            
+            return [
+                'current_stage' => 'germination',
+                'planting_at' => $plantedAt,
+                'germination_at' => $germinationAt,
+                'blackout_at' => null,
+                'light_at' => null,
+                'harvested_at' => null,
+                'harvest_weight_grams' => null,
+            ];
+        });
     }
     
     /**
@@ -81,10 +114,21 @@ class CropFactory extends Factory
      */
     public function blackout(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'current_stage' => 'blackout',
-            'harvest_weight_grams' => null,
-        ]);
+        return $this->state(function (array $attributes) {
+            $plantedAt = $attributes['planted_at'] ?? fake()->dateTimeBetween('-30 days', '-7 days');
+            $germinationAt = fake()->dateTimeBetween($plantedAt, '-5 days');
+            $blackoutAt = fake()->dateTimeBetween($germinationAt, 'now');
+            
+            return [
+                'current_stage' => 'blackout',
+                'planting_at' => $plantedAt,
+                'germination_at' => $germinationAt,
+                'blackout_at' => $blackoutAt,
+                'light_at' => null,
+                'harvested_at' => null,
+                'harvest_weight_grams' => null,
+            ];
+        });
     }
     
     /**
@@ -92,10 +136,22 @@ class CropFactory extends Factory
      */
     public function light(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'current_stage' => 'light',
-            'harvest_weight_grams' => null,
-        ]);
+        return $this->state(function (array $attributes) {
+            $plantedAt = $attributes['planted_at'] ?? fake()->dateTimeBetween('-30 days', '-7 days');
+            $germinationAt = fake()->dateTimeBetween($plantedAt, '-6 days');
+            $blackoutAt = fake()->dateTimeBetween($germinationAt, '-4 days');
+            $lightAt = fake()->dateTimeBetween($blackoutAt, 'now');
+            
+            return [
+                'current_stage' => 'light',
+                'planting_at' => $plantedAt,
+                'germination_at' => $germinationAt,
+                'blackout_at' => $blackoutAt,
+                'light_at' => $lightAt,
+                'harvested_at' => null,
+                'harvest_weight_grams' => null,
+            ];
+        });
     }
     
     /**
@@ -105,11 +161,18 @@ class CropFactory extends Factory
     {
         return $this->state(function (array $attributes) {
             $plantedAt = $attributes['planted_at'] ?? fake()->dateTimeBetween('-30 days', '-7 days');
-            $stageUpdatedAt = fake()->dateTimeBetween($plantedAt, 'now');
+            $germinationAt = fake()->dateTimeBetween($plantedAt, '-6 days');
+            $blackoutAt = fake()->dateTimeBetween($germinationAt, '-5 days');
+            $lightAt = fake()->dateTimeBetween($blackoutAt, '-2 days');
+            $harvestedAt = fake()->dateTimeBetween($lightAt, 'now');
             
             return [
                 'current_stage' => 'harvested',
-                'stage_updated_at' => $stageUpdatedAt,
+                'planting_at' => $plantedAt,
+                'germination_at' => $germinationAt,
+                'blackout_at' => $blackoutAt,
+                'light_at' => $lightAt,
+                'harvested_at' => $harvestedAt,
                 'harvest_weight_grams' => fake()->randomFloat(2, 50, 500),
             ];
         });

@@ -19,7 +19,7 @@ class Consumable extends Model
      */
     protected $fillable = [
         'name',
-        'type', // packaging, label, soil, seed, other
+        'type', // packaging, soil, seed, label, other
         'supplier_id',
         'packaging_type_id', // For packaging consumables only
         'current_stock',
@@ -27,8 +27,8 @@ class Consumable extends Model
         'restock_threshold',
         'restock_quantity',
         'cost_per_unit',
-        'quantity_per_unit',
-        'quantity_unit',
+        'quantity_per_unit', // Weight of each unit
+        'quantity_unit', // Unit of measurement (g, kg, l, oz)
         'total_quantity',
         'notes',
         'lot_no',
@@ -140,16 +140,17 @@ class Consumable extends Model
     public function deduct(int $amount): void
     {
         $newStock = max(0, $this->current_stock - $amount);
-        $this->update([
+        
+        $data = [
             'current_stock' => $newStock,
-        ]);
+        ];
         
         // Update total quantity if applicable
         if ($this->quantity_per_unit) {
-            $this->update([
-                'total_quantity' => $newStock * $this->quantity_per_unit
-            ]);
+            $data['total_quantity'] = $newStock * $this->quantity_per_unit;
         }
+        
+        $this->update($data);
     }
     
     /**
@@ -158,17 +159,18 @@ class Consumable extends Model
     public function add(int $amount): void
     {
         $newStock = $this->current_stock + $amount;
-        $this->update([
+        
+        $data = [
             'current_stock' => $newStock,
             'last_ordered_at' => now(),
-        ]);
+        ];
         
         // Update total quantity if applicable
         if ($this->quantity_per_unit) {
-            $this->update([
-                'total_quantity' => $newStock * $this->quantity_per_unit
-            ]);
+            $data['total_quantity'] = $newStock * $this->quantity_per_unit;
         }
+        
+        $this->update($data);
     }
     
     /**
@@ -200,5 +202,49 @@ class Consumable extends Model
     public function isOutOfStock(): bool
     {
         return $this->current_stock <= 0;
+    }
+
+    /**
+     * Get a formatted display of the total weight with unit.
+     */
+    public function getFormattedTotalWeightAttribute(): string
+    {
+        // For packaging consumables, return empty string
+        if ($this->type === 'packaging') {
+            return '';
+        }
+        
+        if (!$this->total_quantity || !$this->quantity_unit) {
+            return '-';
+        }
+        
+        return number_format($this->total_quantity, 2) . ' ' . $this->quantity_unit;
+    }
+    
+    /**
+     * Get the valid measurement units for quantity.
+     */
+    public static function getValidMeasurementUnits(): array
+    {
+        return [
+            'g' => 'Grams',
+            'kg' => 'Kilograms',
+            'l' => 'Liters',
+            'oz' => 'Ounces',
+        ];
+    }
+    
+    /**
+     * Get the valid types for consumables.
+     */
+    public static function getValidTypes(): array
+    {
+        return [
+            'packaging' => 'Packaging',
+            'soil' => 'Soil',
+            'seed' => 'Seeds',
+            'label' => 'Labels',
+            'other' => 'Other',
+        ];
     }
 }

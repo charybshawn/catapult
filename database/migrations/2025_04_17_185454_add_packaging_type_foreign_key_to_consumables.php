@@ -12,10 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('consumables', function (Blueprint $table) {
-            $table->foreignId('packaging_type_id')
-                ->nullable()
-                ->after('supplier_id')
-                ->constrained()
+            // Add foreign key constraint for packaging_type_id
+            $table->foreign('packaging_type_id')
+                ->references('id')
+                ->on('packaging_types')
                 ->nullOnDelete();
         });
     }
@@ -26,8 +26,8 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('consumables', function (Blueprint $table) {
+            // Drop the foreign key constraint
             $table->dropForeign(['packaging_type_id']);
-            $table->dropColumn('packaging_type_id');
         });
     }
 };

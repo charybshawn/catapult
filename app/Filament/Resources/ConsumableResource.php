@@ -12,6 +12,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Database\Eloquent\Model;
 
 class ConsumableResource extends Resource
 {
@@ -28,26 +29,32 @@ class ConsumableResource extends Resource
             ->schema([
                 Forms\Components\Section::make('Basic Information')
                     ->schema([
-                        Forms\Components\TextInput::make('name')
-                            ->label('Name')
-                            ->required()
-                            ->maxLength(255),
                         Forms\Components\Select::make('type')
                             ->label('Type')
-                            ->options([
-                                'packaging' => 'Packaging',
-                                'label' => 'Labels',
-                                'soil' => 'Soil',
-                                'seed' => 'Seeds',
-                                'other' => 'Other',
-                            ])
+                            ->options(Consumable::getValidTypes())
                             ->required()
                             ->reactive()
+                            ->columnSpanFull()
                             ->afterStateUpdated(function ($state, Forms\Set $set) {
                                 // Reset packaging type when type changes
                                 if ($state !== 'packaging') {
                                     $set('packaging_type_id', null);
                                 }
+                            }),
+                        Forms\Components\TextInput::make('name')
+                            ->label('Name')
+                            ->required()
+                            ->maxLength(255)
+                            ->datalist(function (Forms\Get $get) {
+                                // Only provide autocomplete for seed type
+                                if ($get('type') === 'seed') {
+                                    return Consumable::where('type', 'seed')
+                                        ->where('is_active', true)
+                                        ->pluck('name')
+                                        ->unique()
+                                        ->toArray();
+                                }
+                                return [];
                             }),
                         Forms\Components\Select::make('supplier_id')
                             ->label('Supplier')
@@ -57,7 +64,8 @@ class ConsumableResource extends Resource
                             ->required(),
                         Forms\Components\Select::make('packaging_type_id')
                             ->label('Packaging Type')
-                            ->relationship('packagingType', 'display_name')
+                            ->relationship('packagingType', 'name')
+                            ->getOptionLabelFromRecordUsing(fn (Model $record) => $record->display_name)
                             ->searchable()
                             ->preload()
                             ->visible(fn (Forms\Get $get) => $get('type') === 'packaging'),
@@ -67,21 +75,32 @@ class ConsumableResource extends Resource
                             ->visible(fn (Forms\Get $get) => in_array($get('type'), ['seed', 'soil'])),
                         Forms\Components\Toggle::make('is_active')
                             ->label('Active')
-                            ->default(true),
+                            ->default(true)
+                            ->columnSpanFull()
+                            ->inline(false),
                     ])
                     ->columns(2),
                 
-                Forms\Components\Section::make('Stock Information')
+                Forms\Components\Section::make('Inventory Details')
                     ->schema([
                         Forms\Components\Group::make([
-                            Forms\Components\TextInput::make('current_stock')
-                                ->label('Current Stock')
+                            Forms\Components\TextInput::make('seed_packet_count')
+                                ->label('Units (qty)')
                                 ->numeric()
+                                ->minValue(0)
                                 ->required()
+                                ->visible(fn (Forms\Get $get) => $get('type') === 'seed')
+                                ->default(0),
+                            Forms\Components\TextInput::make('non_seed_stock')
+                                ->label('Units (qty)')
+                                ->numeric()
+                                ->minValue(0)
+                                ->required()
+                                ->visible(fn (Forms\Get $get) => $get('type') !== 'seed')
                                 ->default(0),
                             Forms\Components\TextInput::make('unit')
-                                ->label('Unit of Measurement')
-                                ->helperText('How this item is counted in inventory (pieces, boxes, rolls, etc.)')
+                                ->label('Unit Type')
+                                ->helperText('How this item is stored (pieces, boxes, rolls, bags, containers, etc.)')
                                 ->required()
                                 ->default(function ($get) {
                                     return match ($get('type')) {
@@ -92,6 +111,24 @@ class ConsumableResource extends Resource
                                     };
                                 })
                                 ->maxLength(50),
+                        ])->columns(2),
+                        
+                        Forms\Components\Group::make([
+                            Forms\Components\TextInput::make('quantity_per_unit')
+                                ->label('Weight Per Unit')
+                                ->helperText('How much each unit weighs (e.g., grams per packet)')
+                                ->numeric()
+                                ->required()
+                                ->default(0)
+                                ->visible(fn (Forms\Get $get) => $get('type') !== 'packaging'),
+                            Forms\Components\Select::make('quantity_unit')
+                                ->label('Weight Measurement Unit')
+                                ->helperText('Unit used to measure the weight (grams, kilograms, etc.)')
+                                ->options(Consumable::getValidMeasurementUnits())
+                                ->required()
+                                ->default('g')
+                                ->reactive()
+                                ->visible(fn (Forms\Get $get) => $get('type') !== 'packaging'),
                         ])->columns(2),
                         
                         Forms\Components\Group::make([
@@ -110,34 +147,20 @@ class ConsumableResource extends Resource
                         ])->columns(2),
                     ]),
                 
-                Forms\Components\Section::make('Cost & Quantity Tracking')
+                Forms\Components\Section::make('Costs')
                     ->schema([
-                        Forms\Components\Group::make([
-                            Forms\Components\TextInput::make('cost_per_unit')
-                                ->label('Cost Per Unit')
-                                ->numeric()
-                                ->prefix('$')
-                                ->maxValue(999999.99),
-                            Forms\Components\TextInput::make('quantity_per_unit')
-                                ->label('Quantity Per Unit')
-                                ->helperText('For seeds: grams per packet, for soil: cubic feet per bag')
-                                ->numeric()
-                                ->visible(fn (Forms\Get $get) => in_array($get('type'), ['seed', 'soil'])),
-                            Forms\Components\TextInput::make('quantity_unit')
-                                ->label('Quantity Unit')
-                                ->helperText('Unit for quantity_per_unit (g, oz, cu ft, etc.)')
-                                ->maxLength(50)
-                                ->visible(fn (Forms\Get $get) => in_array($get('type'), ['seed', 'soil'])),
-                        ])->columns(3),
-                    ]),
-                
-                Forms\Components\Section::make('Additional Information')
-                    ->schema([
+                        Forms\Components\TextInput::make('cost_per_unit')
+                            ->label('Cost Per Unit')
+                            ->helperText('How much each unit costs to purchase')
+                            ->numeric()
+                            ->prefix('$')
+                            ->default(0),
                         Forms\Components\Textarea::make('notes')
                             ->label('Notes')
                             ->rows(3)
                             ->columnSpanFull(),
-                    ]),
+                    ])
+                    ->columns(2),
             ]);
     }
 
@@ -159,23 +182,38 @@ class ConsumableResource extends Resource
                         'seed' => 'primary',
                         default => 'gray',
                     }),
-                Tables\Columns\TextColumn::make('packagingType.display_name')
+                Tables\Columns\TextColumn::make('packagingType.name')
                     ->label('Packaging Type')
+                    ->formatStateUsing(fn ($state, $record) => $record && $record->packagingType ? $record->packagingType->display_name : null)
                     ->visible(fn ($record) => $record && $record->type === 'packaging'),
                 Tables\Columns\TextColumn::make('supplier.name')
                     ->label('Supplier')
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('current_stock')
-                    ->label('Current Stock')
+                    ->label('Quantity')
                     ->numeric()
                     ->sortable()
-                    ->suffix(fn ($record) => $record ? ' ' . $record->unit : ''),
+                    ->suffix(fn ($record) => $record ? ' ' . $record->unit : '')
+                    ->size('sm'),
+                Tables\Columns\TextColumn::make('quantity_per_unit')
+                    ->label('Weight Per Unit')
+                    ->numeric()
+                    ->suffix(fn ($record) => $record && $record->quantity_unit ? ' ' . $record->quantity_unit : '')
+                    ->size('sm')
+                    ->visible(fn ($record) => $record && $record->type !== 'packaging'),
+                Tables\Columns\TextColumn::make('formatted_total_weight')
+                    ->label('Total Weight')
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => $query->orderBy('total_quantity', $direction))
+                    ->weight('bold')
+                    ->color('success')
+                    ->visible(fn ($record) => $record && $record->type !== 'packaging'),
                 Tables\Columns\TextColumn::make('restock_threshold')
                     ->label('Restock At')
                     ->numeric()
                     ->sortable()
-                    ->suffix(fn ($record) => $record ? ' ' . $record->unit : ''),
+                    ->suffix(fn ($record) => $record ? ' ' . $record->unit : '')
+                    ->size('sm'),
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
                     ->badge()

@@ -82,8 +82,9 @@ class ViewConsumable extends ViewRecord
                             }),
                         Infolists\Components\TextEntry::make('supplier.name')
                             ->label('Supplier'),
-                        Infolists\Components\TextEntry::make('packagingType.display_name')
+                        Infolists\Components\TextEntry::make('packagingType')
                             ->label('Packaging Type')
+                            ->formatStateUsing(fn ($record) => $record->packagingType?->display_name)
                             ->visible(fn ($record) => $record->type === 'packaging'),
                         Infolists\Components\IconEntry::make('is_active')
                             ->label('Active')
@@ -96,13 +97,9 @@ class ViewConsumable extends ViewRecord
                         Infolists\Components\TextEntry::make('current_stock')
                             ->label('Current Stock')
                             ->suffix(fn ($record) => ' ' . $record->unit),
-                        Infolists\Components\TextEntry::make('total_quantity')
-                            ->label('Total Quantity')
-                            ->visible(fn ($record) => in_array($record->type, ['soil', 'seed']))
-                            ->formatStateUsing(fn ($record) => 
-                                $record->total_quantity 
-                                    ? number_format($record->total_quantity, 2) . ' ' . ($record->quantity_unit ?? '') 
-                                    : null),
+                        Infolists\Components\TextEntry::make('formatted_total_weight')
+                            ->label('Total Weight')
+                            ->visible(fn ($record) => in_array($record->type, ['soil', 'seed'])),
                         Infolists\Components\TextEntry::make('quantity_per_unit')
                             ->label('Quantity Per Unit')
                             ->visible(fn ($record) => in_array($record->type, ['soil', 'seed']))

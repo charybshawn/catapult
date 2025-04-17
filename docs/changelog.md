@@ -67,6 +67,11 @@ This document tracks all significant changes to the Catapult v2 project.
   - Added support for multiple payment methods
   - Implemented payment status tracking
   - Created relation manager for tracking payments per order
+- Enhanced Consumables inventory management
+  - Updated consumable types to standardized categories: packaging, soil, seed, labels, other
+  - Added weight tracking for consumable units with multiple measurement options (grams, kilograms, liters, ounces)
+  - Implemented total weight calculation based on unit weight and quantity
+  - Improved stock management with better tracking of weights and quantities
 
 ### Changed
 - Updated PackagingType model to use volumetric measurements
@@ -81,6 +86,19 @@ This document tracks all significant changes to the Catapult v2 project.
   - Added relationship between Consumable and PackagingType models
   - Enhanced ConsumableResource UI with packaging type selection for packaging consumables
   - Updated table display to show packaging specifications
+
+### Fixed
+- Fixed migration ordering issue with consumables and packaging types tables
+  - Separated the packaging_type_id foreign key constraint into a separate migration
+  - Ensures migrations can run in any environment without sequence errors
+- Fixed duplicate lot_no column migration
+  - Removed redundant add_lot_no_to_consumables_table migration
+  - Consolidated lot_no field in the initial consumables table migration
+- Fixed CropFactory to use new stage timestamp fields
+  - Updated migration to safely handle missing stage_updated_at column
+  - Completely refactored CropFactory to use individual stage timestamp fields
+  - Fixed DateTime vs Carbon compatibility issue in date manipulation
+  - Ensures seeders work correctly with the new database schema
 
 ## [0.1.0] - 2025-03-15
 

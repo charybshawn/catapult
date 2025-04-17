@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -12,8 +13,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('crops', function (Blueprint $table) {
-            // Remove the existing generic stage_updated_at column
-            $table->dropColumn('stage_updated_at');
+            // Check if stage_updated_at column exists before dropping it
+            if (Schema::hasColumn('crops', 'stage_updated_at')) {
+                $table->dropColumn('stage_updated_at');
+            }
             
             // Add specific timestamp columns for each stage
             $table->timestamp('planting_at')->nullable()->after('current_stage');
