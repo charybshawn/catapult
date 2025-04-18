@@ -106,14 +106,10 @@ class Consumable extends Model
     
     /**
      * Get the display name for this consumable.
-     * For packaging type consumables, includes the packaging type details.
+     * For packaging type consumables, the name is the packaging type name.
      */
     public function getDisplayNameAttribute(): string
     {
-        if ($this->type === 'packaging' && $this->packagingType) {
-            return "{$this->name} ({$this->packagingType->display_name})";
-        }
-        
         return $this->name;
     }
     

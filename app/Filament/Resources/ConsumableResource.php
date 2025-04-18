@@ -102,7 +102,7 @@ class ConsumableResource extends Resource
                             ->required()
                             ->maxLength(255)
                             ->datalist(function (Forms\Get $get) {
-                                // Only provide autocomplete for seed type
+                                // For seed type, provide seed names
                                 if ($get('type') === 'seed') {
                                     return Consumable::where('type', 'seed')
                                         ->where('is_active', true)
@@ -110,21 +110,40 @@ class ConsumableResource extends Resource
                                         ->unique()
                                         ->toArray();
                                 }
+                                
+                                // For packaging type, provide packaging type names
+                                if ($get('type') === 'packaging') {
+                                    return \App\Models\PackagingType::where('is_active', true)
+                                        ->pluck('name')
+                                        ->unique()
+                                        ->toArray();
+                                }
+                                
                                 return [];
-                            }),
+                            })
+                            ->reactive()
+                            ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
+                                // Only for packaging type
+                                if ($get('type') === 'packaging') {
+                                    // Try to get packaging type by name
+                                    $packagingType = \App\Models\PackagingType::where('name', $state)->first();
+                                    
+                                    // If packaging type exists, set the hidden field
+                                    if ($packagingType) {
+                                        $set('packaging_type_id', $packagingType->id);
+                                    }
+                                }
+                            })
+                            ->placeholder(fn (Forms\Get $get) => 
+                                $get('type') === 'packaging' ? 'Enter the packaging type name (e.g., Clamshell)' : null),
                         Forms\Components\Select::make('supplier_id')
                             ->label('Supplier')
                             ->relationship('supplier', 'name')
                             ->searchable()
                             ->preload()
                             ->required(),
-                        Forms\Components\Select::make('packaging_type_id')
-                            ->label('Packaging Type')
-                            ->relationship('packagingType', 'name')
-                            ->getOptionLabelFromRecordUsing(fn (Model $record) => $record->display_name)
-                            ->searchable()
-                            ->preload()
-                            ->visible(fn (Forms\Get $get) => $get('type') === 'packaging'),
+                        Forms\Components\Hidden::make('packaging_type_id')
+                            ->dehydrated(fn (Forms\Get $get) => $get('type') === 'packaging'),
                         Forms\Components\TextInput::make('lot_no')
                             ->label('Lot/Batch Number')
                             ->helperText('Will be converted to uppercase')
@@ -187,6 +206,12 @@ class ConsumableResource extends Resource
                     ->sortable()
                     ->toggleable()
                     ->url(fn (Consumable $record): string => ConsumableResource::getUrl('edit', ['record' => $record]))
+                    ->formatStateUsing(function ($state, $record) {
+                        if ($record->type === 'packaging' && $record->packagingType) {
+                            return "{$state} ({$record->packagingType->capacity_volume} {$record->packagingType->volume_unit})";
+                        }
+                        return $state;
+                    })
                     ->color('primary'),
                 Tables\Columns\TextColumn::make('type')
                     ->label('Type')
