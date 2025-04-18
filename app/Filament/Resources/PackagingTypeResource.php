@@ -32,10 +32,10 @@ class PackagingTypeResource extends Resource
                 Forms\Components\Section::make('Packaging Details')
                     ->schema([
                         Forms\Components\TextInput::make('name')
-                            ->label('Base Name')
+                            ->label('Name')
                             ->required()
                             ->maxLength(255)
-                            ->helperText('Base product name without size (e.g., "Clamshell")'),
+                            ->helperText('Name of the packaging type (e.g., "Clamshell")'),
                             
                         Forms\Components\Grid::make()
                             ->schema([
@@ -77,10 +77,10 @@ class PackagingTypeResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('display_name')
-                    ->label('Packaging Type')
-                    ->searchable(['name', 'capacity_volume'])
-                    ->sortable('name'),
+                Tables\Columns\TextColumn::make('name')
+                    ->label('Name')
+                    ->searchable()
+                    ->sortable(),
                 
                 Tables\Columns\TextColumn::make('capacity_volume')
                     ->label('Volume')
