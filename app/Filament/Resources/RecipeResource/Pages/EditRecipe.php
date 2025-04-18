@@ -72,9 +72,8 @@ class EditRecipe extends EditRecord
                                         ->get()
                                         ->mapWithKeys(function ($seed) {
                                             $lotInfo = $seed->lot_no ? " (Lot: {$seed->lot_no})" : "";
-                                            // Calculate available stock manually
-                                            $availableStock = max(0, $seed->initial_stock - $seed->consumed_quantity);
-                                            $totalGrams = $availableStock * ($seed->quantity_per_unit ?? 0);
+                                            // Use computed current_stock property
+                                            $totalGrams = $seed->current_stock * ($seed->quantity_per_unit ?? 0);
                                             $stockInfo = " - " . number_format($totalGrams, 1) . " g available";
                                             return [$seed->id => $seed->name . $lotInfo . $stockInfo];
                                         });
@@ -175,9 +174,8 @@ class EditRecipe extends EditRecord
                                             if ($soil->total_quantity && $soil->quantity_unit) {
                                                 $quantityInfo = " ({$soil->total_quantity} {$soil->quantity_unit} total)";
                                             }
-                                            // Calculate available stock manually
-                                            $availableStock = max(0, $soil->initial_stock - $soil->consumed_quantity);
-                                            $stockInfo = " - {$availableStock} {$soil->unit} available";
+                                            // Use computed current_stock property
+                                            $stockInfo = " - {$soil->current_stock} {$soil->unit} available";
                                             return [$soil->id => $soil->name . $quantityInfo . $stockInfo];
                                         });
                                 })
