@@ -61,7 +61,9 @@ class CreateRecipe extends CreateRecord
                                         ->get()
                                         ->mapWithKeys(function ($seed) {
                                             $lotInfo = $seed->lot_no ? " (Lot: {$seed->lot_no})" : "";
-                                            $totalGrams = $seed->current_stock * $seed->quantity_per_unit;
+                                            // Calculate available stock manually
+                                            $availableStock = max(0, $seed->initial_stock - $seed->consumed_quantity);
+                                            $totalGrams = $availableStock * ($seed->quantity_per_unit ?? 0);
                                             $stockInfo = " - " . number_format($totalGrams, 1) . " g available";
                                             return [$seed->id => $seed->name . $lotInfo . $stockInfo];
                                         });
@@ -107,8 +109,8 @@ class CreateRecipe extends CreateRecord
                                                         ->rows(3),
                                                 ]);
                                         }),
-                                    Forms\Components\TextInput::make('current_stock')
-                                        ->label('Current Stock')
+                                    Forms\Components\TextInput::make('initial_stock')
+                                        ->label('Initial Stock')
                                         ->numeric()
                                         ->required()
                                         ->default(1),
@@ -169,7 +171,9 @@ class CreateRecipe extends CreateRecord
                                             if ($soil->total_quantity && $soil->quantity_unit) {
                                                 $quantityInfo = " ({$soil->total_quantity} {$soil->quantity_unit} total)";
                                             }
-                                            $stockInfo = " - {$soil->current_stock} {$soil->unit} available";
+                                            // Calculate available stock manually
+                                            $availableStock = max(0, $soil->initial_stock - $soil->consumed_quantity);
+                                            $stockInfo = " - {$availableStock} {$soil->unit} available";
                                             return [$soil->id => $soil->name . $quantityInfo . $stockInfo];
                                         });
                                 })
@@ -205,8 +209,8 @@ class CreateRecipe extends CreateRecord
                                                         ->rows(3),
                                                 ]);
                                         }),
-                                    Forms\Components\TextInput::make('current_stock')
-                                        ->label('Current Stock')
+                                    Forms\Components\TextInput::make('initial_stock')
+                                        ->label('Initial Stock')
                                         ->numeric()
                                         ->required()
                                         ->default(1),
