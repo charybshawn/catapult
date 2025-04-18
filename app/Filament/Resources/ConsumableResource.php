@@ -282,16 +282,14 @@ class ConsumableResource extends Resource
                     ->icon('heroicon-o-adjustments-horizontal')
                     ->color('primary')
                     ->form([
-                        Forms\Components\TextInput::make('adjustment_type')
-                            ->label('Adjustment Type')
-                            ->dehydrated(false)
+                        Forms\Components\Hidden::make('adjustment_type')
                             ->default('add')
-                            ->hiddenLabel()
-                            ->hidden()
-                            ->disabled(),
+                            ->dehydrated(true)
+                            ->required(),
                         Forms\Components\Tabs::make('adjustment_tabs')
                             ->tabs([
-                                Forms\Components\Tabs\Tab::make('Add Stock')
+                                Forms\Components\Tabs\Tab::make('add')
+                                    ->label('Add Stock')
                                     ->icon('heroicon-o-plus')
                                     ->schema([
                                         Forms\Components\Grid::make()
@@ -311,7 +309,8 @@ class ConsumableResource extends Resource
                                             ])->columns(2),
                                     ])
                                     ->afterStateUpdated(fn (Forms\Set $set) => $set('adjustment_type', 'add')),
-                                Forms\Components\Tabs\Tab::make('Consume Stock')
+                                Forms\Components\Tabs\Tab::make('consume')
+                                    ->label('Consume Stock')
                                     ->icon('heroicon-o-minus')
                                     ->schema([
                                         Forms\Components\Grid::make()
@@ -334,9 +333,9 @@ class ConsumableResource extends Resource
                             ]),
                     ])
                     ->action(function (Consumable $record, array $data): void {
-                        if ($data['adjustment_type'] === 'add' && isset($data['add_amount'])) {
+                        if (isset($data['adjustment_type']) && $data['adjustment_type'] === 'add' && isset($data['add_amount'])) {
                             $record->add((float)$data['add_amount'], $data['add_unit'] ?? null);
-                        } elseif ($data['adjustment_type'] === 'consume' && isset($data['consume_amount'])) {
+                        } elseif (isset($data['adjustment_type']) && $data['adjustment_type'] === 'consume' && isset($data['consume_amount'])) {
                             $record->deduct((float)$data['consume_amount'], $data['consume_unit'] ?? null);
                         }
                     }),
