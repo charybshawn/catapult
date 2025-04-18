@@ -305,7 +305,7 @@ class ConsumableResource extends Resource
                                                     ->default(fn (Consumable $record) => $record->restock_quantity),
                                                 Forms\Components\Select::make('add_unit')
                                                     ->label('Unit')
-                                                    ->options(fn (Consumable $record) => $this->getCompatibleUnits($record))
+                                                    ->options(fn (Consumable $record) => self::getCompatibleUnits($record))
                                                     ->default(fn (Consumable $record) => $record->unit)
                                                     ->required(),
                                             ])->columns(2),
@@ -325,7 +325,7 @@ class ConsumableResource extends Resource
                                                     ->default(1),
                                                 Forms\Components\Select::make('consume_unit')
                                                     ->label('Unit')
-                                                    ->options(fn (Consumable $record) => $this->getCompatibleUnits($record))
+                                                    ->options(fn (Consumable $record) => self::getCompatibleUnits($record))
                                                     ->default(fn (Consumable $record) => $record->unit)
                                                     ->required(),
                                             ])->columns(2),
@@ -405,10 +405,10 @@ class ConsumableResource extends Resource
      * @param Consumable $record The consumable record
      * @return array Compatible units
      */
-    protected function getCompatibleUnits(Consumable $record): array
+    protected static function getCompatibleUnits(Consumable $record): array
     {
         // Base units always include the record's own unit
-        $units = [$record->unit => $this->getUnitLabel($record->unit)];
+        $units = [$record->unit => self::getUnitLabel($record->unit)];
         
         // Add weight-based compatible units
         if ($record->unit === 'kg') {
@@ -433,7 +433,7 @@ class ConsumableResource extends Resource
      * @param string $unit Unit code
      * @return string Human-readable unit label
      */
-    protected function getUnitLabel(string $unit): string
+    protected static function getUnitLabel(string $unit): string
     {
         $labels = [
             'unit' => 'Unit(s)',
