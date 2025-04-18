@@ -811,6 +811,19 @@ class CreateRecipe extends CreateRecord
         // Create the recipe
         $recipe = static::getModel()::create($data);
         
+        // Save watering schedule to the related model
+        if (!empty($wateringSchedule)) {
+            foreach ($wateringSchedule as $day) {
+                $recipe->wateringSchedule()->create([
+                    'day_number' => $day['day'],
+                    'water_amount_ml' => $day['amount'],
+                    'watering_method' => 'bottom', // Default method
+                    'needs_liquid_fertilizer' => false, // Default value
+                    'notes' => '', // Default empty notes
+                ]);
+            }
+        }
+        
         return $recipe;
     }
     

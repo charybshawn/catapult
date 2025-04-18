@@ -818,4 +818,26 @@ class EditRecipe extends EditRecord
         
         return $data;
     }
+
+    protected function afterSave(): void
+    {
+        // Process watering schedule data
+        if (isset($this->data['watering_schedule_json']) && is_array($this->data['watering_schedule_json'])) {
+            // Delete existing schedule entries
+            $this->record->wateringSchedule()->delete();
+            
+            // Create new schedule entries
+            foreach ($this->data['watering_schedule_json'] as $entry) {
+                if (isset($entry['day']) && isset($entry['amount'])) {
+                    $this->record->wateringSchedule()->create([
+                        'day_number' => $entry['day'],
+                        'water_amount_ml' => $entry['amount'],
+                        'watering_method' => 'bottom', // Default method
+                        'needs_liquid_fertilizer' => false, // Default value
+                        'notes' => '', // Default empty notes
+                    ]);
+                }
+            }
+        }
+    }
 }
