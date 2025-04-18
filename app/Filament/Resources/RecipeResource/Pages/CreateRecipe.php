@@ -60,8 +60,9 @@ class CreateRecipe extends CreateRecord
                                         ->where('is_active', true)
                                         ->get()
                                         ->mapWithKeys(function ($seed) {
-                                            $lotInfo = !empty($seed->notes) ? " (Lot: " . substr($seed->notes, 0, 20) . ")" : "";
-                                            $stockInfo = " - {$seed->current_stock} {$seed->unit} available";
+                                            $lotInfo = $seed->lot_no ? " (Lot: {$seed->lot_no})" : "";
+                                            $totalGrams = $seed->current_stock * $seed->quantity_per_unit;
+                                            $stockInfo = " - " . number_format($totalGrams, 1) . " g available";
                                             return [$seed->id => $seed->name . $lotInfo . $stockInfo];
                                         });
                                 })

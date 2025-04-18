@@ -73,7 +73,7 @@ class EditRecipe extends EditRecord
                                         ->mapWithKeys(function ($seed) {
                                             $lotInfo = $seed->lot_no ? " (Lot: {$seed->lot_no})" : "";
                                             $totalGrams = $seed->current_stock * $seed->quantity_per_unit;
-                                            $stockInfo = " - {$totalGrams} g available";
+                                            $stockInfo = " - " . number_format($totalGrams, 1) . " g available";
                                             return [$seed->id => $seed->name . $lotInfo . $stockInfo];
                                         });
                                 })
