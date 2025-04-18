@@ -44,14 +44,14 @@ class Consumable extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'initial_stock' => 'decimal:2',
-        'consumed_quantity' => 'decimal:2',
+        'initial_stock' => 'decimal:3',
+        'consumed_quantity' => 'decimal:3',
         'units_quantity' => 'integer',
-        'restock_threshold' => 'integer',
-        'restock_quantity' => 'integer',
+        'restock_threshold' => 'decimal:3',
+        'restock_quantity' => 'decimal:3',
         'cost_per_unit' => 'decimal:2',
-        'quantity_per_unit' => 'decimal:2',
-        'total_quantity' => 'decimal:2',
+        'quantity_per_unit' => 'decimal:3',
+        'total_quantity' => 'decimal:3',
         'is_active' => 'boolean',
         'last_ordered_at' => 'datetime',
     ];
@@ -157,12 +157,61 @@ class Consumable extends Model
     }
     
     /**
-     * Deduct quantity from stock (increase consumed_quantity).
+     * Helper method to normalize quantity based on unit
+     * 
+     * @param float $amount Amount to normalize
+     * @param string|null $sourceUnit Source unit (if different from model's unit)
+     * @return float Normalized amount
      */
-    public function deduct(int $amount): void
+    protected function normalizeQuantity(float $amount, ?string $sourceUnit = null): float
     {
+        if (!$sourceUnit || $sourceUnit === $this->unit) {
+            return $amount;
+        }
+        
+        // Handle weight conversions
+        if (in_array($this->unit, ['kg', 'g']) && in_array($sourceUnit, ['kg', 'g'])) {
+            // Convert from g to kg
+            if ($this->unit === 'kg' && $sourceUnit === 'g') {
+                return $amount / 1000;
+            }
+            
+            // Convert from kg to g
+            if ($this->unit === 'g' && $sourceUnit === 'kg') {
+                return $amount * 1000;
+            }
+        }
+        
+        // Handle volume conversions
+        if (in_array($this->unit, ['l', 'ml']) && in_array($sourceUnit, ['l', 'ml'])) {
+            // Convert from ml to l
+            if ($this->unit === 'l' && $sourceUnit === 'ml') {
+                return $amount / 1000;
+            }
+            
+            // Convert from l to ml
+            if ($this->unit === 'ml' && $sourceUnit === 'l') {
+                return $amount * 1000;
+            }
+        }
+        
+        // Return original amount if no conversion is needed or possible
+        return $amount;
+    }
+    
+    /**
+     * Deduct quantity from stock (increase consumed_quantity).
+     * 
+     * @param float $amount Amount to deduct
+     * @param string|null $unit Unit of the amount (for conversion)
+     */
+    public function deduct(float $amount, ?string $unit = null): void
+    {
+        // Normalize amount based on unit if needed
+        $normalizedAmount = $this->normalizeQuantity($amount, $unit);
+        
         // Increase the consumed quantity
-        $newConsumedQuantity = $this->consumed_quantity + $amount;
+        $newConsumedQuantity = $this->consumed_quantity + $normalizedAmount;
         
         $data = [
             'consumed_quantity' => $newConsumedQuantity,
@@ -179,11 +228,17 @@ class Consumable extends Model
     
     /**
      * Add quantity to stock (increase initial_stock).
+     * 
+     * @param float $amount Amount to add
+     * @param string|null $unit Unit of the amount (for conversion)
      */
-    public function add(int $amount): void
+    public function add(float $amount, ?string $unit = null): void
     {
+        // Normalize amount based on unit if needed
+        $normalizedAmount = $this->normalizeQuantity($amount, $unit);
+        
         // Increase the initial stock
-        $newInitialStock = $this->initial_stock + $amount;
+        $newInitialStock = $this->initial_stock + $normalizedAmount;
         
         $data = [
             'initial_stock' => $newInitialStock,
@@ -260,6 +315,7 @@ class Consumable extends Model
             'g' => 'Grams',
             'kg' => 'Kilograms',
             'l' => 'Litre(s)',
+            'ml' => 'Milliliters',
             'oz' => 'Ounces',
         ];
     }
@@ -289,6 +345,7 @@ class Consumable extends Model
             'g' => 'Grams',
             'oz' => 'Ounces',
             'l' => 'Litre(s)',
+            'ml' => 'Milliliters',
         ];
     }
 

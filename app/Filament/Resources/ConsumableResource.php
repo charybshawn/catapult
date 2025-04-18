@@ -74,6 +74,7 @@ class ConsumableResource extends Resource
                 'g' => 'Grams',
                 'oz' => 'Ounces',
                 'l' => 'Litre(s)',
+                'ml' => 'Milliliters',
             ])
             ->required()
             ->default('unit');
@@ -293,35 +294,50 @@ class ConsumableResource extends Resource
                                 Forms\Components\Tabs\Tab::make('Add Stock')
                                     ->icon('heroicon-o-plus')
                                     ->schema([
-                                        Forms\Components\TextInput::make('add_amount')
-                                            ->label('Amount to Add')
-                                            ->numeric()
-                                            ->minValue(0.01)
-                                            ->required()
-                                            ->default(fn (Consumable $record) => $record->restock_quantity)
-                                            ->suffix(fn (Consumable $record) => $record->unit),
+                                        Forms\Components\Grid::make()
+                                            ->schema([
+                                                Forms\Components\TextInput::make('add_amount')
+                                                    ->label('Amount to Add')
+                                                    ->numeric()
+                                                    ->step(0.001)
+                                                    ->minValue(0.001)
+                                                    ->required()
+                                                    ->default(fn (Consumable $record) => $record->restock_quantity),
+                                                Forms\Components\Select::make('add_unit')
+                                                    ->label('Unit')
+                                                    ->options(fn (Consumable $record) => $this->getCompatibleUnits($record))
+                                                    ->default(fn (Consumable $record) => $record->unit)
+                                                    ->required(),
+                                            ])->columns(2),
                                     ])
                                     ->afterStateUpdated(fn (Forms\Set $set) => $set('adjustment_type', 'add')),
                                 Forms\Components\Tabs\Tab::make('Consume Stock')
                                     ->icon('heroicon-o-minus')
                                     ->schema([
-                                        Forms\Components\TextInput::make('consume_amount')
-                                            ->label('Amount to Consume')
-                                            ->numeric()
-                                            ->minValue(0.01)
-                                            ->maxValue(fn (Consumable $record) => max(0, $record->initial_stock - $record->consumed_quantity))
-                                            ->required()
-                                            ->default(1)
-                                            ->suffix(fn (Consumable $record) => $record->unit),
+                                        Forms\Components\Grid::make()
+                                            ->schema([
+                                                Forms\Components\TextInput::make('consume_amount')
+                                                    ->label('Amount to Consume')
+                                                    ->numeric()
+                                                    ->step(0.001)
+                                                    ->minValue(0.001)
+                                                    ->required()
+                                                    ->default(1),
+                                                Forms\Components\Select::make('consume_unit')
+                                                    ->label('Unit')
+                                                    ->options(fn (Consumable $record) => $this->getCompatibleUnits($record))
+                                                    ->default(fn (Consumable $record) => $record->unit)
+                                                    ->required(),
+                                            ])->columns(2),
                                     ])
                                     ->afterStateUpdated(fn (Forms\Set $set) => $set('adjustment_type', 'consume')),
                             ]),
                     ])
                     ->action(function (Consumable $record, array $data): void {
                         if ($data['adjustment_type'] === 'add' && isset($data['add_amount'])) {
-                            $record->add((float)$data['add_amount']);
+                            $record->add((float)$data['add_amount'], $data['add_unit'] ?? null);
                         } elseif ($data['adjustment_type'] === 'consume' && isset($data['consume_amount'])) {
-                            $record->deduct((float)$data['consume_amount']);
+                            $record->deduct((float)$data['consume_amount'], $data['consume_unit'] ?? null);
                         }
                     }),
                 Tables\Actions\DeleteAction::make(),
@@ -336,7 +352,8 @@ class ConsumableResource extends Resource
                             Forms\Components\TextInput::make('amount')
                                 ->label('Amount to Add')
                                 ->numeric()
-                                ->minValue(0.01)
+                                ->step(0.001)
+                                ->minValue(0.001)
                                 ->required()
                                 ->default(10),
                         ])
@@ -352,7 +369,8 @@ class ConsumableResource extends Resource
                             Forms\Components\TextInput::make('amount')
                                 ->label('Amount to Consume')
                                 ->numeric()
-                                ->minValue(0.01)
+                                ->step(0.001)
+                                ->minValue(0.001)
                                 ->required()
                                 ->default(1),
                         ])
@@ -379,5 +397,53 @@ class ConsumableResource extends Resource
             'view' => Pages\ViewConsumable::route('/{record}'),
             'edit' => Pages\EditConsumable::route('/{record}/edit'),
         ];
+    }
+
+    /**
+     * Get compatible units for a consumable for unit conversion
+     * 
+     * @param Consumable $record The consumable record
+     * @return array Compatible units
+     */
+    protected function getCompatibleUnits(Consumable $record): array
+    {
+        // Base units always include the record's own unit
+        $units = [$record->unit => $this->getUnitLabel($record->unit)];
+        
+        // Add weight-based compatible units
+        if ($record->unit === 'kg') {
+            $units['g'] = 'Grams';
+        } else if ($record->unit === 'g') {
+            $units['kg'] = 'Kilograms';
+        }
+        
+        // Add volume-based compatible units
+        if ($record->unit === 'l') {
+            $units['ml'] = 'Milliliters';
+        } else if ($record->unit === 'ml') {
+            $units['l'] = 'Liters';
+        }
+        
+        return $units;
+    }
+
+    /**
+     * Get human-readable label for unit
+     * 
+     * @param string $unit Unit code
+     * @return string Human-readable unit label
+     */
+    protected function getUnitLabel(string $unit): string
+    {
+        $labels = [
+            'unit' => 'Unit(s)',
+            'kg' => 'Kilograms',
+            'g' => 'Grams',
+            'oz' => 'Ounces',
+            'l' => 'Litre(s)',
+            'ml' => 'Milliliters',
+        ];
+        
+        return $labels[$unit] ?? $unit;
     }
 } 
