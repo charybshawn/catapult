@@ -73,8 +73,8 @@ class EditRecipe extends EditRecord
                                         ->mapWithKeys(function ($seed) {
                                             $lotInfo = $seed->lot_no ? " (Lot: {$seed->lot_no})" : "";
                                             $totalWeight = $seed->current_stock;
-                                            // Use the proper weight unit from the database
-                                            $displayUnit = $seed->quantity_unit ?? 'g';
+                                            // Use the unit field from the database
+                                            $displayUnit = $seed->unit ?? 'g';
                                             $stockInfo = " - " . number_format($totalWeight, 1) . " {$displayUnit} available";
                                             return [$seed->id => $seed->name . $lotInfo . $stockInfo];
                                         });

@@ -62,8 +62,8 @@ class CreateRecipe extends CreateRecord
                                         ->mapWithKeys(function ($seed) {
                                             $lotInfo = $seed->lot_no ? " (Lot: {$seed->lot_no})" : "";
                                             $totalWeight = $seed->current_stock * ($seed->quantity_per_unit ?? 0);
-                                            // Use the proper weight unit from the database
-                                            $displayUnit = $seed->quantity_unit ?? 'g';
+                                            // Use the unit field from the database
+                                            $displayUnit = $seed->unit ?? 'g';
                                             $stockInfo = " - " . number_format($totalWeight, 1) . " {$displayUnit} available";
                                             return [$seed->id => $seed->name . $lotInfo . $stockInfo];
                                         });
