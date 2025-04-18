@@ -22,8 +22,10 @@ class Consumable extends Model
         'type', // packaging, soil, seed, label, other
         'supplier_id',
         'packaging_type_id', // For packaging consumables only
-        'current_stock',
+        'initial_stock',
+        'consumed_quantity',
         'unit', // pieces, rolls, bags, etc.
+        'units_quantity', // How many units are in each package
         'restock_threshold',
         'restock_quantity',
         'cost_per_unit',
@@ -42,7 +44,9 @@ class Consumable extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'current_stock' => 'integer',
+        'initial_stock' => 'decimal:2',
+        'consumed_quantity' => 'decimal:2',
+        'units_quantity' => 'integer',
         'restock_threshold' => 'integer',
         'restock_quantity' => 'integer',
         'cost_per_unit' => 'decimal:2',
@@ -50,6 +54,15 @@ class Consumable extends Model
         'total_quantity' => 'decimal:2',
         'is_active' => 'boolean',
         'last_ordered_at' => 'datetime',
+    ];
+    
+    /**
+     * The accessors to append to the model's array form.
+     *
+     * @var array
+     */
+    protected $appends = [
+        'current_stock',
     ];
     
     /**
@@ -68,7 +81,8 @@ class Consumable extends Model
         static::saving(function (Consumable $consumable) {
             // If quantity tracking fields are set, calculate the total quantity
             if ($consumable->quantity_per_unit) {
-                $consumable->total_quantity = $consumable->current_stock * $consumable->quantity_per_unit;
+                $availableStock = max(0, $consumable->initial_stock - $consumable->consumed_quantity);
+                $consumable->total_quantity = $availableStock * $consumable->quantity_per_unit;
             }
         });
     }
@@ -143,39 +157,43 @@ class Consumable extends Model
     }
     
     /**
-     * Deduct quantity from stock.
+     * Deduct quantity from stock (increase consumed_quantity).
      */
     public function deduct(int $amount): void
     {
-        $newStock = max(0, $this->current_stock - $amount);
+        // Increase the consumed quantity
+        $newConsumedQuantity = $this->consumed_quantity + $amount;
         
         $data = [
-            'current_stock' => $newStock,
+            'consumed_quantity' => $newConsumedQuantity,
         ];
         
         // Update total quantity if applicable
         if ($this->quantity_per_unit) {
-            $data['total_quantity'] = $newStock * $this->quantity_per_unit;
+            $availableStock = max(0, $this->initial_stock - $newConsumedQuantity);
+            $data['total_quantity'] = $availableStock * $this->quantity_per_unit;
         }
         
         $this->update($data);
     }
     
     /**
-     * Add quantity to stock.
+     * Add quantity to stock (increase initial_stock).
      */
     public function add(int $amount): void
     {
-        $newStock = $this->current_stock + $amount;
+        // Increase the initial stock
+        $newInitialStock = $this->initial_stock + $amount;
         
         $data = [
-            'current_stock' => $newStock,
+            'initial_stock' => $newInitialStock,
             'last_ordered_at' => now(),
         ];
         
         // Update total quantity if applicable
         if ($this->quantity_per_unit) {
-            $data['total_quantity'] = $newStock * $this->quantity_per_unit;
+            $availableStock = max(0, $newInitialStock - $this->consumed_quantity);
+            $data['total_quantity'] = $availableStock * $this->quantity_per_unit;
         }
         
         $this->update($data);
@@ -192,7 +210,8 @@ class Consumable extends Model
                 'type', 
                 'supplier_id',
                 'packaging_type_id',
-                'current_stock',
+                'initial_stock',
+                'consumed_quantity',
                 'unit',
                 'restock_threshold',
                 'restock_quantity',
@@ -207,6 +226,9 @@ class Consumable extends Model
             ->dontSubmitEmptyLogs();
     }
 
+    /**
+     * Check if consumable is out of stock.
+     */
     public function isOutOfStock(): bool
     {
         return $this->current_stock <= 0;
@@ -237,7 +259,7 @@ class Consumable extends Model
         return [
             'g' => 'Grams',
             'kg' => 'Kilograms',
-            'l' => 'Liters',
+            'l' => 'Litre(s)',
             'oz' => 'Ounces',
         ];
     }
@@ -262,10 +284,39 @@ class Consumable extends Model
     public static function getValidUnitTypes(): array
     {
         return [
-            'bag' => 'Bag',
-            'packet' => 'Packet',
-            'box' => 'Box',
-            'bale' => 'Bale',
+            'unit' => 'Unit(s)',
+            'kg' => 'Kilograms',
+            'g' => 'Grams',
+            'oz' => 'Ounces',
+            'l' => 'Litre(s)',
         ];
+    }
+
+    /**
+     * Get a formatted display of the stock.
+     */
+    public function getFormattedCurrentStockAttribute(): string
+    {
+        // Map unit codes to their full names
+        $unitMap = [
+            'l' => 'litre(s)',
+            'g' => 'gram(s)',
+            'kg' => 'kilogram(s)',
+            'oz' => 'ounce(s)',
+            'unit' => 'unit(s)',
+        ];
+        
+        $displayUnit = $unitMap[$this->unit] ?? $this->unit;
+        $availableStock = $this->current_stock; // This uses the accessor
+        
+        return "{$availableStock} {$displayUnit}";
+    }
+
+    /**
+     * Get the computed current stock (initial - consumed).
+     */
+    public function getCurrentStockAttribute()
+    {
+        return max(0, $this->initial_stock - $this->consumed_quantity);
     }
 }

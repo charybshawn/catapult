@@ -28,6 +28,56 @@ class ConsumableResource extends Resource
         // Determine if we're in edit mode
         $isEditMode = $form->getOperation() === 'edit';
         
+        // Define the quantity schema based on operation
+        $quantitySchema = $isEditMode
+            ? [
+                Forms\Components\TextInput::make('initial_stock')
+                    ->label('Initial Quantity')
+                    ->numeric()
+                    ->minValue(0)
+                    ->required()
+                    ->default(0)
+                    ->reactive()
+                    ->afterStateUpdated(fn (Forms\Set $set, Forms\Get $get) => 
+                        $set('current_stock_display', max(0, (float)$get('initial_stock') - (float)$get('consumed_quantity')))
+                    ),
+                Forms\Components\TextInput::make('consumed_quantity')
+                    ->label('Consumed Quantity')
+                    ->numeric()
+                    ->minValue(0)
+                    ->default(0)
+                    ->reactive()
+                    ->afterStateUpdated(fn (Forms\Set $set, Forms\Get $get) => 
+                        $set('current_stock_display', max(0, (float)$get('initial_stock') - (float)$get('consumed_quantity')))
+                    ),
+                Forms\Components\TextInput::make('current_stock_display')
+                    ->label('Available Stock')
+                    ->disabled()
+                    ->dehydrated(false)
+                    ->numeric(),
+            ] 
+            : [
+                Forms\Components\TextInput::make('initial_stock')
+                    ->label('Initial Quantity')
+                    ->numeric()
+                    ->minValue(0)
+                    ->required()
+                    ->default(0),
+            ];
+        
+        // Add unit field to both cases
+        $quantitySchema[] = Forms\Components\Select::make('unit')
+            ->label('Unit of Measure')
+            ->options([
+                'unit' => 'Unit(s)',
+                'kg' => 'Kilograms',
+                'g' => 'Grams',
+                'oz' => 'Ounces',
+                'l' => 'Litre(s)',
+            ])
+            ->required()
+            ->default('unit');
+        
         return $form
             ->schema([
                 Forms\Components\Section::make('Basic Information')
@@ -89,67 +139,24 @@ class ConsumableResource extends Resource
                 
                 Forms\Components\Section::make('Inventory Details')
                     ->schema([
-                        Forms\Components\Group::make([
-                            Forms\Components\TextInput::make('seed_packet_count')
-                                ->label('Units (qty)')
-                                ->numeric()
-                                ->minValue(0)
-                                ->required()
-                                ->visible(fn (Forms\Get $get) => $get('type') === 'seed')
-                                ->default(0),
-                            Forms\Components\TextInput::make('non_seed_stock')
-                                ->label('Units (qty)')
-                                ->numeric()
-                                ->minValue(0)
-                                ->required()
-                                ->visible(fn (Forms\Get $get) => $get('type') !== 'seed')
-                                ->default(0),
-                            Forms\Components\Select::make('unit')
-                                ->label('Unit Type')
-                                ->options(Consumable::getValidUnitTypes())
-                                ->required()
-                                ->default(function (Forms\Get $get) {
-                                    return match ($get('type')) {
-                                        'soil' => 'bag',
-                                        'seed' => 'packet',
-                                        'packaging' => 'box',
-                                        default => 'box',
-                                    };
-                                }),
-                        ])->columns(2),
+                        Forms\Components\Fieldset::make('Quantity')
+                            ->schema($quantitySchema)->columns(2),
                         
-                        Forms\Components\Group::make([
-                            Forms\Components\TextInput::make('quantity_per_unit')
-                                ->label('Weight Per Unit')
-                                ->helperText('How much each unit weighs (e.g., grams per packet)')
-                                ->numeric()
-                                ->required()
-                                ->default(0)
-                                ->visible(fn (Forms\Get $get) => $get('type') !== 'packaging'),
-                            Forms\Components\Select::make('quantity_unit')
-                                ->label('Weight Measurement Unit')
-                                ->helperText('Unit used to measure the weight (grams, kilograms, etc.)')
-                                ->options(Consumable::getValidMeasurementUnits())
-                                ->required()
-                                ->default('g')
-                                ->reactive()
-                                ->visible(fn (Forms\Get $get) => $get('type') !== 'packaging'),
-                        ])->columns(2),
-                        
-                        Forms\Components\Group::make([
-                            Forms\Components\TextInput::make('restock_threshold')
-                                ->label('Restock Threshold')
-                                ->helperText('When stock falls below this number, reorder')
-                                ->numeric()
-                                ->required()
-                                ->default(5),
-                            Forms\Components\TextInput::make('restock_quantity')
-                                ->label('Restock Quantity')
-                                ->helperText('How many to order when restocking')
-                                ->numeric()
-                                ->required()
-                                ->default(10),
-                        ])->columns(2),
+                        Forms\Components\Fieldset::make('Restock Settings')
+                            ->schema([
+                                Forms\Components\TextInput::make('restock_threshold')
+                                    ->label('Restock Threshold')
+                                    ->helperText('When stock falls below this number, reorder')
+                                    ->numeric()
+                                    ->required()
+                                    ->default(5),
+                                Forms\Components\TextInput::make('restock_quantity')
+                                    ->label('Restock Quantity')
+                                    ->helperText('How many to order when restocking')
+                                    ->numeric()
+                                    ->required()
+                                    ->default(10),
+                            ])->columns(2),
                     ]),
                 
                 Forms\Components\Section::make('Costs')
@@ -176,7 +183,10 @@ class ConsumableResource extends Resource
                 Tables\Columns\TextColumn::make('name')
                     ->label('Name')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable()
+                    ->url(fn (Consumable $record): string => ConsumableResource::getUrl('edit', ['record' => $record]))
+                    ->color('primary'),
                 Tables\Columns\TextColumn::make('type')
                     ->label('Type')
                     ->badge()
@@ -186,39 +196,38 @@ class ConsumableResource extends Resource
                         'soil' => 'warning',
                         'seed' => 'primary',
                         default => 'gray',
-                    }),
-                Tables\Columns\TextColumn::make('packagingType.name')
-                    ->label('Packaging Type')
-                    ->formatStateUsing(fn ($state, $record) => $record && $record->packagingType ? $record->packagingType->display_name : null)
-                    ->visible(fn ($record) => $record && $record->type === 'packaging'),
+                    })
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('supplier.name')
                     ->label('Supplier')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('current_stock')
-                    ->label('Quantity')
+                    ->label('Available Quantity')
+                    ->getStateUsing(fn ($record) => $record ? max(0, $record->initial_stock - $record->consumed_quantity) : 0)
                     ->numeric()
-                    ->sortable()
-                    ->suffix(fn ($record) => $record ? ' ' . $record->unit : '')
-                    ->size('sm'),
-                Tables\Columns\TextColumn::make('quantity_per_unit')
-                    ->label('Weight Per Unit')
-                    ->numeric()
-                    ->suffix(fn ($record) => $record && $record->quantity_unit ? ' ' . $record->quantity_unit : '')
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => 
+                        $query->orderByRaw("(initial_stock - consumed_quantity) {$direction}")
+                    )
+                    ->formatStateUsing(function ($state, $record) {
+                        if (!$record) return $state;
+                        
+                        // Map unit codes to their full names
+                        $unitMap = [
+                            'l' => 'litre(s)',
+                            'g' => 'gram(s)',
+                            'kg' => 'kilogram(s)',
+                            'oz' => 'ounce(s)',
+                            'unit' => 'unit(s)',
+                        ];
+                        
+                        $displayUnit = $unitMap[$record->unit] ?? $record->unit;
+                        
+                        return "{$state} {$displayUnit}";
+                    })
                     ->size('sm')
-                    ->visible(fn ($record) => $record && $record->type !== 'packaging'),
-                Tables\Columns\TextColumn::make('formatted_total_weight')
-                    ->label('Total Weight')
-                    ->sortable(query: fn (Builder $query, string $direction): Builder => $query->orderBy('total_quantity', $direction))
-                    ->weight('bold')
-                    ->color('success')
-                    ->visible(fn ($record) => $record && $record->type !== 'packaging'),
-                Tables\Columns\TextColumn::make('restock_threshold')
-                    ->label('Restock At')
-                    ->numeric()
-                    ->sortable()
-                    ->suffix(fn ($record) => $record ? ' ' . $record->unit : '')
-                    ->size('sm'),
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
                     ->badge()
@@ -231,18 +240,22 @@ class ConsumableResource extends Resource
                         $record->isOutOfStock() => 'Out of Stock',
                         $record->needsRestock() => 'Reorder Needed',
                         default => 'In Stock',
-                    } : 'Unknown'),
-                Tables\Columns\TextColumn::make('last_ordered_at')
-                    ->label('Last Ordered')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    } : 'Unknown')
+                    ->toggleable(),
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Active')
                     ->boolean()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label('Created')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->defaultSort('current_stock', 'asc')
+            ->defaultSort(function (Builder $query) {
+                return $query->orderByRaw('(initial_stock - consumed_quantity) ASC');
+            })
             ->filters([
                 Tables\Filters\SelectFilter::make('type')
                     ->options([
@@ -254,44 +267,108 @@ class ConsumableResource extends Resource
                     ]),
                 Tables\Filters\Filter::make('needs_restock')
                     ->label('Needs Restock')
-                    ->query(fn (Builder $query) => $query->whereRaw('current_stock <= restock_threshold')),
+                    ->query(fn (Builder $query) => $query->whereRaw('initial_stock - consumed_quantity <= restock_threshold')),
                 Tables\Filters\Filter::make('out_of_stock')
                     ->label('Out of Stock')
-                    ->query(fn (Builder $query) => $query->where('current_stock', '<=', 0)),
+                    ->query(fn (Builder $query) => $query->whereRaw('initial_stock <= consumed_quantity')),
                 Tables\Filters\Filter::make('inactive')
                     ->label('Inactive')
                     ->query(fn (Builder $query) => $query->where('is_active', false)),
             ])
             ->actions([
-                Tables\Actions\Action::make('restock')
-                    ->label('Restock')
-                    ->icon('heroicon-o-shopping-cart')
+                Tables\Actions\Action::make('adjust_stock')
+                    ->label('Adjust Stock')
+                    ->icon('heroicon-o-adjustments-horizontal')
+                    ->color('primary')
                     ->form([
-                        Forms\Components\TextInput::make('amount')
-                            ->label('Amount to Add')
-                            ->numeric()
-                            ->required()
-                            ->default(fn (Consumable $record) => $record->restock_quantity),
+                        Forms\Components\TextInput::make('adjustment_type')
+                            ->label('Adjustment Type')
+                            ->dehydrated(false)
+                            ->default('add')
+                            ->hiddenLabel()
+                            ->hidden()
+                            ->disabled(),
+                        Forms\Components\Tabs::make('adjustment_tabs')
+                            ->tabs([
+                                Forms\Components\Tabs\Tab::make('Add Stock')
+                                    ->icon('heroicon-o-plus')
+                                    ->schema([
+                                        Forms\Components\TextInput::make('add_amount')
+                                            ->label('Amount to Add')
+                                            ->numeric()
+                                            ->minValue(0.01)
+                                            ->required()
+                                            ->default(fn (Consumable $record) => $record->restock_quantity)
+                                            ->suffix(fn (Consumable $record) => $record->unit),
+                                    ])
+                                    ->afterStateUpdated(fn (Forms\Set $set) => $set('adjustment_type', 'add')),
+                                Forms\Components\Tabs\Tab::make('Consume Stock')
+                                    ->icon('heroicon-o-minus')
+                                    ->schema([
+                                        Forms\Components\TextInput::make('consume_amount')
+                                            ->label('Amount to Consume')
+                                            ->numeric()
+                                            ->minValue(0.01)
+                                            ->maxValue(fn (Consumable $record) => max(0, $record->initial_stock - $record->consumed_quantity))
+                                            ->required()
+                                            ->default(1)
+                                            ->suffix(fn (Consumable $record) => $record->unit),
+                                    ])
+                                    ->afterStateUpdated(fn (Forms\Set $set) => $set('adjustment_type', 'consume')),
+                            ]),
                     ])
                     ->action(function (Consumable $record, array $data): void {
-                        $record->add($data['amount']);
+                        if ($data['adjustment_type'] === 'add' && isset($data['add_amount'])) {
+                            $record->add((float)$data['add_amount']);
+                        } elseif ($data['adjustment_type'] === 'consume' && isset($data['consume_amount'])) {
+                            $record->deduct((float)$data['consume_amount']);
+                        }
                     }),
-                Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\BulkAction::make('restock_bulk')
-                        ->label('Restock')
-                        ->icon('heroicon-o-shopping-cart')
-                        ->action(function ($records) {
+                    Tables\Actions\BulkAction::make('bulk_add_stock')
+                        ->label('Add Stock')
+                        ->icon('heroicon-o-plus')
+                        ->form([
+                            Forms\Components\TextInput::make('amount')
+                                ->label('Amount to Add')
+                                ->numeric()
+                                ->minValue(0.01)
+                                ->required()
+                                ->default(10),
+                        ])
+                        ->action(function ($records, array $data) {
                             foreach ($records as $record) {
-                                $record->add($record->restock_quantity);
+                                $record->add((float) $data['amount']);
+                            }
+                        }),
+                    Tables\Actions\BulkAction::make('bulk_consume_stock')
+                        ->label('Consume Stock')
+                        ->icon('heroicon-o-minus')
+                        ->form([
+                            Forms\Components\TextInput::make('amount')
+                                ->label('Amount to Consume')
+                                ->numeric()
+                                ->minValue(0.01)
+                                ->required()
+                                ->default(1),
+                        ])
+                        ->action(function ($records, array $data) {
+                            foreach ($records as $record) {
+                                $record->deduct((float) $data['amount']);
                             }
                         }),
                 ]),
-            ]);
+            ])
+            ->toggleColumnsTriggerAction(
+                fn (Tables\Actions\Action $action) => $action
+                    ->button()
+                    ->label('Columns')
+                    ->icon('heroicon-m-view-columns')
+            );
     }
 
     public static function getPages(): array

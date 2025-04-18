@@ -94,47 +94,127 @@ class ViewConsumable extends ViewRecord
                     
                 Infolists\Components\Section::make('Stock Information')
                     ->schema([
-                        Infolists\Components\TextEntry::make('current_stock')
-                            ->label('Current Stock')
-                            ->suffix(fn ($record) => ' ' . $record->unit),
-                        Infolists\Components\TextEntry::make('formatted_total_weight')
-                            ->label('Total Weight')
-                            ->visible(fn ($record) => in_array($record->type, ['soil', 'seed'])),
-                        Infolists\Components\TextEntry::make('quantity_per_unit')
-                            ->label('Quantity Per Unit')
-                            ->visible(fn ($record) => in_array($record->type, ['soil', 'seed']))
-                            ->suffix(fn ($record) => ' ' . ($record->quantity_unit ?? '') . ' per ' . $record->unit),
-                        Infolists\Components\TextEntry::make('restock_threshold')
-                            ->label('Restock Threshold')
-                            ->suffix(fn ($record) => ' ' . $record->unit),
-                        Infolists\Components\TextEntry::make('restock_quantity')
-                            ->label('Restock Quantity')
-                            ->suffix(fn ($record) => ' ' . $record->unit),
-                        Infolists\Components\TextEntry::make('cost_per_unit')
-                            ->label('Cost Per Unit')
-                            ->money('USD'),
-                        Infolists\Components\TextEntry::make('status')
-                            ->state(function ($record) {
-                                if ($record->current_stock <= 0) {
-                                    return 'Out of Stock';
-                                } elseif ($record->current_stock <= $record->restock_threshold) {
-                                    return 'Reorder Needed';
-                                } else {
-                                    return 'In Stock';
-                                }
-                            })
-                            ->badge()
-                            ->color(function ($record, $state) {
-                                if ($state === 'Out of Stock') {
-                                    return 'danger';
-                                } elseif ($state === 'Reorder Needed') {
-                                    return 'warning';
-                                } else {
-                                    return 'success';
-                                }
-                            }),
-                    ])
-                    ->columns(2),
+                        Infolists\Components\Group::make([
+                            Infolists\Components\TextEntry::make('initial_stock')
+                                ->label('Initial Quantity')
+                                ->formatStateUsing(function ($state, $record) {
+                                    $unitMap = [
+                                        'l' => 'litre(s)',
+                                        'g' => 'gram(s)',
+                                        'kg' => 'kilogram(s)',
+                                        'oz' => 'ounce(s)',
+                                        'unit' => 'unit(s)',
+                                    ];
+                                    $displayUnit = $unitMap[$record->unit] ?? $record->unit;
+                                    return "{$state} {$displayUnit}";
+                                }),
+                            Infolists\Components\TextEntry::make('consumed_quantity')
+                                ->label('Consumed Quantity')
+                                ->formatStateUsing(function ($state, $record) {
+                                    $unitMap = [
+                                        'l' => 'litre(s)',
+                                        'g' => 'gram(s)',
+                                        'kg' => 'kilogram(s)',
+                                        'oz' => 'ounce(s)',
+                                        'unit' => 'unit(s)',
+                                    ];
+                                    $displayUnit = $unitMap[$record->unit] ?? $record->unit;
+                                    return "{$state} {$displayUnit}";
+                                }),
+                            Infolists\Components\TextEntry::make('current_stock')
+                                ->label('Available Quantity')
+                                ->state(fn ($record) => max(0, $record->initial_stock - $record->consumed_quantity))
+                                ->formatStateUsing(function ($state, $record) {
+                                    $unitMap = [
+                                        'l' => 'litre(s)',
+                                        'g' => 'gram(s)',
+                                        'kg' => 'kilogram(s)',
+                                        'oz' => 'ounce(s)',
+                                        'unit' => 'unit(s)',
+                                    ];
+                                    $displayUnit = $unitMap[$record->unit] ?? $record->unit;
+                                    return "{$state} {$displayUnit}";
+                                }),
+                            Infolists\Components\TextEntry::make('unit')
+                                ->label('Unit Type')
+                                ->formatStateUsing(function ($state) {
+                                    // Map unit codes to their full names
+                                    $unitMap = [
+                                        'l' => 'Litre(s)',
+                                        'g' => 'Gram(s)',
+                                        'kg' => 'Kilogram(s)',
+                                        'oz' => 'Ounce(s)',
+                                        'unit' => 'Unit(s)',
+                                    ];
+                                    
+                                    return $unitMap[$state] ?? $state;
+                                }),
+                        ])->columnSpanFull()
+                            ->columns(4),
+                            
+                        Infolists\Components\Group::make([
+                            Infolists\Components\TextEntry::make('restock_threshold')
+                                ->label('Restock Threshold')
+                                ->formatStateUsing(function ($state, $record) {
+                                    // Map unit codes to their full names
+                                    $unitMap = [
+                                        'l' => 'litre(s)',
+                                        'g' => 'gram(s)',
+                                        'kg' => 'kilogram(s)',
+                                        'oz' => 'ounce(s)',
+                                        'unit' => 'unit(s)',
+                                    ];
+                                    
+                                    $displayUnit = $unitMap[$record->unit] ?? $record->unit;
+                                    
+                                    return "{$state} {$displayUnit}";
+                                }),
+                            Infolists\Components\TextEntry::make('restock_quantity')
+                                ->label('Restock Quantity')
+                                ->formatStateUsing(function ($state, $record) {
+                                    // Map unit codes to their full names
+                                    $unitMap = [
+                                        'l' => 'litre(s)',
+                                        'g' => 'gram(s)',
+                                        'kg' => 'kilogram(s)',
+                                        'oz' => 'ounce(s)',
+                                        'unit' => 'unit(s)',
+                                    ];
+                                    
+                                    $displayUnit = $unitMap[$record->unit] ?? $record->unit;
+                                    
+                                    return "{$state} {$displayUnit}";
+                                }),
+                        ])->columnSpanFull()
+                            ->columns(2),
+                            
+                        Infolists\Components\Group::make([
+                            Infolists\Components\TextEntry::make('cost_per_unit')
+                                ->label('Cost Per Unit')
+                                ->money('USD'),
+                            Infolists\Components\TextEntry::make('status')
+                                ->state(function ($record) {
+                                    if ($record->current_stock <= 0) {
+                                        return 'Out of Stock';
+                                    } elseif ($record->current_stock <= $record->restock_threshold) {
+                                        return 'Reorder Needed';
+                                    } else {
+                                        return 'In Stock';
+                                    }
+                                })
+                                ->badge()
+                                ->color(function ($record, $state) {
+                                    if ($state === 'Out of Stock') {
+                                        return 'danger';
+                                    } elseif ($state === 'Reorder Needed') {
+                                        return 'warning';
+                                    } else {
+                                        return 'success';
+                                    }
+                                }),
+                        ])->columnSpanFull()
+                            ->columns(2),
+                    ]),
                     
                 Infolists\Components\Section::make('Additional Information')
                     ->schema([

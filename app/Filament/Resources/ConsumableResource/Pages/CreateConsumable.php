@@ -20,30 +20,6 @@ class CreateConsumable extends CreateRecord
             }
         }
         
-        // For non-seed types, get current_stock from non_seed_stock field
-        if ($data['type'] !== 'seed' && isset($data['non_seed_stock'])) {
-            $data['current_stock'] = $data['non_seed_stock'];
-            unset($data['non_seed_stock']); // Remove temporary field
-        }
-        
-        // For seeds, set current_stock from seed_packet_count
-        if ($data['type'] === 'seed' && isset($data['seed_packet_count'])) {
-            // Current stock for seeds is the number of packets
-            $data['current_stock'] = $data['seed_packet_count'];
-            unset($data['seed_packet_count']); // Remove temporary field
-        }
-        
-        // For packaging types, clear weight-related fields
-        if ($data['type'] === 'packaging') {
-            $data['quantity_per_unit'] = null;
-            $data['quantity_unit'] = null;
-            $data['total_quantity'] = null;
-        }
-        // Calculate total quantity for other types
-        else if (isset($data['quantity_per_unit']) && $data['quantity_per_unit'] > 0) {
-            $data['total_quantity'] = $data['current_stock'] * $data['quantity_per_unit'];
-        }
-        
         return $data;
     }
     
