@@ -281,61 +281,65 @@ class ConsumableResource extends Resource
                     ->label('Adjust Stock')
                     ->icon('heroicon-o-adjustments-horizontal')
                     ->color('primary')
+                    ->mountUsing(fn (Forms\Form $form) => $form->fill(['adjustment_type' => 'add']))
                     ->form([
-                        Forms\Components\Hidden::make('adjustment_type')
+                        Forms\Components\Select::make('adjustment_type')
+                            ->label('Action')
+                            ->options([
+                                'add' => 'Add Stock',
+                                'consume' => 'Consume Stock',
+                            ])
                             ->default('add')
-                            ->dehydrated(true)
-                            ->required(),
-                        Forms\Components\Tabs::make('adjustment_tabs')
-                            ->tabs([
-                                Forms\Components\Tabs\Tab::make('add')
-                                    ->label('Add Stock')
-                                    ->icon('heroicon-o-plus')
-                                    ->schema([
-                                        Forms\Components\Grid::make()
-                                            ->schema([
-                                                Forms\Components\TextInput::make('add_amount')
-                                                    ->label('Amount to Add')
-                                                    ->numeric()
-                                                    ->step(0.001)
-                                                    ->minValue(0.001)
-                                                    ->required()
-                                                    ->default(fn (Consumable $record) => $record->restock_quantity),
-                                                Forms\Components\Select::make('add_unit')
-                                                    ->label('Unit')
-                                                    ->options(fn (Consumable $record) => self::getCompatibleUnits($record))
-                                                    ->default(fn (Consumable $record) => $record->unit)
-                                                    ->required(),
-                                            ])->columns(2),
-                                    ])
-                                    ->afterStateUpdated(fn (Forms\Set $set) => $set('adjustment_type', 'add')),
-                                Forms\Components\Tabs\Tab::make('consume')
-                                    ->label('Consume Stock')
-                                    ->icon('heroicon-o-minus')
-                                    ->schema([
-                                        Forms\Components\Grid::make()
-                                            ->schema([
-                                                Forms\Components\TextInput::make('consume_amount')
-                                                    ->label('Amount to Consume')
-                                                    ->numeric()
-                                                    ->step(0.001)
-                                                    ->minValue(0.001)
-                                                    ->required()
-                                                    ->default(1),
-                                                Forms\Components\Select::make('consume_unit')
-                                                    ->label('Unit')
-                                                    ->options(fn (Consumable $record) => self::getCompatibleUnits($record))
-                                                    ->default(fn (Consumable $record) => $record->unit)
-                                                    ->required(),
-                                            ])->columns(2),
-                                    ])
-                                    ->afterStateUpdated(fn (Forms\Set $set) => $set('adjustment_type', 'consume')),
-                            ]),
+                            ->selectablePlaceholder(false)
+                            ->required()
+                            ->live()
+                            ->dehydrated(true),
+                        
+                        // Add stock fields - visible when adjustment_type is 'add'
+                        Forms\Components\Grid::make()
+                            ->schema([
+                                Forms\Components\TextInput::make('add_amount')
+                                    ->label('Amount to Add')
+                                    ->numeric()
+                                    ->step(0.001)
+                                    ->minValue(0.001)
+                                    ->required()
+                                    ->default(fn (Consumable $record) => $record->restock_quantity),
+                                Forms\Components\Select::make('add_unit')
+                                    ->label('Unit')
+                                    ->options(fn (Consumable $record) => self::getCompatibleUnits($record))
+                                    ->default(fn (Consumable $record) => $record->unit)
+                                    ->required(),
+                            ])
+                            ->visible(fn (Forms\Get $get): bool => $get('adjustment_type') === 'add')
+                            ->columns(2),
+                        
+                        // Consume stock fields - visible when adjustment_type is 'consume'
+                        Forms\Components\Grid::make()
+                            ->schema([
+                                Forms\Components\TextInput::make('consume_amount')
+                                    ->label('Amount to Consume')
+                                    ->numeric()
+                                    ->step(0.001)
+                                    ->minValue(0.001)
+                                    ->required()
+                                    ->default(1),
+                                Forms\Components\Select::make('consume_unit')
+                                    ->label('Unit')
+                                    ->options(fn (Consumable $record) => self::getCompatibleUnits($record))
+                                    ->default(fn (Consumable $record) => $record->unit)
+                                    ->required(),
+                            ])
+                            ->visible(fn (Forms\Get $get): bool => $get('adjustment_type') === 'consume')
+                            ->columns(2),
                     ])
                     ->action(function (Consumable $record, array $data): void {
-                        if (isset($data['adjustment_type']) && $data['adjustment_type'] === 'add' && isset($data['add_amount'])) {
+                        // Determine action based on selected type
+                        $adjustmentType = $data['adjustment_type'] ?? 'add';
+                        
+                        if ($adjustmentType === 'add' && isset($data['add_amount'])) {
                             $record->add((float)$data['add_amount'], $data['add_unit'] ?? null);
-                        } elseif (isset($data['adjustment_type']) && $data['adjustment_type'] === 'consume' && isset($data['consume_amount'])) {
+                        } elseif ($adjustmentType === 'consume' && isset($data['consume_amount'])) {
                             $record->deduct((float)$data['consume_amount'], $data['consume_unit'] ?? null);
                         }
                     }),
