@@ -79,9 +79,9 @@ class ViewRecipe extends ViewRecord
                     ->schema([
                         Infolists\Components\Grid::make(3)
                             ->schema([
-                                Infolists\Components\TextEntry::make('seed_soak_days')
+                                Infolists\Components\TextEntry::make('seed_soak_hours')
                                     ->label('Seed Soak')
-                                    ->formatStateUsing(fn ($state) => number_format($state * 24, 1) . ' hours'),
+                                    ->formatStateUsing(fn ($state) => $state . ' hours'),
                                 
                                 Infolists\Components\TextEntry::make('germination_days')
                                     ->label('Germination'),
@@ -104,7 +104,7 @@ class ViewRecipe extends ViewRecord
                                 Infolists\Components\TextEntry::make('effectivelyTotalDays')
                                     ->label('Days to Harvest')
                                     ->state(function (Recipe $record): float {
-                                        return $record->seed_soak_days + $record->germination_days + $record->blackout_days + $record->light_days;
+                                        return $record->effectiveTotalDays();
                                     })
                                     ->numeric(1),
                             ]),

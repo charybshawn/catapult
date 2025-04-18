@@ -102,15 +102,27 @@ class CropResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('tray_number')
                     ->label('Tray #')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('recipe.seedVariety.name')
                     ->label('Variety')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable()
+                    ->weight('medium')
+                    ->description(fn (Crop $record): ?string => $record->recipe?->name)
+                    ->size('md')
+                    ->getStateUsing(function (Crop $record): ?string {
+                        if (!$record->recipe || !$record->recipe->seedVariety) {
+                            return null;
+                        }
+                        return $record->recipe->seedVariety->name;
+                    }),
                 Tables\Columns\TextColumn::make('planted_at')
                     ->label('Planted At')
                     ->dateTime()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('current_stage')
                     ->label('Current Stage')
                     ->badge()
@@ -123,20 +135,22 @@ class CropResource extends Resource
                         'harvested' => 'gray',
                         default => 'gray',
                     })
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('stage_age')
                     ->label('Days in Stage')
-                    ->getStateUsing(function (Crop $record): int {
+                    ->getStateUsing(function (Crop $record) {
                         $stageField = "{$record->current_stage}_at";
                         if ($record->$stageField) {
                             return $record->$stageField->diffInDays(now());
                         }
                         return 0;
                     })
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('time_to_next_stage')
                     ->label('Time to Next Stage')
-                    ->getStateUsing(function (Crop $record): string {
+                    ->getStateUsing(function (Crop $record) {
                         // Skip if already harvested
                         if ($record->current_stage === 'harvested') {
                             return '-';
@@ -180,14 +194,13 @@ class CropResource extends Resource
                             return 'Overdue!';
                         }
                         
-                        // Get time difference in seconds for more accurate calculations
+                        // Calculate difference components directly instead of converting from seconds
                         $now = now();
-                        $diffInSeconds = $now->diffInSeconds($expectedEndDate);
+                        $diff = $now->diff($expectedEndDate);
                         
-                        // Convert to days, hours, minutes
-                        $days = floor($diffInSeconds / 86400); // 86400 seconds in a day
-                        $hours = floor(($diffInSeconds % 86400) / 3600); // 3600 seconds in an hour
-                        $minutes = floor(($diffInSeconds % 3600) / 60); // 60 seconds in a minute
+                        $days = $diff->days;
+                        $hours = $diff->h;
+                        $minutes = $diff->i;
                         
                         // Format based on time remaining
                         if ($days > 0) {
@@ -198,17 +211,59 @@ class CropResource extends Resource
                             return "{$minutes}m";
                         }
                     })
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('total_age')
                     ->label('Total Days')
-                    ->getStateUsing(function (Crop $record): int {
+                    ->getStateUsing(function (Crop $record) {
                         return $record->planted_at->diffInDays(now());
                     })
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('planting_at')
+                    ->label('Planting Started')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('germination_at')
+                    ->label('Germination Started')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('blackout_at')
+                    ->label('Blackout Started')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('light_at')
+                    ->label('Light Started')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('harvested_at')
+                    ->label('Harvested At')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('harvest_weight_grams')
                     ->label('Harvest Weight')
                     ->formatStateUsing(fn ($state) => $state ? "{$state}g" : '-')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('order_id')
+                    ->label('Order ID')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\IconColumn::make('watering_suspended')
+                    ->label('Watering Suspended')
+                    ->boolean()
+                    ->getStateUsing(fn (Crop $record): bool => $record->isWateringSuspended())
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('watering_suspended_at')
+                    ->label('Watering Suspended At')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->groups([
                 Tables\Grouping\Group::make('recipe.seedVariety.name')

@@ -72,9 +72,10 @@ class RecipeResource extends Resource
 
                 Forms\Components\Section::make('Growing Parameters')
                     ->schema([
-                        Forms\Components\TextInput::make('seed_soak_days')
-                            ->label('Seed Soak Days')
+                        Forms\Components\TextInput::make('seed_soak_hours')
+                            ->label('Seed Soak Hours')
                             ->numeric()
+                            ->integer()
                             ->minValue(0)
                             ->default(0),
 
@@ -132,39 +133,64 @@ class RecipeResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: false),
                     
-                Tables\Columns\TextColumn::make('seedVariety.name')
-                    ->label('Seed Variety')
+                Tables\Columns\TextColumn::make('seedConsumable.name')
+                    ->label('Seed')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
                     
-                Tables\Columns\TextColumn::make('soilSupplier.name')
-                    ->label('Soil Supplier')
+                Tables\Columns\TextColumn::make('soilConsumable.name')
+                    ->label('Soil')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
                     
                 Tables\Columns\TextColumn::make('totalDays')
                     ->label('Total Days')
                     ->getStateUsing(fn (Recipe $record): int => $record->totalDays())
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderByRaw('(germination_days + blackout_days + light_days) ' . $direction);
-                    }),
+                    })
+                    ->toggleable(),
                     
                 Tables\Columns\TextColumn::make('seed_density_grams_per_tray')
                     ->label('Seed Density (g)')
                     ->numeric(1)
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
                     
                 Tables\Columns\TextColumn::make('expected_yield_grams')
                     ->label('Yield (g)')
                     ->numeric(0)
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                    
+                Tables\Columns\TextColumn::make('germination_days')
+                    ->label('Germ. Days')
+                    ->numeric(1)
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                    
+                Tables\Columns\TextColumn::make('blackout_days')
+                    ->label('Blackout Days')
+                    ->numeric(1)
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                    
+                Tables\Columns\TextColumn::make('light_days')
+                    ->label('Light Days')
+                    ->numeric(1)
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                     
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Active')
                     ->boolean()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
                     
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
@@ -176,6 +202,7 @@ class RecipeResource extends Resource
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->defaultSort('name', 'asc')
             ->filters([
                 Tables\Filters\SelectFilter::make('is_active')
                     ->label('Status')
@@ -191,7 +218,6 @@ class RecipeResource extends Resource
                     ->preload(),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make()
                     ->requiresConfirmation()
@@ -446,11 +472,19 @@ class RecipeResource extends Resource
                     Tables\Actions\BulkAction::make('activate')
                         ->label('Activate')
                         ->icon('heroicon-o-check')
-                        ->action(fn (Recipe $recipe) => $recipe->update(['is_active' => true])),
+                        ->action(function (Collection $records) {
+                            foreach ($records as $record) {
+                                $record->update(['is_active' => true]);
+                            }
+                        }),
                     Tables\Actions\BulkAction::make('deactivate')
                         ->label('Deactivate')
                         ->icon('heroicon-o-x-mark')
-                        ->action(fn (Recipe $recipe) => $recipe->update(['is_active' => false])),
+                        ->action(function (Collection $records) {
+                            foreach ($records as $record) {
+                                $record->update(['is_active' => false]);
+                            }
+                        }),
                 ]),
             ]);
     }
@@ -467,7 +501,6 @@ class RecipeResource extends Resource
         return [
             'index' => Pages\ListRecipes::route('/'),
             'create' => Pages\CreateRecipe::route('/create'),
-            'view' => Pages\ViewRecipe::route('/{record}'),
             'edit' => Pages\EditRecipe::route('/{record}/edit'),
         ];
     }

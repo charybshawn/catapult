@@ -99,6 +99,11 @@ This document tracks all significant changes to the Catapult v2 project.
   - Completely refactored CropFactory to use individual stage timestamp fields
   - Fixed DateTime vs Carbon compatibility issue in date manipulation
   - Ensures seeders work correctly with the new database schema
+- Fixed implicit float to int conversion warnings in CropResource
+  - Removed explicit int return type hints in stage_age and total_age columns
+  - Refactored time difference calculation to use Carbon's diff() method instead of diffInSeconds()
+  - Eliminates all precision loss warnings by using native DateTime interval components
+  - Improved code readability and accuracy when calculating time remaining to next stage
 
 ## [0.1.0] - 2025-03-15
 
@@ -161,3 +166,9 @@ This document tracks all significant changes to the Catapult v2 project.
   - Created relationship between Consumable and PackagingType models
   - Enhanced ConsumableResource to display packaging specifications
   - Improved auto-assign packaging logic to make smarter choices based on volume
+
+## 2025-04-18 - Crop Resource UI Improvements
+- Updated crop list view to show seed variety names with proper emphasis
+- Enhanced variety display by showing recipe name below the variety
+- Fixed issues with variety relationship display in crop table
+- Made all columns toggleable in the crop table view 

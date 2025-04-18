@@ -72,7 +72,10 @@ class Crop extends Model
      */
     public function seedVariety()
     {
-        return $this->recipe->seedVariety();
+        if ($this->recipe) {
+            return $this->recipe->seedVariety;
+        }
+        return null;
     }
     
     /**

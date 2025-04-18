@@ -287,8 +287,7 @@ class CreateRecipe extends CreateRecord
                                 ->label('Seed Soak (hours)')
                                 ->helperText('How many hours are we soaking the seed')
                                 ->default(0)
-                                ->numeric()
-                                ->step(0.5)
+                                ->integer()
                                 ->minValue(0)
                                 ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
                                 ->reactive()
@@ -296,7 +295,7 @@ class CreateRecipe extends CreateRecord
                                     $germDays = (float) ($get('germination_days') ?? 0);
                                     $blackoutDays = (float) ($get('blackout_days') ?? 0);
                                     $dtm = (float) ($get('dtm') ?? 0);
-                                    $state = (float) $state;
+                                    $state = (int) $state;
                                     
                                     // Recalculate light days
                                     $lightDays = max(0, $dtm - $germDays - $blackoutDays - ($state / 24));
@@ -343,7 +342,7 @@ class CreateRecipe extends CreateRecord
                                 ->reactive()
                                 ->afterStateUpdated(function (Forms\Get $get, Forms\Set $set, $state) {
                                     $blackoutDays = (float) ($get('blackout_days') ?? 0);
-                                    $soakHours = (float) ($get('seed_soak_hours') ?? 0);
+                                    $soakHours = (int) ($get('seed_soak_hours') ?? 0);
                                     $dtm = (float) ($get('dtm') ?? 0);
                                     $state = (float) $state;
                                     
@@ -364,7 +363,7 @@ class CreateRecipe extends CreateRecord
                                 ->reactive()
                                 ->afterStateUpdated(function (Forms\Get $get, Forms\Set $set, $state) {
                                     $germDays = (float) ($get('germination_days') ?? 0);
-                                    $soakHours = (float) ($get('seed_soak_hours') ?? 0);
+                                    $soakHours = (int) ($get('seed_soak_hours') ?? 0);
                                     $dtm = (float) ($get('dtm') ?? 0);
                                     $state = (float) $state;
                                     
@@ -378,7 +377,7 @@ class CreateRecipe extends CreateRecord
                                 ->content(function (Forms\Get $get): string {
                                     $germDays = (float) ($get('germination_days') ?? 0);
                                     $blackoutDays = (float) ($get('blackout_days') ?? 0);
-                                    $soakHours = (float) ($get('seed_soak_hours') ?? 0);
+                                    $soakHours = (int) ($get('seed_soak_hours') ?? 0);
                                     $dtm = (float) ($get('dtm') ?? 0);
                                     
                                     $lightDays = max(0, $dtm - $germDays - $blackoutDays - ($soakHours / 24));
@@ -392,7 +391,7 @@ class CreateRecipe extends CreateRecord
                                 ->dehydrateStateUsing(function (Forms\Get $get): float {
                                     $germDays = (float) ($get('germination_days') ?? 0);
                                     $blackoutDays = (float) ($get('blackout_days') ?? 0);
-                                    $soakHours = (float) ($get('seed_soak_hours') ?? 0);
+                                    $soakHours = (int) ($get('seed_soak_hours') ?? 0);
                                     $dtm = (float) ($get('dtm') ?? 0);
                                     
                                     return max(0, $dtm - $germDays - $blackoutDays - ($soakHours / 24));
@@ -641,14 +640,18 @@ class CreateRecipe extends CreateRecord
                     
                     for ($i = 1; $i <= $dtm; $i++) {
                         $fieldName = "watering_day_{$i}";
-                        if ($get($fieldName) !== null) {
+                        if (isset($data[$fieldName])) {
                             // Determine day type based on the day number and actual phase durations
                             $dayType = $this->getDayType($i, $germDays, $blackoutDays, $dtm);
                             
+                            // Use consistent key names that match database field names
                             $wateringSchedule[] = [
-                                'day' => $i,
-                                'day_type' => $dayType,
-                                'amount' => $get($fieldName),
+                                'day_number' => $i,
+                                'water_amount_ml' => $data[$fieldName],
+                                'watering_method' => 'bottom', // Default method
+                                'needs_liquid_fertilizer' => false, // Default no fertilizer
+                                'notes' => '',
+                                'day_type' => $dayType, // Add day type to the watering schedule
                             ];
                         }
                     }
@@ -702,10 +705,14 @@ class CreateRecipe extends CreateRecord
                     // Determine day type based on the day number and actual phase durations
                     $dayType = $this->getDayType($i, $germDays, $blackoutDays, $dtm);
                     
+                    // Use consistent key names that match database field names
                     $wateringSchedule[] = [
-                        'day' => $i,
-                        'day_type' => $dayType,
-                        'amount' => $data[$fieldName],
+                        'day_number' => $i,
+                        'water_amount_ml' => $data[$fieldName],
+                        'watering_method' => 'bottom', // Default method
+                        'needs_liquid_fertilizer' => false, // Default no fertilizer
+                        'notes' => '',
+                        'day_type' => $dayType, // Add day type to the watering schedule
                     ];
                     
                     // Remove the field from data
@@ -749,8 +756,8 @@ class CreateRecipe extends CreateRecord
             $preHarvestDays = []; // We'll still separate these in the notes for readability
             
             foreach ($wateringSchedule as $day) {
-                $dayNumber = $day['day'];
-                $amount = $day['amount'];
+                $dayNumber = $day['day_number'];
+                $amount = $day['water_amount_ml'];
                 $dayType = $day['day_type'] ?? 'light';
                 
                 $entry = [
@@ -814,13 +821,55 @@ class CreateRecipe extends CreateRecord
         // Save watering schedule to the related model
         if (!empty($wateringSchedule)) {
             foreach ($wateringSchedule as $day) {
-                $recipe->wateringSchedule()->create([
-                    'day_number' => $day['day'],
-                    'water_amount_ml' => $day['amount'],
-                    'watering_method' => 'bottom', // Default method
-                    'needs_liquid_fertilizer' => false, // Default value
-                    'notes' => '', // Default empty notes
-                ]);
+                try {
+                    // Normalize data keys to ensure consistency
+                    $dayNumber = null;
+                    $waterAmount = null;
+                    $needsFertilizer = false;    // Default no fertilizer
+                    $notes = '';                 // Default empty notes
+                    
+                    // First check for the day number under different possible keys
+                    if (isset($day['day_number'])) {
+                        $dayNumber = $day['day_number'];
+                    } elseif (isset($day['day'])) {
+                        $dayNumber = $day['day'];
+                    }
+                    
+                    // Then check for water amount under different possible keys
+                    if (isset($day['water_amount_ml'])) {
+                        $waterAmount = $day['water_amount_ml'];
+                    } elseif (isset($day['amount'])) {
+                        $waterAmount = $day['amount'];
+                    }
+                    
+                    // Check for fertilizer flag
+                    if (isset($day['needs_liquid_fertilizer'])) {
+                        $needsFertilizer = $day['needs_liquid_fertilizer'];
+                    } elseif (isset($day['is_fertilizer_day'])) {
+                        $needsFertilizer = $day['is_fertilizer_day'];
+                    }
+                    
+                    // Check for notes
+                    if (isset($day['notes'])) {
+                        $notes = $day['notes'];
+                    }
+                    
+                    // Check for watering method
+                    $wateringMethod = $day['watering_method'] ?? 'bottom';
+                    
+                    if ($dayNumber !== null && $waterAmount !== null) {
+                        $recipe->wateringSchedule()->create([
+                            'day_number' => $dayNumber,
+                            'water_amount_ml' => $waterAmount,
+                            'watering_method' => $wateringMethod,
+                            'needs_liquid_fertilizer' => $needsFertilizer,
+                            'notes' => $notes,
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Error creating watering schedule entry: ' . $e->getMessage());
+                    \Illuminate\Support\Facades\Log::error('Entry data: ' . json_encode($day));
+                }
             }
         }
         
@@ -834,11 +883,6 @@ class CreateRecipe extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        // Convert seed_soak_hours to seed_soak_days
-        if (isset($data['seed_soak_hours'])) {
-            $data['seed_soak_days'] = $data['seed_soak_hours'] / 24;
-        }
-        
         // If using the new consumable fields, clear the legacy fields
         if (isset($data['seed_consumable_id']) && $data['seed_consumable_id']) {
             // We're using a consumable for the seed, so clear old reference

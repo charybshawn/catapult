@@ -28,7 +28,7 @@ class Recipe extends Model
         'germination_days',
         'blackout_days',
         'light_days',
-        'seed_soak_days',
+        'seed_soak_hours',
         'expected_yield_grams', 
         'seed_density_grams_per_tray',
         'is_active',
@@ -44,7 +44,7 @@ class Recipe extends Model
         'germination_days' => 'float',
         'blackout_days' => 'float',
         'light_days' => 'float',
-        'seed_soak_days' => 'float',
+        'seed_soak_hours' => 'integer',
         'expected_yield_grams' => 'float',
         'seed_density_grams_per_tray' => 'float',
         'is_active' => 'boolean',
@@ -112,6 +112,14 @@ class Recipe extends Model
     public function totalDays(): int
     {
         return $this->germination_days + $this->blackout_days + $this->light_days;
+    }
+    
+    /**
+     * Calculate days to harvest including seed soak time.
+     */
+    public function effectiveTotalDays(): float
+    {
+        return ($this->seed_soak_hours / 24) + $this->germination_days + $this->blackout_days + $this->light_days;
     }
 
     /**

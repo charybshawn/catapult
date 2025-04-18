@@ -292,8 +292,7 @@ class EditRecipe extends EditRecord
                                 ->label('Seed Soak (hours)')
                                 ->helperText('How many hours are we soaking the seed')
                                 ->default(0)
-                                ->numeric()
-                                ->step(0.5)
+                                ->integer()
                                 ->minValue(0)
                                 ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
                                 ->reactive()
@@ -549,7 +548,33 @@ class EditRecipe extends EditRecord
                                 '),
                             
                             Forms\Components\Hidden::make('_watering_schedule_refresh_trigger'),
-                            Forms\Components\Hidden::make('watering_schedule_json'),
+                            Forms\Components\Hidden::make('watering_schedule_json')
+                                ->afterStateHydrated(function (Forms\Get $get, Forms\Set $set, ?Model $record = null) {
+                                    // When the form is loaded with existing data, log the state
+                                    if ($record) {
+                                        \Illuminate\Support\Facades\Log::debug('Hydrating watering_schedule_json from record');
+                                        \Illuminate\Support\Facades\Log::debug('Record ID: ' . $record->id);
+                                        // Log existing watering schedule entries
+                                        \Illuminate\Support\Facades\Log::debug('Existing watering schedule entries count: ' . $record->wateringSchedule()->count());
+                                        \Illuminate\Support\Facades\Log::debug('Watering schedule entries: ' . json_encode($record->wateringSchedule()->get()->toArray()));
+                                    }
+                                })
+                                ->reactive()
+                                ->afterStateUpdated(function ($state) {
+                                    \Illuminate\Support\Facades\Log::debug('watering_schedule_json updated: ' . json_encode($state));
+                                })
+                                // Ensure the field is always included when submitting the form
+                                ->dehydrated(true)
+                                // Add custom dehydration logic to handle transformations if needed
+                                ->dehydrateStateUsing(function (?array $state) {
+                                    if (!$state) {
+                                        \Illuminate\Support\Facades\Log::debug('Empty watering schedule state in dehydrateStateUsing');
+                                        return [];
+                                    }
+                                    
+                                    \Illuminate\Support\Facades\Log::debug('Dehydrating watering schedule state: ' . json_encode($state));
+                                    return $state;
+                                }),
 
                             Forms\Components\Grid::make()
                                 ->schema(function (Forms\Get $get) {
@@ -691,11 +716,16 @@ class EditRecipe extends EditRecord
                         ]),
                 ])
                 ->afterValidation(function (Forms\Get $get, Forms\Set $set) {
+                    \Illuminate\Support\Facades\Log::debug('Watering schedule afterValidation hook triggered');
+                    
                     $dtm = $get('dtm');
                     $germDays = $get('germination_days') ?? 0;
                     $blackoutDays = $get('blackout_days') ?? 0;
                     
+                    \Illuminate\Support\Facades\Log::debug("DTM: {$dtm}, Germination Days: {$germDays}, Blackout Days: {$blackoutDays}");
+                    
                     if (!$dtm || $dtm <= 0) {
+                        \Illuminate\Support\Facades\Log::debug('No valid DTM found, skipping watering schedule generation');
                         return;
                     }
                     
@@ -704,19 +734,39 @@ class EditRecipe extends EditRecord
                     
                     for ($i = 1; $i <= $dtm; $i++) {
                         $fieldName = "watering_day_{$i}";
-                        if ($get($fieldName) !== null) {
-                            // Determine day type based on the day number and actual phase durations
-                            $dayType = $this->getDayType($i, $germDays, $blackoutDays, $dtm);
-                            
+                        $fieldValue = $get($fieldName);
+                        
+                        if ($fieldValue !== null) {
+                            // Use consistent key names that match database field names
                             $wateringSchedule[] = [
-                                'day' => $i,
-                                'day_type' => $dayType,
-                                'amount' => $get($fieldName),
+                                'day_number' => $i,
+                                'water_amount_ml' => $fieldValue,
+                                'watering_method' => 'bottom', // Default method
+                                'needs_liquid_fertilizer' => false, // Default no fertilizer
+                                'notes' => '',
                             ];
                         }
                     }
                     
-                    $set('watering_schedule_json', $wateringSchedule);
+                    \Illuminate\Support\Facades\Log::debug('Generated watering schedule with ' . count($wateringSchedule) . ' entries');
+                    
+                    if (count($wateringSchedule) > 0) {
+                        // Set the hidden field value for form submission
+                        $set('watering_schedule_json', $wateringSchedule);
+                        
+                        // CRITICAL: Also directly set the value in the data property
+                        // This ensures it's available in afterSave even if the form state is not properly transmitted
+                        if (property_exists($this, 'data')) {
+                            $this->data['watering_schedule_json'] = $wateringSchedule;
+                            \Illuminate\Support\Facades\Log::debug('Directly set watering_schedule_json in the data property');
+                        } else {
+                            \Illuminate\Support\Facades\Log::warning('Could not directly set watering_schedule_json - data property not found');
+                        }
+                        
+                        \Illuminate\Support\Facades\Log::debug('Set watering_schedule_json after validation: ' . json_encode($wateringSchedule));
+                    } else {
+                        \Illuminate\Support\Facades\Log::debug('No watering schedule data was collected');
+                    }
                 }),
         ];
     }
@@ -753,7 +803,41 @@ class EditRecipe extends EditRecord
             Actions\DeleteAction::make(),
             Actions\Action::make('save')
                 ->label('Save Recipe')
-                ->action(fn () => $this->save())
+                ->action(function () {
+                    try {
+                        \Illuminate\Support\Facades\Log::debug('Manual save action triggered');
+                        \Illuminate\Support\Facades\Log::debug('Form data before save: ' . json_encode($this->form->getState()));
+                        
+                        // Check for watering schedule data
+                        if (isset($this->data['watering_schedule_json'])) {
+                            \Illuminate\Support\Facades\Log::debug('Watering schedule JSON exists in form data');
+                        } else {
+                            \Illuminate\Support\Facades\Log::debug('No watering schedule JSON found in form data');
+                            
+                            // Let's specifically check if watering_day_X fields exist
+                            $hasDayFields = false;
+                            foreach ($this->data as $key => $value) {
+                                if (strpos($key, 'watering_day_') === 0) {
+                                    $hasDayFields = true;
+                                    \Illuminate\Support\Facades\Log::debug("Found watering day field: {$key} = {$value}");
+                                }
+                            }
+                            
+                            if ($hasDayFields) {
+                                \Illuminate\Support\Facades\Log::debug('Watering day fields exist but not consolidated into JSON');
+                            }
+                        }
+                        
+                        $this->save();
+                        
+                        \Illuminate\Support\Facades\Log::debug('Recipe saved successfully');
+                        \Illuminate\Support\Facades\Log::debug('Watering schedule count after save: ' . $this->record->wateringSchedule()->count());
+                    } catch (\Exception $e) {
+                        \Illuminate\Support\Facades\Log::error('Error saving recipe: ' . $e->getMessage());
+                        \Illuminate\Support\Facades\Log::error('Error trace: ' . $e->getTraceAsString());
+                        throw $e; // Re-throw to allow Filament to handle
+                    }
+                })
                 ->keyBindings(['mod+s'])
                 ->color('success'),
         ];
@@ -771,11 +855,6 @@ class EditRecipe extends EditRecord
             $data['dtm'] = $data['light_days'] + $data['germination_days'] + $data['blackout_days'];
         }
         
-        // Convert seed_soak_days to seed_soak_hours if it exists
-        if (isset($data['seed_soak_days']) && !isset($data['seed_soak_hours'])) {
-            $data['seed_soak_hours'] = $data['seed_soak_days'] * 24;
-        }
-        
         return $data;
     }
     
@@ -784,27 +863,66 @@ class EditRecipe extends EditRecord
      */
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        \Illuminate\Support\Facades\Log::debug('mutateFormDataBeforeSave called with data: ' . json_encode($data));
+        
         // Process watering schedule data
         if (isset($data['watering_schedule_json']) && is_array($data['watering_schedule_json'])) {
             $wateringData = [];
             foreach ($data['watering_schedule_json'] as $entry) {
-                if (isset($entry['day']) && isset($entry['amount'])) {
+                // Normalize data keys to ensure consistency
+                $dayNumber = null;
+                $waterAmount = null;
+                $wateringMethod = 'bottom';  // Default method
+                $needsFertilizer = false;    // Default no fertilizer
+                $notes = '';                 // Default empty notes
+                
+                // First check for the day number under different possible keys
+                if (isset($entry['day_number'])) {
+                    $dayNumber = $entry['day_number'];
+                } elseif (isset($entry['day'])) {
+                    $dayNumber = $entry['day'];
+                }
+                
+                // Then check for water amount under different possible keys
+                if (isset($entry['water_amount_ml'])) {
+                    $waterAmount = $entry['water_amount_ml'];
+                } elseif (isset($entry['amount'])) {
+                    $waterAmount = $entry['amount'];
+                }
+                
+                // Check for watering method
+                if (isset($entry['watering_method'])) {
+                    $wateringMethod = $entry['watering_method'];
+                } elseif (isset($entry['method'])) {
+                    $wateringMethod = $entry['method'];
+                }
+                
+                // Check for fertilizer flag
+                if (isset($entry['needs_liquid_fertilizer'])) {
+                    $needsFertilizer = $entry['needs_liquid_fertilizer'];
+                } elseif (isset($entry['is_fertilizer_day'])) {
+                    $needsFertilizer = $entry['is_fertilizer_day'];
+                }
+                
+                // Check for notes
+                if (isset($entry['notes'])) {
+                    $notes = $entry['notes'];
+                }
+                
+                if ($dayNumber !== null && $waterAmount !== null) {
                     $wateringData[] = [
-                        'day_number' => $entry['day'],
-                        'water_amount_ml' => $entry['amount'],
-                        'day_type' => $entry['day_type'] ?? 'light',
-                        'is_fertilizer_day' => false,
-                        'method' => 'bottom',
-                        'notes' => '',
+                        'day_number' => $dayNumber,
+                        'water_amount_ml' => $waterAmount,
+                        'watering_method' => $wateringMethod,
+                        'needs_liquid_fertilizer' => $needsFertilizer,
+                        'notes' => $notes,
                     ];
                 }
             }
             $data['watering_schedule_json'] = $wateringData;
-        }
-        
-        // Convert seed_soak_hours to seed_soak_days if needed
-        if (isset($data['seed_soak_hours']) && $data['seed_soak_hours'] > 0) {
-            $data['seed_soak_days'] = $data['seed_soak_hours'] / 24;
+            \Illuminate\Support\Facades\Log::debug('Processed watering_schedule_json: ' . json_encode($wateringData));
+        } else {
+            \Illuminate\Support\Facades\Log::debug('No watering_schedule_json found in data before save');
         }
         
         // Handle consumable fields
@@ -821,23 +939,146 @@ class EditRecipe extends EditRecord
 
     protected function afterSave(): void
     {
-        // Process watering schedule data
-        if (isset($this->data['watering_schedule_json']) && is_array($this->data['watering_schedule_json'])) {
+        // Add debug logging
+        \Illuminate\Support\Facades\Log::debug('EditRecipe afterSave called');
+        \Illuminate\Support\Facades\Log::debug('Data structure: ' . print_r(array_keys($this->data), true));
+        \Illuminate\Support\Facades\Log::debug('Record ID: ' . $this->record->id);
+        
+        try {
+            // First, check for day-by-day values in case the JSON wasn't properly populated
+            $dtm = $this->data['dtm'] ?? 0;
+            $germDays = $this->data['germination_days'] ?? 0;
+            $blackoutDays = $this->data['blackout_days'] ?? 0;
+            
+            $manuallyCompiledSchedule = [];
+            
+            if ($dtm > 0) {
+                \Illuminate\Support\Facades\Log::debug("Checking for individual day fields (DTM: {$dtm})");
+                
+                // Look for individual day field values as a backup
+                for ($i = 1; $i <= $dtm; $i++) {
+                    $fieldName = "watering_day_{$i}";
+                    if (isset($this->data[$fieldName])) {
+                        $dayType = $this->getDayType($i, $germDays, $blackoutDays, $dtm);
+                        
+                        $manuallyCompiledSchedule[] = [
+                            'day_number' => $i,
+                            'water_amount_ml' => $this->data[$fieldName],
+                            'watering_method' => 'bottom', // Default method
+                            'needs_liquid_fertilizer' => false, // Default no fertilizer
+                            'notes' => '',
+                        ];
+                        
+                        \Illuminate\Support\Facades\Log::debug("Found day {$i} with water amount: {$this->data[$fieldName]}");
+                    }
+                }
+                
+                \Illuminate\Support\Facades\Log::debug("Manually compiled " . count($manuallyCompiledSchedule) . " watering days");
+            }
+            
+            // Process watering schedule data
+            if (isset($this->data['watering_schedule_json'])) {
+                $scheduleData = $this->data['watering_schedule_json'];
+                
+                if (is_string($scheduleData)) {
+                    \Illuminate\Support\Facades\Log::debug('Watering schedule is a string - attempting to decode JSON');
+                    $scheduleData = json_decode($scheduleData, true);
+                }
+                
+                \Illuminate\Support\Facades\Log::debug('Processing watering schedule: ' . json_encode($scheduleData));
+            }
+            // If no JSON data, use the manually compiled schedule if available
+            else if (!empty($manuallyCompiledSchedule)) {
+                $scheduleData = $manuallyCompiledSchedule;
+                \Illuminate\Support\Facades\Log::debug('Using manually compiled watering schedule');
+            }
+            else {
+                \Illuminate\Support\Facades\Log::debug('No watering schedule data available');
+                return;
+            }
+            
             // Delete existing schedule entries
+            $deleteCount = $this->record->wateringSchedule()->count();
             $this->record->wateringSchedule()->delete();
+            \Illuminate\Support\Facades\Log::debug("Deleted {$deleteCount} existing watering schedule entries");
             
             // Create new schedule entries
-            foreach ($this->data['watering_schedule_json'] as $entry) {
-                if (isset($entry['day']) && isset($entry['amount'])) {
-                    $this->record->wateringSchedule()->create([
-                        'day_number' => $entry['day'],
-                        'water_amount_ml' => $entry['amount'],
-                        'watering_method' => 'bottom', // Default method
-                        'needs_liquid_fertilizer' => false, // Default value
-                        'notes' => '', // Default empty notes
-                    ]);
+            if (is_array($scheduleData)) {
+                \Illuminate\Support\Facades\Log::debug('Processing ' . count($scheduleData) . ' watering schedule entries');
+                
+                $entriesCreated = 0;
+                foreach ($scheduleData as $entry) {
+                    try {
+                        // Normalize data keys to ensure consistency
+                        $dayNumber = null;
+                        $waterAmount = null;
+                        $wateringMethod = 'bottom';  // Default method
+                        $needsFertilizer = false;    // Default no fertilizer
+                        $notes = '';                 // Default empty notes
+                        
+                        // First check for the day number under different possible keys
+                        if (isset($entry['day_number'])) {
+                            $dayNumber = $entry['day_number'];
+                        } elseif (isset($entry['day'])) {
+                            $dayNumber = $entry['day'];
+                        }
+                        
+                        // Then check for water amount under different possible keys
+                        if (isset($entry['water_amount_ml'])) {
+                            $waterAmount = $entry['water_amount_ml'];
+                        } elseif (isset($entry['amount'])) {
+                            $waterAmount = $entry['amount'];
+                        }
+                        
+                        // Check for watering method
+                        if (isset($entry['watering_method'])) {
+                            $wateringMethod = $entry['watering_method'];
+                        } elseif (isset($entry['method'])) {
+                            $wateringMethod = $entry['method'];
+                        }
+                        
+                        // Check for fertilizer flag
+                        if (isset($entry['needs_liquid_fertilizer'])) {
+                            $needsFertilizer = $entry['needs_liquid_fertilizer'];
+                        } elseif (isset($entry['is_fertilizer_day'])) {
+                            $needsFertilizer = $entry['is_fertilizer_day'];
+                        }
+                        
+                        // Check for notes
+                        if (isset($entry['notes'])) {
+                            $notes = $entry['notes'];
+                        }
+                        
+                        if ($dayNumber !== null && $waterAmount !== null) {
+                            \Illuminate\Support\Facades\Log::debug('Creating watering schedule entry: Day ' . $dayNumber . ', Amount ' . $waterAmount);
+                            
+                            $this->record->wateringSchedule()->create([
+                                'day_number' => $dayNumber,
+                                'water_amount_ml' => $waterAmount,
+                                'watering_method' => $wateringMethod,
+                                'needs_liquid_fertilizer' => $needsFertilizer,
+                                'notes' => $notes,
+                            ]);
+                            
+                            // Increment counter when entry is created
+                            $entriesCreated++;
+                        } else {
+                            \Illuminate\Support\Facades\Log::debug('Skipping invalid watering schedule entry: ' . json_encode($entry));
+                        }
+                    } catch (\Exception $e) {
+                        \Illuminate\Support\Facades\Log::error('Error creating watering schedule entry: ' . $e->getMessage());
+                        \Illuminate\Support\Facades\Log::error('Entry data: ' . json_encode($entry));
+                    }
                 }
+                
+                \Illuminate\Support\Facades\Log::debug("Created {$entriesCreated} new watering schedule entries");
+                \Illuminate\Support\Facades\Log::debug("Final watering schedule count: " . $this->record->wateringSchedule()->count());
+            } else {
+                \Illuminate\Support\Facades\Log::error('Watering schedule data is not an array: ' . gettype($scheduleData));
             }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error processing watering schedule: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error('Error stack trace: ' . $e->getTraceAsString());
         }
     }
 }
