@@ -107,25 +107,31 @@ class ConsumableResource extends Resource
                                 if ($get('type') === 'packaging') {
                                     // Dropdown for packaging types
                                     return [
-                                        Forms\Components\Select::make('name')
+                                        Forms\Components\Select::make('packaging_type_id')
                                             ->label('Packaging Type')
                                             ->options(function () {
                                                 return \App\Models\PackagingType::where('is_active', true)
-                                                    ->pluck('name', 'name')
+                                                    ->get()
+                                                    ->mapWithKeys(function ($packagingType) {
+                                                        return [$packagingType->id => $packagingType->display_name];
+                                                    })
                                                     ->toArray();
                                             })
                                             ->searchable()
                                             ->required()
                                             ->reactive()
                                             ->afterStateUpdated(function ($state, Forms\Set $set) {
-                                                // Get packaging type by name
-                                                $packagingType = \App\Models\PackagingType::where('name', $state)->first();
+                                                // Get packaging type
+                                                $packagingType = \App\Models\PackagingType::find($state);
                                                 
-                                                // Set the hidden field
+                                                // Set the name field from the packaging type
                                                 if ($packagingType) {
-                                                    $set('packaging_type_id', $packagingType->id);
+                                                    $set('name', $packagingType->name);
                                                 }
-                                            })
+                                            }),
+                                            
+                                        // Hidden name field for packaging types
+                                        Forms\Components\Hidden::make('name')
                                     ];
                                 } else {
                                     // Text input for other types
@@ -156,8 +162,6 @@ class ConsumableResource extends Resource
                             ->searchable()
                             ->preload()
                             ->required(),
-                        Forms\Components\Hidden::make('packaging_type_id')
-                            ->dehydrated(fn (Forms\Get $get) => $get('type') === 'packaging'),
                         Forms\Components\TextInput::make('lot_no')
                             ->label('Lot/Batch Number')
                             ->helperText('Will be converted to uppercase')
