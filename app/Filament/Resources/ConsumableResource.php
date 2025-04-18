@@ -96,46 +96,60 @@ class ConsumableResource extends Resource
                                 if ($state !== 'packaging') {
                                     $set('packaging_type_id', null);
                                 }
+                                
+                                // Also reset the name field
+                                $set('name', null);
                             }),
-                        Forms\Components\TextInput::make('name')
-                            ->label('Name')
-                            ->required()
-                            ->maxLength(255)
-                            ->datalist(function (Forms\Get $get) {
-                                // For seed type, provide seed names
-                                if ($get('type') === 'seed') {
-                                    return Consumable::where('type', 'seed')
-                                        ->where('is_active', true)
-                                        ->pluck('name')
-                                        ->unique()
-                                        ->toArray();
-                                }
-                                
-                                // For packaging type, provide packaging type names
+
+                        // Conditional field - either Select for packaging type or TextInput for others
+                        Forms\Components\Grid::make()
+                            ->schema(function (Forms\Get $get) {
                                 if ($get('type') === 'packaging') {
-                                    return \App\Models\PackagingType::where('is_active', true)
-                                        ->pluck('name')
-                                        ->unique()
-                                        ->toArray();
+                                    // Dropdown for packaging types
+                                    return [
+                                        Forms\Components\Select::make('name')
+                                            ->label('Packaging Type')
+                                            ->options(function () {
+                                                return \App\Models\PackagingType::where('is_active', true)
+                                                    ->pluck('name', 'name')
+                                                    ->toArray();
+                                            })
+                                            ->searchable()
+                                            ->required()
+                                            ->reactive()
+                                            ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                                // Get packaging type by name
+                                                $packagingType = \App\Models\PackagingType::where('name', $state)->first();
+                                                
+                                                // Set the hidden field
+                                                if ($packagingType) {
+                                                    $set('packaging_type_id', $packagingType->id);
+                                                }
+                                            })
+                                    ];
+                                } else {
+                                    // Text input for other types
+                                    return [
+                                        Forms\Components\TextInput::make('name')
+                                            ->label('Name')
+                                            ->required()
+                                            ->maxLength(255)
+                                            ->datalist(function (Forms\Get $get) {
+                                                // Only provide autocomplete for seed type
+                                                if ($get('type') === 'seed') {
+                                                    return Consumable::where('type', 'seed')
+                                                        ->where('is_active', true)
+                                                        ->pluck('name')
+                                                        ->unique()
+                                                        ->toArray();
+                                                }
+                                                return [];
+                                            })
+                                    ];
                                 }
-                                
-                                return [];
                             })
-                            ->reactive()
-                            ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
-                                // Only for packaging type
-                                if ($get('type') === 'packaging') {
-                                    // Try to get packaging type by name
-                                    $packagingType = \App\Models\PackagingType::where('name', $state)->first();
-                                    
-                                    // If packaging type exists, set the hidden field
-                                    if ($packagingType) {
-                                        $set('packaging_type_id', $packagingType->id);
-                                    }
-                                }
-                            })
-                            ->placeholder(fn (Forms\Get $get) => 
-                                $get('type') === 'packaging' ? 'Enter the packaging type name (e.g., Clamshell)' : null),
+                            ->columnSpanFull(),
+                            
                         Forms\Components\Select::make('supplier_id')
                             ->label('Supplier')
                             ->relationship('supplier', 'name')
