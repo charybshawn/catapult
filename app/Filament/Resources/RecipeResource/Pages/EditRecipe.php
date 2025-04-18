@@ -72,18 +72,10 @@ class EditRecipe extends EditRecord
                                         ->get()
                                         ->mapWithKeys(function ($seed) {
                                             $lotInfo = $seed->lot_no ? " (Lot: {$seed->lot_no})" : "";
-                                            // Use computed current_stock property
                                             $totalWeight = $seed->current_stock;
-                                            
-                                            // For Speckled P specifically (or any seed that should be kg)
-                                            if (stripos($seed->name, 'Speckled P') !== false) {
-                                                $unit = 'kg';
-                                            } else {
-                                                // Default unit
-                                                $unit = $seed->quantity_unit ?? 'g';
-                                            }
-                                            
-                                            $stockInfo = " - " . number_format($totalWeight, 1) . " {$unit} available";
+                                            // Use the proper weight unit from the database
+                                            $displayUnit = $seed->quantity_unit ?? 'g';
+                                            $stockInfo = " - " . number_format($totalWeight, 1) . " {$displayUnit} available";
                                             return [$seed->id => $seed->name . $lotInfo . $stockInfo];
                                         });
                                 })
