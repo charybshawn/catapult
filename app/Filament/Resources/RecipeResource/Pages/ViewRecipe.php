@@ -165,15 +165,6 @@ class ViewRecipe extends ViewRecord
                     ])
                     ->collapsible(),
                     
-                Infolists\Components\Section::make('Additional Notes')
-                    ->schema([
-                        Infolists\Components\TextEntry::make('notes')
-                            ->label('')
-                            ->columnSpanFull(),
-                    ])
-                    ->collapsible()
-                    ->collapsed(fn ($record) => empty($record->notes)),
-                    
                 Infolists\Components\Section::make('Watering Schedule')
                     ->schema([
                         Infolists\Components\TextEntry::make('watering_instructions')

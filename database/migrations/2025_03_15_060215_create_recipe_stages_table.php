@@ -19,7 +19,7 @@ return new class extends Migration
             $table->integer('duration_days')->nullable();
             $table->string('description')->nullable();
             $table->text('instructions')->nullable();
-            $table->enum('stage', ['planting', 'germination', 'blackout', 'light']);
+            $table->enum('stage', ['germination', 'blackout', 'light']);
             $table->text('notes')->nullable();
             $table->boolean('is_active')->default(true);
             $table->float('temperature_min_celsius')->nullable();

@@ -34,20 +34,18 @@ class CropTaskService
         $blackoutDays = $recipe->blackout_days;
         $lightDays = $recipe->light_days;
         
-        // Calculate stage transition times
-        $germinationTime = $plantedAt->copy()->addDays(1); // Typically 1 day after planting
-        $blackoutTime = $germinationTime->copy()->addDays($germDays);
+        // Calculate stage transition times using precise days calculation
+        // We no longer need germinationTime calculation since we start at germination
+        $blackoutTime = $plantedAt->copy()->addDays($germDays);
         $lightTime = $blackoutTime->copy()->addDays($blackoutDays);
         $harvestTime = $lightTime->copy()->addDays($lightDays);
         
         $now = Carbon::now();
         
         // Only schedule tasks for future stages
-        if ($currentStage === 'planting' && $germinationTime->gt($now)) {
-            $this->createStageTransitionTask($crop, 'germination', $germinationTime);
-        }
+        // Remove planting-to-germination transition since we start at germination
         
-        if (in_array($currentStage, ['planting', 'germination']) && $blackoutTime->gt($now)) {
+        if ($currentStage === 'germination' && $blackoutTime->gt($now)) {
             // Skip blackout stage if blackoutDays is 0
             if ($blackoutDays > 0) {
                 $this->createStageTransitionTask($crop, 'blackout', $blackoutTime);
@@ -57,11 +55,11 @@ class CropTaskService
             }
         }
         
-        if (in_array($currentStage, ['planting', 'germination', 'blackout']) && $lightTime->gt($now)) {
+        if (in_array($currentStage, ['germination', 'blackout']) && $lightTime->gt($now)) {
             $this->createStageTransitionTask($crop, 'light', $lightTime);
         }
         
-        if (in_array($currentStage, ['planting', 'germination', 'blackout', 'light']) && $harvestTime->gt($now)) {
+        if (in_array($currentStage, ['germination', 'blackout', 'light']) && $harvestTime->gt($now)) {
             $this->createStageTransitionTask($crop, 'harvested', $harvestTime);
         }
     }
@@ -79,9 +77,9 @@ class CropTaskService
         // Format task name: "advance_to_X"
         $taskName = "advance_to_{$targetStage}";
         
-        // Create conditions for the task
+        // Create conditions for the task - ensure crop_id is an integer
         $conditions = [
-            'crop_id' => $crop->id,
+            'crop_id' => (int) $crop->id,
             'target_stage' => $targetStage,
             'tray_number' => $crop->tray_number,
             'variety' => $crop->recipe->seedVariety->name ?? 'Unknown',
@@ -143,7 +141,7 @@ class CropTaskService
         }
         
         // Check if the crop is already at or past the target stage
-        $stageOrder = ['planting', 'germination', 'blackout', 'light', 'harvested'];
+        $stageOrder = ['germination', 'blackout', 'light', 'harvested'];
         $currentStageIndex = array_search($crop->current_stage, $stageOrder);
         $targetStageIndex = array_search($targetStage, $stageOrder);
         
@@ -183,19 +181,19 @@ class CropTaskService
         // we should create a new task for the intermediate stage
         $nextStage = $stageOrder[$currentStageIndex + 1];
         
-        // Calculate time for next stage
-        $days = 1; // Default
+        // Calculate time for next stage using precise day calculation
         if ($nextStage === 'germination') {
-            $days = 1;
+            $nextTime = now()->addDays(1);
         } elseif ($nextStage === 'blackout') {
-            $days = $crop->recipe->germination_days;
+            $nextTime = now()->addDays($crop->recipe->germination_days);
         } elseif ($nextStage === 'light') {
-            $days = $crop->recipe->blackout_days;
+            $nextTime = now()->addDays($crop->recipe->blackout_days);
         } elseif ($nextStage === 'harvested') {
-            $days = $crop->recipe->light_days;
+            $nextTime = now()->addDays($crop->recipe->light_days);
+        } else {
+            // Fallback for any unexpected stage
+            $nextTime = now()->addDays(1);
         }
-        
-        $nextTime = now()->addDays($days);
         
         $this->createStageTransitionTask($crop, $nextStage, $nextTime);
         

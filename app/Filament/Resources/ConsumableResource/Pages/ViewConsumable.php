@@ -9,6 +9,7 @@ use Filament\Forms;
 use Filament\Infolists;
 use Filament\Infolists\Infolist;
 use Filament\Resources\Pages\ViewRecord;
+use Illuminate\Contracts\View\View;
 
 class ViewConsumable extends ViewRecord
 {
@@ -62,6 +63,107 @@ class ViewConsumable extends ViewRecord
         ];
     }
     
+    // Show seed variety information if available
+    protected function getHeaderWidgets(): array
+    {
+        return [];
+    }
+    
+    public function getHeaderWidgetsData(): array
+    {
+        $record = $this->getRecord();
+        
+        if ($record->type === 'seed' && $record->seedVariety) {
+            return [
+                'seedVariety' => $record->seedVariety,
+            ];
+        }
+        
+        return [];
+    }
+    
+    // Create a custom widget for seed variety information
+    public function getHeader(): ?View
+    {
+        $record = $this->getRecord();
+        
+        // Only show seed variety info for seed type consumables with a variety
+        if ($record->type === 'seed' && $record->seedVariety) {
+            return view('filament.widgets.seed-variety-overview', [
+                'seedVariety' => $record->seedVariety,
+            ]);
+        }
+        
+        return parent::getHeader();
+    }
+    
+    /**
+     * Helper method to format quantity display
+     * 
+     * @param float $quantity The quantity to format
+     * @param \App\Models\Consumable $record The consumable record
+     * @param bool $showTotal Whether to show total quantity (for initial and consumed)
+     * @return string The formatted quantity string
+     */
+    protected function formatQuantity(float $quantity, \App\Models\Consumable $record, bool $showTotal = false): string
+    {
+        // Debug information
+        \Illuminate\Support\Facades\Log::debug("Formatting quantity for consumable {$record->id} ({$record->name}):", [
+            'quantity' => $quantity,
+            'showTotal' => $showTotal,
+            'record_unit' => $record->unit,
+            'quantity_per_unit' => $record->quantity_per_unit,
+            'quantity_unit' => $record->quantity_unit,
+        ]);
+        
+        // Unit map for displaying friendly names
+        $unitMap = [
+            'l' => 'litre(s)',
+            'ml' => 'millilitre(s)',
+            'g' => 'gram(s)',
+            'kg' => 'kilogram(s)',
+            'oz' => 'ounce(s)',
+            'unit' => 'unit(s)',
+            'box' => 'box(es)',
+            'bag' => 'bag(s)',
+        ];
+        
+        // Format numbers depending on their type
+        $formatNumber = function($value) {
+            if (is_null($value)) {
+                return '0';
+            }
+            
+            if (floor($value) == $value) {
+                // No decimal places for whole numbers
+                return number_format($value, 0);
+            } else {
+                // Up to 2 decimal places for fractional numbers
+                return number_format($value, 2);
+            }
+        };
+        
+        // If quantity_per_unit is set and we want to show totals
+        if (isset($record->quantity_per_unit) && $record->quantity_per_unit > 0) {
+            $totalQuantity = $quantity * $record->quantity_per_unit;
+            $displayUnit = $record->quantity_unit ?? $record->unit;
+            $formattedUnit = $unitMap[$displayUnit] ?? $displayUnit;
+            
+            if ($showTotal) {
+                // For initial and consumed: show both container count and total
+                $containerStr = $formatNumber($quantity) . " " . ($unitMap[$record->unit] ?? $record->unit);
+                return "{$containerStr} (Total: " . $formatNumber($totalQuantity) . " {$formattedUnit})";
+            } else {
+                // For available: show only the total
+                return $formatNumber($totalQuantity) . " {$formattedUnit}";
+            }
+        }
+        
+        // Fall back to just container units if quantity_per_unit not set
+        $displayUnit = $unitMap[$record->unit] ?? $record->unit;
+        return $formatNumber($quantity) . " {$displayUnit}";
+    }
+    
     public function infolist(Infolist $infolist): Infolist
     {
         return $infolist
@@ -97,43 +199,57 @@ class ViewConsumable extends ViewRecord
                         Infolists\Components\Group::make([
                             Infolists\Components\TextEntry::make('initial_stock')
                                 ->label('Initial Quantity')
-                                ->formatStateUsing(function ($state, $record) {
-                                    $unitMap = [
-                                        'l' => 'litre(s)',
-                                        'g' => 'gram(s)',
-                                        'kg' => 'kilogram(s)',
-                                        'oz' => 'ounce(s)',
-                                        'unit' => 'unit(s)',
-                                    ];
-                                    $displayUnit = $unitMap[$record->unit] ?? $record->unit;
-                                    return "{$state} {$displayUnit}";
-                                }),
+                                ->formatStateUsing(fn ($state, $record) => $this->formatQuantity($state, $record, true)),
                             Infolists\Components\TextEntry::make('consumed_quantity')
                                 ->label('Consumed Quantity')
-                                ->formatStateUsing(function ($state, $record) {
-                                    $unitMap = [
-                                        'l' => 'litre(s)',
-                                        'g' => 'gram(s)',
-                                        'kg' => 'kilogram(s)',
-                                        'oz' => 'ounce(s)',
-                                        'unit' => 'unit(s)',
-                                    ];
-                                    $displayUnit = $unitMap[$record->unit] ?? $record->unit;
-                                    return "{$state} {$displayUnit}";
-                                }),
+                                ->formatStateUsing(fn ($state, $record) => $this->formatQuantity($state, $record, true)),
                             Infolists\Components\TextEntry::make('current_stock')
                                 ->label('Available Quantity')
-                                ->state(fn ($record) => max(0, $record->initial_stock - $record->consumed_quantity))
                                 ->formatStateUsing(function ($state, $record) {
+                                    // Calculate current stock
+                                    $currentStock = max(0, $record->initial_stock - $record->consumed_quantity);
+                                    
+                                    \Illuminate\Support\Facades\Log::debug("Current stock direct format:", [
+                                        'consumable_id' => $record->id,
+                                        'name' => $record->name,
+                                        'current_stock' => $currentStock,
+                                        'quantity_per_unit' => $record->quantity_per_unit,
+                                        'quantity_unit' => $record->quantity_unit,
+                                    ]);
+                                    
+                                    // Unit map for displaying friendly names
                                     $unitMap = [
                                         'l' => 'litre(s)',
+                                        'ml' => 'millilitre(s)',
                                         'g' => 'gram(s)',
                                         'kg' => 'kilogram(s)',
                                         'oz' => 'ounce(s)',
                                         'unit' => 'unit(s)',
+                                        'box' => 'box(es)',
+                                        'bag' => 'bag(s)',
                                     ];
+                                    
+                                    // Format numbers 
+                                    $formatNumber = function($value) {
+                                        if (is_null($value)) return '0';
+                                        return floor($value) == $value 
+                                            ? number_format($value, 0) 
+                                            : number_format($value, 2);
+                                    };
+                                    
+                                    // Calculate total quantity based on units
+                                    if ($record->quantity_per_unit && $record->quantity_per_unit > 0) {
+                                        $totalQuantity = $currentStock * $record->quantity_per_unit;
+                                        $displayUnit = $record->quantity_unit ?? $record->unit;
+                                        $formattedUnit = $unitMap[$displayUnit] ?? $displayUnit;
+                                        
+                                        // For available quantity: show only the total amount
+                                        return $formatNumber($totalQuantity) . " {$formattedUnit}";
+                                    }
+                                    
+                                    // Fallback to container units
                                     $displayUnit = $unitMap[$record->unit] ?? $record->unit;
-                                    return "{$state} {$displayUnit}";
+                                    return $formatNumber($currentStock) . " {$displayUnit}";
                                 }),
                             Infolists\Components\TextEntry::make('unit')
                                 ->label('Unit Type')
@@ -155,36 +271,10 @@ class ViewConsumable extends ViewRecord
                         Infolists\Components\Group::make([
                             Infolists\Components\TextEntry::make('restock_threshold')
                                 ->label('Restock Threshold')
-                                ->formatStateUsing(function ($state, $record) {
-                                    // Map unit codes to their full names
-                                    $unitMap = [
-                                        'l' => 'litre(s)',
-                                        'g' => 'gram(s)',
-                                        'kg' => 'kilogram(s)',
-                                        'oz' => 'ounce(s)',
-                                        'unit' => 'unit(s)',
-                                    ];
-                                    
-                                    $displayUnit = $unitMap[$record->unit] ?? $record->unit;
-                                    
-                                    return "{$state} {$displayUnit}";
-                                }),
+                                ->formatStateUsing(fn ($state, $record) => $this->formatQuantity($state, $record, false)),
                             Infolists\Components\TextEntry::make('restock_quantity')
                                 ->label('Restock Quantity')
-                                ->formatStateUsing(function ($state, $record) {
-                                    // Map unit codes to their full names
-                                    $unitMap = [
-                                        'l' => 'litre(s)',
-                                        'g' => 'gram(s)',
-                                        'kg' => 'kilogram(s)',
-                                        'oz' => 'ounce(s)',
-                                        'unit' => 'unit(s)',
-                                    ];
-                                    
-                                    $displayUnit = $unitMap[$record->unit] ?? $record->unit;
-                                    
-                                    return "{$state} {$displayUnit}";
-                                }),
+                                ->formatStateUsing(fn ($state, $record) => $this->formatQuantity($state, $record, false)),
                         ])->columnSpanFull()
                             ->columns(2),
                             

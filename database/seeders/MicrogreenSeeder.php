@@ -56,86 +56,46 @@ class MicrogreenSeeder extends Seeder
         foreach ($suppliers as $supplierData) {
             $supplier = Supplier::create($supplierData);
 
-            // Common microgreen varieties with their typical characteristics
+            // Common microgreen varieties
             $varieties = [
                 [
                     'name' => 'Sunflower - Black Oil',
-                    'crop_type' => 'Sunflower',
-                    'supplier_id' => $supplier->id,
-                    'germination_rate' => 95,
-                    'days_to_maturity' => 10,
                     'is_active' => true,
                 ],
                 [
                     'name' => 'Pea - Speckled',
-                    'crop_type' => 'Pea',
-                    'supplier_id' => $supplier->id,
-                    'germination_rate' => 90,
-                    'days_to_maturity' => 12,
                     'is_active' => true,
                 ],
                 [
                     'name' => 'Radish - Daikon',
-                    'crop_type' => 'Radish',
-                    'supplier_id' => $supplier->id,
-                    'germination_rate' => 95,
-                    'days_to_maturity' => 8,
                     'is_active' => true,
                 ],
                 [
                     'name' => 'Broccoli - Calabrese',
-                    'crop_type' => 'Broccoli',
-                    'supplier_id' => $supplier->id,
-                    'germination_rate' => 85,
-                    'days_to_maturity' => 10,
                     'is_active' => true,
                 ],
                 [
                     'name' => 'Kale - Red Russian',
-                    'crop_type' => 'Kale',
-                    'supplier_id' => $supplier->id,
-                    'germination_rate' => 90,
-                    'days_to_maturity' => 12,
                     'is_active' => true,
                 ],
                 [
                     'name' => 'Arugula - Wild',
-                    'crop_type' => 'Arugula',
-                    'supplier_id' => $supplier->id,
-                    'germination_rate' => 95,
-                    'days_to_maturity' => 7,
                     'is_active' => true,
                 ],
                 [
                     'name' => 'Mustard - Red Giant',
-                    'crop_type' => 'Mustard',
-                    'supplier_id' => $supplier->id,
-                    'germination_rate' => 90,
-                    'days_to_maturity' => 8,
                     'is_active' => true,
                 ],
                 [
                     'name' => 'Amaranth - Red Garnet',
-                    'crop_type' => 'Amaranth',
-                    'supplier_id' => $supplier->id,
-                    'germination_rate' => 85,
-                    'days_to_maturity' => 10,
                     'is_active' => true,
                 ],
                 [
                     'name' => 'Basil - Genovese',
-                    'crop_type' => 'Basil',
-                    'supplier_id' => $supplier->id,
-                    'germination_rate' => 80,
-                    'days_to_maturity' => 14,
                     'is_active' => true,
                 ],
                 [
                     'name' => 'Beet - Detroit Dark Red',
-                    'crop_type' => 'Beet',
-                    'supplier_id' => $supplier->id,
-                    'germination_rate' => 85,
-                    'days_to_maturity' => 12,
                     'is_active' => true,
                 ],
             ];

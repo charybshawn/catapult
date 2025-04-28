@@ -13,6 +13,8 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Filament\Tables\Actions\Action;
+use Illuminate\Database\Eloquent\Model;
 
 class CropResource extends Resource
 {
@@ -33,7 +35,8 @@ class CropResource extends Resource
                     ->separator(',')
                     ->helperText('Enter multiple tray numbers to create separate records for each tray')
                     ->rules(['array', 'min:1'])
-                    ->nestedRecursiveRules(['integer', 'min:1', 'max:100']),
+                    ->nestedRecursiveRules(['integer', 'min:1', 'max:100'])
+                    ->visible(fn ($livewire) => $livewire instanceof Pages\CreateCrop),
                 Forms\Components\Select::make('recipe_id')
                     ->label('Recipe')
                     ->relationship('recipe', 'name')
@@ -44,24 +47,25 @@ class CropResource extends Resource
                     ->label('Planted At')
                     ->required()
                     ->default(now()),
-                Forms\Components\Select::make('current_stage')
-                    ->label('Current Stage')
-                    ->options([
-                        'planting' => 'Planting',
-                        'germination' => 'Germination',
-                        'blackout' => 'Blackout',
-                        'light' => 'Light',
-                        'harvested' => 'Harvested',
-                    ])
-                    ->required()
-                    ->default('planting'),
                 Forms\Components\TextInput::make('harvest_weight_grams')
                     ->label('Harvest Weight (grams)')
                     ->numeric()
                     ->minValue(0)
                     ->maxValue(10000)
                     ->helperText('Can be added at any stage, but required when harvested')
-                    ->required(fn (Forms\Get $get) => $get('current_stage') === 'harvested'),
+                    ->required(fn (Forms\Get $get) => $get('current_stage') === 'harvested')
+                    ->visible(fn ($livewire) => !($livewire instanceof Pages\CreateCrop)),
+                Forms\Components\Select::make('current_stage')
+                    ->label('Current Stage')
+                    ->options([
+                        'germination' => 'Germination',
+                        'blackout' => 'Blackout',
+                        'light' => 'Light',
+                        'harvested' => 'Harvested',
+                    ])
+                    ->required()
+                    ->default('germination')
+                    ->visible(fn ($livewire) => !($livewire instanceof Pages\CreateCrop)),
                 Forms\Components\Section::make('Growth Stage Timestamps')
                     ->description('Record of when each growth stage began')
                     ->schema([
@@ -113,10 +117,17 @@ class CropResource extends Resource
                     ->description(fn (Crop $record): ?string => $record->recipe?->name)
                     ->size('md')
                     ->getStateUsing(function (Crop $record): ?string {
-                        if (!$record->recipe || !$record->recipe->seedVariety) {
-                            return null;
+                        if (!$record->recipe) {
+                            return 'No Recipe';
                         }
-                        return $record->recipe->seedVariety->name;
+                        
+                        // Get seed variety name if it exists
+                        if ($record->recipe->seedVariety) {
+                            return $record->recipe->seedVariety->name;
+                        }
+                        
+                        // If no seed variety, only show this message
+                        return 'Unknown Variety';
                     }),
                 Tables\Columns\TextColumn::make('planted_at')
                     ->label('Planted At')
@@ -128,7 +139,6 @@ class CropResource extends Resource
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => ucfirst($state))
                     ->color(fn (string $state): string => match ($state) {
-                        'planting' => 'gray',
                         'germination' => 'info',
                         'blackout' => 'warning',
                         'light' => 'success',
@@ -138,85 +148,108 @@ class CropResource extends Resource
                     ->sortable()
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('stage_age')
-                    ->label('Days in Stage')
+                    ->label('Time in Stage')
                     ->getStateUsing(function (Crop $record) {
                         $stageField = "{$record->current_stage}_at";
                         if ($record->$stageField) {
-                            return $record->$stageField->diffInDays(now());
+                            $now = now();
+                            $stageStart = $record->$stageField;
+                            
+                            // Calculate total time difference
+                            $totalHours = $stageStart->diffInHours($now);
+                            $totalMinutes = $stageStart->diffInMinutes($now) % 60;
+                            $totalDays = floor($totalHours / 24);
+                            $remainingHours = $totalHours % 24;
+                            
+                            // Get the expected duration for this stage
+                            $stageDuration = match ($record->current_stage) {
+                                'germination' => $record->recipe?->germination_days ?? 0,
+                                'blackout' => $record->recipe?->blackout_days ?? 0,
+                                'light' => $record->recipe?->light_days ?? 0,
+                                default => 0,
+                            };
+                            
+                            $expectedHours = $stageDuration * 24;
+                            
+                            // Format based on total time
+                            $timeDisplay = '';
+                            if ($totalDays > 0) {
+                                $timeDisplay = "{$totalDays}d {$remainingHours}h";
+                            } elseif ($remainingHours > 0) {
+                                $timeDisplay = "{$remainingHours}h {$totalMinutes}m";
+                            } else {
+                                $timeDisplay = "{$totalMinutes}m";
+                            }
+                            
+                            // Add overdue indicator if applicable
+                            if ($expectedHours > 0 && $totalHours > $expectedHours) {
+                                $overdueHours = $totalHours - $expectedHours;
+                                $overdueDays = floor($overdueHours / 24);
+                                $overdueHours = $overdueHours % 24;
+                                
+                                if ($overdueDays > 0) {
+                                    $timeDisplay .= " (Overdue by {$overdueDays}d {$overdueHours}h)";
+                                } else {
+                                    $timeDisplay .= " (Overdue by {$overdueHours}h)";
+                                }
+                            }
+                            
+                            return $timeDisplay;
                         }
-                        return 0;
+                        return '0m';
+                    })
+                    ->color(function (Crop $record) {
+                        $stageField = "{$record->current_stage}_at";
+                        if ($record->$stageField) {
+                            $now = now();
+                            $stageStart = $record->$stageField;
+                            $totalHours = $stageStart->diffInHours($now);
+                            
+                            $stageDuration = match ($record->current_stage) {
+                                'germination' => $record->recipe?->germination_days ?? 0,
+                                'blackout' => $record->recipe?->blackout_days ?? 0,
+                                'light' => $record->recipe?->light_days ?? 0,
+                                default => 0,
+                            };
+                            
+                            $expectedHours = $stageDuration * 24;
+                            
+                            if ($expectedHours > 0 && $totalHours > $expectedHours) {
+                                return 'danger';
+                            }
+                        }
+                        return null;
                     })
                     ->sortable()
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('time_to_next_stage')
                     ->label('Time to Next Stage')
-                    ->getStateUsing(function (Crop $record) {
-                        // Skip if already harvested
-                        if ($record->current_stage === 'harvested') {
-                            return '-';
-                        }
-                        
-                        $recipe = $record->recipe;
-                        if (!$recipe) {
-                            return 'No recipe';
-                        }
-                        
-                        // Get current stage
-                        $currentStage = $record->current_stage;
-                        
-                        // Get the timestamp for the current stage
-                        $stageField = "{$currentStage}_at";
-                        $stageStartTime = $record->$stageField;
-                        
-                        if (!$stageStartTime) {
-                            return 'Unknown';
-                        }
-                        
-                        // Determine the duration for the current stage
-                        $stageDuration = match ($currentStage) {
-                            'planting' => 1, // Planting is typically just 1 day
-                            'germination' => $recipe->germination_days,
-                            'blackout' => $recipe->blackout_days,
-                            'light' => $recipe->light_days,
-                            default => 0,
-                        };
-                        
-                        // Skip the calculation for blackout if duration is 0
-                        if ($currentStage === 'blackout' && $stageDuration === 0) {
-                            return 'Skip blackout';
-                        }
-                        
-                        // Calculate expected end date for this stage
-                        $expectedEndDate = $stageStartTime->copy()->addDays($stageDuration);
-                        
-                        // Calculate time remaining
-                        if ($expectedEndDate->isPast()) {
-                            return 'Overdue!';
-                        }
-                        
-                        // Calculate difference components directly instead of converting from seconds
-                        $now = now();
-                        $diff = $now->diff($expectedEndDate);
-                        
-                        $days = $diff->days;
-                        $hours = $diff->h;
-                        $minutes = $diff->i;
-                        
-                        // Format based on time remaining
-                        if ($days > 0) {
-                            return "{$days}d {$hours}h";
-                        } elseif ($hours > 0) {
-                            return "{$hours}h {$minutes}m";
-                        } else {
-                            return "{$minutes}m";
-                        }
-                    })
+                    ->getStateUsing(fn (Crop $record): ?string => $record->timeToNextStage())
                     ->sortable()
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('total_age')
-                    ->label('Total Days')
+                    ->label('Total Age')
                     ->getStateUsing(function (Crop $record) {
-                        return $record->planted_at->diffInDays(now());
+                        if ($record->planted_at) {
+                            $now = now();
+                            $plantedAt = $record->planted_at;
+                            
+                            // Calculate total time difference
+                            $totalHours = $plantedAt->diffInHours($now);
+                            $totalMinutes = $plantedAt->diffInMinutes($now) % 60;
+                            $totalDays = floor($totalHours / 24);
+                            $remainingHours = $totalHours % 24;
+                            
+                            // Format based on total time
+                            if ($totalDays > 0) {
+                                return "{$totalDays}d {$remainingHours}h";
+                            } elseif ($remainingHours > 0) {
+                                return "{$remainingHours}h {$totalMinutes}m";
+                            } else {
+                                return "{$totalMinutes}m";
+                            }
+                        }
+                        return '0m';
                     })
                     ->sortable()
                     ->toggleable(),
@@ -278,9 +311,8 @@ class CropResource extends Resource
             ->defaultGroup('recipe.seedVariety.name')
             ->filters([
                 Tables\Filters\SelectFilter::make('current_stage')
-                    ->label('Growth Stage')
+                    ->label('Stage')
                     ->options([
-                        'planting' => 'Planting',
                         'germination' => 'Germination',
                         'blackout' => 'Blackout',
                         'light' => 'Light',
@@ -288,6 +320,83 @@ class CropResource extends Resource
                     ]),
             ])
             ->actions([
+                Action::make('debug_data')
+                    ->label('Debug Data')
+                    ->icon('heroicon-o-bug-ant')
+                    ->modalHeading('Debug Data for Crop')
+                    ->modalContent(function (Model $record) {
+                        $stageStartTime = $record->{$record->current_stage . '_at'};
+                        $stageDuration = match ($record->current_stage) {
+                            'germination' => $record->recipe->germination_days,
+                            'blackout' => $record->recipe->blackout_days,
+                            'light' => $record->recipe->light_days,
+                            default => 0,
+                        };
+                        $hourDuration = $stageDuration * 24;
+                        $expectedEndDate = $stageStartTime ? $stageStartTime->copy()->addHours($hourDuration) : null;
+                        $totalStageDiff = $stageStartTime && $expectedEndDate ? $stageStartTime->diff($expectedEndDate) : null;
+                        $totalHours = $hourDuration;
+                        $elapsedHours = $stageStartTime ? $stageStartTime->diffInHours(now()) : 0;
+                        $elapsedPercent = 0;
+                        
+                        if ($stageStartTime && $expectedEndDate) {
+                            $totalDuration = $stageStartTime->diffInSeconds($expectedEndDate);
+                            $elapsed = $stageStartTime->diffInSeconds(now());
+                            $elapsedPercent = min(100, round(($elapsed / max(1, $totalDuration)) * 100));
+                        }
+                        
+                        // Add stage calculation data for table display
+                        $stage_data = [
+                            'current_stage' => $record->current_stage,
+                            'stage_start_time' => $stageStartTime ? $stageStartTime->format('Y-m-d H:i:s') : 'N/A',
+                            'stage_duration_days' => $stageDuration,
+                            'stage_duration_hours' => $hourDuration,
+                            'expected_end_date' => $expectedEndDate ? $expectedEndDate->format('Y-m-d H:i:s') : 'N/A',
+                            'elapsed_hours' => $elapsedHours,
+                            'elapsed_percent' => $elapsedPercent . '%',
+                            'time_remaining' => $expectedEndDate ? now()->diffForHumans($expectedEndDate, ['parts' => 2]) : 'N/A',
+                        ];
+                        
+                        // Add recipe data
+                        $recipe_data = [];
+                        if ($record->recipe) {
+                            $recipe_data = [
+                                'name' => $record->recipe->name,
+                                'germination_days' => $record->recipe->germination_days,
+                                'blackout_days' => $record->recipe->blackout_days,
+                                'light_days' => $record->recipe->light_days,
+                                'total_days' => $record->recipe->total_days,
+                            ];
+                        }
+                        
+                        // Add timestamps data
+                        $timestamps = [
+                            'created_at' => $record->created_at ? $record->created_at->format('Y-m-d H:i:s') : 'N/A',
+                            'planted_at' => $record->planted_at ? $record->planted_at->format('Y-m-d H:i:s') : 'N/A',
+                            'germination_at' => $record->germination_at ? $record->germination_at->format('Y-m-d H:i:s') : 'N/A',
+                            'blackout_at' => $record->blackout_at ? $record->blackout_at->format('Y-m-d H:i:s') : 'N/A',
+                            'light_at' => $record->light_at ? $record->light_at->format('Y-m-d H:i:s') : 'N/A',
+                            'harvested_at' => $record->harvested_at ? $record->harvested_at->format('Y-m-d H:i:s') : 'N/A',
+                            'expected_harvest_date' => $record->expectedHarvestDate() ? $record->expectedHarvestDate()->format('Y-m-d H:i:s') : 'N/A',
+                        ];
+                        
+                        return view('filament.resources.crop-resource.debug', [
+                            'crop' => $record,
+                            'recipe' => $record->recipe,
+                            'stageStartTime' => $stageStartTime,
+                            'stageDuration' => $stageDuration,
+                            'hourDuration' => $hourDuration,
+                            'expectedEndDate' => $expectedEndDate,
+                            'totalStageDiff' => $totalStageDiff,
+                            'totalHours' => $totalHours,
+                            'elapsedHours' => $elapsedHours,
+                            'elapsedPercent' => $elapsedPercent,
+                            'stage_data' => $stage_data,
+                            'recipe_data' => $recipe_data,
+                            'timestamps' => $timestamps,
+                        ]);
+                    })
+                    ->visible(true),
                 Tables\Actions\Action::make('advance_stage')
                     ->label('Advance Stage')
                     ->icon('heroicon-o-arrow-right')
@@ -302,7 +411,6 @@ class CropResource extends Resource
                         Forms\Components\Select::make('new_stage')
                             ->label('Growth Stage')
                             ->options([
-                                'planting' => 'Planting',
                                 'germination' => 'Germination',
                                 'blackout' => 'Blackout',
                                 'light' => 'Light',
@@ -340,7 +448,6 @@ class CropResource extends Resource
                             Forms\Components\Select::make('new_stage')
                                 ->label('Growth Stage')
                                 ->options([
-                                    'planting' => 'Planting',
                                     'germination' => 'Germination',
                                     'blackout' => 'Blackout',
                                     'light' => 'Light',

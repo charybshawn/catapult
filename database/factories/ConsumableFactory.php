@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Consumable;
 use App\Models\Supplier;
+use App\Models\SeedVariety;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -44,7 +45,8 @@ class ConsumableFactory extends Factory
             'name' => $name,
             'type' => $type,
             'supplier_id' => Supplier::factory()->consumable()->create()->id,
-            'current_stock' => fake()->numberBetween(1, 100),
+            'initial_stock' => fake()->numberBetween(1, 100),
+            'consumed_quantity' => fake()->numberBetween(0, 50),
             'unit' => $unit,
             'restock_threshold' => fake()->numberBetween(5, 20),
             'restock_quantity' => fake()->numberBetween(10, 50),
@@ -89,6 +91,37 @@ class ConsumableFactory extends Factory
     }
     
     /**
+     * Indicate that the consumable is for seeds.
+     */
+    public function seed(): static
+    {
+        $seedVariety = SeedVariety::factory()->create();
+        
+        return $this->state(fn (array $attributes) => [
+            'type' => 'seed',
+            'seed_variety_id' => $seedVariety->id,
+            'name' => $seedVariety->name,
+            'unit' => fake()->randomElement(['g', 'kg', 'pack']),
+            'quantity_per_unit' => fake()->randomFloat(2, 10, 1000),
+            'quantity_unit' => 'g',
+        ]);
+    }
+    
+    /**
+     * Indicate that the consumable is for soil.
+     */
+    public function soil(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => 'soil',
+            'name' => fake()->randomElement(['Potting Mix', 'Seed Starting Mix', 'Coco Coir', 'Peat Moss', 'Vermiculite']),
+            'unit' => fake()->randomElement(['bag', 'block', 'pack']),
+            'quantity_per_unit' => fake()->randomFloat(2, 1, 20),
+            'quantity_unit' => 'kg',
+        ]);
+    }
+    
+    /**
      * Indicate that the consumable is for other purposes.
      */
     public function other(): static
@@ -111,6 +144,21 @@ class ConsumableFactory extends Factory
     }
     
     /**
+     * Indicate that the consumable is for a specific seed variety.
+     */
+    public function forSeedVariety(SeedVariety $seedVariety): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => 'seed',
+            'seed_variety_id' => $seedVariety->id,
+            'name' => $seedVariety->name,
+            'unit' => fake()->randomElement(['g', 'kg', 'pack']),
+            'quantity_per_unit' => fake()->randomFloat(2, 10, 1000),
+            'quantity_unit' => 'g',
+        ]);
+    }
+    
+    /**
      * Indicate that the consumable is low in stock.
      */
     public function lowStock(): static
@@ -119,7 +167,7 @@ class ConsumableFactory extends Factory
             $restockThreshold = $attributes['restock_threshold'] ?? fake()->numberBetween(5, 20);
             
             return [
-                'current_stock' => fake()->numberBetween(0, $restockThreshold - 1),
+                'initial_stock' => fake()->numberBetween(0, $restockThreshold - 1),
             ];
         });
     }

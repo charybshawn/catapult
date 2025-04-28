@@ -33,6 +33,11 @@ class Recipe extends Model
         'seed_density_grams_per_tray',
         'is_active',
         'notes',
+        'planting_notes',
+        'germination_notes',
+        'blackout_notes',
+        'light_notes',
+        'harvesting_notes',
     ];
     
     /**

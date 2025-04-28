@@ -43,14 +43,13 @@ class CropsRelationManager extends RelationManager
                 Forms\Components\Select::make('current_stage')
                     ->label('Current Stage')
                     ->options([
-                        'planting' => 'Planting',
                         'germination' => 'Germination',
                         'blackout' => 'Blackout',
                         'light' => 'Light',
                         'harvested' => 'Harvested',
                     ])
                     ->required()
-                    ->default('planting'),
+                    ->default('germination'),
                 Forms\Components\DateTimePicker::make('stage_updated_at')
                     ->label('Stage Updated At')
                     ->default(now()),
@@ -80,7 +79,6 @@ class CropsRelationManager extends RelationManager
                 Tables\Columns\TextColumn::make('current_stage')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        'planting' => 'gray',
                         'germination' => 'info',
                         'blackout' => 'warning',
                         'light' => 'success',
@@ -105,7 +103,6 @@ class CropsRelationManager extends RelationManager
             ->filters([
                 Tables\Filters\SelectFilter::make('current_stage')
                     ->options([
-                        'planting' => 'Planting',
                         'germination' => 'Germination',
                         'blackout' => 'Blackout',
                         'light' => 'Light',

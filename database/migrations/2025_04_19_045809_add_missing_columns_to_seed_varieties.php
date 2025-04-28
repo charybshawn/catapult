@@ -11,11 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('seed_varieties', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
+        Schema::table('seed_varieties', function (Blueprint $table) {
+            //
         });
     }
 
@@ -24,6 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('seed_varieties');
+        Schema::table('seed_varieties', function (Blueprint $table) {
+            //
+        });
     }
 };

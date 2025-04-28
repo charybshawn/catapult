@@ -72,6 +72,11 @@ This document tracks all significant changes to the Catapult v2 project.
   - Added weight tracking for consumable units with multiple measurement options (grams, kilograms, liters, ounces)
   - Implemented total weight calculation based on unit weight and quantity
   - Improved stock management with better tracking of weights and quantities
+- Removed obsolete seed_variety_id form logic from RecipeResource.php (2025-04-28)
+  - Simplified the seed_variety_id field to use the standard relationship selector
+  - Removed complex createOptionForm and createOptionUsing functionality
+  - Maintained the primary seed creation functionality in RecipeResource/Pages/CreateRecipe.php
+  - Reduced code duplication and simplified the codebase
 
 ### Changed
 - Updated PackagingType model to use volumetric measurements
@@ -86,6 +91,12 @@ This document tracks all significant changes to the Catapult v2 project.
   - Added relationship between Consumable and PackagingType models
   - Enhanced ConsumableResource UI with packaging type selection for packaging consumables
   - Updated table display to show packaging specifications
+- Modified recipe notes handling to improve organization
+  - Removed automatic markdown generation for watering schedules
+  - Refactored general notes section in recipe forms
+  - Maintained the notes column for storing important growth phase information
+  - Growth phase notes continue to be available in the RecipeStage model
+  - Watering schedule details are stored in the RecipeWateringSchedule model
 
 ### Fixed
 - Fixed migration ordering issue with consumables and packaging types tables
@@ -104,6 +115,39 @@ This document tracks all significant changes to the Catapult v2 project.
   - Refactored time difference calculation to use Carbon's diff() method instead of diffInSeconds()
   - Eliminates all precision loss warnings by using native DateTime interval components
   - Improved code readability and accuracy when calculating time remaining to next stage
+- Fixed seed consumable creation validation error (2025-04-19)
+  - Completely redesigned the seed variety selection interface for clarity
+  - Added a Debug Form tool to help diagnose form submission issues
+  - Enhanced error notifications with detailed actionable information
+  - Simplified the form schema to reduce potential reactive conflicts
+  - Added comprehensive exception handling and error reporting
+  - Improved user feedback when validation fails
+  - Added guard clauses to prevent silent failures
+  - Eliminated form submission issues with seed variety selection
+- Fixed issue with seeded SeedVariety records (2025-04-19)
+  - Added crop_type field to SeedVariety model (made nullable)
+  - Simplified seed variety creation form to remove unnecessary fields
+  - Fixed compatibility between seeded varieties and form requirements
+  - Enabled proper selection of existing seed varieties in forms
+- Fixed consumable creation error in RecipeResource (2024-06-20)
+  - Fixed SQL error when creating new seed or soil consumables
+  - Added default value for consumed_quantity field in createOptionUsing functions
+  - Ensures compatibility with the updated Consumable model schema
+- Fixed supplier selection in RecipeResource (2024-06-20)
+  - Fixed supplier dropdown not showing options when creating soil consumables
+  - Corrected query syntax in supplier_id field options callback
+  - Now properly filters suppliers by type (soil, null, or other)
+
+### Enhanced
+- Improved crop stage duration display in the crops list view
+  - Changed from showing only days to a more detailed format with days, hours, and minutes
+  - Renamed column from "Days in Stage" to "Time in Stage" to reflect the more precise measurement
+  - Uses the same human-readable format as the "Time to Next Stage" column for consistency
+- Improved time display in the crops list view
+  - Enhanced both "Time in Stage" and "Total Age" columns to show days, hours, and minutes
+  - Renamed columns to better reflect the more precise measurements
+  - Provides consistent human-readable time format across the crops interface
+  - Helps farmers track crop progress with greater precision
 
 ## [0.1.0] - 2025-03-15
 
@@ -172,3 +216,105 @@ This document tracks all significant changes to the Catapult v2 project.
 - Enhanced variety display by showing recipe name below the variety
 - Fixed issues with variety relationship display in crop table
 - Made all columns toggleable in the crop table view 
+
+## 2023-06-01 - Initial release
+- First version of the farm management system
+- Core functionality for tracking crops, recipes, and inventory
+
+## 2023-06-15 - Added order management 
+- Order tracking with customer details
+- Generate order reports
+
+## 2023-07-10 - Dashboard improvements
+- Added real-time alerts for crop stages
+- Improved visual design of dashboard
+
+## 2023-08-17 - Task management
+- Automated task scheduling for crop care
+- Task completion tracking
+
+## 2023-09-22 - Inventory tracking enhancements
+- Low stock alerts
+- Consumable usage tracking
+- Reorder functionality
+
+## 2023-10-30 - Recipe management updates
+- Added ability to clone recipes
+- Improved recipe editor interface
+
+## 2023-12-05 - Reporting improvements
+- Added financial reports
+- Yield tracking by crop variety
+- Export to CSV/PDF options
+
+## 2024-01-18 - User management updates
+- Role-based permissions
+- Activity logging
+
+## 2024-03-05 - Mobile interface improvements
+- Responsive design for farm operations on mobile devices
+- Barcode scanning for inventory
+
+## 2024-04-22 - Crop stage transition improvements
+- Visual indicators for crop stage progression
+- Automated notifications for stage transitions
+
+## 2024-06-01 - First anniversary update
+- UI refresh with new theme options
+- Performance improvements
+
+## 2024-06-19 - Harvest date calculation fix
+- Fixed inconsistent harvest date calculations where time would display as "23h 56m"
+- Updated all stage transition calculations to use addDays() instead of addSeconds() for consistent date handling
+- Standardized time calculations across germination, blackout and light stages 
+
+## 2023-10-26 - Added real-world seed data
+- Created RealWorldRecipesSeeder with realistic data for microgreens farming
+- Added detailed suppliers, seed varieties, soil types, and recipes
+- Includes complete growing data for Sunflower, Pea, Radish, and Broccoli microgreens
+- Configured detailed watering schedules for each crop type
+
+## 2024-06-25 - Enhanced crop alerts with precise time display
+- Updated crop alerts to display time in days, hours, and minutes format
+- Improved stage transition detection to use more precise hourly calculations
+- Modified alerts for blackout stage to use hour-based thresholds instead of day-based
+- Ensured consistent time formatting across all crop stages
+- Improved visual representation of time in crop alerts widget
+
+## 2024-06-27 - Upgraded crop alerts system and task management
+- Completely overhauled the crop alerts resource to use more precise time calculations
+- Updated the CropTaskService to use direct day calculations for better precision
+- Improved task scheduling to align with the reformed grow resource
+- Enhanced the ManageCropTasks page with better time display formatting
+- Added badge indicators for task status and improved readability
+- Standardized time display format across all crop-related interfaces
+
+## 2023-10-05
+
+### Added
+- Added support for supplier types in the `Supplier` model: "soil", "seed", "packaging", or "other"
+- Added initial implementation of Weekly Planning view
+- Added crop task management system with automatic scheduling and notifications
+- Added ability to track seed soaking time in recipes
+- Added the ability to clone crops
+- Added search capabilities to crop manager
+
+### Changed
+- Improved user interface for the crop management screens
+- Enhanced dashboard with better metrics and visualization of upcoming harvests
+- Reorganized navigation to better group related functionality
+
+## 2023-11-12
+
+### Added
+- Added new CropGrowthSimulationTest to verify time-based crop lifecycle calculations
+- Added comprehensive test for validating crop stage transitions and time calculations
+
+### Fixed
+- Removed duplicate `getTable` method from ManageCropTasks component to fix HasTable contract conflict
+- Fixed SQL errors related to consumed_quantity field in consumables
+- Fixed supplier filtering in consumable creation forms
+
+### Changed 
+- Enhanced dashboard statistics for better farm monitoring
+- Modified recipe component to support all consumable types

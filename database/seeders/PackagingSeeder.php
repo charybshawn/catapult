@@ -67,7 +67,8 @@ class PackagingSeeder extends Seeder
                 'type' => 'packaging',
                 'supplier_id' => $supplier->id,
                 'packaging_type_id' => $packagingType->id,
-                'current_stock' => 100,
+                'initial_stock' => 100,
+                'consumed_quantity' => 0,
                 'unit' => 'case',
                 'restock_threshold' => 10,
                 'restock_quantity' => 50,
@@ -78,6 +79,7 @@ class PackagingSeeder extends Seeder
                     48 => 0.65,
                     64 => 0.75,
                 },
+                'total_quantity' => 0,
                 'is_active' => true,
             ]);
         }

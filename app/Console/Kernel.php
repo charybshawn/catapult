@@ -27,6 +27,25 @@ class Kernel extends ConsoleKernel
     protected function commands(): void
     {
         $this->load(__DIR__.'/Commands');
+        
+        // Define a simple command to update a recipe's germination days
+        $this->command('recipe:set-germination {recipe_id} {days}', function (int $recipeId, float $days) {
+            $recipe = \App\Models\Recipe::find($recipeId);
+            
+            if (!$recipe) {
+                $this->error("Recipe with ID {$recipeId} not found");
+                return 1;
+            }
+            
+            $this->info("Current germination days: {$recipe->germination_days}");
+            
+            $recipe->germination_days = $days;
+            $recipe->save();
+            
+            $this->info("Updated germination days to: {$recipe->germination_days}");
+            
+            return 0;
+        })->purpose('Set the germination days for a recipe');
 
         require base_path('routes/console.php');
     }

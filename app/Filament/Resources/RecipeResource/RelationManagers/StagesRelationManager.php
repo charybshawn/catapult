@@ -22,7 +22,6 @@ class StagesRelationManager extends RelationManager
             ->schema([
                 Forms\Components\Select::make('stage')
                     ->options([
-                        'planting' => 'Planting',
                         'germination' => 'Germination',
                         'blackout' => 'Blackout',
                         'light' => 'Light',
@@ -74,8 +73,7 @@ class StagesRelationManager extends RelationManager
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => ucfirst($state))
                     ->color(fn (string $state): string => match ($state) {
-                        'planting' => 'primary',
-                        'germination' => 'warning',
+                        'germination' => 'info',
                         'blackout' => 'gray',
                         'light' => 'success',
                         default => 'gray',

@@ -35,7 +35,9 @@ class Dashboard extends Page
             ->where('is_active', true)
             ->where('next_run_at', '<', now())
             ->count();
-        $lowStockCount = Consumable::whereRaw('current_stock <= restock_threshold')->count();
+        
+        // Calculate current_stock as initial_stock - consumed_quantity
+        $lowStockCount = Consumable::whereRaw('(initial_stock - consumed_quantity) <= restock_threshold')->count();
         
         return [
             'activeCropsCount' => Crop::whereNotIn('current_stage', ['harvested'])->count(),
@@ -59,17 +61,14 @@ class Dashboard extends Page
                 ->with(['recipe.seedVariety'])
                 ->take(5)
                 ->get(),
-            'lowStockItems' => Consumable::whereRaw('current_stock <= restock_threshold')
-                ->orderByRaw('current_stock / restock_threshold ASC')
+            'lowStockItems' => Consumable::whereRaw('(initial_stock - consumed_quantity) <= restock_threshold')
+                ->orderByRaw('(initial_stock - consumed_quantity) / restock_threshold ASC')
                 ->take(10)
                 ->get(),
             'totalHarvestedCrops' => Crop::where('current_stage', 'harvested')->count(),
             'totalHarvestedWeight' => Crop::where('current_stage', 'harvested')->sum('harvest_weight_grams') ?? 0,
             'totalHarvestedValue' => Crop::where('current_stage', 'harvested')
-                ->join('recipes', 'crops.recipe_id', '=', 'recipes.id')
-                ->join('seed_varieties', 'recipes.seed_variety_id', '=', 'seed_varieties.id')
-                ->selectRaw('SUM(crops.harvest_weight_grams * seed_varieties.price_per_kg / 1000) as total_value')
-                ->value('total_value') ?? 0,
+                ->sum('harvest_weight_grams') / 1000 ?? 0, // Convert grams to kg
         ];
     }
     

@@ -3,7 +3,6 @@
 namespace Database\Factories;
 
 use App\Models\SeedVariety;
-use App\Models\Supplier;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -43,13 +42,6 @@ class SeedVarietyFactory extends Factory
         
         return [
             'name' => $name,
-            'crop_type' => $microgreen,
-            'supplier_id' => Supplier::factory()->seed(),
-            'cost_per_unit' => fake()->randomFloat(2, 5, 50),
-            'unit_type' => fake()->randomElement(['lb', 'kg', 'oz', 'g']),
-            'germination_rate' => fake()->numberBetween(70, 99),
-            'days_to_maturity' => fake()->numberBetween(7, 21),
-            'notes' => fake()->optional(0.6)->paragraph(),
             'is_active' => true,
         ];
     }
@@ -61,16 +53,6 @@ class SeedVarietyFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'is_active' => false,
-        ]);
-    }
-    
-    /**
-     * Indicate that the seed variety has a specific supplier.
-     */
-    public function forSupplier(Supplier $supplier): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'supplier_id' => $supplier->id,
         ]);
     }
 } 

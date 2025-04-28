@@ -19,7 +19,7 @@ class RecipeStage extends Model
      */
     protected $fillable = [
         'recipe_id',
-        'stage', // planting, germination, blackout, light
+        'stage', // germination, blackout, light
         'notes',
         'temperature_min_celsius',
         'temperature_max_celsius',

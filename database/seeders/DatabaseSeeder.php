@@ -5,6 +5,7 @@ namespace Database\Seeders;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use App\Models\NotificationSetting;
+use Database\Seeders\RealWorldRecipesSeeder;
 
 class DatabaseSeeder extends Seeder
 {
@@ -18,7 +19,9 @@ class DatabaseSeeder extends Seeder
             FilamentAdminUserSeeder::class,
             MicrogreenSeeder::class,
             PackagingSeeder::class,
-            DevelopmentSeeder::class,
+            NotificationSettingsSeeder::class,
+            RealWorldRecipesSeeder::class,
+            // DevelopmentSeeder::class, // Disabled until updated to match simplified schema
         ]);
 
         // Create crop stage transition notification settings

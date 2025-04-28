@@ -18,6 +18,9 @@ use Filament\Notifications\Actions\Action;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
+use Spatie\Activitylog\Models\Activity;
+use Spatie\Activitylog\Models\LogOptions;
 
 class RecipeResource extends Resource
 {
@@ -42,19 +45,6 @@ class RecipeResource extends Resource
                             ->relationship('seedVariety', 'name')
                             ->searchable()
                             ->preload()
-                            ->createOptionForm([
-                                Forms\Components\TextInput::make('name')
-                                    ->required()
-                                    ->maxLength(255),
-                                Forms\Components\TextInput::make('crop_type')
-                                    ->required()
-                                    ->maxLength(255),
-                                Forms\Components\Select::make('supplier_id')
-                                    ->relationship('supplier', 'name')
-                                    ->searchable()
-                                    ->preload()
-                                    ->required(),
-                            ])
                             ->required(),
 
                         Forms\Components\Select::make('supplier_soil_id')
@@ -117,13 +107,6 @@ class RecipeResource extends Resource
                             ->step(0.01),
                     ])
                     ->columns(2),
-
-                Forms\Components\Section::make('Notes')
-                    ->schema([
-                        Forms\Components\Textarea::make('notes')
-                            ->maxLength(65535)
-                            ->columnSpanFull(),
-                    ]),
             ]);
     }
 
@@ -253,13 +236,7 @@ class RecipeResource extends Resource
                                 try {
                                     Log::info('Starting deletion of recipe ID: ' . $record->id);
                                     
-                                    // Delete related crops first
-                                    $cropCount = $record->crops()->count();
-                                    Log::info("Deleting {$cropCount} crops for recipe ID: " . $record->id);
-                                    $record->crops()->delete();
-                                    
-                                    // Then delete the recipe
-                                    Log::info('Deleting recipe ID: ' . $record->id);
+                                    // Delete the recipe - related crops will be cascaded automatically
                                     $record->delete();
                                     
                                     Log::info('Successfully deleted recipe ID: ' . $record->id);
@@ -298,18 +275,12 @@ class RecipeResource extends Resource
                                     ->color('danger')
                             );
                             
-                            // Use the same action as above
+                            // Use the same simplified action
                             $action->action(function () use ($record) {
                                 try {
                                     Log::info('Starting deletion of recipe ID: ' . $record->id);
                                     
-                                    // Delete related crops first
-                                    $cropCount = $record->crops()->count();
-                                    Log::info("Deleting {$cropCount} crops for recipe ID: " . $record->id);
-                                    $record->crops()->delete();
-                                    
-                                    // Then delete the recipe
-                                    Log::info('Deleting recipe ID: ' . $record->id);
+                                    // Delete the recipe - related crops will be cascaded automatically
                                     $record->delete();
                                     
                                     Log::info('Successfully deleted recipe ID: ' . $record->id);
@@ -373,24 +344,13 @@ class RecipeResource extends Resource
                                         ->color('danger')
                                 );
                                 
-                                // Override the delete action
+                                // Override the delete action with a simpler version
                                 $action->action(function () use ($records) {
                                     try {
                                         Log::info('Starting bulk deletion of ' . $records->count() . ' recipes');
                                         
-                                        // Force cascade delete all selected recipes and their crops
-                                        $recipes = Recipe::whereIn('id', $records->pluck('id'))->get();
-                                        
-                                        foreach ($recipes as $recipe) {
-                                            // Delete related crops first
-                                            $cropCount = $recipe->crops()->count();
-                                            Log::info("Deleting {$cropCount} crops for recipe ID: " . $recipe->id);
-                                            $recipe->crops()->delete();
-                                            
-                                            // Then delete the recipe
-                                            Log::info('Deleting recipe ID: ' . $recipe->id);
-                                            $recipe->delete();
-                                        }
+                                        // Delete the recipes - crops will be automatically cascaded
+                                        Recipe::whereIn('id', $records->pluck('id'))->delete();
                                         
                                         Log::info('Successfully completed bulk deletion');
                                         
@@ -432,24 +392,13 @@ class RecipeResource extends Resource
                                         ->color('danger')
                                 );
                                 
-                                // Use the same action as above
+                                // Use the same simplified action
                                 $action->action(function () use ($records) {
                                     try {
                                         Log::info('Starting bulk deletion of ' . $records->count() . ' recipes');
                                         
-                                        // Force cascade delete all selected recipes and their crops
-                                        $recipes = Recipe::whereIn('id', $records->pluck('id'))->get();
-                                        
-                                        foreach ($recipes as $recipe) {
-                                            // Delete related crops first
-                                            $cropCount = $recipe->crops()->count();
-                                            Log::info("Deleting {$cropCount} crops for recipe ID: " . $recipe->id);
-                                            $recipe->crops()->delete();
-                                            
-                                            // Then delete the recipe
-                                            Log::info('Deleting recipe ID: ' . $recipe->id);
-                                            $recipe->delete();
-                                        }
+                                        // Delete the recipes - crops will be automatically cascaded
+                                        Recipe::whereIn('id', $records->pluck('id'))->delete();
                                         
                                         Log::info('Successfully completed bulk deletion');
                                         
@@ -503,5 +452,28 @@ class RecipeResource extends Resource
             'create' => Pages\CreateRecipe::route('/create'),
             'edit' => Pages\EditRecipe::route('/{record}/edit'),
         ];
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly([
+                'name', 
+                'seed_variety_id', 
+                'supplier_soil_id', 
+                'germination_days', 
+                'blackout_days', 
+                'light_days',
+                'expected_yield_grams',
+                'seed_density_grams_per_tray',
+                'is_active',
+                'planting_notes',
+                'germination_notes',
+                'blackout_notes',
+                'light_notes',
+                'harvesting_notes'
+            ])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs();
     }
 }

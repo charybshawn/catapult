@@ -9,7 +9,7 @@ use App\Models\RecipeStage;
 use App\Models\RecipeWateringSchedule;
 use App\Models\Consumable;
 use Filament\Actions;
-use Filament\Resources\Pages\CreateRecord;
+use Filament\Resources\Pages\EditRecord;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
 use Filament\Forms\Components\Wizard;
@@ -24,17 +24,28 @@ use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Hidden;
 use Filament\Notifications\Notification;
 use Filament\Forms;
+use Filament\Forms\Form;
+use Filament\Forms\Components\TextEntry;
 
-class CreateRecipe extends CreateRecord
+class EditRecipe extends EditRecord
 {
-    use CreateRecord\Concerns\HasWizard;
-    
     protected static string $resource = RecipeResource::class;
+    
+    use EditRecord\Concerns\HasWizard;
     
     protected function getStepsConfig(): Wizard
     {
         return parent::getStepsConfig()
             ->skippable();
+    }
+    
+    public function form(Form $form): Form
+    {
+        return $form->schema([
+            Wizard::make($this->getSteps())
+                ->skippable()
+                ->columnSpanFull()
+        ]);
     }
     
     protected function getSteps(): array
@@ -44,7 +55,7 @@ class CreateRecipe extends CreateRecord
                 ->description('Enter the basic recipe information')
                 ->schema([
                     Section::make('Recipe Details')
-                        ->description("Enter basic details for your grow recipe")
+                        ->description("Edit basic details for your grow recipe")
                         ->schema([
                             TextInput::make('name')
                                 ->label('Recipe Name')
@@ -61,7 +72,7 @@ class CreateRecipe extends CreateRecord
                                         ->get()
                                         ->mapWithKeys(function ($seed) {
                                             $lotInfo = $seed->lot_no ? " (Lot: {$seed->lot_no})" : "";
-                                            $totalWeight = $seed->current_stock * ($seed->quantity_per_unit ?? 0);
+                                            $totalWeight = $seed->current_stock;
                                             // Use the unit field from the database
                                             $displayUnit = $seed->unit ?? 'g';
                                             $stockInfo = " - " . number_format($totalWeight, 1) . " {$displayUnit} available";
@@ -74,121 +85,17 @@ class CreateRecipe extends CreateRecord
                                 ->required()
                                 ->createOptionForm([
                                     Forms\Components\TextInput::make('name')
-                                        ->label('Seed Name/Variety')
-                                        ->helperText('Include the variety name (e.g., "Basil - Genovese")')
+                                        ->label('Variety Name')
                                         ->required()
-                                        ->maxLength(255)
-                                        ->datalist(function () {
-                                            return Consumable::where('type', 'seed')
-                                                ->where('is_active', true)
-                                                ->pluck('name')
-                                                ->unique()
-                                                ->toArray();
-                                        }),
-                                    Forms\Components\Select::make('supplier_id')
-                                        ->label('Supplier')
-                                        ->options(function () {
-                                            return Supplier::query()
-                                                ->where(function ($query) {
-                                                    $query->where('type', 'soil')
-                                                          ->orWhereNull('type')
-                                                          ->orWhere('type', 'other');
-                                                })
-                                                ->pluck('name', 'id');
-                                        })
-                                        ->searchable()
-                                        ->preload()
-                                        ->createOptionAction(function (Forms\Components\Actions\Action $action) {
-                                            return $action
-                                                ->form([
-                                                    Forms\Components\TextInput::make('name')
-                                                        ->required()
-                                                        ->maxLength(255),
-                                                    Forms\Components\Hidden::make('type')
-                                                        ->default('seed'),
-                                                    Forms\Components\Textarea::make('contact_info')
-                                                        ->label('Contact Information')
-                                                        ->rows(3),
-                                                ]);
-                                        }),
-                                    // Inventory Details
-                                    Forms\Components\TextInput::make('initial_stock')
-                                        ->label('Quantity')
-                                        ->helperText('Number of units in stock')
-                                        ->numeric()
-                                        ->minValue(0)
-                                        ->required()
-                                        ->default(0),
-                                    Forms\Components\Select::make('unit')
-                                        ->label('Packaging Type')
-                                        ->helperText('Container or form of packaging')
-                                        ->options([
-                                            'unit' => 'Unit(s)',
-                                            'bag' => 'Bag(s)',
-                                            'box' => 'Box(es)',
-                                            'bottle' => 'Bottle(s)',
-                                            'container' => 'Container(s)',
-                                            'roll' => 'Roll(s)',
-                                            'packet' => 'Packet(s)',
-                                            'kg' => 'Kilogram(s)',
-                                            'g' => 'Gram(s)',
-                                            'l' => 'Liter(s)',
-                                            'ml' => 'Milliliter(s)',
-                                        ])
-                                        ->required()
-                                        ->default('packet'),
-                                    Forms\Components\TextInput::make('quantity_per_unit')
-                                        ->label('Unit Size')
-                                        ->helperText('Capacity or size of each unit (e.g., 10g per packet)')
-                                        ->numeric()
-                                        ->minValue(0)
-                                        ->required()
-                                        ->default(10)
-                                        ->step(0.01),
-                                    Forms\Components\Select::make('quantity_unit')
-                                        ->label('Unit of Measurement')
-                                        ->helperText('Unit for the size/capacity value')
-                                        ->options([
-                                            'g' => 'Grams',
-                                            'kg' => 'Kilograms',
-                                            'l' => 'Liters',
-                                            'ml' => 'Milliliters',
-                                            'oz' => 'Ounces',
-                                            'lb' => 'Pounds',
-                                            'cm' => 'Centimeters',
-                                            'm' => 'Meters',
-                                        ])
-                                        ->required()
-                                        ->default('g'),
-                                    Forms\Components\Hidden::make('type')
-                                        ->default('seed'),
-                                    // Restock Settings
-                                    Forms\Components\TextInput::make('restock_threshold')
-                                        ->label('Restock Threshold')
-                                        ->helperText('When stock falls below this number, reorder')
-                                        ->numeric()
-                                        ->required()
-                                        ->default(2),
-                                    Forms\Components\TextInput::make('restock_quantity')
-                                        ->label('Restock Quantity')
-                                        ->helperText('How many to order when restocking')
-                                        ->numeric()
-                                        ->required()
-                                        ->default(5),
-                                    Forms\Components\Textarea::make('notes')
-                                        ->label('Additional Notes')
-                                        ->helperText('Any additional information about this consumable')
-                                        ->rows(3),
+                                        ->maxLength(255),
                                     Forms\Components\Toggle::make('is_active')
                                         ->label('Active')
                                         ->default(true),
                                 ])
                                 ->createOptionUsing(function (array $data) {
-                                    // Set default value for consumed_quantity to fix the SQL error
-                                    $data['consumed_quantity'] = 0;
                                     return Consumable::create($data)->id;
                                 }),
-
+                                
                             Select::make('soil_consumable_id')
                                 ->label('Soil')
                                 ->options(function () {
@@ -217,11 +124,9 @@ class CreateRecipe extends CreateRecord
                                         ->label('Supplier')
                                         ->options(function () {
                                             return Supplier::query()
-                                                ->where(function ($query) {
-                                                    $query->where('type', 'soil')
-                                                          ->orWhereNull('type')
-                                                          ->orWhere('type', 'other');
-                                                })
+                                                ->where('type', 'soil')
+                                                ->orWhereNull('type')
+                                                ->orWhere('type', 'other')
                                                 ->pluck('name', 'id');
                                         })
                                         ->searchable()
@@ -286,11 +191,9 @@ class CreateRecipe extends CreateRecord
                                         ->default(true),
                                 ])
                                 ->createOptionUsing(function (array $data) {
-                                    // Set default value for consumed_quantity to fix the SQL error
-                                    $data['consumed_quantity'] = 0;
                                     return Consumable::create($data)->id;
                                 }),
-                                
+                            
                             TextInput::make('seed_density_grams_per_tray')
                                 ->label('Planting Density (g/tray)')
                                 ->required()
@@ -308,7 +211,8 @@ class CreateRecipe extends CreateRecord
                             Toggle::make('is_active')
                                 ->label('Active')
                                 ->default(true),
-                        ]),
+                        ])
+                        ->columns(2),
                 ]),
             
             Step::make('Grow Plan')
@@ -328,7 +232,7 @@ class CreateRecipe extends CreateRecord
                                     $germDays = (float) ($get('germination_days') ?? 0);
                                     $blackoutDays = (float) ($get('blackout_days') ?? 0);
                                     $dtm = (float) ($get('dtm') ?? 0);
-                                    $state = (int) $state;
+                                    $state = (float) $state;
                                     
                                     // Recalculate light days
                                     $lightDays = max(0, $dtm - $germDays - $blackoutDays - ($state / 24));
@@ -345,18 +249,25 @@ class CreateRecipe extends CreateRecord
                                 ->step(0.01)
                                 ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
                                 ->reactive()
-                                ->afterStateUpdated(function (Forms\Set $set, $state) {
+                                ->afterStateUpdated(function (Forms\Get $get, Forms\Set $set, $state) {
                                     if (!$state || $state <= 0) return;
                                     
-                                    // Auto-calculate the growth phase days based on DTM
-                                    $germDays = 3; // Default germination days
-                                    $blackoutDays = 2; // Default blackout days
-                                    $soakHours = 0; // Default soak hours
-                                    $state = (float) $state;
+                                    // Only auto-calculate if this is a new record
+                                    if (!$get('id')) {
+                                        // Auto-calculate the growth phase days based on DTM
+                                        $germDays = 3; // Default germination days
+                                        $blackoutDays = 2; // Default blackout days
+                                        $soakHours = 0; // Default soak hours
+                                        
+                                        $set('germination_days', $germDays);
+                                        $set('blackout_days', $blackoutDays);
+                                        $set('seed_soak_hours', $soakHours);
+                                    }
                                     
-                                    $set('germination_days', $germDays);
-                                    $set('blackout_days', $blackoutDays);
-                                    $set('seed_soak_hours', $soakHours);
+                                    $germDays = (float) ($get('germination_days') ?? 0);
+                                    $blackoutDays = (float) ($get('blackout_days') ?? 0);
+                                    $soakHours = (float) ($get('seed_soak_hours') ?? 0);
+                                    $state = (float) $state;
                                     
                                     // Calculate light days as the remainder
                                     $lightDays = max(0, $state - $germDays - $blackoutDays - ($soakHours / 24));
@@ -375,7 +286,7 @@ class CreateRecipe extends CreateRecord
                                 ->reactive()
                                 ->afterStateUpdated(function (Forms\Get $get, Forms\Set $set, $state) {
                                     $blackoutDays = (float) ($get('blackout_days') ?? 0);
-                                    $soakHours = (int) ($get('seed_soak_hours') ?? 0);
+                                    $soakHours = (float) ($get('seed_soak_hours') ?? 0);
                                     $dtm = (float) ($get('dtm') ?? 0);
                                     $state = (float) $state;
                                     
@@ -396,7 +307,7 @@ class CreateRecipe extends CreateRecord
                                 ->reactive()
                                 ->afterStateUpdated(function (Forms\Get $get, Forms\Set $set, $state) {
                                     $germDays = (float) ($get('germination_days') ?? 0);
-                                    $soakHours = (int) ($get('seed_soak_hours') ?? 0);
+                                    $soakHours = (float) ($get('seed_soak_hours') ?? 0);
                                     $dtm = (float) ($get('dtm') ?? 0);
                                     $state = (float) $state;
                                     
@@ -410,7 +321,7 @@ class CreateRecipe extends CreateRecord
                                 ->content(function (Forms\Get $get): string {
                                     $germDays = (float) ($get('germination_days') ?? 0);
                                     $blackoutDays = (float) ($get('blackout_days') ?? 0);
-                                    $soakHours = (int) ($get('seed_soak_hours') ?? 0);
+                                    $soakHours = (float) ($get('seed_soak_hours') ?? 0);
                                     $dtm = (float) ($get('dtm') ?? 0);
                                     
                                     $lightDays = max(0, $dtm - $germDays - $blackoutDays - ($soakHours / 24));
@@ -424,12 +335,13 @@ class CreateRecipe extends CreateRecord
                                 ->dehydrateStateUsing(function (Forms\Get $get): float {
                                     $germDays = (float) ($get('germination_days') ?? 0);
                                     $blackoutDays = (float) ($get('blackout_days') ?? 0);
-                                    $soakHours = (int) ($get('seed_soak_hours') ?? 0);
+                                    $soakHours = (float) ($get('seed_soak_hours') ?? 0);
                                     $dtm = (float) ($get('dtm') ?? 0);
                                     
                                     return max(0, $dtm - $germDays - $blackoutDays - ($soakHours / 24));
                                 }),
-                        ]),
+                        ])
+                        ->columns(1),
                         
                     Section::make('Growth Phase Notes')
                         ->description('Add specific notes for each phase of growth')
@@ -503,7 +415,25 @@ class CreateRecipe extends CreateRecord
                                     'table',
                                     'undo',
                                 ]),
-                        ]),
+                                
+                            MarkdownEditor::make('harvesting_notes')
+                                ->label('Harvesting Notes')
+                                ->placeholder('Enter notes about the harvesting process')
+                                ->toolbarButtons([
+                                    'blockquote',
+                                    'bold',
+                                    'bulletList',
+                                    'heading',
+                                    'italic',
+                                    'link',
+                                    'orderedList',
+                                    'redo',
+                                    'strike',
+                                    'table',
+                                    'undo',
+                                ]),
+                        ])
+                        ->columns(1),
                 ]),
             
             Step::make('Watering Schedule')
@@ -513,7 +443,7 @@ class CreateRecipe extends CreateRecord
                         ->description('Specify water amounts for each day of the grow cycle')
                         ->schema([
                             Placeholder::make('watering_instructions')
-                                ->label('Watering Instructions')
+                                ->label('Instructions')
                                 ->content('
                                     Set water amounts for each day of the grow cycle.
                                     Day 1 is planting day as well as the first day of germination.
@@ -529,6 +459,33 @@ class CreateRecipe extends CreateRecord
                                 '),
                             
                             Forms\Components\Hidden::make('_watering_schedule_refresh_trigger'),
+                            Forms\Components\Hidden::make('watering_schedule_json')
+                                ->afterStateHydrated(function (Forms\Get $get, Forms\Set $set, ?Model $record = null) {
+                                    // When the form is loaded with existing data, log the state
+                                    if ($record) {
+                                        \Illuminate\Support\Facades\Log::debug('Hydrating watering_schedule_json from record');
+                                        \Illuminate\Support\Facades\Log::debug('Record ID: ' . $record->id);
+                                        // Log existing watering schedule entries
+                                        \Illuminate\Support\Facades\Log::debug('Existing watering schedule entries count: ' . $record->wateringSchedule()->count());
+                                        \Illuminate\Support\Facades\Log::debug('Watering schedule entries: ' . json_encode($record->wateringSchedule()->get()->toArray()));
+                                    }
+                                })
+                                ->reactive()
+                                ->afterStateUpdated(function ($state) {
+                                    \Illuminate\Support\Facades\Log::debug('watering_schedule_json updated: ' . json_encode($state));
+                                })
+                                // Ensure the field is always included when submitting the form
+                                ->dehydrated(true)
+                                // Add custom dehydration logic to handle transformations if needed
+                                ->dehydrateStateUsing(function (?array $state) {
+                                    if (!$state) {
+                                        \Illuminate\Support\Facades\Log::debug('Empty watering schedule state in dehydrateStateUsing');
+                                        return [];
+                                    }
+                                    
+                                    \Illuminate\Support\Facades\Log::debug('Dehydrating watering schedule state: ' . json_encode($state));
+                                    return $state;
+                                }),
 
                             Forms\Components\Grid::make()
                                 ->schema(function (Forms\Get $get) {
@@ -652,19 +609,34 @@ class CreateRecipe extends CreateRecord
                                     return $sections;
                                 })
                                 ->reactive()
-                                ->afterStateHydrated(function (Forms\Get $get) {
-                                    // Do nothing on initial load
+                                ->afterStateHydrated(function (Forms\Get $get, Forms\Set $set, Model $record) {
+                                    if (!$record->wateringSchedule || $record->wateringSchedule->isEmpty()) {
+                                        return;
+                                    }
+                                    
+                                    // Load existing watering schedule
+                                    foreach ($record->wateringSchedule as $entry) {
+                                        $day = $entry->day_number;
+                                        $amount = $entry->water_amount_ml;
+                                        
+                                        $set("watering_day_{$day}", $amount);
+                                    }
                                 })
                                 ->columns(3)
                                 ->visible(fn (Forms\Get $get) => $get('dtm') > 0),
                         ]),
                 ])
                 ->afterValidation(function (Forms\Get $get, Forms\Set $set) {
+                    \Illuminate\Support\Facades\Log::debug('Watering schedule afterValidation hook triggered');
+                    
                     $dtm = $get('dtm');
                     $germDays = $get('germination_days') ?? 0;
                     $blackoutDays = $get('blackout_days') ?? 0;
                     
+                    \Illuminate\Support\Facades\Log::debug("DTM: {$dtm}, Germination Days: {$germDays}, Blackout Days: {$blackoutDays}");
+                    
                     if (!$dtm || $dtm <= 0) {
+                        \Illuminate\Support\Facades\Log::debug('No valid DTM found, skipping watering schedule generation');
                         return;
                     }
                     
@@ -673,23 +645,39 @@ class CreateRecipe extends CreateRecord
                     
                     for ($i = 1; $i <= $dtm; $i++) {
                         $fieldName = "watering_day_{$i}";
-                        if (isset($data[$fieldName])) {
-                            // Determine day type based on the day number and actual phase durations
-                            $dayType = $this->getDayType($i, $germDays, $blackoutDays, $dtm);
-                            
+                        $fieldValue = $get($fieldName);
+                        
+                        if ($fieldValue !== null) {
                             // Use consistent key names that match database field names
                             $wateringSchedule[] = [
                                 'day_number' => $i,
-                                'water_amount_ml' => $data[$fieldName],
+                                'water_amount_ml' => $fieldValue,
                                 'watering_method' => 'bottom', // Default method
                                 'needs_liquid_fertilizer' => false, // Default no fertilizer
                                 'notes' => '',
-                                'day_type' => $dayType, // Add day type to the watering schedule
                             ];
                         }
                     }
                     
-                    $set('watering_schedule_json', $wateringSchedule);
+                    \Illuminate\Support\Facades\Log::debug('Generated watering schedule with ' . count($wateringSchedule) . ' entries');
+                    
+                    if (count($wateringSchedule) > 0) {
+                        // Set the hidden field value for form submission
+                        $set('watering_schedule_json', $wateringSchedule);
+                        
+                        // CRITICAL: Also directly set the value in the data property
+                        // This ensures it's available in afterSave even if the form state is not properly transmitted
+                        if (property_exists($this, 'data')) {
+                            $this->data['watering_schedule_json'] = $wateringSchedule;
+                            \Illuminate\Support\Facades\Log::debug('Directly set watering_schedule_json in the data property');
+                        } else {
+                            \Illuminate\Support\Facades\Log::warning('Could not directly set watering_schedule_json - data property not found');
+                        }
+                        
+                        \Illuminate\Support\Facades\Log::debug('Set watering_schedule_json after validation: ' . json_encode($wateringSchedule));
+                    } else {
+                        \Illuminate\Support\Facades\Log::debug('No watering schedule data was collected');
+                    }
                 }),
         ];
     }
@@ -718,241 +706,293 @@ class CreateRecipe extends CreateRecord
         // Regular light days
         return 'light';
     }
-    
-    protected function handleRecordCreation(array $data): Model
-    {
-        // Extract watering data from the dynamically created fields
-        $wateringSchedule = [];
-        $dtm = $data['dtm'] ?? 0;
-        $germDays = $data['germination_days'] ?? 0;
-        $blackoutDays = $data['blackout_days'] ?? 0;
-        $soakHours = $data['seed_soak_hours'] ?? 0;
-        
-        // Calculate and set light_days properly
-        $data['light_days'] = (float) max(0, $dtm - $germDays - $blackoutDays - ($soakHours / 24));
-        
-        if ($dtm > 0) {
-            for ($i = 1; $i <= $dtm; $i++) {
-                $fieldName = "watering_day_{$i}";
-                if (isset($data[$fieldName])) {
-                    // Determine day type based on the day number and actual phase durations
-                    $dayType = $this->getDayType($i, $germDays, $blackoutDays, $dtm);
-                    
-                    // Use consistent key names that match database field names
-                    $wateringSchedule[] = [
-                        'day_number' => $i,
-                        'water_amount_ml' => $data[$fieldName],
-                        'watering_method' => 'bottom', // Default method
-                        'needs_liquid_fertilizer' => false, // Default no fertilizer
-                        'notes' => '',
-                        'day_type' => $dayType, // Add day type to the watering schedule
-                    ];
-                    
-                    // Remove the field from data
-                    unset($data[$fieldName]);
-                }
-            }
-        }
-        
-        // Store the watering schedule in the JSON column
-        $data['watering_schedule_json'] = $wateringSchedule;
-        
-        // Extract growth phase notes
-        $growthNotes = [
-            'planting_notes' => $data['planting_notes'] ?? null,
-            'germination_notes' => $data['germination_notes'] ?? null,
-            'blackout_notes' => $data['blackout_notes'] ?? null,
-            'light_notes' => $data['light_notes'] ?? null,
-        ];
-        
-        // Remove individual notes fields from data
-        unset($data['planting_notes'], $data['germination_notes'], $data['blackout_notes'], $data['light_notes']);
-        
-        // Combine all growth phase notes into the main notes field
-        $combinedNotes = '';
-        
-        foreach ($growthNotes as $phase => $note) {
-            if (!empty($note)) {
-                $phaseName = ucfirst(str_replace('_notes', '', $phase));
-                $combinedNotes .= "## {$phaseName} Notes\n\n{$note}\n\n";
-            }
-        }
-        
-        // Add watering schedule to notes if provided
-        if (!empty($wateringSchedule)) {
-            $combinedNotes .= "## Watering Schedule\n\n";
-            
-            // Group days by type for better readability
-            $germDays = [];
-            $blackoutDays = [];
-            $lightDays = [];
-            $preHarvestDays = []; // We'll still separate these in the notes for readability
-            
-            foreach ($wateringSchedule as $day) {
-                $dayNumber = $day['day_number'];
-                $amount = $day['water_amount_ml'];
-                $dayType = $day['day_type'] ?? 'light';
-                
-                $entry = [
-                    'day' => $dayNumber,
-                    'amount' => $amount,
-                ];
-                
-                if ($dayType === 'germination' || $dayType === 'planting') {
-                    $germDays[] = $entry;
-                } elseif ($dayType === 'blackout') {
-                    $blackoutDays[] = $entry;
-                } elseif ($dayType === 'light-pre-harvest') {
-                    $preHarvestDays[] = $entry; // Still separate for notes
-                } else {
-                    $lightDays[] = $entry;
-                }
-            }
-            
-            // Add germination days
-            if (!empty($germDays)) {
-                $combinedNotes .= "### Germination Days\n\n";
-                foreach ($germDays as $day) {
-                    $combinedNotes .= "- **Day {$day['day']}**: {$day['amount']} ml\n";
-                }
-                $combinedNotes .= "\n";
-            }
-            
-            // Add blackout days if they exist
-            if (!empty($blackoutDays)) {
-                $combinedNotes .= "### Blackout Days\n\n";
-                foreach ($blackoutDays as $day) {
-                    $combinedNotes .= "- **Day {$day['day']}**: {$day['amount']} ml\n";
-                }
-                $combinedNotes .= "\n";
-            }
-            
-            // Add light days
-            if (!empty($lightDays)) {
-                $combinedNotes .= "### Light Phase Days\n\n";
-                foreach ($lightDays as $day) {
-                    $combinedNotes .= "- **Day {$day['day']}**: {$day['amount']} ml\n";
-                }
-                $combinedNotes .= "\n";
-            }
-            
-            // Add pre-harvest days
-            if (!empty($preHarvestDays)) {
-                $combinedNotes .= "### Pre-Harvest Days (Light Phase)\n\n";
-                foreach ($preHarvestDays as $day) {
-                    $combinedNotes .= "- **Day {$day['day']}**: {$day['amount']} ml\n";
-                }
-                $combinedNotes .= "\n";
-            }
-        }
-        
-        $data['notes'] = trim($combinedNotes);
-        
-        // Create the recipe
-        $recipe = static::getModel()::create($data);
-        
-        // Save watering schedule to the related model
-        if (!empty($wateringSchedule)) {
-            foreach ($wateringSchedule as $day) {
-                try {
-                    // Normalize data keys to ensure consistency
-                    $dayNumber = null;
-                    $waterAmount = null;
-                    $needsFertilizer = false;    // Default no fertilizer
-                    $notes = '';                 // Default empty notes
-                    
-                    // First check for the day number under different possible keys
-                    if (isset($day['day_number'])) {
-                        $dayNumber = $day['day_number'];
-                    } elseif (isset($day['day'])) {
-                        $dayNumber = $day['day'];
-                    }
-                    
-                    // Then check for water amount under different possible keys
-                    if (isset($day['water_amount_ml'])) {
-                        $waterAmount = $day['water_amount_ml'];
-                    } elseif (isset($day['amount'])) {
-                        $waterAmount = $day['amount'];
-                    }
-                    
-                    // Check for fertilizer flag
-                    if (isset($day['needs_liquid_fertilizer'])) {
-                        $needsFertilizer = $day['needs_liquid_fertilizer'];
-                    } elseif (isset($day['is_fertilizer_day'])) {
-                        $needsFertilizer = $day['is_fertilizer_day'];
-                    }
-                    
-                    // Check for notes
-                    if (isset($day['notes'])) {
-                        $notes = $day['notes'];
-                    }
-                    
-                    // Check for watering method
-                    $wateringMethod = $day['watering_method'] ?? 'bottom';
-                    
-                    if ($dayNumber !== null && $waterAmount !== null) {
-                        $recipe->wateringSchedule()->create([
-                            'day_number' => $dayNumber,
-                            'water_amount_ml' => $waterAmount,
-                            'watering_method' => $wateringMethod,
-                            'needs_liquid_fertilizer' => $needsFertilizer,
-                            'notes' => $notes,
-                        ]);
-                    }
-                } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::error('Error creating watering schedule entry: ' . $e->getMessage());
-                    \Illuminate\Support\Facades\Log::error('Entry data: ' . json_encode($day));
-                }
-            }
-        }
-        
-        return $recipe;
-    }
-    
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
-    }
 
-    protected function mutateFormDataBeforeCreate(array $data): array
+    protected function getHeaderActions(): array
     {
-        // If using the new consumable fields, extract the seed variety
-        if (isset($data['seed_consumable_id']) && $data['seed_consumable_id']) {
-            // Get the seed consumable
-            $seedConsumable = \App\Models\Consumable::find($data['seed_consumable_id']);
-            
-            if ($seedConsumable) {
-                if ($seedConsumable->seed_variety_id) {
-                    // If the seed consumable already has a linked seed variety, use it
-                    $data['seed_variety_id'] = $seedConsumable->seed_variety_id;
-                } else {
-                    // Extract the variety from the seed name and find or create a corresponding SeedVariety
-                    $seedName = $seedConsumable->name;
-                    
-                    // Find or create seed variety based on consumable name
-                    $seedVariety = \App\Models\SeedVariety::firstOrCreate(
-                        ['name' => $seedName],
-                        [
-                            'crop_type' => 'microgreens',
-                            'is_active' => true
-                        ]
-                    );
-                    
-                    // Set the seed_variety_id to the found or created variety
-                    $data['seed_variety_id'] = $seedVariety->id;
-                    
-                    // Also update the consumable to link it to this seed variety for future use
-                    $seedConsumable->seed_variety_id = $seedVariety->id;
-                    $seedConsumable->save();
-                }
-            }
-        }
-        
-        if (isset($data['soil_consumable_id']) && $data['soil_consumable_id']) {
-            // We're using a consumable for the soil, so clear old reference
-            $data['supplier_soil_id'] = null;
+        return [
+            Actions\ViewAction::make(),
+            Actions\DeleteAction::make(),
+            Actions\Action::make('save')
+                ->label('Save Recipe')
+                ->action(function () {
+                    try {
+                        \Illuminate\Support\Facades\Log::debug('Manual save action triggered');
+                        \Illuminate\Support\Facades\Log::debug('Form data before save: ' . json_encode($this->form->getState()));
+                        
+                        // Check for watering schedule data
+                        if (isset($this->data['watering_schedule_json'])) {
+                            \Illuminate\Support\Facades\Log::debug('Watering schedule JSON exists in form data');
+                        } else {
+                            \Illuminate\Support\Facades\Log::debug('No watering schedule JSON found in form data');
+                            
+                            // Let's specifically check if watering_day_X fields exist
+                            $hasDayFields = false;
+                            foreach ($this->data as $key => $value) {
+                                if (strpos($key, 'watering_day_') === 0) {
+                                    $hasDayFields = true;
+                                    \Illuminate\Support\Facades\Log::debug("Found watering day field: {$key} = {$value}");
+                                }
+                            }
+                            
+                            if ($hasDayFields) {
+                                \Illuminate\Support\Facades\Log::debug('Watering day fields exist but not consolidated into JSON');
+                            }
+                        }
+                        
+                        $this->save();
+                        
+                        \Illuminate\Support\Facades\Log::debug('Recipe saved successfully');
+                        \Illuminate\Support\Facades\Log::debug('Watering schedule count after save: ' . $this->record->wateringSchedule()->count());
+                    } catch (\Exception $e) {
+                        \Illuminate\Support\Facades\Log::error('Error saving recipe: ' . $e->getMessage());
+                        \Illuminate\Support\Facades\Log::error('Error trace: ' . $e->getTraceAsString());
+                        throw $e; // Re-throw to allow Filament to handle
+                    }
+                })
+                ->keyBindings(['mod+s'])
+                ->color('success'),
+        ];
+    }
+    
+    protected function getHeaderWidgets(): array
+    {
+        return [];
+    }
+    
+    protected function mutateFormDataBeforeFill(array $data): array 
+    {
+        // If we have light_days but no dtm, calculate it
+        if (isset($data['light_days']) && isset($data['germination_days']) && isset($data['blackout_days']) && !isset($data['dtm'])) {
+            $data['dtm'] = $data['light_days'] + $data['germination_days'] + $data['blackout_days'];
         }
         
         return $data;
+    }
+    
+    /**
+     * Process form data before saving the record
+     */
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        \Illuminate\Support\Facades\Log::debug('mutateFormDataBeforeSave called with data: ' . json_encode($data));
+        
+        // Process watering schedule data
+        if (isset($data['watering_schedule_json']) && is_array($data['watering_schedule_json'])) {
+            $wateringData = [];
+            foreach ($data['watering_schedule_json'] as $entry) {
+                // Normalize data keys to ensure consistency
+                $dayNumber = null;
+                $waterAmount = null;
+                $wateringMethod = 'bottom';  // Default method
+                $needsFertilizer = false;    // Default no fertilizer
+                $notes = '';                 // Default empty notes
+                
+                // First check for the day number under different possible keys
+                if (isset($entry['day_number'])) {
+                    $dayNumber = $entry['day_number'];
+                } elseif (isset($entry['day'])) {
+                    $dayNumber = $entry['day'];
+                }
+                
+                // Then check for water amount under different possible keys
+                if (isset($entry['water_amount_ml'])) {
+                    $waterAmount = $entry['water_amount_ml'];
+                } elseif (isset($entry['amount'])) {
+                    $waterAmount = $entry['amount'];
+                }
+                
+                // Check for watering method
+                if (isset($entry['watering_method'])) {
+                    $wateringMethod = $entry['watering_method'];
+                } elseif (isset($entry['method'])) {
+                    $wateringMethod = $entry['method'];
+                }
+                
+                // Check for fertilizer flag
+                if (isset($entry['needs_liquid_fertilizer'])) {
+                    $needsFertilizer = $entry['needs_liquid_fertilizer'];
+                } elseif (isset($entry['is_fertilizer_day'])) {
+                    $needsFertilizer = $entry['is_fertilizer_day'];
+                }
+                
+                // Check for notes
+                if (isset($entry['notes'])) {
+                    $notes = $entry['notes'];
+                }
+                
+                if ($dayNumber !== null && $waterAmount !== null) {
+                    $wateringData[] = [
+                        'day_number' => $dayNumber,
+                        'water_amount_ml' => $waterAmount,
+                        'watering_method' => $wateringMethod,
+                        'needs_liquid_fertilizer' => $needsFertilizer,
+                        'notes' => $notes,
+                    ];
+                }
+            }
+            $data['watering_schedule_json'] = $wateringData;
+            \Illuminate\Support\Facades\Log::debug('Processed watering_schedule_json: ' . json_encode($wateringData));
+        } else {
+            \Illuminate\Support\Facades\Log::debug('No watering_schedule_json found in data before save');
+        }
+        
+        // Handle consumable fields
+        if (isset($data['seed_consumable_id']) && $data['seed_consumable_id']) {
+            $data['seed_variety_id'] = null;
+        }
+        
+        if (isset($data['soil_consumable_id']) && $data['soil_consumable_id']) {
+            $data['supplier_soil_id'] = null;
+        }
+        
+        // Now growth phase notes save directly to their own columns
+        // No need to process them
+        
+        return $data;
+    }
+
+    protected function afterSave(): void
+    {
+        // Add debug logging
+        \Illuminate\Support\Facades\Log::debug('EditRecipe afterSave called');
+        \Illuminate\Support\Facades\Log::debug('Data structure: ' . print_r(array_keys($this->data), true));
+        \Illuminate\Support\Facades\Log::debug('Record ID: ' . $this->record->id);
+        
+        try {
+            // First, check for day-by-day values in case the JSON wasn't properly populated
+            $dtm = $this->data['dtm'] ?? 0;
+            $germDays = $this->data['germination_days'] ?? 0;
+            $blackoutDays = $this->data['blackout_days'] ?? 0;
+            
+            $manuallyCompiledSchedule = [];
+            
+            if ($dtm > 0) {
+                \Illuminate\Support\Facades\Log::debug("Checking for individual day fields (DTM: {$dtm})");
+                
+                // Look for individual day field values as a backup
+                for ($i = 1; $i <= $dtm; $i++) {
+                    $fieldName = "watering_day_{$i}";
+                    if (isset($this->data[$fieldName])) {
+                        $dayType = $this->getDayType($i, $germDays, $blackoutDays, $dtm);
+                        
+                        $manuallyCompiledSchedule[] = [
+                            'day_number' => $i,
+                            'water_amount_ml' => $this->data[$fieldName],
+                            'watering_method' => 'bottom', // Default method
+                            'needs_liquid_fertilizer' => false, // Default no fertilizer
+                            'notes' => '',
+                        ];
+                        
+                        \Illuminate\Support\Facades\Log::debug("Found day {$i} with water amount: {$this->data[$fieldName]}");
+                    }
+                }
+                
+                \Illuminate\Support\Facades\Log::debug("Manually compiled " . count($manuallyCompiledSchedule) . " watering days");
+            }
+            
+            // Process watering schedule data
+            if (isset($this->data['watering_schedule_json'])) {
+                $scheduleData = $this->data['watering_schedule_json'];
+                
+                if (is_string($scheduleData)) {
+                    \Illuminate\Support\Facades\Log::debug('Watering schedule is a string - attempting to decode JSON');
+                    $scheduleData = json_decode($scheduleData, true);
+                }
+                
+                \Illuminate\Support\Facades\Log::debug('Processing watering schedule: ' . json_encode($scheduleData));
+            }
+            // If no JSON data, use the manually compiled schedule if available
+            else if (!empty($manuallyCompiledSchedule)) {
+                $scheduleData = $manuallyCompiledSchedule;
+                \Illuminate\Support\Facades\Log::debug('Using manually compiled watering schedule');
+            }
+            else {
+                \Illuminate\Support\Facades\Log::debug('No watering schedule data available');
+                return;
+            }
+            
+            // Delete existing schedule entries
+            $deleteCount = $this->record->wateringSchedule()->count();
+            $this->record->wateringSchedule()->delete();
+            \Illuminate\Support\Facades\Log::debug("Deleted {$deleteCount} existing watering schedule entries");
+            
+            // Create new schedule entries
+            if (is_array($scheduleData)) {
+                \Illuminate\Support\Facades\Log::debug('Processing ' . count($scheduleData) . ' watering schedule entries');
+                
+                $entriesCreated = 0;
+                foreach ($scheduleData as $entry) {
+                    try {
+                        // Normalize data keys to ensure consistency
+                        $dayNumber = null;
+                        $waterAmount = null;
+                        $wateringMethod = 'bottom';  // Default method
+                        $needsFertilizer = false;    // Default no fertilizer
+                        $notes = '';                 // Default empty notes
+                        
+                        // First check for the day number under different possible keys
+                        if (isset($entry['day_number'])) {
+                            $dayNumber = $entry['day_number'];
+                        } elseif (isset($entry['day'])) {
+                            $dayNumber = $entry['day'];
+                        }
+                        
+                        // Then check for water amount under different possible keys
+                        if (isset($entry['water_amount_ml'])) {
+                            $waterAmount = $entry['water_amount_ml'];
+                        } elseif (isset($entry['amount'])) {
+                            $waterAmount = $entry['amount'];
+                        }
+                        
+                        // Check for watering method
+                        if (isset($entry['watering_method'])) {
+                            $wateringMethod = $entry['watering_method'];
+                        } elseif (isset($entry['method'])) {
+                            $wateringMethod = $entry['method'];
+                        }
+                        
+                        // Check for fertilizer flag
+                        if (isset($entry['needs_liquid_fertilizer'])) {
+                            $needsFertilizer = $entry['needs_liquid_fertilizer'];
+                        } elseif (isset($entry['is_fertilizer_day'])) {
+                            $needsFertilizer = $entry['is_fertilizer_day'];
+                        }
+                        
+                        // Check for notes
+                        if (isset($entry['notes'])) {
+                            $notes = $entry['notes'];
+                        }
+                        
+                        if ($dayNumber !== null && $waterAmount !== null) {
+                            \Illuminate\Support\Facades\Log::debug('Creating watering schedule entry: Day ' . $dayNumber . ', Amount ' . $waterAmount);
+                            
+                            $this->record->wateringSchedule()->create([
+                                'day_number' => $dayNumber,
+                                'water_amount_ml' => $waterAmount,
+                                'watering_method' => $wateringMethod,
+                                'needs_liquid_fertilizer' => $needsFertilizer,
+                                'notes' => $notes,
+                            ]);
+                            
+                            // Increment counter when entry is created
+                            $entriesCreated++;
+                        } else {
+                            \Illuminate\Support\Facades\Log::debug('Skipping invalid watering schedule entry: ' . json_encode($entry));
+                        }
+                    } catch (\Exception $e) {
+                        \Illuminate\Support\Facades\Log::error('Error creating watering schedule entry: ' . $e->getMessage());
+                        \Illuminate\Support\Facades\Log::error('Entry data: ' . json_encode($entry));
+                    }
+                }
+                
+                \Illuminate\Support\Facades\Log::debug("Created {$entriesCreated} new watering schedule entries");
+                \Illuminate\Support\Facades\Log::debug("Final watering schedule count: " . $this->record->wateringSchedule()->count());
+            } else {
+                \Illuminate\Support\Facades\Log::error('Watering schedule data is not an array: ' . gettype($scheduleData));
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error processing watering schedule: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error('Error stack trace: ' . $e->getTraceAsString());
+        }
     }
 }

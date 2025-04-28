@@ -13,11 +13,11 @@ return new class extends Migration
     {
         Schema::create('crops', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('recipe_id')->constrained()->restrictOnDelete();
+            $table->foreignId('recipe_id')->constrained()->cascadeOnDelete();
             // order_id will be added in a later migration
             $table->string('tray_number');
             $table->timestamp('planted_at');
-            $table->enum('current_stage', ['planting', 'germination', 'blackout', 'light', 'harvested'])->default('planting');
+            $table->enum('current_stage', ['germination', 'blackout', 'light', 'harvested'])->default('germination');
             $table->timestamp('stage_updated_at')->nullable();
             $table->decimal('harvest_weight_grams', 8, 2)->nullable();
             $table->timestamp('watering_suspended_at')->nullable();

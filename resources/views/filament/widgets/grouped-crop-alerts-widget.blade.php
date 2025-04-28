@@ -47,7 +47,7 @@
                                         </div>
                                         <div class="text-right">
                                             <div class="font-medium {{ $crop['overdue'] ? 'text-danger-600 dark:text-danger-400' : '' }}">
-                                                {{ $crop['days_in_stage'] }} days
+                                                {{ $crop['time_in_stage'] }}
                                             </div>
                                             <div class="text-xs text-gray-500 dark:text-gray-400">
                                                 (Rec: {{ $crop['recommended_days'] }} days)

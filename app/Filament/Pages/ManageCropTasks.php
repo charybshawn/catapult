@@ -40,7 +40,7 @@ class ManageCropTasks extends Page implements HasTable
             ->where('resource_type', 'crops')
             ->where('is_active', true)
             ->where(function ($query) {
-                $query->whereRaw("json_extract(conditions, '$.crop_id') IS NOT NULL");
+                $query->whereNotNull('conditions');
             })
             ->orderBy('next_run_at');
     }
@@ -54,7 +54,7 @@ class ManageCropTasks extends Page implements HasTable
                     return ucfirst(str_replace(['advance_to_', '_'], ['', ' '], $state));
                 })
                 ->sortable(),
-            
+                
             TextColumn::make('conditions')
                 ->label('Tray')
                 ->formatStateUsing(function ($state) {
@@ -63,7 +63,7 @@ class ManageCropTasks extends Page implements HasTable
                 ->searchable(query: function ($query, $search) {
                     return $query->whereRaw("json_extract(conditions, '$.tray_number') LIKE ?", ["%{$search}%"]);
                 }),
-            
+                
             TextColumn::make('conditions')
                 ->label('Variety')
                 ->formatStateUsing(function ($state) {
@@ -72,42 +72,67 @@ class ManageCropTasks extends Page implements HasTable
                 ->searchable(query: function ($query, $search) {
                     return $query->whereRaw("json_extract(conditions, '$.variety') LIKE ?", ["%{$search}%"]);
                 }),
-            
+                
+            TextColumn::make('conditions')
+                ->label('Target Stage')
+                ->formatStateUsing(function ($state) {
+                    return ucfirst($state['target_stage'] ?? 'unknown');
+                })
+                ->badge()
+                ->color(function ($state) {
+                    return match ($state['target_stage'] ?? '') {
+                        'germination' => 'info',
+                        'blackout' => 'warning',
+                        'light' => 'success',
+                        'harvested' => 'danger',
+                        default => 'gray',
+                    };
+                }),
+                
             TextColumn::make('next_run_at')
-                ->label('Schedule For')
+                ->label('Scheduled For')
                 ->dateTime()
                 ->sortable(),
-            
+                
             TextColumn::make('relative_time')
-                ->label('Due In')
+                ->label('Time Until')
                 ->getStateUsing(function (TaskSchedule $record): string {
                     $now = Carbon::now();
                     $nextRun = $record->next_run_at;
                     
                     if ($nextRun->isPast()) {
-                        return 'Overdue!';
+                        return 'Overdue';
                     }
                     
-                    $diffInSeconds = $now->diffInSeconds($nextRun);
-                    $days = floor($diffInSeconds / 86400);
-                    $hours = floor(($diffInSeconds % 86400) / 3600);
-                    $minutes = floor(($diffInSeconds % 3600) / 60);
+                    // Get precise time measurements
+                    $diff = $now->diff($nextRun);
+                    $days = $diff->d;
+                    $hours = $diff->h;
+                    $minutes = $diff->i;
                     
+                    // Format the time display
+                    $timeUntil = '';
                     if ($days > 0) {
-                        return "{$days}d {$hours}h";
-                    } elseif ($hours > 0) {
-                        return "{$hours}h {$minutes}m";
-                    } else {
-                        return "{$minutes}m";
+                        $timeUntil .= $days . 'd ';
                     }
-                }),
-            
-            TextColumn::make('conditions')
-                ->label('Crop ID')
-                ->formatStateUsing(function ($state) {
-                    return $state['crop_id'] ?? 'Unknown';
+                    if ($hours > 0 || $days > 0) {
+                        $timeUntil .= $hours . 'h ';
+                    }
+                    $timeUntil .= $minutes . 'm';
+                    
+                    return trim($timeUntil);
                 })
-                ->url(function ($record) {
+                ->badge()
+                ->color(fn (TaskSchedule $record) => $record->next_run_at->isPast() ? 'danger' : 'success'),
+            
+            // Fix crop ID display with direct attribute access
+            TextColumn::make('crop_id')
+                ->label('Crop')
+                ->getStateUsing(function (TaskSchedule $record): ?int {
+                    return $record->conditions['crop_id'] ?? null;
+                })
+                ->formatStateUsing(fn (?int $state): string => $state ? "#{$state}" : 'Unknown')
+                ->url(function (TaskSchedule $record): ?string {
                     $cropId = $record->conditions['crop_id'] ?? null;
                     if ($cropId) {
                         return route('filament.admin.resources.crops.edit', ['record' => $cropId]);
