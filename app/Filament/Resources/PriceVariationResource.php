@@ -192,8 +192,10 @@ class PriceVariationResource extends Resource
                 Tables\Filters\TernaryFilter::make('is_active'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->tooltip('Edit price variation'),
+                Tables\Actions\DeleteAction::make()
+                    ->tooltip('Delete price variation'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

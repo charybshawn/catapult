@@ -35,7 +35,7 @@ class CropsRelationManager extends RelationManager
                     ->required()
                     ->integer()
                     ->minValue(1)
-                    ->maxValue(100),
+                    ->maxValue(9999),
                 Forms\Components\DateTimePicker::make('planted_at')
                     ->label('Planted At')
                     ->required()

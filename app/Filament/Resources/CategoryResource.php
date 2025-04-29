@@ -90,8 +90,10 @@ class CategoryResource extends Resource
                     ->falseLabel('Inactive Categories'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->tooltip('Edit category'),
+                Tables\Actions\DeleteAction::make()
+                    ->tooltip('Delete category'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

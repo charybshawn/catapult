@@ -35,7 +35,7 @@ class CropResource extends Resource
                     ->separator(',')
                     ->helperText('Enter multiple tray numbers to create separate records for each tray')
                     ->rules(['array', 'min:1'])
-                    ->nestedRecursiveRules(['integer', 'min:1', 'max:100'])
+                    ->nestedRecursiveRules(['integer', 'min:1', 'max:9999'])
                     ->visible(fn ($livewire) => $livewire instanceof Pages\CreateCrop),
                 Forms\Components\Select::make('recipe_id')
                     ->label('Recipe')
@@ -398,12 +398,19 @@ class CropResource extends Resource
                     })
                     ->visible(true),
                 Tables\Actions\Action::make('advance_stage')
-                    ->label('Advance Stage')
                     ->icon('heroicon-o-arrow-right')
-                    ->action(function (Crop $record): void {
+                    ->tooltip('Advance to next stage')
+                    ->action(function (Crop $record) {
                         $record->advanceStage();
                     })
-                    ->visible(fn (Crop $record): bool => $record->current_stage !== 'harvested'),
+                    ->visible(fn (Crop $record) => $record->current_stage !== 'harvested'),
+                Tables\Actions\Action::make('harvest')
+                    ->icon('heroicon-o-scissors')
+                    ->tooltip('Harvest crop')
+                    ->action(function (Crop $record) {
+                        $record->harvest();
+                    })
+                    ->visible(fn (Crop $record) => $record->current_stage === 'light'),
                 Tables\Actions\Action::make('set_stage')
                     ->label('Set Stage')
                     ->icon('heroicon-o-arrow-path')
@@ -425,8 +432,11 @@ class CropResource extends Resource
                     ->requiresConfirmation()
                     ->modalHeading('Set Growth Stage')
                     ->modalDescription('Set the crop to a specific growth stage. This will clear timestamps for any later stages.'),
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->tooltip('Edit crop'),
+                Tables\Actions\DeleteAction::make()
+                    ->tooltip('Delete crop')
+                    ->requiresConfirmation(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

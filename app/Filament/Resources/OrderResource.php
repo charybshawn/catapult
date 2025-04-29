@@ -196,8 +196,12 @@ class OrderResource extends Resource
                     }),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\ViewAction::make()
+                    ->tooltip('View order details'),
+                Tables\Actions\EditAction::make()
+                    ->tooltip('Edit order'),
+                Tables\Actions\DeleteAction::make()
+                    ->tooltip('Delete order'),
                 Tables\Actions\Action::make('mark_processing')
                     ->label('Mark as Processing')
                     ->icon('heroicon-o-arrow-path')

@@ -77,12 +77,22 @@ class CropTaskService
         // Format task name: "advance_to_X"
         $taskName = "advance_to_{$targetStage}";
         
+        // Get variety name with proper fallbacks
+        $varietyName = 'Unknown';
+        if ($crop->recipe) {
+            if ($crop->recipe->seedVariety) {
+                $varietyName = $crop->recipe->seedVariety->name;
+            } else if ($crop->recipe->name) {
+                $varietyName = $crop->recipe->name;
+            }
+        }
+        
         // Create conditions for the task - ensure crop_id is an integer
         $conditions = [
             'crop_id' => (int) $crop->id,
             'target_stage' => $targetStage,
             'tray_number' => $crop->tray_number,
-            'variety' => $crop->recipe->seedVariety->name ?? 'Unknown',
+            'variety' => $varietyName,
         ];
         
         // Create the task schedule

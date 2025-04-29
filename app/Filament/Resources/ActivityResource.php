@@ -111,7 +111,8 @@ class ActivityResource extends Resource
                     }),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
+                Tables\Actions\ViewAction::make()
+                    ->tooltip('View activity details'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

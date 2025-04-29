@@ -88,14 +88,23 @@ class EditRecipe extends EditRecord
                                         ->label('Seed Name/Variety')
                                         ->helperText('Include the variety name (e.g., "Basil - Genovese")')
                                         ->required()
-                                        ->maxLength(255),
+                                        ->maxLength(255)
+                                        ->datalist(function () {
+                                            return Consumable::where('type', 'seed')
+                                                ->where('is_active', true)
+                                                ->pluck('name')
+                                                ->unique()
+                                                ->toArray();
+                                        }),
                                     Forms\Components\Select::make('supplier_id')
                                         ->label('Supplier')
                                         ->options(function () {
                                             return Supplier::query()
-                                                ->where('type', 'seed')
-                                                ->orWhereNull('type')
-                                                ->orWhere('type', 'other')
+                                                ->where(function ($query) {
+                                                    $query->where('type', 'soil')
+                                                          ->orWhereNull('type')
+                                                          ->orWhere('type', 'other');
+                                                })
                                                 ->pluck('name', 'id');
                                         })
                                         ->searchable()
@@ -114,53 +123,77 @@ class EditRecipe extends EditRecord
                                                 ]);
                                         }),
                                     Forms\Components\TextInput::make('initial_stock')
-                                        ->label('Initial Stock')
+                                        ->label('Quantity')
+                                        ->helperText('Number of units in stock')
                                         ->numeric()
+                                        ->minValue(0)
                                         ->required()
-                                        ->default(1),
-                                    Forms\Components\TextInput::make('unit')
-                                        ->label('Unit of Measurement')
-                                        ->default('packets')
-                                        ->required(),
-                                    Forms\Components\TextInput::make('quantity_per_unit')
-                                        ->label('Quantity Per Unit (g)')
-                                        ->helperText('Amount of seeds in grams per packet')
+                                        ->default(0),
+                                    Forms\Components\Select::make('unit')
+                                        ->label('Packaging Type')
+                                        ->helperText('Container or form of packaging')
+                                        ->options([
+                                            'unit' => 'Unit(s)',
+                                            'bag' => 'Bag(s)',
+                                            'box' => 'Box(es)',
+                                            'bottle' => 'Bottle(s)',
+                                            'container' => 'Container(s)',
+                                            'roll' => 'Roll(s)',
+                                            'packet' => 'Packet(s)',
+                                            'kg' => 'Kilogram(s)',
+                                            'g' => 'Gram(s)',
+                                            'l' => 'Liter(s)',
+                                            'ml' => 'Milliliter(s)',
+                                        ])
+                                        ->required()
+                                        ->default('packet'),
+                                    Forms\Components\TextInput::make('unit_size')
+                                        ->label('Unit Size')
+                                        ->helperText('Capacity or size of each unit (e.g., 10g per packet)')
                                         ->numeric()
                                         ->required()
                                         ->default(10)
                                         ->minValue(0.01)
                                         ->step(0.01),
-                                    Forms\Components\Hidden::make('quantity_unit')
+                                    Forms\Components\Select::make('quantity_unit')
+                                        ->label('Unit of Measurement')
+                                        ->helperText('Unit for the size/capacity value')
+                                        ->options([
+                                            'g' => 'Grams',
+                                            'kg' => 'Kilograms',
+                                            'l' => 'Liters',
+                                            'ml' => 'Milliliters',
+                                            'oz' => 'Ounces',
+                                            'lb' => 'Pounds',
+                                            'cm' => 'Centimeters',
+                                            'm' => 'Meters',
+                                        ])
+                                        ->required()
                                         ->default('g'),
                                     Forms\Components\Hidden::make('type')
                                         ->default('seed'),
-                                    Forms\Components\TextInput::make('cost_per_unit')
-                                        ->label('Cost Per Unit ($)')
-                                        ->numeric()
-                                        ->prefix('$')
-                                        ->required()
-                                        ->default(0),
                                     Forms\Components\TextInput::make('restock_threshold')
-                                        ->label('Restock Threshold (grams)')
-                                        ->helperText('Total seed weight at which to restock, regardless of packet count')
-                                        ->numeric()
-                                        ->required()
-                                        ->default(100),
-                                    Forms\Components\TextInput::make('restock_quantity')
-                                        ->label('Restock Quantity')
-                                        ->helperText('Number of packets to order when restocking')
+                                        ->label('Restock Threshold')
+                                        ->helperText('When stock falls below this number, reorder')
                                         ->numeric()
                                         ->required()
                                         ->default(2),
+                                    Forms\Components\TextInput::make('restock_quantity')
+                                        ->label('Restock Quantity')
+                                        ->helperText('How many to order when restocking')
+                                        ->numeric()
+                                        ->required()
+                                        ->default(5),
                                     Forms\Components\Textarea::make('notes')
-                                        ->label('Lot/Batch Information')
-                                        ->helperText('Include seed variety details, lot numbers, or any other important information')
+                                        ->label('Additional Notes')
                                         ->rows(3),
                                     Forms\Components\Toggle::make('is_active')
                                         ->label('Active')
                                         ->default(true),
                                 ])
                                 ->createOptionUsing(function (array $data) {
+                                    // Set default value for consumed_quantity to fix the SQL error
+                                    $data['consumed_quantity'] = 0;
                                     return Consumable::create($data)->id;
                                 }),
 
@@ -931,6 +964,43 @@ class EditRecipe extends EditRecord
         }
         
         if (isset($data['soil_consumable_id']) && $data['soil_consumable_id']) {
+            $data['supplier_soil_id'] = null;
+        }
+        
+        // If using the new consumable fields, extract the seed variety
+        if (isset($data['seed_consumable_id']) && $data['seed_consumable_id']) {
+            // Get the seed consumable
+            $seedConsumable = \App\Models\Consumable::find($data['seed_consumable_id']);
+            
+            if ($seedConsumable) {
+                if ($seedConsumable->seed_variety_id) {
+                    // If the seed consumable already has a linked seed variety, use it
+                    $data['seed_variety_id'] = $seedConsumable->seed_variety_id;
+                } else {
+                    // Extract the variety from the seed name and find or create a corresponding SeedVariety
+                    $seedName = $seedConsumable->name;
+                    
+                    // Find or create seed variety based on consumable name
+                    $seedVariety = \App\Models\SeedVariety::firstOrCreate(
+                        ['name' => $seedName],
+                        [
+                            'crop_type' => 'microgreens',
+                            'is_active' => true
+                        ]
+                    );
+                    
+                    // Set the seed_variety_id to the found or created variety
+                    $data['seed_variety_id'] = $seedVariety->id;
+                    
+                    // Also update the consumable to link it to this seed variety for future use
+                    $seedConsumable->seed_variety_id = $seedVariety->id;
+                    $seedConsumable->save();
+                }
+            }
+        }
+        
+        if (isset($data['soil_consumable_id']) && $data['soil_consumable_id']) {
+            // We're using a consumable for the soil, so clear old reference
             $data['supplier_soil_id'] = null;
         }
         
