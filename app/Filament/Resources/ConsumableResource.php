@@ -442,14 +442,10 @@ class ConsumableResource extends Resource
                     ->visible(fn ($livewire): bool => $livewire->activeTab === null || $livewire->activeTab === 'seed'),
             ])
             ->actions([
-                Tables\Actions\Action::make('adjust_stock')
-                    ->label('Adjust Stock')
-                    ->icon('heroicon-o-adjustments-horizontal')
-                    ->color('primary')
-                    ->url(fn (Consumable $record): string => 
-                        ConsumableResource::getUrl('adjust-stock', ['record' => $record])
-                    ),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->tooltip('Edit consumable'),
+                Tables\Actions\DeleteAction::make()
+                    ->tooltip('Delete consumable'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

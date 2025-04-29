@@ -201,8 +201,38 @@ class RecipeResource extends Resource
                     ->preload(),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->tooltip('Edit recipe'),
+                Tables\Actions\Action::make('clone')
+                    ->icon('heroicon-o-document-duplicate')
+                    ->tooltip('Clone recipe')
+                    ->action(function (Recipe $record) {
+                        $clone = $record->replicate();
+                        $clone->name = $record->name . ' (Clone)';
+                        $clone->save();
+                        
+                        // Clone related records
+                        foreach ($record->stages as $stage) {
+                            $stageClone = $stage->replicate();
+                            $stageClone->recipe_id = $clone->id;
+                            $stageClone->save();
+                        }
+                        
+                        foreach ($record->wateringSchedule as $schedule) {
+                            $scheduleClone = $schedule->replicate();
+                            $scheduleClone->recipe_id = $clone->id;
+                            $scheduleClone->save();
+                        }
+                        
+                        Notification::make()
+                            ->success()
+                            ->title('Recipe cloned successfully')
+                            ->send();
+                            
+                        return redirect()->route('filament.admin.resources.recipes.edit', ['record' => $clone->id]);
+                    }),
                 Tables\Actions\DeleteAction::make()
+                    ->tooltip('Delete recipe')
                     ->requiresConfirmation()
                     ->modalDescription('Are you sure you want to delete this recipe?')
                     ->modalSubmitActionLabel('Delete')

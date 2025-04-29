@@ -152,15 +152,17 @@ class TaskResource extends Resource
             ])
             ->actions([
                 Tables\Actions\Action::make('complete')
-                    ->label('Mark as Completed')
                     ->icon('heroicon-o-check-circle')
+                    ->tooltip('Mark task as completed')
                     ->action(function (Task $record) {
                         $record->markAsCompleted();
                     })
                     ->visible(fn (Task $record) => !$record->isCompleted()),
                     
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->tooltip('Edit task'),
+                Tables\Actions\DeleteAction::make()
+                    ->tooltip('Delete task'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

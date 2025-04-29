@@ -18,6 +18,8 @@ use Filament\Tables\Table;
 use Illuminate\Support\Facades\DB;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
+use Filament\Tables\Grouping\Group;
+use Filament\Tables\Enums\FiltersLayout;
 
 class ManageCropTasks extends Page implements HasTable
 {
@@ -45,6 +47,46 @@ class ManageCropTasks extends Page implements HasTable
             ->orderBy('next_run_at');
     }
     
+    protected function getDefaultTableSortColumn(): ?string
+    {
+        return 'next_run_at';
+    }
+
+    protected function getDefaultTableSortDirection(): ?string
+    {
+        return 'asc';
+    }
+    
+    protected function getTableGroups(): array
+    {
+        return [
+            Group::make('conditions.tray_number')
+                ->label('Tray Number')
+                ->getGroupingValue(function ($record) {
+                    return $record->conditions['tray_number'] ?? 'Unknown';
+                })
+                ->getTitleForRecord(function ($record) {
+                    return $record->conditions['tray_number'] ?? 'Unknown';
+                }),
+            Group::make('conditions.target_stage')
+                ->label('Target Stage')
+                ->getGroupingValue(function ($record) {
+                    return $record->conditions['target_stage'] ?? 'Unknown';
+                })
+                ->getTitleForRecord(function ($record) {
+                    return ucfirst($record->conditions['target_stage'] ?? 'Unknown');
+                }),
+            Group::make('conditions.variety')
+                ->label('Variety')
+                ->getGroupingValue(function ($record) {
+                    return $record->conditions['variety'] ?? 'Unknown';
+                })
+                ->getTitleForRecord(function ($record) {
+                    return $record->conditions['variety'] ?? 'Unknown';
+                })
+        ];
+    }
+    
     protected function getTableColumns(): array
     {
         return [
@@ -53,34 +95,56 @@ class ManageCropTasks extends Page implements HasTable
                 ->formatStateUsing(function ($state) {
                     return ucfirst(str_replace(['advance_to_', '_'], ['', ' '], $state));
                 })
-                ->sortable(),
+                ->sortable()
+                ->searchable(),
                 
-            TextColumn::make('conditions')
+            TextColumn::make('conditions.tray_number')
                 ->label('Tray')
-                ->formatStateUsing(function ($state) {
-                    return $state['tray_number'] ?? 'Unknown';
+                ->getStateUsing(function (TaskSchedule $record) {
+                    return $record->conditions['tray_number'] ?? 'Unknown';
+                })
+                ->sortable(query: function ($query, $direction) {
+                    return $query->orderByRaw("json_extract(conditions, '$.tray_number') {$direction}");
                 })
                 ->searchable(query: function ($query, $search) {
                     return $query->whereRaw("json_extract(conditions, '$.tray_number') LIKE ?", ["%{$search}%"]);
                 }),
                 
-            TextColumn::make('conditions')
+            TextColumn::make('conditions.variety')
                 ->label('Variety')
-                ->formatStateUsing(function ($state) {
-                    return $state['variety'] ?? 'Unknown';
+                ->getStateUsing(function (TaskSchedule $record) {
+                    return $record->conditions['variety'] ?? 'Unknown';
+                })
+                ->sortable(query: function ($query, $direction) {
+                    return $query->orderByRaw("json_extract(conditions, '$.variety') {$direction}");
                 })
                 ->searchable(query: function ($query, $search) {
                     return $query->whereRaw("json_extract(conditions, '$.variety') LIKE ?", ["%{$search}%"]);
                 }),
                 
-            TextColumn::make('conditions')
+            TextColumn::make('seed_variety')
+                ->label('Seed Variety')
+                ->getStateUsing(function (TaskSchedule $record) {
+                    $cropId = $record->conditions['crop_id'] ?? null;
+                    if (!$cropId) return 'Unknown';
+                    
+                    $crop = Crop::find($cropId);
+                    if (!$crop || !$crop->recipe) return 'Unknown';
+                    
+                    return $crop->recipe->seedVariety->name ?? 'Unknown';
+                }),
+                
+            TextColumn::make('conditions.target_stage')
                 ->label('Target Stage')
-                ->formatStateUsing(function ($state) {
-                    return ucfirst($state['target_stage'] ?? 'unknown');
+                ->getStateUsing(function (TaskSchedule $record) {
+                    return ucfirst($record->conditions['target_stage'] ?? 'unknown');
+                })
+                ->sortable(query: function ($query, $direction) {
+                    return $query->orderByRaw("json_extract(conditions, '$.target_stage') {$direction}");
                 })
                 ->badge()
-                ->color(function ($state) {
-                    return match ($state['target_stage'] ?? '') {
+                ->color(function (TaskSchedule $record) {
+                    return match ($record->conditions['target_stage'] ?? '') {
                         'germination' => 'info',
                         'blackout' => 'warning',
                         'light' => 'success',
@@ -166,6 +230,91 @@ class ManageCropTasks extends Page implements HasTable
     protected function getTableActions(): array
     {
         return [
+            Tables\Actions\Action::make('debug')
+                ->label('')
+                ->icon('heroicon-o-code-bracket')
+                ->tooltip('Debug Info')
+                ->action(function (TaskSchedule $record) {
+                    $crop = Crop::find($record->conditions['crop_id'] ?? null);
+                    
+                    $taskData = [
+                        'ID' => $record->id,
+                        'Task Name' => $record->task_name,
+                        'Resource Type' => $record->resource_type,
+                        'Frequency' => $record->frequency,
+                        'Is Active' => $record->is_active ? 'Yes' : 'No',
+                        'Next Run At' => $record->next_run_at->format('Y-m-d H:i:s'),
+                        'Last Run At' => $record->last_run_at ? $record->last_run_at->format('Y-m-d H:i:s') : 'Never',
+                        'Conditions' => json_encode($record->conditions, JSON_PRETTY_PRINT),
+                    ];
+                    
+                    $cropData = [];
+                    
+                    if ($crop) {
+                        $cropData = [
+                            'ID' => $crop->id,
+                            'Tray Number' => $crop->tray_number,
+                            'Current Stage' => $crop->current_stage,
+                            'Planted At' => $crop->planted_at->format('Y-m-d H:i:s'),
+                            'Germination At' => $crop->germination_at ? $crop->germination_at->format('Y-m-d H:i:s') : 'N/A',
+                            'Blackout At' => $crop->blackout_at ? $crop->blackout_at->format('Y-m-d H:i:s') : 'N/A',
+                            'Light At' => $crop->light_at ? $crop->light_at->format('Y-m-d H:i:s') : 'N/A',
+                            'Harvested At' => $crop->harvested_at ? $crop->harvested_at->format('Y-m-d H:i:s') : 'N/A',
+                            'Recipe ID' => $crop->recipe_id,
+                            'Recipe Name' => $crop->recipe?->name ?? 'N/A',
+                            'Seed Variety ID' => $crop->recipe?->seed_variety_id ?? 'N/A',
+                            'Seed Variety Name' => $crop->recipe?->seedVariety?->name ?? 'N/A',
+                            'Germination Days' => $crop->recipe?->germination_days ?? 'N/A',
+                            'Blackout Days' => $crop->recipe?->blackout_days ?? 'N/A',
+                            'Light Days' => $crop->recipe?->light_days ?? 'N/A',
+                        ];
+                    }
+                    
+                    // Format the debug data for display in a modal
+                    $taskDataHtml = '<div class="mb-4">';
+                    $taskDataHtml .= '<h3 class="text-lg font-medium mb-2">Task Data</h3>';
+                    $taskDataHtml .= '<div class="overflow-auto max-h-48 space-y-1">';
+                    
+                    foreach ($taskData as $key => $value) {
+                        $taskDataHtml .= '<div class="flex">';
+                        $taskDataHtml .= '<span class="font-medium w-32">' . $key . ':</span>';
+                        $taskDataHtml .= '<span class="text-gray-600">' . $value . '</span>';
+                        $taskDataHtml .= '</div>';
+                    }
+                    
+                    $taskDataHtml .= '</div></div>';
+                    
+                    // Format crop data if available
+                    $cropDataHtml = '';
+                    if (!empty($cropData)) {
+                        $cropDataHtml = '<div>';
+                        $cropDataHtml .= '<h3 class="text-lg font-medium mb-2">Crop Data</h3>';
+                        $cropDataHtml .= '<div class="overflow-auto max-h-48 space-y-1">';
+                        
+                        foreach ($cropData as $key => $value) {
+                            $cropDataHtml .= '<div class="flex">';
+                            $cropDataHtml .= '<span class="font-medium w-32">' . $key . ':</span>';
+                            $cropDataHtml .= '<span class="text-gray-600">' . $value . '</span>';
+                            $cropDataHtml .= '</div>';
+                        }
+                        
+                        $cropDataHtml .= '</div></div>';
+                    } else {
+                        $cropDataHtml = '<div class="text-gray-500">Crop not found</div>';
+                    }
+                    
+                    Notification::make()
+                        ->title('Debug Information')
+                        ->body($taskDataHtml . $cropDataHtml)
+                        ->persistent()
+                        ->actions([
+                            \Filament\Notifications\Actions\Action::make('close')
+                                ->label('Close')
+                                ->color('gray')
+                        ])
+                        ->send();
+                }),
+            
             Tables\Actions\Action::make('execute_now')
                 ->label('Execute Now')
                 ->icon('heroicon-o-bolt')
@@ -298,5 +447,15 @@ class ManageCropTasks extends Page implements HasTable
                 ->modalHeading('Rebuild All Tasks')
                 ->modalDescription('This will delete all current crop stage tasks and rebuild them based on the current state of all crops. Are you sure you want to continue?'),
         ];
+    }
+
+    protected function getTableFiltersLayout(): FiltersLayout
+    {
+        return FiltersLayout::AboveContent;
+    }
+
+    public function getTableGroupingSelector(): bool
+    {
+        return true;
     }
 } 

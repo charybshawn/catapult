@@ -194,9 +194,12 @@ class InvoiceResource extends Resource
                     }),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->tooltip('Edit invoice'),
+                Tables\Actions\DeleteAction::make()
+                    ->tooltip('Delete invoice'),
                 Tables\Actions\Action::make('Mark as Sent')
+                    ->tooltip('Mark invoice as sent')
                     ->action(fn (Invoice $record) => $record->markAsSent())
                     ->requiresConfirmation()
                     ->color('primary')

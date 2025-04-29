@@ -42,8 +42,9 @@
                                 <div class="p-2 rounded-lg {{ $crop['overdue'] ? 'bg-danger-50 dark:bg-danger-950' : 'bg-gray-50 dark:bg-gray-900' }}">
                                     <div class="flex items-center justify-between">
                                         <div>
-                                            <div class="font-medium">{{ $crop['variety'] }}</div>
+                                            <div class="font-medium">Variety: {{ $crop['variety'] }}</div>
                                             <div class="text-sm text-gray-500 dark:text-gray-400">Tray: {{ $crop['tray'] }}</div>
+                                            <div class="text-sm text-gray-500 dark:text-gray-400">Target: {{ $crop['target_stage'] }}</div>
                                         </div>
                                         <div class="text-right">
                                             <div class="font-medium {{ $crop['overdue'] ? 'text-danger-600 dark:text-danger-400' : '' }}">

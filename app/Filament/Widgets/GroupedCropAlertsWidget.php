@@ -42,13 +42,22 @@ class GroupedCropAlertsWidget extends Widget
             ],
         ];
 
-        // Get all active crops (not harvested)
+        // Get all active crops (not harvested) with their relationships
         $crops = Crop::whereNotIn('current_stage', ['harvested'])
-            ->with(['recipe.seedVariety'])
+            ->with(['recipe.seedVariety', 'recipe'])
             ->get();
 
         foreach ($crops as $crop) {
-            $variety = $crop->recipe && $crop->recipe->seedVariety ? $crop->recipe->seedVariety->name : 'Unknown Variety';
+            // Get the variety name, falling back to recipe name if variety is not available
+            $variety = 'Unknown';
+            if ($crop->recipe) {
+                if ($crop->recipe->seedVariety) {
+                    $variety = $crop->recipe->seedVariety->name;
+                } else if ($crop->recipe->name) {
+                    $variety = $crop->recipe->name;
+                }
+            }
+            
             $trayName = $crop->tray_number ?? 'No Tray';
             
             // Get the timestamp for the current stage
@@ -69,46 +78,47 @@ class GroupedCropAlertsWidget extends Widget
             // Format the time display
             $timeInStage = $this->formatTimeDisplay($daysInStage, $hoursInStage, $minutesInStage);
             
-            if ($crop->current_stage === 'germination') {
-                // Crop is in germination stage
-                $recommendedDays = $crop->recipe ? $crop->recipe->germination_days : 3;
-                $overdue = $now->diffInHours($stageStartTime) > ($recommendedDays * 24);
-                
-                if ($now->diffInHours($stageStartTime) >= ($recommendedDays * 24)) {
-                    $stages['seeded']['crops'][] = [
-                        'id' => $crop->id,
-                        'variety' => $variety,
-                        'tray' => $trayName,
-                        'time_in_stage' => $timeInStage,
-                        'recommended_days' => $recommendedDays,
-                        'overdue' => $overdue,
-                    ];
-                }
-            } elseif ($crop->current_stage === 'light') {
-                // Crop is in light/growing stage
-                $recommendedDays = $crop->recipe ? $crop->recipe->light_days : 7;
-                $overdue = $now->diffInHours($stageStartTime) > ($recommendedDays * 24);
-                
-                if ($now->diffInHours($stageStartTime) >= ($recommendedDays * 24)) {
-                    $stages['growing']['crops'][] = [
-                        'id' => $crop->id,
-                        'variety' => $variety,
-                        'tray' => $trayName,
-                        'time_in_stage' => $timeInStage,
-                        'recommended_days' => $recommendedDays,
-                        'overdue' => $overdue,
-                    ];
-                }
+            // Determine the target stage based on current stage
+            $targetStage = $this->getTargetStage($crop->current_stage);
+            
+            // Get recommended days based on current stage
+            $recommendedDays = match($crop->current_stage) {
+                'germination' => $crop->recipe ? $crop->recipe->germination_days : 3,
+                'blackout' => $crop->recipe ? $crop->recipe->blackout_days : 3,
+                'light' => $crop->recipe ? $crop->recipe->light_days : 7,
+                'planting' => 1,
+                default => 0
+            };
+            
+            // Calculate if overdue
+            $overdue = $now->diffInHours($stageStartTime) > ($recommendedDays * 24);
+            
+            // Add to appropriate stage
+            if ($crop->current_stage === 'germination' && $now->diffInHours($stageStartTime) >= ($recommendedDays * 24)) {
+                $stages['seeded']['crops'][] = [
+                    'id' => $crop->id,
+                    'variety' => $variety,
+                    'tray' => $trayName,
+                    'time_in_stage' => $timeInStage,
+                    'recommended_days' => $recommendedDays,
+                    'overdue' => $overdue,
+                    'target_stage' => $targetStage,
+                ];
+            } elseif ($crop->current_stage === 'light' && $now->diffInHours($stageStartTime) >= ($recommendedDays * 24)) {
+                $stages['growing']['crops'][] = [
+                    'id' => $crop->id,
+                    'variety' => $variety,
+                    'tray' => $trayName,
+                    'time_in_stage' => $timeInStage,
+                    'recommended_days' => $recommendedDays,
+                    'overdue' => $overdue,
+                    'target_stage' => $targetStage,
+                ];
             } elseif ($crop->current_stage === 'blackout') {
-                // Crop is in blackout stage
-                $recommendedDays = $crop->recipe ? $crop->recipe->blackout_days : 3;
-                
-                // Calculate hours difference for more precision
                 $recommendedHours = $recommendedDays * 24;
                 $hoursInStage = $now->diffInHours($stageStartTime);
                 $hoursDifference = $recommendedHours - $hoursInStage;
                 
-                // Include in alerts if within 24 hours of recommended transition
                 if ($hoursDifference <= 24 && $hoursDifference >= 0) {
                     $stages['blackout']['crops'][] = [
                         'id' => $crop->id,
@@ -117,14 +127,10 @@ class GroupedCropAlertsWidget extends Widget
                         'time_in_stage' => $timeInStage,
                         'recommended_days' => $recommendedDays,
                         'overdue' => false,
+                        'target_stage' => $targetStage,
                     ];
                 }
             } elseif ($crop->current_stage === 'planting') {
-                // Crop is in planting stage - typically this is a short stage (1 day)
-                $recommendedDays = 1;
-                $overdue = $now->diffInHours($stageStartTime) > ($recommendedDays * 24);
-                
-                // Always include planting stage crops
                 $stages['seeded']['crops'][] = [
                     'id' => $crop->id,
                     'variety' => $variety,
@@ -132,6 +138,7 @@ class GroupedCropAlertsWidget extends Widget
                     'time_in_stage' => $timeInStage,
                     'recommended_days' => $recommendedDays,
                     'overdue' => $overdue,
+                    'target_stage' => $targetStage,
                 ];
             }
         }
@@ -156,5 +163,16 @@ class GroupedCropAlertsWidget extends Widget
         $timeInStage .= $minutes . 'm';
         
         return trim($timeInStage);
+    }
+
+    private function getTargetStage(string $currentStage): string
+    {
+        return match($currentStage) {
+            'planting' => 'Germination',
+            'germination' => 'Blackout',
+            'blackout' => 'Light',
+            'light' => 'Harvest',
+            default => 'Unknown'
+        };
     }
 } 

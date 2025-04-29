@@ -82,9 +82,12 @@ class ItemResource extends Resource
                     ->label('Visible in Store'),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\ViewAction::make()
+                    ->tooltip('View product details'),
+                Tables\Actions\EditAction::make()
+                    ->tooltip('Edit product'),
+                Tables\Actions\DeleteAction::make()
+                    ->tooltip('Delete product'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
