@@ -60,28 +60,19 @@ class ManageCropTasks extends Page implements HasTable
     protected function getTableGroups(): array
     {
         return [
-            Group::make('conditions.tray_number')
+            Group::make('tray_number')
                 ->label('Tray Number')
-                ->getGroupingValue(function ($record) {
-                    return $record->conditions['tray_number'] ?? 'Unknown';
-                })
-                ->getTitleForRecord(function ($record) {
+                ->getTitleFromRecordUsing(function ($record) {
                     return $record->conditions['tray_number'] ?? 'Unknown';
                 }),
-            Group::make('conditions.target_stage')
+            Group::make('target_stage')
                 ->label('Target Stage')
-                ->getGroupingValue(function ($record) {
-                    return $record->conditions['target_stage'] ?? 'Unknown';
-                })
-                ->getTitleForRecord(function ($record) {
+                ->getTitleFromRecordUsing(function ($record) {
                     return ucfirst($record->conditions['target_stage'] ?? 'Unknown');
                 }),
-            Group::make('conditions.variety')
+            Group::make('variety')
                 ->label('Variety')
-                ->getGroupingValue(function ($record) {
-                    return $record->conditions['variety'] ?? 'Unknown';
-                })
-                ->getTitleForRecord(function ($record) {
+                ->getTitleFromRecordUsing(function ($record) {
                     return $record->conditions['variety'] ?? 'Unknown';
                 })
         ];
@@ -457,5 +448,20 @@ class ManageCropTasks extends Page implements HasTable
     public function getTableGroupingSelector(): bool
     {
         return true;
+    }
+
+    public function table(Table $table): Table
+    {
+        return $table
+            ->query($this->getTableQuery())
+            ->defaultSort('next_run_at', 'asc')
+            ->columns($this->getTableColumns())
+            ->filters($this->getTableFilters(), layout: FiltersLayout::AboveContent)
+            ->actions($this->getTableActions())
+            ->bulkActions($this->getTableBulkActions())
+            ->emptyStateHeading($this->getTableEmptyStateHeading())
+            ->emptyStateDescription($this->getTableEmptyStateDescription())
+            ->emptyStateIcon($this->getTableEmptyStateIcon())
+            ->groups($this->getTableGroups());
     }
 } 
