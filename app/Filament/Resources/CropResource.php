@@ -35,7 +35,7 @@ class CropResource extends Resource
                     ->separator(',')
                     ->helperText('Enter multiple tray numbers to create separate records for each tray')
                     ->rules(['array', 'min:1'])
-                    ->nestedRecursiveRules(['integer', 'min:1', 'max:9999'])
+                    ->nestedRecursiveRules(['integer'])
                     ->visible(fn ($livewire) => $livewire instanceof Pages\CreateCrop),
                 Forms\Components\Select::make('recipe_id')
                     ->label('Recipe')

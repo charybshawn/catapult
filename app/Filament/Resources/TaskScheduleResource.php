@@ -386,10 +386,6 @@ class TaskScheduleResource extends Resource
                     ->getTitleFromRecordUsing(function ($record) {
                         return $record->conditions['tray_number'] ?? 'Unknown';
                     })
-                    ->getGroupingValue(fn (TaskSchedule $record): string => 
-                        $record->conditions['tray_number'] ?? 'Unknown'
-                    )
-                    ->getKey(fn (string $value): string => $value)
                     ->orderQueryUsing(fn (Builder $query, string $direction): Builder => 
                         $query->orderByRaw("json_extract(conditions, '$.tray_number') {$direction}")
                     ),
@@ -398,10 +394,6 @@ class TaskScheduleResource extends Resource
                     ->getTitleFromRecordUsing(function ($record) {
                         return ucfirst($record->conditions['target_stage'] ?? 'Unknown');
                     })
-                    ->getGroupingValue(fn (TaskSchedule $record): string => 
-                        $record->conditions['target_stage'] ?? 'Unknown'
-                    )
-                    ->getKey(fn (string $value): string => $value)
                     ->orderQueryUsing(fn (Builder $query, string $direction): Builder => 
                         $query->orderByRaw("json_extract(conditions, '$.target_stage') {$direction}")
                     ),
@@ -410,10 +402,6 @@ class TaskScheduleResource extends Resource
                     ->getTitleFromRecordUsing(function ($record) {
                         return $record->conditions['variety'] ?? 'Unknown';
                     })
-                    ->getGroupingValue(fn (TaskSchedule $record): string => 
-                        $record->conditions['variety'] ?? 'Unknown'
-                    )
-                    ->getKey(fn (string $value): string => $value)
                     ->orderQueryUsing(fn (Builder $query, string $direction): Builder => 
                         $query->orderByRaw("json_extract(conditions, '$.variety') {$direction}")
                     )

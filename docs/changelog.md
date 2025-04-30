@@ -97,6 +97,11 @@ This document tracks all significant changes to the Catapult v2 project.
   - Maintained the notes column for storing important growth phase information
   - Growth phase notes continue to be available in the RecipeStage model
   - Watering schedule details are stored in the RecipeWateringSchedule model
+- Updated tray number validation to remove numerical constraints (2025-06-03)
+  - Removed min and max value constraints on tray numbers in CropResource
+  - Removed min and max value constraints on tray numbers in CropsRelationManager
+  - Tray numbers are still validated as integers but can be any whole number
+  - Improves flexibility for different tray numbering systems
 
 ### Fixed
 - Fixed migration ordering issue with consumables and packaging types tables

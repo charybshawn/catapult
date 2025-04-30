@@ -33,9 +33,7 @@ class CropsRelationManager extends RelationManager
                 Forms\Components\TextInput::make('tray_number')
                     ->label('Tray Number')
                     ->required()
-                    ->integer()
-                    ->minValue(1)
-                    ->maxValue(9999),
+                    ->integer(),
                 Forms\Components\DateTimePicker::make('planted_at')
                     ->label('Planted At')
                     ->required()
