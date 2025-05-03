@@ -190,9 +190,7 @@ class CropResource extends Resource
                 Tables\Columns\TextColumn::make('tray_number')
                     ->label('Tray #')
                     ->sortable()
-                    ->toggleable()
-                    ->summarize(Tables\Columns\Summarizers\Count::make()
-                        ->label('Total Trays')),
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('recipe.seedVariety.name')
                     ->label('Variety')
                     ->searchable()
@@ -218,10 +216,7 @@ class CropResource extends Resource
                     ->label('Planted At')
                     ->dateTime()
                     ->sortable()
-                    ->toggleable()
-                    ->summarize(Tables\Columns\Summarizers\Range::make()
-                        ->label('Plant Date Range')
-                        ->minimalDateTimeDifference()),
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('current_stage')
                     ->label('Current Stage')
                     ->badge()
@@ -234,29 +229,7 @@ class CropResource extends Resource
                         default => 'gray',
                     })
                     ->sortable()
-                    ->toggleable()
-                    ->summarize(
-                        Tables\Columns\Summarizers\Count::make()
-                            ->query(fn ($query) => $query instanceof \Illuminate\Database\Eloquent\Builder
-                                ? $query->where('current_stage', 'germination')
-                                : \Illuminate\Database\Eloquent\Builder::query()->fromQuery($query)->where('current_stage', 'germination'))
-                            ->label('Germination'),
-                        Tables\Columns\Summarizers\Count::make()
-                            ->query(fn ($query) => $query instanceof \Illuminate\Database\Eloquent\Builder
-                                ? $query->where('current_stage', 'blackout')
-                                : \Illuminate\Database\Eloquent\Builder::query()->fromQuery($query)->where('current_stage', 'blackout'))
-                            ->label('Blackout'),
-                        Tables\Columns\Summarizers\Count::make()
-                            ->query(fn ($query) => $query instanceof \Illuminate\Database\Eloquent\Builder
-                                ? $query->where('current_stage', 'light')
-                                : \Illuminate\Database\Eloquent\Builder::query()->fromQuery($query)->where('current_stage', 'light'))
-                            ->label('Light'),
-                        Tables\Columns\Summarizers\Count::make()
-                            ->query(fn ($query) => $query instanceof \Illuminate\Database\Eloquent\Builder
-                                ? $query->where('current_stage', 'harvested')
-                                : \Illuminate\Database\Eloquent\Builder::query()->fromQuery($query)->where('current_stage', 'harvested'))
-                            ->label('Harvested')
-                    ),
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('stage_age')
                     ->label('Time in Stage')
                     ->getStateUsing(fn (Crop $record): string => $record->stage_age_status ?? $record->getStageAgeStatus())
@@ -283,93 +256,17 @@ class CropResource extends Resource
                         return null;
                     })
                     ->sortable()
-                    ->toggleable()
-                    ->summarize(
-                        Tables\Columns\Summarizers\Summarizer::make()
-                            ->label('Stage Age Stats')
-                            ->using(function ($query): string {
-                                // Get the records in this group
-                                $crops = ($query instanceof \Illuminate\Database\Eloquent\Builder)
-                                    ? $query->get()
-                                    : \Illuminate\Database\Eloquent\Builder::query()->fromQuery($query)->get();
-                                
-                                // Count overdue crops (in "danger" state)
-                                $overdueCount = $crops->filter(function ($crop) {
-                                    $stageField = "{$crop->current_stage}_at";
-                                    if ($crop->$stageField) {
-                                        $now = now();
-                                        $stageStart = $crop->$stageField;
-                                        $totalHours = $stageStart->diffInHours($now);
-                                        
-                                        $stageDuration = match ($crop->current_stage) {
-                                            'germination' => $crop->recipe?->germination_days ?? 0,
-                                            'blackout' => $crop->recipe?->blackout_days ?? 0,
-                                            'light' => $crop->recipe?->light_days ?? 0,
-                                            default => 0,
-                                        };
-                                        
-                                        $expectedHours = $stageDuration * 24;
-                                        
-                                        return $expectedHours > 0 && $totalHours > $expectedHours;
-                                    }
-                                    return false;
-                                })->count();
-                                
-                                if ($overdueCount > 0) {
-                                    return "{$overdueCount} overdue trays";
-                                }
-                                
-                                return "All trays on schedule";
-                            })
-                    ),
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('time_to_next_stage')
                     ->label('Time to Next Stage')
                     ->getStateUsing(fn (Crop $record): ?string => $record->time_to_next_stage_status)
                     ->sortable()
-                    ->toggleable()
-                    ->summarize(
-                        Tables\Columns\Summarizers\Summarizer::make()
-                            ->label('Ready Trays')
-                            ->using(function ($query): string {
-                                // Get count of crops that are ready to advance
-                                $readyCount = ($query instanceof \Illuminate\Database\Eloquent\Builder)
-                                    ? $query->where('time_to_next_stage_status', 'Ready to advance')->count()
-                                    : \Illuminate\Database\Eloquent\Builder::query()->fromQuery($query)->where('time_to_next_stage_status', 'Ready to advance')->count();
-                                
-                                if ($readyCount > 0) {
-                                    return "{$readyCount} trays ready";
-                                }
-                                
-                                return "No trays ready";
-                            })
-                    ),
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('total_age')
                     ->label('Total Age')
                     ->getStateUsing(fn (Crop $record): ?string => $record->total_age_status ?? $record->getTotalAgeStatus())
                     ->sortable()
-                    ->toggleable()
-                    ->summarize(
-                        Tables\Columns\Summarizers\Summarizer::make()
-                            ->label('Age Range')
-                            ->using(function ($query): string {
-                                $minAge = ($query instanceof \Illuminate\Database\Eloquent\Builder)
-                                    ? $query->min('total_age_minutes')
-                                    : \Illuminate\Database\Eloquent\Builder::query()->fromQuery($query)->min('total_age_minutes');
-                                $maxAge = ($query instanceof \Illuminate\Database\Eloquent\Builder)
-                                    ? $query->max('total_age_minutes')
-                                    : \Illuminate\Database\Eloquent\Builder::query()->fromQuery($query)->max('total_age_minutes');
-                                
-                                // Convert minutes to days for display
-                                $minDays = floor($minAge / (24 * 60));
-                                $maxDays = floor($maxAge / (24 * 60));
-                                
-                                if ($minDays == $maxDays) {
-                                    return "{$minDays} days";
-                                }
-                                
-                                return "{$minDays}-{$maxDays} days";
-                            })
-                    ),
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('planting_at')
                     ->label('Planting Started')
                     ->dateTime()
@@ -399,15 +296,7 @@ class CropResource extends Resource
                     ->label('Harvest Weight')
                     ->formatStateUsing(fn ($state) => $state ? "{$state}g" : '-')
                     ->sortable()
-                    ->toggleable()
-                    ->summarize([
-                        Tables\Columns\Summarizers\Sum::make()
-                            ->numeric(0)
-                            ->label('Total Harvested'),
-                        Tables\Columns\Summarizers\Average::make()
-                            ->numeric(0)
-                            ->label('Avg. Weight/Tray'),
-                    ]),
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('order_id')
                     ->label('Order ID')
                     ->sortable()
@@ -426,27 +315,10 @@ class CropResource extends Resource
             ->groups([
                 Tables\Grouping\Group::make('recipe.seedVariety.name')
                     ->label('Variety')
-                    ->getDescriptionFromRecordUsing(function ($record) {
-                        if (!$record->recipe) {
-                            return null;
-                        }
-                        
-                        return $record->recipe->name . ' - ' . 
-                            $record->recipe->germination_days . 'd germ / ' . 
-                            $record->recipe->blackout_days . 'd blackout / ' . 
-                            $record->recipe->light_days . 'd light';
-                    })
                     ->collapsible(),
                 Tables\Grouping\Group::make('planted_at')
                     ->label('Plant Date')
-                    ->date()
-                    ->getDescriptionFromRecordUsing(function ($record) {
-                        if (!$record->expectedHarvestDate()) {
-                            return null;
-                        }
-                        
-                        return 'Expected Harvest: ' . $record->expectedHarvestDate()->format('Y-m-d');
-                    }),
+                    ->date(),
                 Tables\Grouping\Group::make('current_stage')
                     ->label('Growth Stage'),
             ])

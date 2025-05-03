@@ -360,8 +360,3 @@ This document tracks all significant changes to the Catapult v2 project.
 - Modified ConsumableResource to filter unique varieties
 - Added ability to create new seed varieties from dropdowns 
 - Created cleanup script to resolve existing duplicates
-
-## 2025-05-02 - Bug Fixes and Feature Improvements
-- Fixed type error in CropResource summarizers to handle both Eloquent Builder and Query Builder instances
-- Added comprehensive statistics for variety groups in the Grow Trays table 
-- Fixed out-of-range integer issue with time calculations in Crop model
