@@ -3,10 +3,13 @@
 namespace App\Filament\Resources\CropResource\Pages;
 
 use App\Filament\Resources\CropResource;
+use App\Models\Crop;
 use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Forms\Components;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
+use Filament\Notifications\Notification;
 
 class EditCrop extends EditRecord
 {
@@ -15,26 +18,51 @@ class EditCrop extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            Actions\DeleteAction::make()
+                ->action(function () {
+                    // Get all trays in this grow batch
+                    $record = $this->getRecord();
+                    Crop::where('recipe_id', $record->recipe_id)
+                        ->where('planted_at', $record->planted_at)
+                        ->delete();
+                    
+                    $this->redirect($this->getResource()::getUrl('index'));
+                }),
         ];
     }
     
     protected function mutateFormDataBeforeFill(array $data): array
     {
-        // For the edit page, convert the single tray_number to an array for the TagsInput
-        // The tray_number could be a string like "1,2,3" or just a single value
-        if (isset($data['tray_number'])) {
-            // Handle any possible format
-            $trayNumber = $data['tray_number'];
+        // Get the current record being edited
+        $record = $this->getRecord();
+        
+        // Get all trays in this grow batch
+        $allTrays = Crop::where('recipe_id', $record->recipe_id)
+            ->where('planted_at', $record->planted_at)
+            ->where('current_stage', $record->current_stage)
+            ->pluck('tray_number')
+            ->toArray();
+        
+        // Add existing tray numbers to form data
+        $data['existing_tray_numbers'] = $allTrays;
+        
+        // Initialize empty array for add_tray_numbers
+        $data['add_tray_numbers'] = [];
+        
+        // Since we're using MIN/MAX/AVG for group data, ensure we have accurate values for selected fields
+        if (isset($record->tray_number_list)) {
+            $data['tray_number_list'] = $record->tray_number_list;
+        }
+        
+        // Get the first actual record from this group to ensure we have complete data
+        $firstRecord = Crop::where('recipe_id', $record->recipe_id)
+            ->where('planted_at', $record->planted_at)
+            ->where('current_stage', $record->current_stage)
+            ->first();
             
-            // If it's already comma-separated, split it
-            if (strpos($trayNumber, ',') !== false) {
-                $data['tray_numbers'] = array_map('trim', explode(',', $trayNumber));
-            } else {
-                $data['tray_numbers'] = [$trayNumber];
-            }
-        } else {
-            $data['tray_numbers'] = [];
+        if ($firstRecord) {
+            // Copy any fields that might be missed by the aggregation
+            $data['notes'] = $firstRecord->notes ?? '';
         }
         
         return $data;
@@ -42,17 +70,58 @@ class EditCrop extends EditRecord
     
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
-        // In edit mode, we only update a single record, so take the first tray number
-        if (!empty($data['tray_numbers']) && is_array($data['tray_numbers'])) {
-            // Use the first tray number only
-            $record->tray_number = trim($data['tray_numbers'][0]);
+        // Get all crops in this grow batch
+        $crops = Crop::where('recipe_id', $record->recipe_id)
+            ->where('planted_at', $record->planted_at)
+            ->where('current_stage', $record->current_stage)
+            ->get();
+        
+        // Create new trays if they were added
+        $newTrays = [];
+        if (!empty($data['add_tray_numbers']) && is_array($data['add_tray_numbers'])) {
+            foreach ($data['add_tray_numbers'] as $newTrayNumber) {
+                $newTrayNumber = trim($newTrayNumber);
+                if (empty($newTrayNumber)) continue;
+                
+                // Check if this tray number already exists in this batch
+                $existingTray = Crop::where('recipe_id', $record->recipe_id)
+                    ->where('planted_at', $record->planted_at)
+                    ->where('tray_number', $newTrayNumber)
+                    ->first();
+                    
+                if (!$existingTray) {
+                    // Create a new tray with the same data as the current record
+                    $newTray = $record->replicate();
+                    $newTray->tray_number = $newTrayNumber;
+                    $newTray->save();
+                    $newTrays[] = $newTrayNumber;
+                }
+            }
         }
         
-        // Remove the tray_numbers field from the data
-        unset($data['tray_numbers']);
+        // Remove fields that shouldn't be updated on all trays
+        unset($data['existing_tray_numbers']);
+        unset($data['add_tray_numbers']);
         
-        // Update the record with the remaining data
-        $record->fill($data)->save();
+        // Update all crops in the grow batch
+        DB::transaction(function () use ($crops, $data) {
+            foreach ($crops as $crop) {
+                $crop->fill($data)->save();
+            }
+        });
+        
+        // Show notification about the update
+        $trayCount = count($crops);
+        $notification = Notification::make()
+            ->title('Grow Batch Updated')
+            ->body("Successfully updated {$trayCount} trays.");
+            
+        // If new trays were added, mention them
+        if (!empty($newTrays)) {
+            $notification->body("Successfully updated {$trayCount} trays and added " . count($newTrays) . " new trays: " . implode(', ', $newTrays));
+        }
+        
+        $notification->success()->send();
         
         return $record;
     }

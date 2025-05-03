@@ -5,6 +5,18 @@ This document tracks all significant changes to the Catapult v2 project.
 ## [Unreleased]
 
 ### Added
+- Major redesign of Grows (formerly Grow Trays) system (2024-09-05)
+  - Crops are now grouped by variety, planting date, and growth stage
+  - Single entry in list view represents multiple trays
+  - Edits apply to all trays in a grow batch
+  - Added ability to add new trays to existing grow batches
+  - Simplified workflow for farm operations
+  - Improved UI with tray count display and clear tray number listing
+  - Actions like stage advancement affect all trays in a batch
+  - Better data organization for reporting and tracking
+  - Fixed SQL GROUP BY issue with proper aggregation of columns (2024-09-05)
+  - Added migrations for time calculation fields (time_to_next_stage, stage_age, total_age)
+  - Created scheduled command to update time values every 15 minutes
 - Seed varieties tracking system
   - New `seed_varieties` table to track different crop varieties and brands
   - Updated `recipes` table to reference specific seed varieties

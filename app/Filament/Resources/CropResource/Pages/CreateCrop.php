@@ -8,6 +8,7 @@ use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Filament\Notifications\Notification;
 
 class CreateCrop extends CreateRecord
 {
@@ -34,17 +35,45 @@ class CreateCrop extends CreateRecord
             }
         }
         
+        // Ensure we have at least one tray
+        if (empty($trayNumbers)) {
+            Notification::make()
+                ->title('Error: No tray numbers provided')
+                ->body('At least one tray number is required for a grow batch.')
+                ->danger()
+                ->send();
+                
+            // Add a default tray number to prevent errors
+            $trayNumbers = ['1'];
+        }
+        
         // Log what we received for debugging
-        Log::debug("Create Crop - Tray numbers received:", [
+        Log::debug("Create Grow - Tray numbers received:", [
             'original_data' => $data['tray_numbers'] ?? 'none',
-            'processed_array' => $trayNumbers
+            'processed_array' => $trayNumbers,
+            'recipe_id' => $data['recipe_id'] ?? 'none',
+            'planted_at' => $data['planted_at'] ?? 'none'
         ]);
         
         // Remove the tray_numbers field from the data
         unset($data['tray_numbers']);
         
+        // Get the recipe name and seed variety for display
+        $recipeName = 'Unknown Recipe';
+        $varietyName = 'Unknown Variety';
+        
+        if (isset($data['recipe_id'])) {
+            $recipe = \App\Models\Recipe::find($data['recipe_id']);
+            if ($recipe) {
+                $recipeName = $recipe->name;
+                if ($recipe->seedVariety) {
+                    $varietyName = $recipe->seedVariety->name;
+                }
+            }
+        }
+        
         // Use a transaction to ensure all records are created or none
-        $firstCrop = DB::transaction(function () use ($data, $trayNumbers) {
+        $firstCrop = DB::transaction(function () use ($data, $trayNumbers, $recipeName, $varietyName) {
             $firstCrop = null;
             $createdRecords = [];
             
@@ -77,7 +106,15 @@ class CreateCrop extends CreateRecord
             }
             
             // Log what we created
-            Log::debug("Create Crop - Records created:", $createdRecords);
+            Log::debug("Create Grow - Records created:", $createdRecords);
+            
+            // Show a notification with the number of trays created
+            $trayCount = count($createdRecords);
+            Notification::make()
+                ->title('Grow Batch Created')
+                ->body("Successfully created grow batch with {$trayCount} trays of {$varietyName} ({$recipeName}).")
+                ->success()
+                ->send();
             
             return $firstCrop;
         });

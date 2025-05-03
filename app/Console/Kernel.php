@@ -16,9 +16,11 @@ class Kernel extends ConsoleKernel
         $schedule->command('app:check-resource-levels')
                  ->hourly();
                  
-        // Update time to next stage values every 15 minutes
-        $schedule->command('crops:update-time-to-next-stage')
-                 ->everyFifteenMinutes();
+        // Update crop time fields every 15 minutes
+        $schedule->command('app:update-crop-time-fields')
+            ->everyFifteenMinutes()
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/crop-time-updates.log'));
                  
         // You can also schedule specific resource checks
         // $schedule->command('app:check-resource-levels --resource=inventory')

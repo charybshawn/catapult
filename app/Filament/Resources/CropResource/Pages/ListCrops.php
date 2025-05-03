@@ -18,12 +18,12 @@ class ListCrops extends ListRecords
     // Set default sort for the page
     protected function getDefaultTableSortColumn(): ?string
     {
-        return 'time_to_next_stage';
+        return 'planted_at';
     }
 
     protected function getDefaultTableSortDirection(): ?string
     {
-        return 'asc';
+        return 'desc';
     }
 
     public function mount(): void
@@ -33,7 +33,7 @@ class ListCrops extends ListRecords
         // Clear previous query log
         DB::flushQueryLog();
         
-        // Enable query logging for debuggings
+        // Enable query logging for debugging
         DB::enableQueryLog();
     }
     
@@ -44,7 +44,7 @@ class ListCrops extends ListRecords
         // Log the queries for debugging
         $queries = DB::getQueryLog();
         if (!empty($queries)) {
-            Log::info('CropResource List Query:', [
+            Log::info('Grows List Query:', [
                 'queries' => $queries,
                 'sort' => $this->getTableSortColumn(),
                 'direction' => $this->getTableSortDirection(),
@@ -57,7 +57,8 @@ class ListCrops extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            Actions\CreateAction::make()
+                ->label('Create Grow Batch'),
         ];
     }
 } 
