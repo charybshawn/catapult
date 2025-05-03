@@ -429,7 +429,14 @@ class Crop extends Model
                     return "{$diff->i}m";
                 }
             }
-            return 'Ready to advance';
+            
+            // Calculate overdue time
+            $overTime = $now->diff($minBlackoutTime);
+            $hours = $overTime->h;
+            $minutes = $overTime->i;
+            $overflowText = "{$hours}h {$minutes}m";
+            
+            return "Ready to advance|{$overflowText}";
         }
         
         // Get the duration for the current stage from the recipe
@@ -445,7 +452,23 @@ class Crop extends Model
         
         $now = now();
         if ($now->gt($stageEndDate)) {
-            return 'Ready to advance';
+            // Calculate overdue time
+            $overTime = $now->diff($stageEndDate);
+            $days = (int)$overTime->format('%a');
+            $hours = $overTime->h;
+            $minutes = $overTime->i;
+            
+            // Format the overtime
+            $overflowText = '';
+            if ($days > 0) {
+                $overflowText = "{$days}d {$hours}h";
+            } elseif ($hours > 0) {
+                $overflowText = "{$hours}h {$minutes}m";
+            } else {
+                $overflowText = "{$minutes}m";
+            }
+            
+            return "Ready to advance|{$overflowText}";
         }
         
         // Calculate the time difference to stage end
@@ -474,7 +497,7 @@ class Crop extends Model
         $this->time_to_next_stage_status = $status;
         
         // Calculate minutes for sorting
-        if ($status === 'Ready to advance') {
+        if (str_contains($status, 'Ready to advance')) {
             // Highest priority (lowest minutes) for ready to advance
             $this->time_to_next_stage_minutes = 0;
         } elseif ($status === '-' || $status === 'No recipe' || $status === 'Unknown') {

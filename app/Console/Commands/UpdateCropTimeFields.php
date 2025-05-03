@@ -44,7 +44,7 @@ class UpdateCropTimeFields extends Command
                 $crop->time_to_next_stage_status = $timeToNextStage;
                 
                 // Calculate minutes for sorting
-                if ($timeToNextStage === 'Ready to advance') {
+                if (str_contains($timeToNextStage, 'Ready to advance')) {
                     // Highest priority (lowest minutes) for ready to advance
                     $crop->time_to_next_stage_minutes = 0;
                 } elseif ($timeToNextStage === '-' || $timeToNextStage === 'No recipe' || $timeToNextStage === 'Unknown') {

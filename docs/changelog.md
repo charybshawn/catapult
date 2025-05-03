@@ -5,6 +5,12 @@ This document tracks all significant changes to the Catapult v2 project.
 ## [Unreleased]
 
 ### Added
+- Enhanced "Ready to advance" display for crops with overdue time (2024-09-10)
+  - Added red display of elapsed time past expected stage transition
+  - Added logic to calculate and show how overdue a crop is for advancement
+  - Improved visibility of crops that need attention
+  - Better tracking of growth stage transition timeliness
+  - Supports farm managers in prioritizing tasks
 - Major redesign of Grows (formerly Grow Trays) system (2024-09-05)
   - Crops are now grouped by variety, planting date, and growth stage
   - Single entry in list view represents multiple trays
@@ -17,6 +23,13 @@ This document tracks all significant changes to the Catapult v2 project.
   - Fixed SQL GROUP BY issue with proper aggregation of columns (2024-09-05)
   - Added migrations for time calculation fields (time_to_next_stage, stage_age, total_age)
   - Created scheduled command to update time values every 15 minutes
+- Added database view for crop batches (2024-09-10)
+  - Created `crop_batches` view for improved performance and cleaner code
+  - Replaced raw SQL queries with a structured database view
+  - Optimized grouping of crops for batch operations
+  - Fixed MySQL ONLY_FULL_GROUP_BY mode compatibility issues
+  - Implemented proper aggregation functions for all columns
+  - Supports efficient batch operation on multiple trays
 - Seed varieties tracking system
   - New `seed_varieties` table to track different crop varieties and brands
   - Updated `recipes` table to reference specific seed varieties

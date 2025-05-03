@@ -288,7 +288,60 @@ class CropResource extends Resource
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('time_to_next_stage')
                     ->label('Time to Next Stage')
-                    ->getStateUsing(fn (Crop $record): ?string => $record->time_to_next_stage_status ?? $record->timeToNextStage())
+                    ->getStateUsing(function (Crop $record): ?string {
+                        $baseStatus = $record->time_to_next_stage_status ?? $record->timeToNextStage();
+                        
+                        // Check if the status includes overflow information (format: "Ready to advance|2d 4h")
+                        if (str_contains($baseStatus, 'Ready to advance|')) {
+                            $parts = explode('|', $baseStatus);
+                            if (count($parts) === 2) {
+                                $overflowText = $parts[1];
+                                return "Ready to advance<br><span style=\"color: #ef4444; font-size: 0.875em;\">+{$overflowText} overdue</span>";
+                            }
+                        }
+                        
+                        // If status is "Ready to advance" without stored overflow time, calculate it now
+                        if ($baseStatus === 'Ready to advance') {
+                            // Get the timestamp for the current stage
+                            $stageField = "{$record->current_stage}_at";
+                            $stageStartTime = $record->$stageField;
+                            
+                            if ($stageStartTime && $record->recipe) {
+                                // Get the duration for the current stage from the recipe
+                                $stageDuration = match ($record->current_stage) {
+                                    'germination' => $record->recipe->germination_days,
+                                    'blackout' => $record->recipe->blackout_days,
+                                    'light' => $record->recipe->light_days,
+                                    default => 0,
+                                };
+                                
+                                // Calculate the expected end date for this stage
+                                $stageEndDate = $stageStartTime->copy()->addDays($stageDuration);
+                                
+                                // Calculate how much time has passed since stage should have ended
+                                $now = now();
+                                $overTime = $stageEndDate->diff($now);
+                                $days = (int)$overTime->format('%a');
+                                $hours = $overTime->h;
+                                $minutes = $overTime->i;
+                                
+                                // Format the overtime
+                                $overflowText = '';
+                                if ($days > 0) {
+                                    $overflowText = "{$days}d {$hours}h";
+                                } elseif ($hours > 0) {
+                                    $overflowText = "{$hours}h {$minutes}m";
+                                } else {
+                                    $overflowText = "{$minutes}m";
+                                }
+                                
+                                return "Ready to advance<br><span style=\"color: #ef4444; font-size: 0.875em;\">+{$overflowText} overdue</span>";
+                            }
+                        }
+                        
+                        return $baseStatus;
+                    })
+                    ->html()
                     ->sortable()
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('total_age')
