@@ -42,7 +42,58 @@ class CropResource extends Resource
                     ->relationship('recipe', 'name')
                     ->required()
                     ->searchable()
-                    ->preload(),
+                    ->preload()
+                    ->createOptionForm([
+                        Forms\Components\TextInput::make('name')
+                            ->label('Recipe Name')
+                            ->required()
+                            ->maxLength(255),
+                        Forms\Components\Select::make('seed_variety_id')
+                            ->label('Seed Variety')
+                            ->relationship('seedVariety', 'name')
+                            ->required()
+                            ->searchable()
+                            ->preload()
+                            ->createOptionForm([
+                                Forms\Components\TextInput::make('name')
+                                    ->label('Variety Name')
+                                    ->required()
+                                    ->maxLength(255),
+                                Forms\Components\TextInput::make('crop_type')
+                                    ->label('Crop Type')
+                                    ->default('microgreens')
+                                    ->maxLength(255),
+                                Forms\Components\Toggle::make('is_active')
+                                    ->label('Active')
+                                    ->default(true),
+                            ])
+                            ->createOptionUsing(function (array $data) {
+                                return \App\Models\SeedVariety::create($data)->id;
+                            }),
+                        Forms\Components\Grid::make([
+                            Forms\Components\TextInput::make('germination_days')
+                                ->label('Germination Days')
+                                ->numeric()
+                                ->default(3)
+                                ->required(),
+                            Forms\Components\TextInput::make('blackout_days')
+                                ->label('Blackout Days')
+                                ->numeric()
+                                ->default(0)
+                                ->required(),
+                            Forms\Components\TextInput::make('light_days')
+                                ->label('Light Days')
+                                ->numeric()
+                                ->default(7)
+                                ->required(),
+                        ])->columns(3),
+                        Forms\Components\Toggle::make('is_active')
+                            ->label('Active')
+                            ->default(true),
+                    ])
+                    ->createOptionUsing(function (array $data) {
+                        return \App\Models\Recipe::create($data)->id;
+                    }),
                 Forms\Components\DateTimePicker::make('planted_at')
                     ->label('Planted At')
                     ->required()
@@ -102,12 +153,46 @@ class CropResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->persistSortInSession()
+            ->modifyQueryUsing(function (Builder $query): Builder {
+                // Get the current sort column and direction
+                $sortColumn = request()->query('tableFilters.0.sorts.0.column');
+                $sortDirection = request()->query('tableFilters.0.sorts.0.direction') ?? 'asc';
+                
+                // If no sort column is explicitly set, check if there's a default
+                if (empty($sortColumn)) {
+                    $sortColumn = session()->get('tables.crop_resource.sorts.0.column');
+                    $sortDirection = session()->get('tables.crop_resource.sorts.0.direction', 'asc');
+                }
+                
+                // Map virtual column names to actual database columns
+                $columnMapping = [
+                    'time_to_next_stage' => 'time_to_next_stage_minutes',
+                    'stage_age' => 'stage_age_minutes',
+                    'total_age' => 'total_age_minutes',
+                ];
+                
+                if (!empty($sortColumn) && array_key_exists($sortColumn, $columnMapping)) {
+                    // Log what we're doing
+                    \Illuminate\Support\Facades\Log::info('CropResource applying custom sort:', [
+                        'virtual_column' => $sortColumn,
+                        'database_column' => $columnMapping[$sortColumn],
+                        'direction' => $sortDirection,
+                    ]);
+                    
+                    return $query->orderBy($columnMapping[$sortColumn], $sortDirection);
+                }
+                
+                return $query;
+            })
             ->recordUrl(fn ($record) => static::getUrl('edit', ['record' => $record]))
             ->columns([
                 Tables\Columns\TextColumn::make('tray_number')
                     ->label('Tray #')
                     ->sortable()
-                    ->toggleable(),
+                    ->toggleable()
+                    ->summarize(Tables\Columns\Summarizers\Count::make()
+                        ->label('Total Trays')),
                 Tables\Columns\TextColumn::make('recipe.seedVariety.name')
                     ->label('Variety')
                     ->searchable()
@@ -133,7 +218,10 @@ class CropResource extends Resource
                     ->label('Planted At')
                     ->dateTime()
                     ->sortable()
-                    ->toggleable(),
+                    ->toggleable()
+                    ->summarize(Tables\Columns\Summarizers\Range::make()
+                        ->label('Plant Date Range')
+                        ->minimalDateTimeDifference()),
                 Tables\Columns\TextColumn::make('current_stage')
                     ->label('Current Stage')
                     ->badge()
@@ -146,58 +234,32 @@ class CropResource extends Resource
                         default => 'gray',
                     })
                     ->sortable()
-                    ->toggleable(),
+                    ->toggleable()
+                    ->summarize(
+                        Tables\Columns\Summarizers\Count::make()
+                            ->query(fn ($query) => $query instanceof \Illuminate\Database\Eloquent\Builder
+                                ? $query->where('current_stage', 'germination')
+                                : \Illuminate\Database\Eloquent\Builder::query()->fromQuery($query)->where('current_stage', 'germination'))
+                            ->label('Germination'),
+                        Tables\Columns\Summarizers\Count::make()
+                            ->query(fn ($query) => $query instanceof \Illuminate\Database\Eloquent\Builder
+                                ? $query->where('current_stage', 'blackout')
+                                : \Illuminate\Database\Eloquent\Builder::query()->fromQuery($query)->where('current_stage', 'blackout'))
+                            ->label('Blackout'),
+                        Tables\Columns\Summarizers\Count::make()
+                            ->query(fn ($query) => $query instanceof \Illuminate\Database\Eloquent\Builder
+                                ? $query->where('current_stage', 'light')
+                                : \Illuminate\Database\Eloquent\Builder::query()->fromQuery($query)->where('current_stage', 'light'))
+                            ->label('Light'),
+                        Tables\Columns\Summarizers\Count::make()
+                            ->query(fn ($query) => $query instanceof \Illuminate\Database\Eloquent\Builder
+                                ? $query->where('current_stage', 'harvested')
+                                : \Illuminate\Database\Eloquent\Builder::query()->fromQuery($query)->where('current_stage', 'harvested'))
+                            ->label('Harvested')
+                    ),
                 Tables\Columns\TextColumn::make('stage_age')
                     ->label('Time in Stage')
-                    ->getStateUsing(function (Crop $record) {
-                        $stageField = "{$record->current_stage}_at";
-                        if ($record->$stageField) {
-                            $now = now();
-                            $stageStart = $record->$stageField;
-                            
-                            // Calculate total time difference
-                            $totalHours = $stageStart->diffInHours($now);
-                            $totalMinutes = $stageStart->diffInMinutes($now) % 60;
-                            $totalDays = floor($totalHours / 24);
-                            $remainingHours = $totalHours % 24;
-                            
-                            // Get the expected duration for this stage
-                            $stageDuration = match ($record->current_stage) {
-                                'germination' => $record->recipe?->germination_days ?? 0,
-                                'blackout' => $record->recipe?->blackout_days ?? 0,
-                                'light' => $record->recipe?->light_days ?? 0,
-                                default => 0,
-                            };
-                            
-                            $expectedHours = $stageDuration * 24;
-                            
-                            // Format based on total time
-                            $timeDisplay = '';
-                            if ($totalDays > 0) {
-                                $timeDisplay = "{$totalDays}d {$remainingHours}h";
-                            } elseif ($remainingHours > 0) {
-                                $timeDisplay = "{$remainingHours}h {$totalMinutes}m";
-                            } else {
-                                $timeDisplay = "{$totalMinutes}m";
-                            }
-                            
-                            // Add overdue indicator if applicable
-                            if ($expectedHours > 0 && $totalHours > $expectedHours) {
-                                $overdueHours = $totalHours - $expectedHours;
-                                $overdueDays = floor($overdueHours / 24);
-                                $overdueHours = $overdueHours % 24;
-                                
-                                if ($overdueDays > 0) {
-                                    $timeDisplay .= " (Overdue by {$overdueDays}d {$overdueHours}h)";
-                                } else {
-                                    $timeDisplay .= " (Overdue by {$overdueHours}h)";
-                                }
-                            }
-                            
-                            return $timeDisplay;
-                        }
-                        return '0m';
-                    })
+                    ->getStateUsing(fn (Crop $record): string => $record->stage_age_status ?? $record->getStageAgeStatus())
                     ->color(function (Crop $record) {
                         $stageField = "{$record->current_stage}_at";
                         if ($record->$stageField) {
@@ -221,38 +283,93 @@ class CropResource extends Resource
                         return null;
                     })
                     ->sortable()
-                    ->toggleable(),
+                    ->toggleable()
+                    ->summarize(
+                        Tables\Columns\Summarizers\Summarizer::make()
+                            ->label('Stage Age Stats')
+                            ->using(function ($query): string {
+                                // Get the records in this group
+                                $crops = ($query instanceof \Illuminate\Database\Eloquent\Builder)
+                                    ? $query->get()
+                                    : \Illuminate\Database\Eloquent\Builder::query()->fromQuery($query)->get();
+                                
+                                // Count overdue crops (in "danger" state)
+                                $overdueCount = $crops->filter(function ($crop) {
+                                    $stageField = "{$crop->current_stage}_at";
+                                    if ($crop->$stageField) {
+                                        $now = now();
+                                        $stageStart = $crop->$stageField;
+                                        $totalHours = $stageStart->diffInHours($now);
+                                        
+                                        $stageDuration = match ($crop->current_stage) {
+                                            'germination' => $crop->recipe?->germination_days ?? 0,
+                                            'blackout' => $crop->recipe?->blackout_days ?? 0,
+                                            'light' => $crop->recipe?->light_days ?? 0,
+                                            default => 0,
+                                        };
+                                        
+                                        $expectedHours = $stageDuration * 24;
+                                        
+                                        return $expectedHours > 0 && $totalHours > $expectedHours;
+                                    }
+                                    return false;
+                                })->count();
+                                
+                                if ($overdueCount > 0) {
+                                    return "{$overdueCount} overdue trays";
+                                }
+                                
+                                return "All trays on schedule";
+                            })
+                    ),
                 Tables\Columns\TextColumn::make('time_to_next_stage')
                     ->label('Time to Next Stage')
-                    ->getStateUsing(fn (Crop $record): ?string => $record->timeToNextStage())
+                    ->getStateUsing(fn (Crop $record): ?string => $record->time_to_next_stage_status)
                     ->sortable()
-                    ->toggleable(),
+                    ->toggleable()
+                    ->summarize(
+                        Tables\Columns\Summarizers\Summarizer::make()
+                            ->label('Ready Trays')
+                            ->using(function ($query): string {
+                                // Get count of crops that are ready to advance
+                                $readyCount = ($query instanceof \Illuminate\Database\Eloquent\Builder)
+                                    ? $query->where('time_to_next_stage_status', 'Ready to advance')->count()
+                                    : \Illuminate\Database\Eloquent\Builder::query()->fromQuery($query)->where('time_to_next_stage_status', 'Ready to advance')->count();
+                                
+                                if ($readyCount > 0) {
+                                    return "{$readyCount} trays ready";
+                                }
+                                
+                                return "No trays ready";
+                            })
+                    ),
                 Tables\Columns\TextColumn::make('total_age')
                     ->label('Total Age')
-                    ->getStateUsing(function (Crop $record) {
-                        if ($record->planted_at) {
-                            $now = now();
-                            $plantedAt = $record->planted_at;
-                            
-                            // Calculate total time difference
-                            $totalHours = $plantedAt->diffInHours($now);
-                            $totalMinutes = $plantedAt->diffInMinutes($now) % 60;
-                            $totalDays = floor($totalHours / 24);
-                            $remainingHours = $totalHours % 24;
-                            
-                            // Format based on total time
-                            if ($totalDays > 0) {
-                                return "{$totalDays}d {$remainingHours}h";
-                            } elseif ($remainingHours > 0) {
-                                return "{$remainingHours}h {$totalMinutes}m";
-                            } else {
-                                return "{$totalMinutes}m";
-                            }
-                        }
-                        return '0m';
-                    })
+                    ->getStateUsing(fn (Crop $record): ?string => $record->total_age_status ?? $record->getTotalAgeStatus())
                     ->sortable()
-                    ->toggleable(),
+                    ->toggleable()
+                    ->summarize(
+                        Tables\Columns\Summarizers\Summarizer::make()
+                            ->label('Age Range')
+                            ->using(function ($query): string {
+                                $minAge = ($query instanceof \Illuminate\Database\Eloquent\Builder)
+                                    ? $query->min('total_age_minutes')
+                                    : \Illuminate\Database\Eloquent\Builder::query()->fromQuery($query)->min('total_age_minutes');
+                                $maxAge = ($query instanceof \Illuminate\Database\Eloquent\Builder)
+                                    ? $query->max('total_age_minutes')
+                                    : \Illuminate\Database\Eloquent\Builder::query()->fromQuery($query)->max('total_age_minutes');
+                                
+                                // Convert minutes to days for display
+                                $minDays = floor($minAge / (24 * 60));
+                                $maxDays = floor($maxAge / (24 * 60));
+                                
+                                if ($minDays == $maxDays) {
+                                    return "{$minDays} days";
+                                }
+                                
+                                return "{$minDays}-{$maxDays} days";
+                            })
+                    ),
                 Tables\Columns\TextColumn::make('planting_at')
                     ->label('Planting Started')
                     ->dateTime()
@@ -282,7 +399,15 @@ class CropResource extends Resource
                     ->label('Harvest Weight')
                     ->formatStateUsing(fn ($state) => $state ? "{$state}g" : '-')
                     ->sortable()
-                    ->toggleable(),
+                    ->toggleable()
+                    ->summarize([
+                        Tables\Columns\Summarizers\Sum::make()
+                            ->numeric(0)
+                            ->label('Total Harvested'),
+                        Tables\Columns\Summarizers\Average::make()
+                            ->numeric(0)
+                            ->label('Avg. Weight/Tray'),
+                    ]),
                 Tables\Columns\TextColumn::make('order_id')
                     ->label('Order ID')
                     ->sortable()
@@ -301,10 +426,27 @@ class CropResource extends Resource
             ->groups([
                 Tables\Grouping\Group::make('recipe.seedVariety.name')
                     ->label('Variety')
+                    ->getDescriptionFromRecordUsing(function ($record) {
+                        if (!$record->recipe) {
+                            return null;
+                        }
+                        
+                        return $record->recipe->name . ' - ' . 
+                            $record->recipe->germination_days . 'd germ / ' . 
+                            $record->recipe->blackout_days . 'd blackout / ' . 
+                            $record->recipe->light_days . 'd light';
+                    })
                     ->collapsible(),
                 Tables\Grouping\Group::make('planted_at')
                     ->label('Plant Date')
-                    ->date(),
+                    ->date()
+                    ->getDescriptionFromRecordUsing(function ($record) {
+                        if (!$record->expectedHarvestDate()) {
+                            return null;
+                        }
+                        
+                        return 'Expected Harvest: ' . $record->expectedHarvestDate()->format('Y-m-d');
+                    }),
                 Tables\Grouping\Group::make('current_stage')
                     ->label('Growth Stage'),
             ])
@@ -320,7 +462,7 @@ class CropResource extends Resource
                     ]),
             ])
             ->actions([
-                Action::make('debug_data')
+                Tables\Actions\Action::make('debug_data')
                     ->label('Debug Data')
                     ->icon('heroicon-o-bug-ant')
                     ->modalHeading('Debug Data for Crop')
@@ -437,6 +579,30 @@ class CropResource extends Resource
                 Tables\Actions\DeleteAction::make()
                     ->tooltip('Delete crop')
                     ->requiresConfirmation(),
+                Tables\Actions\Action::make('debug_sort')
+                    ->label('Debug Sort')
+                    ->icon('heroicon-o-bug-ant')
+                    ->modalHeading('Debug Sort Data')
+                    ->modalContent(function (Model $record) {
+                        // Build debug info array
+                        $sortData = [
+                            'id' => $record->id,
+                            'tray_number' => $record->tray_number,
+                            'current_stage' => $record->current_stage,
+                            'time_to_next_stage_status' => $record->time_to_next_stage_status,
+                            'time_to_next_stage_minutes' => $record->time_to_next_stage_minutes,
+                            'stage_age_status' => $record->stage_age_status,
+                            'stage_age_minutes' => $record->stage_age_minutes,
+                            'total_age_status' => $record->total_age_status,
+                            'total_age_minutes' => $record->total_age_minutes,
+                        ];
+                        
+                        // Return debug view with data
+                        return view('filament.resources.crop-resource.debug-sort', [
+                            'sortData' => $sortData,
+                        ]);
+                    })
+                    ->visible(true),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

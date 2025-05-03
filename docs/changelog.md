@@ -323,3 +323,45 @@ This document tracks all significant changes to the Catapult v2 project.
 ### Changed 
 - Enhanced dashboard statistics for better farm monitoring
 - Modified recipe component to support all consumable types
+
+## 2025-05-01 - Added database storage for time in stage
+- Created database columns for storing time in current stage values
+- Added `stage_age_minutes` column for efficient sorting of time in stage
+- Added `stage_age_status` column for human-readable time display
+- Updated the crops database schema for persistent, sortable fields
+- Enhanced command to update both time to next stage and time in stage values
+- Modified CropResource to use database columns for consistent sorting
+- Fixed SQL query error when sorting on computed fields
+
+## 2025-05-01 - Added database storage for time to next stage
+- Created database columns for storing time to next stage values
+- Added `time_to_next_stage_minutes` column for efficient sorting
+- Added `time_to_next_stage_status` column for human-readable status display
+- Implemented automatic calculation of values when saving crops
+- Created scheduled command to update values every 15 minutes
+- Modified CropResource to use database columns for sorting
+- Ensured backward compatibility with existing code
+
+## 2025-05-01 - Fixed column sorting in Filament tables
+- Fixed critical bug preventing sorting on computed columns
+- Implemented column mapping system for virtual columns
+- Added proper defaults for time-based sorting
+- Enhanced debugging tools for SQL query troubleshooting
+- Improved developer experience with detailed log output
+
+## 2025-05-01 - Fixed sorting issues with computed columns in Filament
+- Added database columns for storing computed values: time_to_next_stage, stage_age, and total_age
+- Updated the Crop model to calculate and store these values when saving records
+- Created and scheduled a command to update these values on existing records
+- Modified CropResource to use the stored database values for reliable sorting
+
+## 2025-05-01 - Fixed duplicate seed varieties in dropdown menus
+- Fixed issue where seed variety dropdown showed duplicates
+- Modified ConsumableResource to filter unique varieties
+- Added ability to create new seed varieties from dropdowns 
+- Created cleanup script to resolve existing duplicates
+
+## 2025-05-02 - Bug Fixes and Feature Improvements
+- Fixed type error in CropResource summarizers to handle both Eloquent Builder and Query Builder instances
+- Added comprehensive statistics for variety groups in the Grow Trays table 
+- Fixed out-of-range integer issue with time calculations in Crop model
