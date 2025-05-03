@@ -55,7 +55,16 @@ class CreateCrop extends CreateRecord
                 if (empty($trayNum)) continue;
                 
                 // Create a new crop record with this tray number
-                $cropData = array_merge($data, ['tray_number' => $trayNum]);
+                $cropData = array_merge($data, [
+                    'tray_number' => $trayNum,
+                    // Set safe default values for computed time fields
+                    'time_to_next_stage_minutes' => 0,
+                    'time_to_next_stage_status' => 'Unknown',
+                    'stage_age_minutes' => 0,
+                    'stage_age_status' => '0m',
+                    'total_age_minutes' => 0,
+                    'total_age_status' => '0m',
+                ]);
                 $crop = Crop::create($cropData);
                 $createdRecords[] = [
                     'id' => $crop->id,
@@ -65,16 +74,6 @@ class CreateCrop extends CreateRecord
                 if (!$firstCrop) {
                     $firstCrop = $crop;
                 }
-            }
-            
-            // If no trays were created, create one with a default number
-            if (!$firstCrop) {
-                $data['tray_number'] = '1';
-                $firstCrop = Crop::create($data);
-                $createdRecords[] = [
-                    'id' => $firstCrop->id,
-                    'tray_number' => $firstCrop->tray_number
-                ];
             }
             
             // Log what we created

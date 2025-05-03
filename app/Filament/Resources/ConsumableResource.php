@@ -90,31 +90,39 @@ class ConsumableResource extends Resource
                                                 Forms\Components\Select::make('seed_variety_id')
                                                     ->label('Seed Variety')
                                                     ->helperText('Required: Please select a seed variety')
-                                                    ->relationship('seedVariety', 'name')
-                                                    ->searchable()
-                                                    ->preload()
-                                                    ->required()
-                                                    ->columnSpanFull()
-                                                    ->createOptionForm([
-                                                        Forms\Components\TextInput::make('name')
-                                                            ->label('Variety Name')
-                                                            ->required()
-                                                            ->maxLength(255),
-                                                        Forms\Components\Toggle::make('is_active')
-                                                            ->label('Active')
-                                                            ->default(true),
-                                                    ])
-                                                    ->createOptionUsing(function (array $data) {
-                                                        return \App\Models\SeedVariety::create($data)->id;
+                                                    ->options(function () {
+                                                        // Get unique seed varieties by name, preferring older IDs
+                                                        $options = \App\Models\SeedVariety::where('is_active', true)
+                                                            ->orderBy('id', 'asc')
+                                                            ->get()
+                                                            ->groupBy('name')
+                                                            ->map(function ($group) {
+                                                                // Use the first (oldest) record for each name
+                                                                return $group->first();
+                                                            })
+                                                            ->pluck('name', 'id')
+                                                            ->toArray();
+                                                            
+                                                        \Illuminate\Support\Facades\Log::info('Seed variety options:', ['count' => count($options)]);
+                                                        
+                                                        return $options;
                                                     })
+                                                    ->searchable()
+                                                    ->required()
+                                                    ->live() // Make the field live to update instantly
                                                     ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                                        \Illuminate\Support\Facades\Log::info('Seed variety selected:', ['state' => $state]);
                                                         if ($state) {
                                                             $seedVariety = \App\Models\SeedVariety::find($state);
                                                             if ($seedVariety) {
                                                                 $set('name', $seedVariety->name);
+                                                                \Illuminate\Support\Facades\Log::info('Set name from variety:', ['name' => $seedVariety->name]);
+                                                            } else {
+                                                                \Illuminate\Support\Facades\Log::warning('Could not find seed variety with ID:', ['id' => $state]);
                                                             }
                                                         }
-                                                    }),
+                                                    })
+                                                    ->columnSpanFull()
                                             ]),
                                             
                                         // Hidden name field - will be set from the seed variety

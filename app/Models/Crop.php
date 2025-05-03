@@ -32,6 +32,12 @@ class Crop extends Model
         'harvest_weight_grams',
         'watering_suspended_at',
         'notes',
+        'time_to_next_stage_minutes',
+        'time_to_next_stage_status',
+        'stage_age_minutes',
+        'stage_age_status',
+        'total_age_minutes',
+        'total_age_status',
     ];
     
     /**
@@ -256,11 +262,12 @@ class Crop extends Model
     }
     
     /**
-     * Set the initial timestamps when creating a new crop.
+     * Boot method to add lifecycle hooks
      */
     protected static function booted()
     {
-        static::creating(function ($crop) {
+        // Add our existing boot logic
+        static::creating(function (Crop $crop) {
             // Set planted_at if not provided
             if (!$crop->planted_at) {
                 $crop->planted_at = now();
@@ -272,13 +279,40 @@ class Crop extends Model
             }
             
             // Set germination_at and current_stage to germination automatically
-            // Skip the planting stage entirely
-            if (!$crop->germination_at) {
+            if ($crop->planted_at && !$crop->germination_at) {
                 $crop->germination_at = $crop->planted_at;
             }
             
-            // Always start at germination stage
-            $crop->current_stage = 'germination';
+            // Always start at germination stage if not set
+            if (!$crop->current_stage) {
+                $crop->current_stage = 'germination';
+            }
+            
+            // Initialize computed time fields with safe values
+            if (!isset($crop->time_to_next_stage_minutes)) {
+                $crop->time_to_next_stage_minutes = 0;
+            }
+            if (!isset($crop->time_to_next_stage_status)) {
+                $crop->time_to_next_stage_status = 'Unknown';
+            }
+            if (!isset($crop->stage_age_minutes)) {
+                $crop->stage_age_minutes = 0;
+            }
+            if (!isset($crop->stage_age_status)) {
+                $crop->stage_age_status = '0m';
+            }
+            if (!isset($crop->total_age_minutes)) {
+                $crop->total_age_minutes = 0;
+            }
+            if (!isset($crop->total_age_status)) {
+                $crop->total_age_status = '0m';
+            }
+        });
+        
+        // Add event listeners to recalculate time_to_next_stage values
+        static::saving(function (Crop $crop) {
+            // Calculate and update the time_to_next_stage values whenever the model is saved
+            $crop->updateTimeToNextStageValues();
         });
         
         static::created(function ($crop) {
@@ -427,6 +461,135 @@ class Crop extends Model
             return "{$hours}h {$minutes}m";
         } else {
             return "{$minutes}m";
+        }
+    }
+    
+    /**
+     * Calculate and update the time to next stage values
+     */
+    protected function updateTimeToNextStageValues(): void
+    {
+        // Calculate and store time to next stage values
+        $status = $this->timeToNextStage();
+        $this->time_to_next_stage_status = $status;
+        
+        // Calculate minutes for sorting
+        if ($status === 'Ready to advance') {
+            // Highest priority (lowest minutes) for ready to advance
+            $this->time_to_next_stage_minutes = 0;
+        } elseif ($status === '-' || $status === 'No recipe' || $status === 'Unknown') {
+            // Lowest priority (highest minutes) for special statuses
+            // Use a large but safe integer value instead of PHP_INT_MAX
+            $this->time_to_next_stage_minutes = 2147483647; // Max value for a signed 32-bit integer
+        } else {
+            // Extract time components
+            $days = preg_match('/(\d+)d/', $status, $dayMatches) ? (int)$dayMatches[1] : 0;
+            $hours = preg_match('/(\d+)h/', $status, $hourMatches) ? (int)$hourMatches[1] : 0;
+            $minutes = preg_match('/(\d+)m/', $status, $minuteMatches) ? (int)$minuteMatches[1] : 0;
+            
+            // Calculate total minutes
+            $this->time_to_next_stage_minutes = ($days * 24 * 60) + ($hours * 60) + $minutes;
+        }
+        
+        // Calculate and store stage age values
+        $stageAgeStatus = $this->getStageAgeStatus();
+        $this->stage_age_status = $stageAgeStatus;
+        
+        // Calculate stage age minutes for sorting
+        if ($stageAgeStatus === '0m' || empty($stageAgeStatus)) {
+            $this->stage_age_minutes = 0;
+        } else {
+            // Extract time components
+            $days = preg_match('/(\d+)d/', $stageAgeStatus, $dayMatches) ? (int)$dayMatches[1] : 0;
+            $hours = preg_match('/(\d+)h/', $stageAgeStatus, $hourMatches) ? (int)$hourMatches[1] : 0;
+            $minutes = preg_match('/(\d+)m/', $stageAgeStatus, $minuteMatches) ? (int)$minuteMatches[1] : 0;
+            
+            // Calculate total minutes
+            $totalMinutes = ($days * 24 * 60) + ($hours * 60) + $minutes;
+            
+            // Ensure the value doesn't exceed integer limits
+            $this->stage_age_minutes = min($totalMinutes, 2147483647);
+        }
+        
+        // Calculate and store total age values
+        $totalAgeStatus = $this->getTotalAgeStatus();
+        $this->total_age_status = $totalAgeStatus;
+        
+        // Calculate total age minutes for sorting
+        if ($totalAgeStatus === '0m' || empty($totalAgeStatus)) {
+            $this->total_age_minutes = 0;
+        } else {
+            // Extract time components
+            $days = preg_match('/(\d+)d/', $totalAgeStatus, $dayMatches) ? (int)$dayMatches[1] : 0;
+            $hours = preg_match('/(\d+)h/', $totalAgeStatus, $hourMatches) ? (int)$hourMatches[1] : 0;
+            $minutes = preg_match('/(\d+)m/', $totalAgeStatus, $minuteMatches) ? (int)$minuteMatches[1] : 0;
+            
+            // Calculate total minutes
+            $totalMinutes = ($days * 24 * 60) + ($hours * 60) + $minutes;
+            
+            // Ensure the value doesn't exceed integer limits
+            $this->total_age_minutes = min($totalMinutes, 2147483647);
+        }
+    }
+    
+    /**
+     * Get the formatted stage age status text
+     * 
+     * @return string The formatted time in current stage
+     */
+    public function getStageAgeStatus(): string
+    {
+        $stageField = "{$this->current_stage}_at";
+        if (!$this->$stageField) {
+            return '0m';
+        }
+        
+        $now = now();
+        $stageStart = $this->$stageField;
+        
+        // Calculate total time difference
+        $totalHours = $stageStart->diffInHours($now);
+        $totalMinutes = $stageStart->diffInMinutes($now) % 60;
+        $totalDays = floor($totalHours / 24);
+        $remainingHours = $totalHours % 24;
+        
+        // Format based on total time
+        if ($totalDays > 0) {
+            return "{$totalDays}d {$remainingHours}h";
+        } elseif ($remainingHours > 0) {
+            return "{$remainingHours}h {$totalMinutes}m";
+        } else {
+            return "{$totalMinutes}m";
+        }
+    }
+    
+    /**
+     * Get the formatted total age status text
+     * 
+     * @return string The formatted time since planting
+     */
+    public function getTotalAgeStatus(): string
+    {
+        if (!$this->planted_at) {
+            return '0m';
+        }
+        
+        $now = now();
+        $plantedAt = $this->planted_at;
+        
+        // Calculate total time difference
+        $totalHours = $plantedAt->diffInHours($now);
+        $totalMinutes = $plantedAt->diffInMinutes($now) % 60;
+        $totalDays = floor($totalHours / 24);
+        $remainingHours = $totalHours % 24;
+        
+        // Format based on total time
+        if ($totalDays > 0) {
+            return "{$totalDays}d {$remainingHours}h";
+        } elseif ($remainingHours > 0) {
+            return "{$remainingHours}h {$totalMinutes}m";
+        } else {
+            return "{$totalMinutes}m";
         }
     }
 }

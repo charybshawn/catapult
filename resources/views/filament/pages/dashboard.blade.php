@@ -455,7 +455,7 @@
                             </div>
                             <div class="task-actions">
                                 <a href="{{ route('filament.admin.resources.consumables.edit', $item) }}" class="px-3 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200">View</a>
-                                <a href="{{ route('filament.admin.resources.consumables.restock', $item) }}" class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200">Restock</a>
+                                <a href="{{ route('filament.admin.resources.consumables.adjust-stock', $item) }}" class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200">Restock</a>
                             </div>
                         </div>
                     @endforeach

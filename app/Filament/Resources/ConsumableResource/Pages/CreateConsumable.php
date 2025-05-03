@@ -61,9 +61,24 @@ class CreateConsumable extends CreateRecord
         
         // If this is a seed type, ensure seed_variety_id is present
         if (isset($data['type']) && $data['type'] === 'seed') {
-            Log::info('Seed consumable creation - form data:', ['data' => $data]);
+            // Log all the form data for debugging
+            Log::info('Seed consumable creation - complete form data:', ['data' => $data]);
             
-            if (empty($data['seed_variety_id'])) {
+            // Check if seed_variety_id exists but is null
+            if (array_key_exists('seed_variety_id', $data) && $data['seed_variety_id'] === null) {
+                Log::warning('Seed variety ID exists but is null');
+                
+                Notification::make()
+                    ->title('Seed Variety Required')
+                    ->body('Please select a seed variety from the dropdown before creating a seed consumable.')
+                    ->danger()
+                    ->send();
+                
+                throw new Halt();
+            }
+            
+            // If seed_variety_id key doesn't exist or is empty
+            if (!isset($data['seed_variety_id']) || (is_string($data['seed_variety_id']) && trim($data['seed_variety_id']) === '')) {
                 Log::warning('Seed variety ID is missing for seed consumable');
                 
                 // Create a more visible notification in addition to validation
@@ -155,6 +170,113 @@ class CreateConsumable extends CreateRecord
                 ->send();
             
             return null;
+        }
+    }
+    
+    // Add this method to fix potential issues with form submission
+    protected function configureForm(): void
+    {
+        parent::configureForm();
+        
+        $this->form->statePath('data');
+        
+        // Add a failsafe to catch potential issues with data hydration
+        $this->form->beforeStateDehydrated(function() {
+            $data = $this->form->getState();
+            Log::info('Before dehydration - form data:', ['data' => $data]);
+            
+            // If this is a seed type, ensure seed_variety_id is present
+            if (isset($data['type']) && $data['type'] === 'seed') {
+                if (empty($data['seed_variety_id'])) {
+                    Log::warning('Seed variety ID is missing during dehydration - attempting to fix');
+                    
+                    // Check if there's a value in the request
+                    $requestData = request()->all();
+                    Log::info('Checking request data:', ['request' => $requestData]);
+                    
+                    // Try to get the data from the request
+                    if (isset($requestData['data']['seed_variety_id']) && !empty($requestData['data']['seed_variety_id'])) {
+                        $seedVarietyId = $requestData['data']['seed_variety_id'];
+                        $this->form->fill(array_merge($data, ['seed_variety_id' => $seedVarietyId]));
+                        Log::info('Fixed seed_variety_id from request', ['seed_variety_id' => $seedVarietyId]);
+                    } else {
+                        Log::error('Could not fix missing seed_variety_id');
+                        
+                        Notification::make()
+                            ->title('Form Error')
+                            ->body('There was an issue with the seed variety selection. Please try selecting from the dropdown again.')
+                            ->danger()
+                            ->send();
+                        
+                        throw new Halt();
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * Override to provide better validation for seed varieties
+     */
+    protected function handleRecordCreation(array $data): \Illuminate\Database\Eloquent\Model
+    {
+        try {
+            // Special handling for seed consumables
+            if (isset($data['type']) && $data['type'] === 'seed') {
+                // Double-check seed_variety_id is present and valid
+                if (empty($data['seed_variety_id'])) {
+                    Log::error('Seed variety ID still missing in handleRecordCreation');
+                    
+                    Notification::make()
+                        ->title('Seed Variety Required')
+                        ->body('Please make sure to select a valid seed variety from the dropdown. If you tried creating a new variety, please ensure it was created successfully.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
+                    
+                    throw new \Exception('Seed variety is required');
+                }
+                
+                // Verify the seed variety exists
+                $seedVariety = \App\Models\SeedVariety::find($data['seed_variety_id']);
+                if (!$seedVariety) {
+                    Log::error('Seed variety not found with ID: ' . $data['seed_variety_id']);
+                    
+                    Notification::make()
+                        ->title('Invalid Seed Variety')
+                        ->body('The selected seed variety could not be found. Please try selecting a different variety.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
+                    
+                    throw new \Exception('Invalid seed variety ID');
+                }
+                
+                // Set the name from the seed variety
+                $data['name'] = $seedVariety->name;
+                Log::info('Updated consumable name from seed variety', [
+                    'seed_variety_id' => $data['seed_variety_id'],
+                    'name' => $data['name']
+                ]);
+            }
+            
+            // Create the record
+            return $this->getModel()::create($data);
+        } catch (\Exception $e) {
+            Log::error('Error creating consumable', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'data' => $data
+            ]);
+            
+            Notification::make()
+                ->title('Error Creating Consumable')
+                ->body('An error occurred: ' . $e->getMessage())
+                ->danger()
+                ->persistent()
+                ->send();
+            
+            throw $e;
         }
     }
 } 
