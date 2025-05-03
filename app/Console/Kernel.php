@@ -17,10 +17,13 @@ class Kernel extends ConsoleKernel
                  ->hourly();
                  
         // Update crop time fields every 15 minutes
-        $schedule->command('app:update-crop-time-fields')
-            ->everyFifteenMinutes()
-            ->withoutOverlapping()
-            ->appendOutputTo(storage_path('logs/crop-time-updates.log'));
+        $schedule->command('crops:update-time-fields')
+            ->everyFifteenMinutes();
+            
+        // Sync planting schedules from recurring orders daily
+        $schedule->command('planting:sync')
+            ->dailyAt('02:00')
+            ->appendOutputTo(storage_path('logs/planting-sync.log'));
                  
         // You can also schedule specific resource checks
         // $schedule->command('app:check-resource-levels --resource=inventory')

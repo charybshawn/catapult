@@ -5,6 +5,13 @@ This document tracks all significant changes to the Catapult v2 project.
 ## [Unreleased]
 
 ### Added
+- Implemented Planting Schedule & Calendar system (2024-09-10)
+  - Added recurring orders functionality with flexible frequency options
+  - Created planting schedule generation based on orders and recipes
+  - Built calendar view for visualizing planting and harvest dates
+  - Integrated automatic planting schedule generation from recurring orders
+  - Added batch planting capabilities directly from the schedule
+  - Implemented tracking of planted vs required trays for each schedule
 - Enhanced "Ready to advance" display for crops with overdue time (2024-09-10)
   - Added red display of elapsed time past expected stage transition
   - Added logic to calculate and show how overdue a crop is for advancement
@@ -22,7 +29,7 @@ This document tracks all significant changes to the Catapult v2 project.
   - Better data organization for reporting and tracking
   - Fixed SQL GROUP BY issue with proper aggregation of columns (2024-09-05)
   - Added migrations for time calculation fields (time_to_next_stage, stage_age, total_age)
-  - Created scheduled command to update time values every 15 minutes
+  - Created scheduled command to update time-related fields
 - Added database view for crop batches (2024-09-10)
   - Created `crop_batches` view for improved performance and cleaner code
   - Replaced raw SQL queries with a structured database view
@@ -127,6 +134,8 @@ This document tracks all significant changes to the Catapult v2 project.
   - Removed min and max value constraints on tray numbers in CropsRelationManager
   - Tray numbers are still validated as integers but can be any whole number
   - Improves flexibility for different tray numbering systems
+- Improved organization of menu items in admin interface
+- Enhanced navigation with better grouping of related features
 
 ### Fixed
 - Fixed migration ordering issue with consumables and packaging types tables
@@ -167,6 +176,8 @@ This document tracks all significant changes to the Catapult v2 project.
   - Fixed supplier dropdown not showing options when creating soil consumables
   - Corrected query syntax in supplier_id field options callback
   - Now properly filters suppliers by type (soil, null, or other)
+- Resolved an issue where too many DB::raw() calls were made by replacing with a database view
+- Fixed crop time calculations for more accurate growth tracking
 
 ### Enhanced
 - Improved crop stage duration display in the crops list view
