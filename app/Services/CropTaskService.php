@@ -62,6 +62,41 @@ class CropTaskService
         if (in_array($currentStage, ['germination', 'blackout', 'light']) && $harvestTime->gt($now)) {
             $this->createStageTransitionTask($crop, 'harvested', $harvestTime);
         }
+
+        // Schedule Suspend Watering Task (if applicable)
+        if ($recipe->suspend_water_hours > 0) {
+            $suspendTime = $harvestTime->copy()->subHours($recipe->suspend_water_hours);
+            if ($suspendTime->isAfter($plantedAt) && $suspendTime->gt($now)) { // Only schedule if in the future and after planting
+                // Get variety name (reuse logic from createStageTransitionTask)
+                $varietyName = 'Unknown';
+                if ($crop->recipe) {
+                    if ($crop->recipe->seedVariety) {
+                        $varietyName = $crop->recipe->seedVariety->name;
+                    } else if ($crop->recipe->name) {
+                        $varietyName = $crop->recipe->name;
+                    }
+                }
+                
+                // Create conditions - Note: No target_stage needed here
+                $conditions = [
+                    'crop_id' => (int) $crop->id,
+                    'tray_number' => $crop->tray_number,
+                    'variety' => $varietyName,
+                ];
+
+                // Create the task schedule directly (as createStageTransitionTask expects a target stage)
+                $task = new TaskSchedule();
+                $task->resource_type = 'crops';
+                $task->task_name = 'suspend_watering';
+                $task->frequency = 'once';
+                $task->conditions = $conditions;
+                $task->is_active = true;
+                $task->next_run_at = $suspendTime;
+                $task->save();
+            } else {
+                 Log::warning("Suspend watering time ({$suspendTime->toDateTimeString()}) is before planting time ({$plantedAt->toDateTimeString()}) or in the past for Crop ID {$crop->id}. Task not generated.");
+            }
+        }
     }
     
     /**
@@ -86,12 +121,25 @@ class CropTaskService
                 $varietyName = $crop->recipe->name;
             }
         }
+
+        // Find other crops in the same batch (same recipe, planted_at date, and current_stage)
+        $batchTrays = Crop::where('recipe_id', $crop->recipe_id)
+            ->where('planted_at', $crop->planted_at)
+            ->where('current_stage', $crop->current_stage)
+            ->pluck('tray_number')
+            ->toArray();
+            
+        $batchTraysList = implode(', ', $batchTrays);
+        $batchSize = count($batchTrays);
         
-        // Create conditions for the task - ensure crop_id is an integer
+        // Create conditions for the task - using batch information instead of individual tray
         $conditions = [
-            'crop_id' => (int) $crop->id,
+            'crop_id' => (int) $crop->id, // Keep main crop ID as reference
+            'batch_identifier' => "{$crop->recipe_id}_{$crop->planted_at->format('Y-m-d')}_{$crop->current_stage}",
             'target_stage' => $targetStage,
-            'tray_number' => $crop->tray_number,
+            'tray_numbers' => $batchTrays,
+            'tray_count' => $batchSize,
+            'tray_list' => $batchTraysList,
             'variety' => $varietyName,
         ];
         
@@ -116,9 +164,15 @@ class CropTaskService
      */
     protected function deleteExistingTasks(Crop $crop): void
     {
-        // Find and delete all tasks related to this crop
+        // Create a batch identifier
+        $batchIdentifier = "{$crop->recipe_id}_{$crop->planted_at->format('Y-m-d')}_{$crop->current_stage}";
+        
+        // Find and delete all tasks related to this batch
         TaskSchedule::where('resource_type', 'crops')
-            ->where('conditions->crop_id', $crop->id)
+            ->where(function($query) use ($crop, $batchIdentifier) {
+                $query->where('conditions->crop_id', $crop->id)
+                      ->orWhere('conditions->batch_identifier', $batchIdentifier);
+            })
             ->delete();
     }
     
@@ -133,14 +187,85 @@ class CropTaskService
         $conditions = $task->conditions;
         $cropId = $conditions['crop_id'] ?? null;
         $targetStage = $conditions['target_stage'] ?? null;
+        $batchIdentifier = $conditions['batch_identifier'] ?? null;
+        $trayNumbers = $conditions['tray_numbers'] ?? null;
         
-        if (!$cropId || !$targetStage) {
+        if (!$targetStage) {
             return [
                 'success' => false,
-                'message' => 'Invalid task conditions: missing crop_id or target_stage',
+                'message' => 'Invalid task conditions: missing target_stage',
             ];
         }
         
+        // Process batch if we have batch information
+        if ($batchIdentifier && is_array($trayNumbers) && count($trayNumbers) > 0) {
+            // Find all crops in this batch
+            $batchParts = explode('_', $batchIdentifier);
+            if (count($batchParts) === 3) {
+                list($recipeId, $plantedAtDate, $currentStage) = $batchParts;
+                
+                $crops = Crop::where('recipe_id', $recipeId)
+                    ->where('planted_at', $plantedAtDate)
+                    ->where('current_stage', $currentStage)
+                    ->whereIn('tray_number', $trayNumbers)
+                    ->get();
+                
+                if ($crops->isEmpty()) {
+                    return [
+                        'success' => false,
+                        'message' => "No crops found in batch with identifier {$batchIdentifier}",
+                    ];
+                }
+                
+                // Check stage order - use first crop as reference since all crops in batch should be in same stage
+                $firstCrop = $crops->first();
+                $stageOrder = ['germination', 'blackout', 'light', 'harvested'];
+                $currentStageIndex = array_search($firstCrop->current_stage, $stageOrder);
+                $targetStageIndex = array_search($targetStage, $stageOrder);
+                
+                if ($currentStageIndex === false || $targetStageIndex === false) {
+                    return [
+                        'success' => false,
+                        'message' => "Invalid stage definition for batch {$batchIdentifier} or task target stage {$targetStage}",
+                    ];
+                }
+                
+                // Proceed only if all crops are in the stage immediately preceding the target stage
+                if ($currentStageIndex === $targetStageIndex - 1) {
+                    // Send notification that action is due
+                    // Only need to send one notification for the batch
+                    $this->sendStageTransitionNotification($firstCrop, $targetStage, count($crops));
+                    
+                    // Mark the task as processed
+                    $task->is_active = false;
+                    $task->last_run_at = now();
+                    $task->save();
+                    
+                    return [
+                        'success' => true,
+                        'message' => "Notification sent for batch {$batchIdentifier} ({$crops->count()} crops) to advance to {$targetStage} stage.",
+                    ];
+                } elseif ($currentStageIndex >= $targetStageIndex) {
+                    // If the crops are already at or past the target stage, simply deactivate the task
+                    $task->is_active = false;
+                    $task->last_run_at = now();
+                    $task->save();
+                    return [
+                        'success' => true,
+                        'message' => "Batch {$batchIdentifier} is already at or past {$targetStage} stage. Task deactivated.",
+                    ];
+                } else {
+                    // If the crops are not yet ready for this stage transition, log it and do nothing to the task.
+                    // The task will be picked up again by the scheduler later.
+                    return [
+                        'success' => true,
+                        'message' => "Batch {$batchIdentifier} not yet ready for {$targetStage}. Notification not sent."
+                    ];
+                }
+            }
+        }
+        
+        // Fallback to single crop processing if no batch information available
         // Find the crop
         $crop = Crop::find($cropId);
         if (!$crop) {
@@ -150,72 +275,49 @@ class CropTaskService
             ];
         }
         
-        // Check if the crop is already at or past the target stage
+        // Check if the crop is ready for the action indicated by the task
         $stageOrder = ['germination', 'blackout', 'light', 'harvested'];
         $currentStageIndex = array_search($crop->current_stage, $stageOrder);
         $targetStageIndex = array_search($targetStage, $stageOrder);
-        
-        if ($currentStageIndex >= $targetStageIndex) {
+
+        // Validate stage order before attempting index access
+        if ($currentStageIndex === false || $targetStageIndex === false) {
             return [
-                'success' => true,
-                'message' => "Crop is already at or past {$targetStage} stage",
+                'success' => false,
+                'message' => "Invalid stage definition for crop ID {$cropId} or task target stage {$targetStage}",
             ];
         }
-        
-        // If the crop's current stage is just before the target stage, we can advance it
+
+        // Proceed only if the crop is in the stage immediately preceding the target stage
         if ($currentStageIndex === $targetStageIndex - 1) {
-            // Advance to the target stage
-            $crop->current_stage = $targetStage;
-            
-            // Set the timestamp for the new stage
-            $stageTimestampField = "{$targetStage}_at";
-            $crop->$stageTimestampField = now();
-            
-            $crop->save();
-            
-            // Send notification
+            // Send notification that action is due
             $this->sendStageTransitionNotification($crop, $targetStage);
             
-            // Mark the task as completed
+            // Mark the task as processed (notification sent)
             $task->is_active = false;
             $task->last_run_at = now();
             $task->save();
             
             return [
                 'success' => true,
-                'message' => "Advanced crop to {$targetStage} stage",
+                'message' => "Notification sent for crop ID {$cropId} to advance to {$targetStage} stage.",
             ];
-        }
-        
-        // If we're not ready to advance directly to the target stage,
-        // we should create a new task for the intermediate stage
-        $nextStage = $stageOrder[$currentStageIndex + 1];
-        
-        // Calculate time for next stage using precise day calculation
-        if ($nextStage === 'germination') {
-            $nextTime = now()->addDays(1);
-        } elseif ($nextStage === 'blackout') {
-            $nextTime = now()->addDays($crop->recipe->germination_days);
-        } elseif ($nextStage === 'light') {
-            $nextTime = now()->addDays($crop->recipe->blackout_days);
-        } elseif ($nextStage === 'harvested') {
-            $nextTime = now()->addDays($crop->recipe->light_days);
+        } elseif ($currentStageIndex >= $targetStageIndex) {
+             // If the crop is already at or past the target stage, simply deactivate the task
+             $task->is_active = false;
+             $task->last_run_at = now();
+             $task->save();
+             return [
+                 'success' => true,
+                 'message' => "Crop ID {$cropId} is already at or past {$targetStage} stage. Task deactivated.",
+             ];
         } else {
-            // Fallback for any unexpected stage
-            $nextTime = now()->addDays(1);
+             // If the crop is not yet ready for this stage transition, log it and do nothing to the task.
+             return [
+                 'success' => true,
+                 'message' => "Crop ID {$cropId} not yet ready for {$targetStage}. Notification not sent."
+             ];
         }
-        
-        $this->createStageTransitionTask($crop, $nextStage, $nextTime);
-        
-        // Mark the current task as completed
-        $task->is_active = false;
-        $task->last_run_at = now();
-        $task->save();
-        
-        return [
-            'success' => true,
-            'message' => "Created new task to advance crop to {$nextStage} stage",
-        ];
     }
     
     /**
@@ -223,9 +325,10 @@ class CropTaskService
      *
      * @param Crop $crop
      * @param string $targetStage
+     * @param int|null $cropCount Number of crops in batch if batch notification
      * @return void
      */
-    protected function sendStageTransitionNotification(Crop $crop, string $targetStage): void
+    protected function sendStageTransitionNotification(Crop $crop, string $targetStage, ?int $cropCount = null): void
     {
         $setting = NotificationSetting::findByTypeAndEvent('crops', 'stage_transition');
         

@@ -159,6 +159,14 @@ This document tracks all significant changes to the Catapult v2 project.
   - Fixed array to string conversion error in conditions field
   - Improved dashboard organization with logical tab grouping
   - Implemented Livewire component for real-time updates (15-minute refresh)
+- Improved task scheduling with grow batch support (2025-06-15)
+  - Modified CropTaskService to create alerts for entire grow batches instead of individual trays
+  - Updated alerts to show consolidated information for multiple trays
+  - Created batch identification system using recipe, planting date, and stage
+  - Enhanced task processing to handle all trays in a batch simultaneously
+  - Improved alerts UI to show tray counts and tray number lists
+  - Reduced database load by eliminating duplicate alerts for the same batch
+  - Added more realistic sample data in UpdateAlertsForToday command
 
 ### Fixed
 - Fixed migration ordering issue with consumables and packaging types tables

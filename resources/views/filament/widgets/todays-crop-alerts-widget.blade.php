@@ -23,7 +23,7 @@
                         <th class="px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">Time</th>
                         <th class="px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">Alert</th>
                         <th class="px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">Crop</th>
-                        <th class="px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">Tray</th>
+                        <th class="px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">Trays</th>
                         <th class="px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">Actions</th>
                     </tr>
                 </thead>
@@ -31,6 +31,12 @@
                     @foreach($todaysAlerts as $alert)
                         @php
                             $isOverdue = $alert->next_run_at->isPast();
+                            $trayCount = $alert->conditions['tray_count'] ?? 1;
+                            $trayList = $alert->conditions['tray_list'] ?? ($alert->conditions['tray_number'] ?? 'N/A');
+                            // Ensure we don't show too long lists in the UI
+                            if (strlen($trayList) > 30) {
+                                $trayList = substr($trayList, 0, 30) . '...';
+                            }
                         @endphp
                         <tr class="{{ $isOverdue ? 'bg-danger-50 dark:bg-danger-900/30 hover:bg-danger-100 dark:hover:bg-danger-800/40' : 'hover:bg-gray-50 dark:hover:bg-gray-700' }}">
                             <td class="px-4 py-2 whitespace-nowrap">
@@ -51,12 +57,16 @@
                             </td>
                             <td class="px-4 py-2">
                                 <div class="text-sm font-medium {{ $isOverdue ? 'text-danger-700 dark:text-danger-400' : 'text-gray-900 dark:text-white' }}">
-                                    {{ $alert->resource_id ?? 'N/A' }}
+                                    {{ $alert->conditions['variety'] ?? 'N/A' }}
                                 </div>
                             </td>
                             <td class="px-4 py-2">
                                 <div class="text-sm font-medium {{ $isOverdue ? 'text-danger-700 dark:text-danger-400' : 'text-gray-900 dark:text-white' }}">
-                                    #{{ $alert->resource_id ?? 'N/A' }}
+                                    @if($trayCount > 1)
+                                        <span class="font-semibold">{{ $trayCount }} trays:</span> {{ $trayList }}
+                                    @else
+                                        Tray #{{ $trayList }}
+                                    @endif
                                 </div>
                             </td>
                             <td class="px-4 py-2">
