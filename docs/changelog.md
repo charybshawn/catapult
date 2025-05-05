@@ -5,13 +5,6 @@ This document tracks all significant changes to the Catapult v2 project.
 ## [Unreleased]
 
 ### Added
-- Implemented Planting Schedule & Calendar system (2024-09-10)
-  - Added recurring orders functionality with flexible frequency options
-  - Created planting schedule generation based on orders and recipes
-  - Built calendar view for visualizing planting and harvest dates
-  - Integrated automatic planting schedule generation from recurring orders
-  - Added batch planting capabilities directly from the schedule
-  - Implemented tracking of planted vs required trays for each schedule
 - Enhanced "Ready to advance" display for crops with overdue time (2024-09-10)
   - Added red display of elapsed time past expected stage transition
   - Added logic to calculate and show how overdue a crop is for advancement
@@ -29,7 +22,7 @@ This document tracks all significant changes to the Catapult v2 project.
   - Better data organization for reporting and tracking
   - Fixed SQL GROUP BY issue with proper aggregation of columns (2024-09-05)
   - Added migrations for time calculation fields (time_to_next_stage, stage_age, total_age)
-  - Created scheduled command to update time-related fields
+  - Created scheduled command to update time values every 15 minutes
 - Added database view for crop batches (2024-09-10)
   - Created `crop_batches` view for improved performance and cleaner code
   - Replaced raw SQL queries with a structured database view
@@ -134,8 +127,38 @@ This document tracks all significant changes to the Catapult v2 project.
   - Removed min and max value constraints on tray numbers in CropsRelationManager
   - Tray numbers are still validated as integers but can be any whole number
   - Improves flexibility for different tray numbering systems
-- Improved organization of menu items in admin interface
-- Enhanced navigation with better grouping of related features
+- Improved Grows list page UI with icon buttons (2024-09-11)
+  - Converted all action buttons to use icons with tooltips instead of text labels
+  - Includes main row actions and bulk actions
+  - Creates a cleaner, more modern interface
+  - Maintains functionality while reducing visual clutter
+- Removed deprecated crop tasks UI components (2025-06-12)
+  - Removed CropTaskResource and all associated pages
+  - Removed ManageCropTasks page and view
+  - Updated Crop Alerts widget to point to TaskScheduleResource
+  - Updated dashboard links to use TaskScheduleResource for alerts management
+  - Consolidated crop stage management into TaskScheduleResource (Crop Alerts)
+  - Streamlined the UI by removing duplicate functionality
+  - Simplified navigation by focusing on a single interface for crop stage management
+- Refactored dashboard UI for improved dark mode compatibility and layout (2025-06-12)
+  - Replaced custom CSS with Tailwind utility classes and Filament components (`x-filament::section`, `x-filament::tabs`, etc.)
+  - Implemented Livewire-based tab management in the `Dashboard` page class
+  - Ensured consistent styling in both light and dark modes
+  - Optimized grid layout for better screen real estate usage on various devices
+  - Improved code readability and maintainability by removing the `<style>` block
+  - Updated value calculation for Total Harvested Value and Weight display
+- Simplified dashboard tabs to focus on key farm operations (2025-06-12)
+  - Removed Stats tab and reorganized content into three focused tabs
+  - Renamed "Inventory Alerts" to "Inventory/Consumable Alerts" for clarity
+  - Added tab state validation to prevent unexpected user input
+  - Implemented query string support for direct tab linking
+  - Improved dashboard navigation with user-requested sections
+- Moved "Today's Crop Alerts" to dedicated widget (2025-06-14)
+  - Created new TodaysCropAlertsWidget component for better code organization
+  - Moved alerts display from active-crops tab to crop-alerts tab
+  - Fixed array to string conversion error in conditions field
+  - Improved dashboard organization with logical tab grouping
+  - Implemented Livewire component for real-time updates (15-minute refresh)
 
 ### Fixed
 - Fixed migration ordering issue with consumables and packaging types tables
@@ -176,8 +199,25 @@ This document tracks all significant changes to the Catapult v2 project.
   - Fixed supplier dropdown not showing options when creating soil consumables
   - Corrected query syntax in supplier_id field options callback
   - Now properly filters suppliers by type (soil, null, or other)
-- Resolved an issue where too many DB::raw() calls were made by replacing with a database view
-- Fixed crop time calculations for more accurate growth tracking
+- Fixed TaskScheduleResource column toggle functionality (2025-06-12)
+  - Replaced deprecated ToggleColumnsAction class with Filament 3's native column toggling
+  - Added toggleable() to all columns in TaskSchedule table
+  - Simplified implementation to use Filament's built-in column toggling feature
+  - Ensures consistent UI experience with other resource tables
+  - Resolves "Class not found" and "Too few arguments" errors when viewing task schedules
+- Fixed dashboard not appearing as default landing page (2025-06-13)
+  - Fixed type mismatch in Dashboard class with the $slug property (changed to ?string)
+  - Configured AdminPanelProvider to use homeUrl('/admin/dashboard')
+  - Ensured Dashboard extends Filament's Page class with correct configuration
+  - Fixed routing configuration to make dashboard appear at the project URL root
+  - Resolved white background and missing left menu issues
+  - Added dark mode support in the AdminPanelProvider configuration
+  - Set the proper Filament layout for the Dashboard class
+  - Updated dashboard blade template to use correct Filament panels (x-filament-panels::page)
+  - Completely restructured Dashboard class to extend BaseDashboard for proper Filament integration
+  - Created a custom dashboard header view to maintain existing UI while ensuring full Filament compatibility
+  - Optimized layout to use full screen width with proper responsive behavior
+  - Adjusted grid spacing for better visual presentation
 
 ### Enhanced
 - Improved crop stage duration display in the crops list view
@@ -350,11 +390,6 @@ This document tracks all significant changes to the Catapult v2 project.
 ### Added
 - Added new CropGrowthSimulationTest to verify time-based crop lifecycle calculations
 - Added comprehensive test for validating crop stage transitions and time calculations
-
-### Fixed
-- Removed duplicate `getTable` method from ManageCropTasks component to fix HasTable contract conflict
-- Fixed SQL errors related to consumed_quantity field in consumables
-- Fixed supplier filtering in consumable creation forms
 
 ### Changed 
 - Enhanced dashboard statistics for better farm monitoring
