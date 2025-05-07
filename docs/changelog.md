@@ -526,3 +526,12 @@ This document tracks all significant changes to the Catapult v2 project.
 - Added migration to create price variations for existing products
 - Simplified product creation form with just base price entry
 - Enhanced price variations management with better UI
+
+## 2025-06-25 - Enhanced Product Creation with Price Variations
+- Improved product creation process to automatically create price variations during initial creation
+- Added fields for wholesale, bulk, and special pricing in the product creation form
+- Enhanced Product model to better synchronize between legacy price fields and price variations
+- Modified CreateProduct class to capture price data during form submission
+- Added comprehensive tests for price variations functionality
+- Eliminated the need to save a product before creating price variations
+- Added detailed documentation in DESIGN_CHANGES.md

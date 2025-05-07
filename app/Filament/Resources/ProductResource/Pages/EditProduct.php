@@ -21,28 +21,55 @@ class EditProduct extends EditRecord
     
     protected function afterSave(): void
     {
-        // If base_price was changed, update the default price variation
-        if ($this->record->wasChanged('base_price')) {
-            $defaultVariation = $this->record->defaultPriceVariation();
-            
-            if ($defaultVariation) {
-                $defaultVariation->update([
-                    'price' => $this->record->base_price,
-                ]);
+        $priceFields = [
+            'base_price' => 'Default',
+            'wholesale_price' => 'Wholesale',
+            'bulk_price' => 'Bulk',
+            'special_price' => 'Special'
+        ];
+        
+        $updatedPrices = [];
+        $created = [];
+        
+        // Check each price field
+        foreach ($priceFields as $field => $variationName) {
+            if ($this->record->wasChanged($field) && $this->record->{$field}) {
+                // Find the variation if it exists
+                $variation = $this->record->priceVariations()
+                    ->where('name', $variationName)
+                    ->first();
                 
-                Notification::make()
-                    ->title('Default price variation updated')
-                    ->success()
-                    ->send();
-            } else {
-                // Create a default price variation if none exists
-                $this->record->createDefaultPriceVariation();
-                
-                Notification::make()
-                    ->title('Default price variation created')
-                    ->success()
-                    ->send();
+                if ($variation) {
+                    // Update existing variation
+                    $variation->update(['price' => $this->record->{$field}]);
+                    $updatedPrices[] = $variationName;
+                } else {
+                    // Create new variation based on the field name
+                    $method = 'create' . $variationName . 'PriceVariation';
+                    if (method_exists($this->record, $method)) {
+                        $this->record->{$method}();
+                        $created[] = $variationName;
+                    }
+                }
             }
+        }
+        
+        // Show notification for updated variations
+        if (!empty($updatedPrices)) {
+            Notification::make()
+                ->title(count($updatedPrices) . ' price variation(s) updated')
+                ->body('Updated: ' . implode(', ', $updatedPrices))
+                ->success()
+                ->send();
+        }
+        
+        // Show notification for created variations
+        if (!empty($created)) {
+            Notification::make()
+                ->title(count($created) . ' price variation(s) created')
+                ->body('Created: ' . implode(', ', $created))
+                ->success()
+                ->send();
         }
     }
 } 

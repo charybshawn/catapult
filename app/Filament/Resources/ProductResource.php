@@ -249,16 +249,43 @@ class ProductResource extends Resource
             Step::make('Pricing')
                 ->icon('heroicon-o-currency-dollar')
                 ->schema([
-                    Forms\Components\TextInput::make('base_price')
-                        ->label('Base Price')
-                        ->numeric()
-                        ->prefix('$')
-                        ->required()
-                        ->minValue(0)
-                        ->step(0.01)
-                        ->helperText('This creates a default price variation, which you can customize later.'),
+                    Forms\Components\Grid::make(2)
+                        ->schema([
+                            Forms\Components\TextInput::make('base_price')
+                                ->label('Base Price')
+                                ->numeric()
+                                ->prefix('$')
+                                ->required()
+                                ->minValue(0)
+                                ->step(0.01)
+                                ->helperText('Standard price for retail customers.'),
+                            Forms\Components\TextInput::make('wholesale_price')
+                                ->label('Wholesale Price')
+                                ->numeric()
+                                ->prefix('$')
+                                ->minValue(0)
+                                ->step(0.01)
+                                ->helperText('Discounted price for wholesale customers.'),
+                        ]),
+                    Forms\Components\Grid::make(2)
+                        ->schema([
+                            Forms\Components\TextInput::make('bulk_price')
+                                ->label('Bulk Price')
+                                ->numeric()
+                                ->prefix('$')
+                                ->minValue(0)
+                                ->step(0.01)
+                                ->helperText('Discounted price for bulk purchases.'),
+                            Forms\Components\TextInput::make('special_price')
+                                ->label('Special Price')
+                                ->numeric()
+                                ->prefix('$')
+                                ->minValue(0)
+                                ->step(0.01)
+                                ->helperText('Special promotional price.'),
+                        ]),
                     Forms\Components\Placeholder::make('price_variations_info')
-                        ->content('After saving, you can add additional price variations (wholesale, bulk, etc.) for different customer types or units of measure. Price variations provide more flexibility than the legacy pricing system.')
+                        ->content('Price variations will be automatically created based on the prices entered above. After saving, you can add additional variations or modify existing ones.')
                         ->columnSpanFull(),
                     Forms\Components\ViewField::make('price_calculator')
                         ->view('livewire.product-price-calculator')
@@ -267,7 +294,7 @@ class ProductResource extends Resource
                         })
                         ->columnSpanFull(),
                 ])
-                ->columns(2),
+                ->columns(1),
             Step::make('Product Photos')
                 ->icon('heroicon-o-photo')
                 ->schema([
