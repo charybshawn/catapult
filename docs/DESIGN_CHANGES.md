@@ -327,21 +327,47 @@ Improved the product creation process to automatically create price variations d
    
 2. Modified Product model booted method:
    - Added logic to update existing price variations when product prices change
-   - Added automatic creation of missing price variations when prices are updated
-   - Improved the integration between legacy price fields and price variations system
-   
-3. Updated ProductResource form:
-   - Added fields for wholesale_price, bulk_price, and special_price in the Pricing wizard step
-   - Improved helper text to explain the automatic creation of price variations
-   - Arranged fields in a more logical layout for better usability
-   
-4. Added comprehensive tests:
-   - Created new PriceVariationsTest to verify the behavior
-   - Added tests for creation, updating, and manual management of price variations
-   
+   - Implemented better synchronization between legacy price fields and price variation models
+   - Fixed issues with automatic creation of price variations
+
 ### Impact
-- More seamless user experience when creating products with multiple price points
-- Eliminates the "save first, then add variations" requirement
-- Better synchronization between legacy price fields and the price variations system
-- Smoother transition to the new price variations architecture
-- Improved test coverage for price-related functionality 
+- Streamlined product creation workflow - price variations are created immediately
+- Eliminated the need to save a product before adding price variations
+- Maintained backward compatibility with legacy price fields
+- Improved user experience with a more intuitive pricing UI
+- Enhanced data integrity by keeping price variations in sync with product data
+
+## Global Price Variations With Nullable Item ID
+
+### Date
+May 7, 2025
+
+### Description
+Enhanced the price variations system to support truly global price variations that can be used across multiple products. This allows for standardized packaging or unit pricing that can be applied to any product in the system.
+
+### Changes Made
+1. Database Schema:
+   - Modified the `price_variations` table to make the `item_id` column nullable via migration
+   - Updated foreign key constraints to handle nullable relationships
+   
+2. Models:
+   - Enhanced the `PriceVariation` model to handle global variations with null item_id
+   - Updated the `booted` method to automatically set item_id to NULL when is_global is true
+   - Modified relationship queries to handle nullable foreign keys
+   
+3. Filament Resources:
+   - Updated the CreatePriceVariation page to explicitly handle global variations
+   - Added `handleRecordCreation` method to ensure proper data processing
+   - Enhanced the afterCreate method to check for item_id before updating default status
+   
+4. Testing:
+   - Added comprehensive tests for global price variations functionality
+   - Verified that global variations work with null item_id
+   - Tested integration with products to ensure compatibility
+
+### Impact
+- Support for truly global price variations that apply across products
+- Standardized pricing for common packaging options (clamshells, boxes, etc.)
+- Better organization of pricing options that aren't product-specific
+- Improved efficiency by reusing price variations across multiple products
+- Fixed internal server error when creating global price variations 

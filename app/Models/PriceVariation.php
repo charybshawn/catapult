@@ -50,6 +50,11 @@ class PriceVariation extends Model
                 $priceVariation->weight = 0;
             }
             
+            // Set item_id to NULL for global price variations
+            if ($priceVariation->is_global) {
+                $priceVariation->item_id = null;
+            }
+            
             // Handle default pricing
             if ($priceVariation->is_default) {
                 static::where('item_id', $priceVariation->item_id)
@@ -62,6 +67,11 @@ class PriceVariation extends Model
             // Ensure weight is never null
             if (is_null($priceVariation->weight)) {
                 $priceVariation->weight = 0;
+            }
+            
+            // Set item_id to NULL for global price variations
+            if ($priceVariation->is_global && !$priceVariation->isDirty('is_global')) {
+                $priceVariation->item_id = null;
             }
             
             // Handle default pricing

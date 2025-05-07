@@ -527,6 +527,14 @@ This document tracks all significant changes to the Catapult v2 project.
 - Simplified product creation form with just base price entry
 - Enhanced price variations management with better UI
 
+## 2025-05-07 - Global Price Variations Enhancement
+- Made price_variations.item_id nullable to support truly global price variations
+- Enhanced PriceVariation model to automatically set null item_id for global variations
+- Updated CreatePriceVariation page to properly handle global variations
+- Fixed internal server error when creating global price variations
+- Added comprehensive tests for global price variations functionality
+- Added documentation in DESIGN_CHANGES.md
+
 ## 2025-06-25 - Enhanced Product Creation with Price Variations
 - Improved product creation process to automatically create price variations during initial creation
 - Added fields for wholesale, bulk, and special pricing in the product creation form

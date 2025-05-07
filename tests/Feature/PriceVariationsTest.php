@@ -144,4 +144,48 @@ class PriceVariationsTest extends TestCase
         $this->assertEquals('item', $customVariation->unit);
         $this->assertEquals('Premium', $customVariation->name);
     }
+
+    /**
+     * Test that global price variations can be created with null item_id.
+     */
+    public function test_global_price_variations_can_be_created(): void
+    {
+        // Create a global price variation
+        $globalVariation = PriceVariation::create([
+            'name' => 'Clamshell (24oz) (Retail)',
+            'unit' => 'item',
+            'weight' => 70,
+            'price' => 5.00,
+            'is_global' => true,
+            'is_active' => true,
+        ]);
+        
+        // Verify the global price variation was created correctly
+        $this->assertNotNull($globalVariation);
+        $this->assertTrue($globalVariation->is_global);
+        $this->assertNull($globalVariation->item_id);
+        $this->assertEquals('Clamshell (24oz) (Retail)', $globalVariation->name);
+        $this->assertEquals(5.00, $globalVariation->price);
+        
+        // Create a product
+        $product = Product::create([
+            'name' => 'Test Product',
+            'description' => 'A test product',
+            'active' => true,
+        ]);
+        
+        // Test that a non-global price variation requires an item_id
+        $regularVariation = PriceVariation::create([
+            'item_id' => $product->id,
+            'name' => 'Regular Price',
+            'unit' => 'item',
+            'price' => 10.00,
+            'is_global' => false,
+            'is_active' => true,
+        ]);
+        
+        $this->assertNotNull($regularVariation);
+        $this->assertFalse($regularVariation->is_global);
+        $this->assertEquals($product->id, $regularVariation->item_id);
+    }
 } 
