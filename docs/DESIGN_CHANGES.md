@@ -314,34 +314,46 @@ Migrated from the Item model to a dedicated Product model to better align the co
 ## Enhanced Product Price Variations Integration
 
 ### Date
-November 19, 2023
+June 19, 2025
 
 ### Description
-Enhanced the Product model to fully integrate with the existing price variations system, moving away from direct price fields to a more flexible, variation-based approach. This change maintains backward compatibility while encouraging better pricing structure for products.
+Improved the integration between the Product model and the PriceVariation model, making the pricing system more flexible and user-friendly. This update builds on the previous price variations implementation to provide a more robust and maintainable way to manage product pricing.
 
 ### Changes Made
-- Updated the Product model to deprecate direct price fields:
-  - Added getters for base_price, wholesale_price, bulk_price, and special_price that first check for matching price variations
-  - Implemented automatic creation of default price variations during product creation
-  - Added helper methods for working with product price variations
-- Modified the price variations relationship:
-  - Updated PriceVariation model to use Product instead of Item
-  - Maintained backward compatibility through interface consistency
-  - Added proper foreign key relationships
-- Enhanced the product interface:
-  - Simplified product creation form with just base price entry
-  - Added price variations panel to product view/edit pages
-  - Created partial blade view for displaying price variations
-  - Improved UX with clear pricing information
-- Added data migration to support transition:
-  - Created migration to generate price variations for existing products
-  - Ensured products with existing price fields got proper variations
-  - Maintained data integrity during the transition
+1. Product Model Enhancements:
+   - Added helper methods for creating different types of price variations:
+     - `createDefaultPriceVariation()`: Creates or updates the default price variation
+     - `createWholesalePriceVariation()`: Creates a wholesale price variation
+     - `createBulkPriceVariation()`: Creates a bulk price variation
+     - `createSpecialPriceVariation()`: Creates a special price variation
+     - `createCustomPriceVariation()`: Creates a custom price variation with specified parameters
+     - `createAllStandardPriceVariations()`: Creates all standard variations based on existing price fields
+   - Enhanced the booted method to update default price variation when base_price changes
+   - Added `getPriceVariationByName()` method for easier retrieval of variations
+   - Improved accessor methods for backward compatibility with legacy price fields
+
+2. PriceVariationsRelationManager Enhancements:
+   - Added a "Create Standard Variations" action to quickly generate common price variations
+   - Added "Set as Default" action for easily changing which variation is the default
+   - Improved the UI with better labels, helper text, and organization
+   - Added empty state with helpful guidance and actions
+   - Added bulk actions for activating and deactivating variations
+   - Enhanced the form with more intuitive field organization
+
+3. User Interface Improvements:
+   - Updated product-price-calculator view to use price variations for calculations
+   - Enhanced price variations panel with more detailed information display
+   - Improved the UX for managing price variations with clearer organization
+   - Added client-side price calculations based on customer type and quantity
+
+4. Migration and Data:
+   - Created data migration to generate price variations for existing products
+   - Ensured backward compatibility with legacy price fields
+   - Updated tests to work with the new price variations system
 
 ### Impact
-- More flexible pricing structure for products through variations
-- Better organization of pricing data with support for multiple units
-- Improved UX for creating and managing product prices
-- Maintained backward compatibility with existing code
-- Enhanced price variation management with better visibility
-- Clearer path forward for using the more powerful price variations system 
+- More flexible pricing system with support for different units and customer types
+- Better organization of product pricing information
+- Improved user experience when managing price variations
+- Clear separation of concerns between products and their price variations
+- Backward compatibility with existing systems while providing a path forward 

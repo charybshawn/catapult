@@ -70,6 +70,15 @@ class Product extends Model
             if ($product->priceVariations()->count() === 0 && $product->base_price) {
                 $product->createDefaultPriceVariation();
             }
+            
+            // Update the default price variation if base_price was changed
+            if ($product->wasChanged('base_price') && $product->base_price) {
+                $defaultVariation = $product->priceVariations()->where('is_default', true)->first();
+                
+                if ($defaultVariation) {
+                    $defaultVariation->update(['price' => $product->base_price]);
+                }
+            }
         });
     }
     
@@ -153,14 +162,35 @@ class Product extends Model
     {
         switch (strtolower($customerType)) {
             case 'wholesale':
-                return $this->wholesale_price ?? $this->base_price ?? 0;
+                $variation = $this->getPriceVariationByName('Wholesale');
+                return $variation ? $variation->price : ($this->wholesale_price ?? $this->base_price ?? 0);
+                
             case 'bulk':
-                return $this->bulk_price ?? $this->base_price ?? 0;
+                $variation = $this->getPriceVariationByName('Bulk');
+                return $variation ? $variation->price : ($this->bulk_price ?? $this->base_price ?? 0);
+                
             case 'special':
-                return $this->special_price ?? $this->base_price ?? 0;
+                $variation = $this->getPriceVariationByName('Special');
+                return $variation ? $variation->price : ($this->special_price ?? $this->base_price ?? 0);
+                
             default:
-                return $this->base_price ?? 0;
+                $variation = $this->defaultPriceVariation();
+                return $variation ? $variation->price : ($this->base_price ?? 0);
         }
+    }
+
+    /**
+     * Get a price variation by name.
+     * 
+     * @param string $name
+     * @return \App\Models\PriceVariation|null
+     */
+    public function getPriceVariationByName(string $name)
+    {
+        return $this->priceVariations()
+            ->where('name', $name)
+            ->where('is_active', true)
+            ->first();
     }
 
     /**
@@ -263,17 +293,123 @@ class Product extends Model
     /**
      * Create a default price variation for this product.
      * 
+     * @param array $attributes Optional attributes to override defaults
      * @return \App\Models\PriceVariation
      */
-    public function createDefaultPriceVariation()
+    public function createDefaultPriceVariation(array $attributes = [])
     {
-        return $this->priceVariations()->create([
+        $defaultAttributes = [
             'name' => 'Default',
             'unit' => 'item',
             'price' => $this->base_price ?? 0,
             'is_default' => true,
             'is_active' => true,
+        ];
+        
+        return $this->priceVariations()->create(array_merge($defaultAttributes, $attributes));
+    }
+    
+    /**
+     * Create a wholesale price variation for this product.
+     * 
+     * @param float|null $price Optional price to override the default wholesale price
+     * @return \App\Models\PriceVariation
+     */
+    public function createWholesalePriceVariation(float $price = null)
+    {
+        return $this->priceVariations()->create([
+            'name' => 'Wholesale',
+            'unit' => 'item',
+            'price' => $price ?? $this->wholesale_price ?? $this->base_price ?? 0,
+            'is_default' => false,
+            'is_active' => true,
         ]);
+    }
+    
+    /**
+     * Create a bulk price variation for this product.
+     * 
+     * @param float|null $price Optional price to override the default bulk price
+     * @return \App\Models\PriceVariation
+     */
+    public function createBulkPriceVariation(float $price = null)
+    {
+        return $this->priceVariations()->create([
+            'name' => 'Bulk',
+            'unit' => 'item',
+            'price' => $price ?? $this->bulk_price ?? $this->base_price ?? 0,
+            'is_default' => false,
+            'is_active' => true,
+        ]);
+    }
+    
+    /**
+     * Create a special price variation for this product.
+     * 
+     * @param float|null $price Optional price to override the default special price
+     * @return \App\Models\PriceVariation
+     */
+    public function createSpecialPriceVariation(float $price = null)
+    {
+        return $this->priceVariations()->create([
+            'name' => 'Special',
+            'unit' => 'item',
+            'price' => $price ?? $this->special_price ?? $this->base_price ?? 0,
+            'is_default' => false,
+            'is_active' => true,
+        ]);
+    }
+    
+    /**
+     * Create a custom price variation for this product.
+     * 
+     * @param string $name Name of the price variation
+     * @param float $price Price for this variation
+     * @param string $unit Unit for this variation (default: 'item')
+     * @param array $additionalAttributes Additional attributes to set
+     * @return \App\Models\PriceVariation
+     */
+    public function createCustomPriceVariation(string $name, float $price, string $unit = 'item', array $additionalAttributes = [])
+    {
+        $attributes = array_merge([
+            'name' => $name,
+            'unit' => $unit,
+            'price' => $price,
+            'is_default' => false,
+            'is_active' => true,
+        ], $additionalAttributes);
+        
+        return $this->priceVariations()->create($attributes);
+    }
+    
+    /**
+     * Create all standard price variations for this product.
+     * 
+     * @return array Array of created price variations
+     */
+    public function createAllStandardPriceVariations()
+    {
+        $variations = [];
+        
+        // Create default variation
+        $variations['default'] = $this->createDefaultPriceVariation();
+        
+        // Create wholesale variation if wholesale_price is set
+        if ($this->wholesale_price) {
+            $variations['wholesale'] = $this->createWholesalePriceVariation();
+        }
+        
+        // Create bulk variation if bulk_price is set
+        if ($this->bulk_price) {
+            $variations['bulk'] = $this->createBulkPriceVariation();
+        }
+        
+        // Create special variation if special_price is set
+        if ($this->special_price) {
+            $variations['special'] = $this->createSpecialPriceVariation();
+        }
+        
+        return $variations;
     }
 
     /**

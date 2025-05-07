@@ -146,14 +146,44 @@ class ProductResource extends Resource
         return [
             'price_variations' => Forms\Components\Section::make('Price Variations')
                 ->schema([
-                    Forms\Components\Placeholder::make('base_price_display')
-                        ->label('Base Price')
-                        ->content(fn ($record) => '$' . number_format($record->base_price, 2)),
+                    Forms\Components\Grid::make(2)
+                        ->schema([
+                            Forms\Components\Placeholder::make('base_price_display')
+                                ->label('Default Price')
+                                ->content(function ($record) {
+                                    $variation = $record->defaultPriceVariation();
+                                    return $variation 
+                                        ? '$' . number_format($variation->price, 2) . ' (' . $variation->name . ')'
+                                        : '$' . number_format($record->base_price ?? 0, 2);
+                                }),
+                            Forms\Components\Placeholder::make('variations_count')
+                                ->label('Price Variations')
+                                ->content(function ($record) {
+                                    $count = $record->priceVariations()->count();
+                                    $activeCount = $record->priceVariations()->where('is_active', true)->count();
+                                    return "{$activeCount} active / {$count} total";
+                                }),
+                        ]),
                     Forms\Components\Placeholder::make('variations_info')
                         ->content(function ($record) {
-                            $count = $record->priceVariations()->count();
-                            return "This product has $count price variation" . ($count !== 1 ? 's' : '');
-                        }),
+                            $priceTypes = ['Default', 'Wholesale', 'Bulk', 'Special'];
+                            $content = "Price variations allow you to set different prices based on customer type or purchase unit.";
+                            
+                            $missingTypes = [];
+                            foreach ($priceTypes as $type) {
+                                if (!$record->priceVariations()->where('name', $type)->exists()) {
+                                    $missingTypes[] = $type;
+                                }
+                            }
+                            
+                            if (!empty($missingTypes)) {
+                                $content .= "<br><br>Standard pricing types not yet created: <span class='text-primary-500'>" . implode(', ', $missingTypes) . "</span>";
+                            }
+                            
+                            return $content;
+                        })
+                        ->columnSpanFull()
+                        ->html(),
                     Forms\Components\ViewField::make('price_variations_panel')
                         ->view('filament.resources.product-resource.partials.price-variations')
                 ])
@@ -226,9 +256,9 @@ class ProductResource extends Resource
                         ->required()
                         ->minValue(0)
                         ->step(0.01)
-                        ->helperText('This will be used to create a default price variation'),
+                        ->helperText('This creates a default price variation, which you can customize later.'),
                     Forms\Components\Placeholder::make('price_variations_info')
-                        ->content('You can add additional price variations (wholesale, bulk, etc.) after saving the product.')
+                        ->content('After saving, you can add additional price variations (wholesale, bulk, etc.) for different customer types or units of measure. Price variations provide more flexibility than the legacy pricing system.')
                         ->columnSpanFull(),
                     Forms\Components\ViewField::make('price_calculator')
                         ->view('livewire.product-price-calculator')
