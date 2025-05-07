@@ -102,8 +102,44 @@ This document tracks all significant changes to the Catapult v2 project.
   - Removed complex createOptionForm and createOptionUsing functionality
   - Maintained the primary seed creation functionality in RecipeResource/Pages/CreateRecipe.php
   - Reduced code duplication and simplified the codebase
+- Added new CropAlert system (2024-08-15)
+  - Created new CropAlert model that extends TaskSchedule
+  - Created dedicated CropAlertResource and associated page classes
+  - Created database migration for future dedicated crop_alerts table
+  - Added global scope to CropAlert model to filter only crop-related alerts
+  - Added relationship to Crop model
+  - Added accessor methods for improved readability
+  - Implemented parallel UI that will replace the TaskScheduleResource UI
+  - Updated dashboard links and widgets to reference the new resource
+- Added Days to Maturity (DTM) field to Recipe form (2024-08-15)
+  - Added days_to_maturity field to the recipes table via migration
+  - Implemented automatic calculation of Light Days based on DTM - (germination + blackout)
+  - Light Days field is now calculated rather than manually entered
+  - Updated totalDays() method to use DTM when available
+  - Improved form reactivity to update calculations when related fields change
+- Implemented lot number tracking for seed inventory (2024-08-15)
+  - Added required lot number field when adding seed stock
+  - Prevented mixing different lot numbers in the same inventory record
+  - Created new inventory records automatically for different lot numbers
+  - Improved seed inventory management with better traceability
+  - Enhanced food safety tracking with lot-specific inventory
 
 ### Changed
+- Completely redesigned seed inventory management (2024-08-15)
+  - Replaced complex unit/quantity calculations with direct total quantity tracking
+  - Created a simplified UI with separate form layouts for seed vs. other consumables 
+  - Added clear lot number tracking field in both create and edit forms
+  - Modified restock settings to use appropriate units and defaults for seeds
+  - Improved inventory adjustments to handle lot numbers correctly
+  - Implemented automatic creation of new inventory records for different lot numbers
+  - Updated inventory calculations to work directly with total quantity
+  - Improved usability by eliminating conversion calculations
+  - Simplified stock tracking for seed consumables
+  - Updated display to show stock in appropriate units (g, kg, etc.)
+- Removed Total Estimated Grow Days display from Recipe forms (2024-08-15)
+  - Removed redundant placeholder field that duplicated DTM information
+  - Simplified the Recipe creation and editing interfaces
+  - DTM field now serves as the single source of truth for total growth time
 - Updated PackagingType model to use volumetric measurements
   - Added capacity_volume (decimal) and volume_unit (string) fields to store volume data
   - Removed capacity_grams field in favor of volumetric measurements
@@ -167,6 +203,10 @@ This document tracks all significant changes to the Catapult v2 project.
   - Improved alerts UI to show tray counts and tray number lists
   - Reduced database load by eliminating duplicate alerts for the same batch
   - Added more realistic sample data in UpdateAlertsForToday command
+- Simplified crop creation interface (2024-08-15)
+  - Removed "Create Full Recipe" button from the crop creation form
+  - Streamlined UI to avoid unnecessary navigation options
+  - Recipe creation options remain available via the inline "Create" option
 
 ### Fixed
 - Fixed migration ordering issue with consumables and packaging types tables
@@ -226,6 +266,25 @@ This document tracks all significant changes to the Catapult v2 project.
   - Created a custom dashboard header view to maintain existing UI while ensuring full Filament compatibility
   - Optimized layout to use full screen width with proper responsive behavior
   - Adjusted grid spacing for better visual presentation
+- Fixed crop stage advancement when executing tasks (2024-08-15)
+  - Modified CropTaskService to actually advance crops when executing tasks
+  - Previously tasks were marked as completed but crops weren't advancing to the next stage
+  - Now crops properly advance to their next stage when alerts are executed
+  - Fixed "Execute Selected" and "Execute Now" functionality in TaskScheduleResource
+- Fixed title inconsistency in Crop Alerts pages (2024-08-15)
+  - Updated page titles and breadcrumbs to consistently show "Crop Alerts" instead of "Task Schedules"
+  - Fixed all related pages (list, edit, create) to use the proper title
+  - Improved navigation consistency across the farm management interface
+- Fixed overdue crop alerts execution (2024-08-15)
+  - Modified CropTaskService to allow multi-stage advancement for overdue alerts
+  - Previously alerts would fail with "not yet ready" message if crops were multiple stages behind
+  - Now crops can advance through multiple stages in one execution
+  - Added detailed messaging to show when intermediate stages are skipped
+- Fixed Form field calculation in Recipe forms (2024-08-15)
+  - Replaced incorrect `calculateDependantState` method with proper Filament live field updates
+  - Updated Recipe form to use proper `live()` and `afterStateUpdated()` methods
+  - Ensured Light Days value is correctly saved with the form
+  - Added form save hook to guarantee correct calculation
 
 ### Enhanced
 - Improved crop stage duration display in the crops list view
@@ -439,3 +498,14 @@ This document tracks all significant changes to the Catapult v2 project.
 - Modified ConsumableResource to filter unique varieties
 - Added ability to create new seed varieties from dropdowns 
 - Created cleanup script to resolve existing duplicates
+
+## 2024-08-15 - Fixed TaskSchedule bulk action type error
+- Updated bulk action parameter to accept Eloquent Collection instead of array
+- Fixed "Execute Selected" functionality in TaskScheduleResource
+
+## 2023-11-18 - Migrated from Item model to Product model
+- Created Product model that uses the existing items table
+- Created ProductPhoto model that uses the existing item_photos table
+- Updated ProductResource to use the Product model instead of Item model
+- Fixed tests to work with the Product model
+- Updated product-price-calculator view to use record properly

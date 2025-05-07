@@ -276,4 +276,37 @@ Replaced repeater-based components with modal-based interfaces for managing rela
 - Improved overall user experience for product management
 
 ### Implementation Notes
-This modal-based approach is now the preferred method over repeater elements for managing relations in Catapult v2. Future relation management implementations should follow this pattern for consistency. 
+This modal-based approach is now the preferred method over repeater elements for managing relations in Catapult v2. Future relation management implementations should follow this pattern for consistency.
+
+## Item to Product Model Migration
+
+### Date
+November 18, 2023
+
+### Description
+Migrated from the Item model to a dedicated Product model to better align the codebase with business terminology and improve semantic clarity. This change maintains database compatibility while providing a more intuitive API for product-related operations.
+
+### Changes Made
+- Created a new `Product` model that uses the existing `items` table:
+  - Added proper table association via `protected $table = 'items'`
+  - Ensured all necessary fields are marked as fillable
+  - Added proper casting for boolean and decimal fields
+  - Enhanced the `getPriceForCustomerType` method with intuitive fallbacks
+- Created a `ProductPhoto` model that uses the existing `item_photos` table:
+  - Maintained compatibility with existing database schema
+  - Added proper relationship to the new Product model
+  - Preserved the `setAsDefault` functionality
+- Updated `ProductResource` to use the new Product model instead of Item
+- Modified the product-price-calculator view to work with the new model
+- Created a comprehensive `ProductFactory` for testing
+- Updated all tests to use the new Product model:
+  - Fixed Livewire test approach for Filament compatibility
+  - Updated validation tests to use proper Laravel validation
+
+### Impact
+- More intuitive naming that aligns with business terminology
+- Clearer separation of concerns in the codebase
+- Improved developer experience with more semantic model naming
+- Maintained backward compatibility with existing database structure
+- Enhanced testing infrastructure with dedicated product factory
+- All tests passing with the new model structure 
