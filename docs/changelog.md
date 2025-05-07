@@ -509,3 +509,12 @@ This document tracks all significant changes to the Catapult v2 project.
 - Updated ProductResource to use the Product model instead of Item model
 - Fixed tests to work with the Product model
 - Updated product-price-calculator view to use record properly
+
+## 2023-11-19 - Enhanced Product with Price Variations Integration
+- Deprecated direct price fields (base_price, wholesale_price, etc.) in favor of price variations
+- Added automatic generation of price variations from legacy price fields
+- Created price variations panel in product view/edit pages
+- Updated price variation relationship to work with Product model
+- Added migration to create price variations for existing products
+- Simplified product creation form with just base price entry
+- Enhanced price variations management with better UI

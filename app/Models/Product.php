@@ -65,6 +65,11 @@ class Product extends Model
             if ($defaultPhoto) {
                 $defaultPhoto->setAsDefault();
             }
+            
+            // Create a default price variation if none exists
+            if ($product->priceVariations()->count() === 0 && $product->base_price) {
+                $product->createDefaultPriceVariation();
+            }
         });
     }
     
@@ -253,5 +258,85 @@ class Product extends Model
     public function productMix(): BelongsTo
     {
         return $this->belongsTo(ProductMix::class);
+    }
+
+    /**
+     * Create a default price variation for this product.
+     * 
+     * @return \App\Models\PriceVariation
+     */
+    public function createDefaultPriceVariation()
+    {
+        return $this->priceVariations()->create([
+            'name' => 'Default',
+            'unit' => 'item',
+            'price' => $this->base_price ?? 0,
+            'is_default' => true,
+            'is_active' => true,
+        ]);
+    }
+
+    /**
+     * Get the base price attribute.
+     * 
+     * @deprecated Use price variations instead
+     * @return float|null
+     */
+    public function getBasePriceAttribute()
+    {
+        $variation = $this->defaultPriceVariation();
+        if ($variation) {
+            return $variation->price;
+        }
+        
+        return $this->attributes['base_price'] ?? null;
+    }
+    
+    /**
+     * Get the wholesale price attribute.
+     * 
+     * @deprecated Use price variations instead
+     * @return float|null
+     */
+    public function getWholesalePriceAttribute()
+    {
+        $variation = $this->priceVariations()->where('name', 'Wholesale')->first();
+        if ($variation) {
+            return $variation->price;
+        }
+        
+        return $this->attributes['wholesale_price'] ?? null;
+    }
+    
+    /**
+     * Get the bulk price attribute.
+     * 
+     * @deprecated Use price variations instead
+     * @return float|null
+     */
+    public function getBulkPriceAttribute()
+    {
+        $variation = $this->priceVariations()->where('name', 'Bulk')->first();
+        if ($variation) {
+            return $variation->price;
+        }
+        
+        return $this->attributes['bulk_price'] ?? null;
+    }
+    
+    /**
+     * Get the special price attribute.
+     * 
+     * @deprecated Use price variations instead
+     * @return float|null
+     */
+    public function getSpecialPriceAttribute()
+    {
+        $variation = $this->priceVariations()->where('name', 'Special')->first();
+        if ($variation) {
+            return $variation->price;
+        }
+        
+        return $this->attributes['special_price'] ?? null;
     }
 } 

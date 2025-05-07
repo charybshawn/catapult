@@ -85,11 +85,21 @@ class PriceVariation extends Model
     }
 
     /**
+     * Get the product that owns the price variation.
+     */
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class, 'item_id');
+    }
+
+    /**
      * Get the item that owns the price variation.
+     * 
+     * @deprecated Use product() instead
      */
     public function item(): BelongsTo
     {
-        return $this->belongsTo(Item::class);
+        return $this->product();
     }
 
     /**

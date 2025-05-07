@@ -138,6 +138,30 @@ class ProductResource extends Resource
         ];
     }
 
+    /**
+     * Get the panels that should be displayed for viewing a record.
+     */
+    public static function getPanels(): array
+    {
+        return [
+            'price_variations' => Forms\Components\Section::make('Price Variations')
+                ->schema([
+                    Forms\Components\Placeholder::make('base_price_display')
+                        ->label('Base Price')
+                        ->content(fn ($record) => '$' . number_format($record->base_price, 2)),
+                    Forms\Components\Placeholder::make('variations_info')
+                        ->content(function ($record) {
+                            $count = $record->priceVariations()->count();
+                            return "This product has $count price variation" . ($count !== 1 ? 's' : '');
+                        }),
+                    Forms\Components\ViewField::make('price_variations_panel')
+                        ->view('filament.resources.product-resource.partials.price-variations')
+                ])
+                ->collapsible()
+                ->columnSpanFull(),
+        ];
+    }
+
     public static function getPages(): array
     {
         return [
@@ -201,25 +225,11 @@ class ProductResource extends Resource
                         ->prefix('$')
                         ->required()
                         ->minValue(0)
-                        ->step(0.01),
-                    Forms\Components\TextInput::make('wholesale_price')
-                        ->label('Wholesale Price')
-                        ->numeric()
-                        ->prefix('$')
-                        ->minValue(0)
-                        ->step(0.01),
-                    Forms\Components\TextInput::make('bulk_price')
-                        ->label('Bulk Price')
-                        ->numeric()
-                        ->prefix('$')
-                        ->minValue(0)
-                        ->step(0.01),
-                    Forms\Components\TextInput::make('special_price')
-                        ->label('Special Price')
-                        ->numeric()
-                        ->prefix('$')
-                        ->minValue(0)
-                        ->step(0.01),
+                        ->step(0.01)
+                        ->helperText('This will be used to create a default price variation'),
+                    Forms\Components\Placeholder::make('price_variations_info')
+                        ->content('You can add additional price variations (wholesale, bulk, etc.) after saving the product.')
+                        ->columnSpanFull(),
                     Forms\Components\ViewField::make('price_calculator')
                         ->view('livewire.product-price-calculator')
                         ->visible(function ($livewire) {
