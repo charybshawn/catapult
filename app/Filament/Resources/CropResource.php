@@ -132,22 +132,19 @@ class CropResource extends Resource
                             ->nestedRecursiveRules(['integer'])
                             ->visible(fn ($livewire) => $livewire instanceof Pages\CreateCrop),
                         
-                        Forms\Components\TagsInput::make('existing_tray_numbers')
-                            ->label('Current Tray Numbers')
-                            ->placeholder('Current trays')
+                        Forms\Components\TagsInput::make('tray_numbers')
+                            ->label('Tray Numbers')
+                            ->placeholder('Edit tray numbers')
                             ->separator(',')
-                            ->helperText('These are the current trays in this grow batch')
-                            ->disabled()
-                            ->visible(fn ($livewire, $record) => !($livewire instanceof Pages\CreateCrop) && $record),
-                            
-                        Forms\Components\TagsInput::make('add_tray_numbers')
-                            ->label('Add New Trays')
-                            ->placeholder('Add more tray numbers')
-                            ->separator(',')
-                            ->helperText('Add additional trays to this grow batch')
-                            ->rules(['array'])
+                            ->helperText('Edit the tray numbers for this grow batch')
+                            ->rules(['array', 'min:1'])
                             ->nestedRecursiveRules(['integer'])
-                            ->visible(fn ($livewire) => !($livewire instanceof Pages\CreateCrop)),
+                            ->visible(fn ($livewire) => !($livewire instanceof Pages\CreateCrop))
+                            ->afterStateHydrated(function ($component, $state) {
+                                if (is_array($state)) {
+                                    $component->state(array_values($state));
+                                }
+                            }),
                     ]),
                 
                 Forms\Components\Section::make('Growth Stage Timestamps')
@@ -347,7 +344,9 @@ class CropResource extends Resource
                 Tables\Columns\TextColumn::make('total_age')
                     ->label('Total Age')
                     ->getStateUsing(fn (Crop $record): ?string => $record->total_age_status ?? $record->getTotalAgeStatus())
-                    ->sortable()
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderBy('planting_at', $direction);
+                    })
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('expected_harvest_date')
                     ->label('Expected Harvest')
