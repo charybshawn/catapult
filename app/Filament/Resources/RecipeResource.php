@@ -310,6 +310,199 @@ class RecipeResource extends Resource
                             
                         return redirect()->route('filament.admin.resources.recipes.edit', ['record' => $clone->id]);
                     }),
+                Tables\Actions\Action::make('updateGrows')
+                    ->icon('heroicon-o-arrow-path')
+                    ->label('Apply to Grows')
+                    ->tooltip('Apply recipe parameters to existing grows')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Apply Recipe Parameters to Existing Grows')
+                    ->modalDescription(fn (Recipe $record) => "This will update existing grows using {$record->name} with the current recipe parameters.")
+                    ->form([
+                        Forms\Components\Select::make('current_stage')
+                            ->label('Current Stage Filter')
+                            ->options([
+                                'all' => 'All Stages',
+                                'germination' => 'Germination Only',
+                                'blackout' => 'Blackout Only',
+                                'light' => 'Light Only',
+                            ])
+                            ->default('all')
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(fn (Forms\Set $set) => $set('affected_grows_count', null)),
+                            
+                        Forms\Components\Placeholder::make('affected_grows_count')
+                            ->label('Affected Grows')
+                            ->content(function (Recipe $record, Forms\Get $get) {
+                                $stage = $get('current_stage');
+                                
+                                $query = \App\Models\Crop::where('recipe_id', $record->id)
+                                    ->where('current_stage', '!=', 'harvested');
+                                
+                                if ($stage !== 'all') {
+                                    $query->where('current_stage', $stage);
+                                }
+                                
+                                $count = $query->count();
+                                
+                                if ($count === 0) {
+                                    return "No active grows found for this recipe";
+                                }
+                                
+                                return "{$count} grows will be affected";
+                            }),
+                            
+                        Forms\Components\Checkbox::make('update_germination_days')
+                            ->label('Update Germination Days'),
+                            
+                        Forms\Components\Checkbox::make('update_blackout_days')
+                            ->label('Update Blackout Days'),
+                            
+                        Forms\Components\Checkbox::make('update_light_days')
+                            ->label('Update Light Days'),
+                            
+                        Forms\Components\Checkbox::make('update_days_to_maturity')
+                            ->label('Update Days to Maturity'),
+                            
+                        Forms\Components\Checkbox::make('update_expected_harvest_dates')
+                            ->label('Update Expected Harvest Dates')
+                            ->helperText('This will recalculate harvest dates based on the recipe settings'),
+                            
+                        Forms\Components\Checkbox::make('confirm_updates')
+                            ->label('I understand this will modify existing grows')
+                            ->required()
+                            ->helperText('This action cannot be undone.')
+                            ->dehydrated(false),
+                    ])
+                    ->action(function (Recipe $record, array $data) {
+                        if (!isset($data['confirm_updates']) || !$data['confirm_updates']) {
+                            Notification::make()
+                                ->title('Confirmation Required')
+                                ->body('You must confirm that you understand this action will modify existing grows.')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+                        
+                        // Build the query for crops to update
+                        $query = \App\Models\Crop::where('recipe_id', $record->id)
+                            ->where('current_stage', '!=', 'harvested');
+                        
+                        if ($data['current_stage'] !== 'all') {
+                            $query->where('current_stage', $data['current_stage']);
+                        }
+                        
+                        // Get the crops to update
+                        $crops = $query->get();
+                        
+                        if ($crops->isEmpty()) {
+                            Notification::make()
+                                ->title('No Grows Found')
+                                ->body('No active grows found for the selected recipe and stage.')
+                                ->warning()
+                                ->send();
+                            return;
+                        }
+                        
+                        // Track counters for notification
+                        $totalCrops = $crops->count();
+                        $updatedCrops = 0;
+                        
+                        // Begin a database transaction
+                        \Illuminate\Support\Facades\DB::beginTransaction();
+                        
+                        try {
+                            foreach ($crops as $crop) {
+                                $needsUpdate = false;
+                                
+                                // Check if we need to update expected harvest date
+                                $recalculateHarvestDate = $data['update_expected_harvest_dates'] ?? false;
+                                
+                                // Update the crop based on options selected
+                                if (($data['update_germination_days'] ?? false) && $crop->current_stage === 'germination') {
+                                    $needsUpdate = true;
+                                    // Update time_to_next_stage values for crops in germination stage
+                                    if ($crop->germination_at) {
+                                        $stageEnd = $crop->germination_at->copy()->addDays($record->germination_days);
+                                        if (now()->gt($stageEnd)) {
+                                            $crop->time_to_next_stage_minutes = 0;
+                                            $crop->time_to_next_stage_display = 'Ready to advance';
+                                        } else {
+                                            $minutes = now()->diffInMinutes($stageEnd);
+                                            $crop->time_to_next_stage_minutes = $minutes;
+                                            $crop->time_to_next_stage_display = app(\App\Observers\CropObserver::class)->formatDuration(now()->diff($stageEnd));
+                                        }
+                                    }
+                                }
+                                
+                                if (($data['update_blackout_days'] ?? false) && $crop->current_stage === 'blackout') {
+                                    $needsUpdate = true;
+                                    // Update time_to_next_stage values for crops in blackout stage
+                                    if ($crop->blackout_at) {
+                                        $stageEnd = $crop->blackout_at->copy()->addDays($record->blackout_days);
+                                        if (now()->gt($stageEnd)) {
+                                            $crop->time_to_next_stage_minutes = 0;
+                                            $crop->time_to_next_stage_display = 'Ready to advance';
+                                        } else {
+                                            $minutes = now()->diffInMinutes($stageEnd);
+                                            $crop->time_to_next_stage_minutes = $minutes;
+                                            $crop->time_to_next_stage_display = app(\App\Observers\CropObserver::class)->formatDuration(now()->diff($stageEnd));
+                                        }
+                                    }
+                                }
+                                
+                                if (($data['update_light_days'] ?? false) && $crop->current_stage === 'light') {
+                                    $needsUpdate = true;
+                                    // Update time_to_next_stage values for crops in light stage
+                                    if ($crop->light_at) {
+                                        $stageEnd = $crop->light_at->copy()->addDays($record->light_days);
+                                        if (now()->gt($stageEnd)) {
+                                            $crop->time_to_next_stage_minutes = 0;
+                                            $crop->time_to_next_stage_display = 'Ready to advance';
+                                        } else {
+                                            $minutes = now()->diffInMinutes($stageEnd);
+                                            $crop->time_to_next_stage_minutes = $minutes;
+                                            $crop->time_to_next_stage_display = app(\App\Observers\CropObserver::class)->formatDuration(now()->diff($stageEnd));
+                                        }
+                                    }
+                                }
+                                
+                                if (($data['update_days_to_maturity'] ?? false) || $recalculateHarvestDate) {
+                                    $needsUpdate = true;
+                                    // Recalculate expected harvest date
+                                    if ($crop->planted_at && $record->days_to_maturity) {
+                                        $crop->expected_harvest_at = $crop->planted_at->copy()->addDays($record->days_to_maturity);
+                                    }
+                                }
+                                
+                                // Save the crop if any changes were made
+                                if ($needsUpdate) {
+                                    $crop->save();
+                                    $updatedCrops++;
+                                }
+                            }
+                            
+                            // Commit the transaction
+                            \Illuminate\Support\Facades\DB::commit();
+                            
+                            Notification::make()
+                                ->title('Grows Updated Successfully')
+                                ->body("Updated {$updatedCrops} out of {$totalCrops} grows to match recipe settings.")
+                                ->success()
+                                ->send();
+                                
+                        } catch (\Exception $e) {
+                            // Rollback the transaction on error
+                            \Illuminate\Support\Facades\DB::rollBack();
+                            
+                            Notification::make()
+                                ->title('Error Updating Grows')
+                                ->body('An error occurred: ' . $e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
                 Tables\Actions\DeleteAction::make()
                     ->tooltip('Delete recipe')
                     ->requiresConfirmation()
