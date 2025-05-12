@@ -135,6 +135,35 @@ class CropResource extends Resource
     {
         return $table
             ->persistSortInSession()
+            ->modifyQueryUsing(function (Builder $query): Builder {
+                return $query->select([
+                        'recipe_id',
+                        'planted_at',
+                        'current_stage',
+                        DB::raw('MIN(id) as id'),
+                        DB::raw('MIN(created_at) as created_at'),
+                        DB::raw('MIN(updated_at) as updated_at'),
+                        DB::raw('MIN(planting_at) as planting_at'),
+                        DB::raw('MIN(germination_at) as germination_at'),
+                        DB::raw('MIN(blackout_at) as blackout_at'),
+                        DB::raw('MIN(light_at) as light_at'),
+                        DB::raw('MIN(harvested_at) as harvested_at'),
+                        DB::raw('AVG(harvest_weight_grams) as harvest_weight_grams'),
+                        DB::raw('MIN(time_to_next_stage_minutes) as time_to_next_stage_minutes'),
+                        DB::raw('MIN(time_to_next_stage_display) as time_to_next_stage_display'),
+                        DB::raw('MIN(stage_age_minutes) as stage_age_minutes'),
+                        DB::raw('MIN(stage_age_display) as stage_age_display'),
+                        DB::raw('MIN(total_age_minutes) as total_age_minutes'),
+                        DB::raw('MIN(total_age_display) as total_age_display'),
+                        DB::raw('MIN(expected_harvest_at) as expected_harvest_at'),
+                        DB::raw('MIN(watering_suspended_at) as watering_suspended_at'),
+                        DB::raw('MIN(notes) as notes'),
+                        DB::raw('COUNT(id) as tray_count'),
+                        DB::raw('GROUP_CONCAT(DISTINCT tray_number ORDER BY tray_number SEPARATOR ", ") as tray_numbers')
+                    ])
+                    ->groupBy(['recipe_id', 'planted_at', 'current_stage']);
+            })
+            ->recordUrl(fn ($record) => static::getUrl('edit', ['record' => $record]))
             ->columns([
                 Tables\Columns\TextColumn::make('recipe.seedVariety.name')
                     ->label('Variety')
