@@ -44,10 +44,7 @@ class EditCrop extends EditRecord
             ->toArray();
         
         // Add existing tray numbers to form data
-        $data['existing_tray_numbers'] = $allTrays;
-        
-        // Initialize empty array for add_tray_numbers
-        $data['add_tray_numbers'] = [];
+        $data['tray_numbers'] = $allTrays;
         
         // Since we're using MIN/MAX/AVG for group data, ensure we have accurate values for selected fields
         if (isset($record->tray_number_list)) {
@@ -70,55 +67,81 @@ class EditCrop extends EditRecord
     
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
-        // Get all crops in this grow batch
-        $crops = Crop::where('recipe_id', $record->recipe_id)
+        // Get all current trays in this grow batch
+        $currentTrays = Crop::where('recipe_id', $record->recipe_id)
             ->where('planted_at', $record->planted_at)
             ->where('current_stage', $record->current_stage)
             ->get();
-        
-        // Create new trays if they were added
-        $newTrays = [];
-        if (!empty($data['add_tray_numbers']) && is_array($data['add_tray_numbers'])) {
-            foreach ($data['add_tray_numbers'] as $newTrayNumber) {
-                $newTrayNumber = trim($newTrayNumber);
-                if (empty($newTrayNumber)) continue;
-                
-                // Check if this tray number already exists in this batch
-                $existingTray = Crop::where('recipe_id', $record->recipe_id)
-                    ->where('planted_at', $record->planted_at)
-                    ->where('tray_number', $newTrayNumber)
-                    ->first();
-                    
-                if (!$existingTray) {
-                    // Create a new tray with the same data as the current record
-                    $newTray = $record->replicate();
-                    $newTray->tray_number = $newTrayNumber;
-                    $newTray->save();
-                    $newTrays[] = $newTrayNumber;
+            
+        // Get the new tray numbers from the form and ensure it's a flat array
+        $newTrayNumbers = [];
+        if (isset($data['tray_numbers'])) {
+            if (is_array($data['tray_numbers'])) {
+                foreach ($data['tray_numbers'] as $trayNumber) {
+                    if (is_array($trayNumber)) {
+                        // Handle nested array structure from TagsInput
+                        foreach ($trayNumber as $number) {
+                            if (is_string($number) && !empty(trim($number))) {
+                                $newTrayNumbers[] = trim($number);
+                            }
+                        }
+                    } elseif (is_string($trayNumber) && !empty(trim($trayNumber))) {
+                        $newTrayNumbers[] = trim($trayNumber);
+                    }
+                }
+            } elseif (is_string($data['tray_numbers'])) {
+                // Handle case where it might be a comma-separated string
+                $numbers = explode(',', $data['tray_numbers']);
+                foreach ($numbers as $number) {
+                    if (!empty(trim($number))) {
+                        $newTrayNumbers[] = trim($number);
+                    }
                 }
             }
         }
         
-        // Remove fields that shouldn't be updated on all trays
-        unset($data['existing_tray_numbers']);
-        unset($data['add_tray_numbers']);
+        // Find trays to remove (trays that exist in currentTrays but not in newTrayNumbers)
+        $traysToRemove = $currentTrays->filter(function ($crop) use ($newTrayNumbers) {
+            return !in_array($crop->tray_number, $newTrayNumbers);
+        });
         
-        // Update all crops in the grow batch
-        DB::transaction(function () use ($crops, $data) {
-            foreach ($crops as $crop) {
+        // Find trays to add (numbers in newTrayNumbers but not in currentTrays)
+        $currentTrayNumbers = $currentTrays->pluck('tray_number')->toArray();
+        $traysToAdd = array_diff($newTrayNumbers, $currentTrayNumbers);
+        
+        // Remove trays that are no longer needed
+        foreach ($traysToRemove as $tray) {
+            $tray->delete();
+        }
+        
+        // Add new trays
+        foreach ($traysToAdd as $trayNumber) {
+            $newTray = $record->replicate();
+            $newTray->tray_number = $trayNumber;
+            $newTray->save();
+        }
+        
+        // Remove the tray_numbers field as it's not a database column
+        unset($data['tray_numbers']);
+        
+        // Update all remaining crops in the grow batch
+        DB::transaction(function () use ($currentTrays, $data) {
+            foreach ($currentTrays as $crop) {
                 $crop->fill($data)->save();
             }
         });
         
         // Show notification about the update
-        $trayCount = count($crops);
         $notification = Notification::make()
             ->title('Grow Batch Updated')
-            ->body("Successfully updated {$trayCount} trays.");
+            ->body("Successfully updated tray configuration.");
             
-        // If new trays were added, mention them
-        if (!empty($newTrays)) {
-            $notification->body("Successfully updated {$trayCount} trays and added " . count($newTrays) . " new trays: " . implode(', ', $newTrays));
+        if (!empty($traysToAdd)) {
+            $notification->body("Added trays: " . implode(', ', $traysToAdd));
+        }
+        
+        if ($traysToRemove->isNotEmpty()) {
+            $notification->body("Removed trays: " . implode(', ', $traysToRemove->pluck('tray_number')->toArray()));
         }
         
         $notification->success()->send();
