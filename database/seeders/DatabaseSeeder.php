@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
+            FilamentPermissionSeeder::class,
             RoleSeeder::class,
             FilamentAdminUserSeeder::class,
             MicrogreenSeeder::class,
