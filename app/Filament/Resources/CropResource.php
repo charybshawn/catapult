@@ -398,6 +398,43 @@ class CropResource extends Resource
                             ->success()
                             ->send();
                     }),
+                Action::make('harvest')
+                    ->label('Harvest')
+                    ->icon('heroicon-o-scissors')
+                    ->color('success')
+                    ->visible(fn (Crop $record): bool => $record->current_stage === 'light')
+                    ->requiresConfirmation()
+                    ->modalHeading('Harvest Crop?')
+                    ->modalDescription('This will mark the crop as harvested and record the harvest weight.')
+                    ->form([
+                        Forms\Components\TextInput::make('harvest_weight_grams')
+                            ->label('Harvest Weight Per Tray (grams)')
+                            ->numeric()
+                            ->required()
+                            ->minValue(0)
+                            ->maxValue(10000),
+                    ])
+                    ->action(function (Crop $record, array $data) {
+                        $record->current_stage = 'harvested';
+                        $record->harvested_at = now();
+                        $record->harvest_weight_grams = $data['harvest_weight_grams'];
+                        $record->save();
+                        
+                        // Deactivate any active task schedules for this crop
+                        \App\Models\TaskSchedule::where('resource_type', 'crops')
+                            ->where('conditions->crop_id', $record->id)
+                            ->where('is_active', true)
+                            ->update([
+                                'is_active' => false,
+                                'last_run_at' => now(),
+                            ]);
+                        
+                        \Filament\Notifications\Notification::make()
+                            ->title('Crop Harvested')
+                            ->body('The crop has been successfully harvested.')
+                            ->success()
+                            ->send();
+                    }),
                 Action::make('suspendWatering')
                     ->label('Suspend Watering')
                     ->icon('heroicon-o-no-symbol')

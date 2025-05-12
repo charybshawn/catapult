@@ -121,7 +121,7 @@
                                             icon="heroicon-o-scissors"
                                             color="success"
                                             tag="a"
-                                            :href="route('filament.admin.resources.crops.harvest', $crop)"
+                                            :href="route('filament.admin.resources.crops.edit', ['record' => $crop, 'action' => 'harvest'])"
                                             tooltip="Harvest Crop"
                                             size="sm"
                                         />
