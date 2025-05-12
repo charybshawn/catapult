@@ -18,10 +18,14 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Grouping\Group;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Filament\Tables\Actions\Action;
 
 class TaskScheduleResource extends Resource
 {
     protected static ?string $model = TaskSchedule::class;
+
+    // Hide from navigation since CropAlertResource replaces this
+    protected static bool $shouldRegisterNavigation = false;
 
     protected static ?string $navigationIcon = 'heroicon-o-bell-alert';
     protected static ?string $navigationLabel = 'Crop Alerts';
@@ -29,6 +33,8 @@ class TaskScheduleResource extends Resource
     protected static ?int $navigationSort = 3;
     
     protected static ?string $recordTitleAttribute = 'task_name';
+    protected static ?string $modelLabel = 'Crop Alert';
+    protected static ?string $pluralModelLabel = 'Crop Alerts';
     
     public static function getEloquentQuery(): Builder
     {
@@ -68,7 +74,7 @@ class TaskScheduleResource extends Resource
                     
                 Forms\Components\KeyValue::make('conditions')
                     ->label('Conditions')
-                    ->readOnly(),
+                    ->disabled(),
             ]);
     }
 
@@ -83,7 +89,8 @@ class TaskScheduleResource extends Resource
                         return ucfirst(str_replace(['advance_to_', '_'], ['', ' '], $state));
                     })
                     ->sortable()
-                    ->searchable(),
+                    ->searchable()
+                    ->toggleable(),
                     
                 TextColumn::make('tray_number')
                     ->label('Tray')
@@ -95,7 +102,8 @@ class TaskScheduleResource extends Resource
                     })
                     ->searchable(query: function ($query, $search) {
                         return $query->whereRaw("json_extract(conditions, '$.tray_number') LIKE ?", ["%{$search}%"]);
-                    }),
+                    })
+                    ->toggleable(),
                     
                 TextColumn::make('variety')
                     ->label('Variety')
@@ -107,7 +115,8 @@ class TaskScheduleResource extends Resource
                     })
                     ->searchable(query: function ($query, $search) {
                         return $query->whereRaw("json_extract(conditions, '$.variety') LIKE ?", ["%{$search}%"]);
-                    }),
+                    })
+                    ->toggleable(),
                     
                 TextColumn::make('seed_variety')
                     ->label('Seed Variety')
@@ -119,7 +128,8 @@ class TaskScheduleResource extends Resource
                         if (!$crop || !$crop->recipe) return 'Unknown';
                         
                         return $crop->recipe->seedVariety->name ?? 'Unknown';
-                    }),
+                    })
+                    ->toggleable(),
                     
                 TextColumn::make('target_stage')
                     ->label('Target Stage')
@@ -138,12 +148,14 @@ class TaskScheduleResource extends Resource
                             'harvested' => 'danger',
                             default => 'gray',
                         };
-                    }),
+                    })
+                    ->toggleable(),
                     
                 TextColumn::make('next_run_at')
                     ->label('Scheduled For')
                     ->dateTime()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
                     
                 TextColumn::make('relative_time')
                     ->label('Time Until')
@@ -174,7 +186,8 @@ class TaskScheduleResource extends Resource
                         return trim($timeUntil);
                     })
                     ->badge()
-                    ->color(fn (TaskSchedule $record) => $record->next_run_at->isPast() ? 'danger' : 'success'),
+                    ->color(fn (TaskSchedule $record) => $record->next_run_at->isPast() ? 'danger' : 'success')
+                    ->toggleable(),
                 
                 TextColumn::make('crop_id')
                     ->label('Crop')
@@ -189,7 +202,8 @@ class TaskScheduleResource extends Resource
                         }
                         return null;
                     })
-                    ->openUrlInNewTab(),
+                    ->openUrlInNewTab()
+                    ->toggleable(),
             ])
             ->filters([
                 SelectFilter::make('target_stage')
@@ -349,7 +363,7 @@ class TaskScheduleResource extends Resource
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\BulkAction::make('execute_selected')
                         ->label('Execute Selected')
-                        ->action(function (CropTaskService $cropTaskService, array $records) {
+                        ->action(function (CropTaskService $cropTaskService, $records) {
                             $successCount = 0;
                             $failCount = 0;
                             
@@ -365,7 +379,7 @@ class TaskScheduleResource extends Resource
                             
                             Notification::make()
                                 ->title("Executed {$successCount} tasks")
-                                ->body($failCount > 0 ? "{$failCount} tasks failed" : null)
+                                ->body($failCount > 0 ? "{$failCount} tasks failed" : "Successfully advanced crops to their next stages.")
                                 ->success()
                                 ->send();
                         })

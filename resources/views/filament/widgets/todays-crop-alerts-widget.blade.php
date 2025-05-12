@@ -4,7 +4,7 @@
         <x-filament::link
             color="primary"
             tag="a"
-            :href="route('filament.admin.resources.task-schedules.index', ['tableFilters[next_run_at][from]' => now()->startOfDay()->format('Y-m-d'), 'tableFilters[next_run_at][to]' => now()->endOfDay()->format('Y-m-d')])"
+            :href="route('filament.admin.resources.crop-alerts.index', ['tableFilters[next_run_at][from]' => now()->startOfDay()->format('Y-m-d'), 'tableFilters[next_run_at][to]' => now()->endOfDay()->format('Y-m-d')])"
             size="sm"
         >
             View All Today's Alerts

@@ -4,9 +4,9 @@ namespace App\Filament\Resources\PackagingTypeResource\Pages;
 
 use App\Filament\Resources\PackagingTypeResource;
 use Filament\Actions;
-use Filament\Resources\Pages\CreateRecord;
+use App\Filament\Pages\BaseCreateRecord;
 
-class CreatePackagingType extends CreateRecord
+class CreatePackagingType extends BaseCreateRecord
 {
     protected static string $resource = PackagingTypeResource::class;
 }

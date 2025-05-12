@@ -152,6 +152,28 @@ class Crop extends Model
     }
     
     /**
+     * Determine the next logical stage in the growth cycle.
+     *
+     * @return string|null The name of the next stage, or null if harvested or invalid.
+     */
+    public function getNextStage(): ?string
+    {
+        $order = ['germination', 'blackout', 'light', 'harvested'];
+        $currentIndex = array_search($this->current_stage, $order);
+
+        // Handle cases where blackout might be skipped
+        if ($this->current_stage === 'germination' && $this->recipe && $this->recipe->blackout_days <= 0) {
+            return 'light'; // Skip blackout if duration is 0
+        }
+
+        if ($currentIndex === false || $currentIndex >= count($order) - 1) {
+            return null; // Already harvested or invalid stage
+        }
+        
+        return $order[$currentIndex + 1];
+    }
+    
+    /**
      * Calculate the expected harvest date.
      */
     public function expectedHarvestDate(): ?Carbon

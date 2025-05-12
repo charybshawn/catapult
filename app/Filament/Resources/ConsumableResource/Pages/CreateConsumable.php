@@ -3,43 +3,33 @@
 namespace App\Filament\Resources\ConsumableResource\Pages;
 
 use App\Filament\Resources\ConsumableResource;
-use App\Models\PackagingType;
+use App\Filament\Pages\BaseCreateRecord;
+use App\Models\Consumable;
 use App\Models\SeedVariety;
-use Filament\Resources\Pages\CreateRecord;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Validation\ValidationException;
-use Filament\Actions\Action;
-use Filament\Support\Exceptions\Halt;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Section;
+use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Grid;
+use Filament\Forms\Components\Group;
+use Filament\Forms\Components\Tabs;
+use Filament\Forms\Components\Tabs\Tab;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Actions\Action;
+use Filament\Forms\Get;
+use Filament\Forms\Set;
 use Filament\Notifications\Notification;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 
-class CreateConsumable extends CreateRecord
+class CreateConsumable extends BaseCreateRecord
 {
     protected static string $resource = ConsumableResource::class;
-    
-    // Add debug button
-    protected function getHeaderActions(): array
-    {
-        return [
-            Action::make('debugForm')
-                ->label('Debug Form')
-                ->color('gray')
-                ->icon('heroicon-o-bug-ant')
-                ->action(function () {
-                    $data = $this->form->getState();
-                    Log::info('Form state in debug action:', ['data' => $data]);
-                    
-                    $message = 'Current form data: ' . json_encode($data, JSON_PRETTY_PRINT);
-                    $message .= "\n\nIf you're creating a seed consumable, make sure to select a seed variety.";
-                    
-                    Notification::make()
-                        ->title('Form Debug Info')
-                        ->body($message)
-                        ->success()
-                        ->send();
-                }),
-        ];
-    }
     
     // Add custom validation rules
     protected function getFormValidationRules(): array
@@ -74,7 +64,7 @@ class CreateConsumable extends CreateRecord
                     ->danger()
                     ->send();
                 
-                throw new Halt();
+                throw new \Exception('Seed variety is required');
             }
             
             // If seed_variety_id key doesn't exist or is empty
@@ -88,50 +78,60 @@ class CreateConsumable extends CreateRecord
                     ->danger()
                     ->send();
                 
-                // Throw validation exception
-                throw new Halt();
+                throw new \Exception('Seed variety is required');
             }
         }
     }
     
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        // Log the form data for debugging
+        // Log the initial data
         Log::info('Consumable data before mutation:', ['data' => $data]);
         
-        // If this is a packaging type consumable but name is empty, set it from the packaging type
-        if ($data['type'] === 'packaging' && empty($data['name']) && !empty($data['packaging_type_id'])) {
-            $packagingType = PackagingType::find($data['packaging_type_id']);
-            if ($packagingType) {
-                $data['name'] = $packagingType->display_name ?? $packagingType->name;
-            }
+        // For seed consumables, ensure we have a seed variety
+        if ($data['type'] === 'seed' && empty($data['seed_variety_id'])) {
+            Log::error('Seed variety ID missing in mutation');
+            throw new \Exception('Seed variety is required for seed consumables');
         }
         
-        // If this is a seed type consumable, ensure name is set from the seed variety
+        // For seed consumables, set the name from the seed variety
         if ($data['type'] === 'seed' && !empty($data['seed_variety_id'])) {
-            try {
-                $seedVariety = SeedVariety::findOrFail($data['seed_variety_id']);
+            $seedVariety = SeedVariety::find($data['seed_variety_id']);
+            if ($seedVariety) {
                 $data['name'] = $seedVariety->name;
-                Log::info('Set seed name from variety:', ['seed_variety_id' => $data['seed_variety_id'], 'name' => $data['name']]);
-            } catch (ModelNotFoundException $e) {
-                Log::error('Error finding seed variety:', ['seed_variety_id' => $data['seed_variety_id'], 'error' => $e->getMessage()]);
-                // If we can't find the seed variety but need to continue, fallback to a default name
-                $data['name'] = 'Seed ID: ' . $data['seed_variety_id'];
+                Log::info('Updated consumable name from seed variety', [
+                    'seed_variety_id' => $data['seed_variety_id'],
+                    'name' => $data['name']
+                ]);
             }
         }
         
-        // Set a default value for consumed_quantity if not set
-        if (!isset($data['consumed_quantity'])) {
-            $data['consumed_quantity'] = 0;
+        // For non-seed consumables, ensure we have a name
+        if ($data['type'] !== 'seed' && empty($data['name'])) {
+            Log::error('Name missing for non-seed consumable');
+            throw new \Exception('Name is required for non-seed consumables');
         }
         
-        // Calculate total_quantity if quantity_per_unit is set
-        if (isset($data['quantity_per_unit']) && $data['quantity_per_unit'] > 0) {
-            $availableStock = max(0, $data['initial_stock'] - $data['consumed_quantity']);
-            $data['total_quantity'] = $availableStock * $data['quantity_per_unit'];
+        // Set initial stock based on type
+        if ($data['type'] === 'seed') {
+            // For seeds, use total_quantity as initial_stock
+            $data['initial_stock'] = $data['total_quantity'] ?? 0;
         } else {
-            // Default to initial_stock if quantity_per_unit is not set
-            $data['total_quantity'] = $data['initial_stock'] ?? 0;
+            // For non-seeds, ensure initial_stock is set
+            $data['initial_stock'] = $data['initial_stock'] ?? 0;
+        }
+        
+        // Set consumed_quantity to 0 for new consumables
+        $data['consumed_quantity'] = 0;
+        
+        // Calculate total_quantity for non-seed consumables
+        if ($data['type'] !== 'seed') {
+            if (isset($data['quantity_per_unit']) && $data['quantity_per_unit'] > 0) {
+                $data['total_quantity'] = $data['initial_stock'] * $data['quantity_per_unit'];
+            } else {
+                // Default to initial_stock if quantity_per_unit is not set
+                $data['total_quantity'] = $data['initial_stock'] ?? 0;
+            }
         }
         
         // Log the final data
@@ -176,45 +176,166 @@ class CreateConsumable extends CreateRecord
     // Add this method to fix potential issues with form submission
     protected function configureForm(): void
     {
-        parent::configureForm();
-        
-        $this->form->statePath('data');
-        
-        // Add a failsafe to catch potential issues with data hydration
-        $this->form->beforeStateDehydrated(function() {
-            $data = $this->form->getState();
-            Log::info('Before dehydration - form data:', ['data' => $data]);
-            
-            // If this is a seed type, ensure seed_variety_id is present
-            if (isset($data['type']) && $data['type'] === 'seed') {
-                if (empty($data['seed_variety_id'])) {
-                    Log::warning('Seed variety ID is missing during dehydration - attempting to fix');
-                    
-                    // Check if there's a value in the request
-                    $requestData = request()->all();
-                    Log::info('Checking request data:', ['request' => $requestData]);
-                    
-                    // Try to get the data from the request
-                    if (isset($requestData['data']['seed_variety_id']) && !empty($requestData['data']['seed_variety_id'])) {
-                        $seedVarietyId = $requestData['data']['seed_variety_id'];
-                        $this->form->fill(array_merge($data, ['seed_variety_id' => $seedVarietyId]));
-                        Log::info('Fixed seed_variety_id from request', ['seed_variety_id' => $seedVarietyId]);
-                    } else {
-                        Log::error('Could not fix missing seed_variety_id');
-                        
-                        Notification::make()
-                            ->title('Form Error')
-                            ->body('There was an issue with the seed variety selection. Please try selecting from the dropdown again.')
-                            ->danger()
-                            ->send();
-                        
-                        throw new Halt();
-                    }
-                }
-            }
-        });
+        $this->form->schema([
+            Tabs::make('Consumable Details')
+                ->tabs([
+                    Tab::make('Basic Information')
+                        ->schema([
+                            Select::make('type')
+                                ->label('Type')
+                                ->options([
+                                    'seed' => 'Seed',
+                                    'other' => 'Other Consumable',
+                                ])
+                                ->required()
+                                ->live()
+                                ->afterStateUpdated(function (Get $get, Set $set) {
+                                    // Reset fields when type changes
+                                    $set('name', null);
+                                    $set('seed_variety_id', null);
+                                    $set('initial_stock', 0);
+                                    $set('total_quantity', 0);
+                                    $set('quantity_per_unit', null);
+                                    $set('unit', null);
+                                }),
+                            
+                            // Seed variety selector (only shown for seed type)
+                            Select::make('seed_variety_id')
+                                ->label('Seed Variety')
+                                ->options(function () {
+                                    return SeedVariety::where('is_active', true)
+                                        ->orderBy('name')
+                                        ->pluck('name', 'id');
+                                })
+                                ->searchable()
+                                ->preload()
+                                ->live()
+                                ->required(fn (Get $get) => $get('type') === 'seed')
+                                ->visible(fn (Get $get) => $get('type') === 'seed')
+                                ->afterStateUpdated(function (Get $get, Set $set) {
+                                    if ($get('type') === 'seed' && $get('seed_variety_id')) {
+                                        $variety = SeedVariety::find($get('seed_variety_id'));
+                                        if ($variety) {
+                                            $set('name', $variety->name);
+                                        }
+                                    }
+                                }),
+                            
+                            // Name field (only shown for non-seed type)
+                            TextInput::make('name')
+                                ->label('Name')
+                                ->required(fn (Get $get) => $get('type') !== 'seed')
+                                ->visible(fn (Get $get) => $get('type') !== 'seed')
+                                ->maxLength(255),
+                            
+                            // Lot number field (only shown for seed type)
+                            TextInput::make('lot_no')
+                                ->label('Lot/Batch Number')
+                                ->maxLength(100)
+                                ->visible(fn (Get $get) => $get('type') === 'seed'),
+                            
+                            // Quantity fields
+                            Grid::make(2)
+                                ->schema([
+                                    // For seed consumables - simplified approach with direct total quantity
+                                    TextInput::make('total_quantity')
+                                        ->label('Total Quantity')
+                                        ->numeric()
+                                        ->minValue(0)
+                                        ->required()
+                                        ->default(0)
+                                        ->step(0.001)
+                                        ->visible(fn (Get $get) => $get('type') === 'seed'),
+                                    
+                                    Select::make('quantity_unit')
+                                        ->label('Unit of Measurement')
+                                        ->options([
+                                            'g' => 'Grams',
+                                            'kg' => 'Kilograms',
+                                            'oz' => 'Ounces',
+                                            'lb' => 'Pounds',
+                                        ])
+                                        ->required()
+                                        ->default('g')
+                                        ->visible(fn (Get $get) => $get('type') === 'seed'),
+                                    
+                                    // For non-seed consumables - traditional approach
+                                    TextInput::make('initial_stock')
+                                        ->label('Initial Stock')
+                                        ->numeric()
+                                        ->minValue(0)
+                                        ->required()
+                                        ->default(0)
+                                        ->visible(fn (Get $get) => $get('type') !== 'seed'),
+                                    
+                                    TextInput::make('quantity_per_unit')
+                                        ->label('Quantity Per Unit')
+                                        ->numeric()
+                                        ->minValue(0)
+                                        ->required()
+                                        ->default(1)
+                                        ->visible(fn (Get $get) => $get('type') !== 'seed'),
+                                    
+                                    Select::make('unit')
+                                        ->label('Unit')
+                                        ->options([
+                                            'each' => 'Each',
+                                            'g' => 'Grams',
+                                            'kg' => 'Kilograms',
+                                            'oz' => 'Ounces',
+                                            'lb' => 'Pounds',
+                                            'ml' => 'Milliliters',
+                                            'l' => 'Liters',
+                                            'gal' => 'Gallons',
+                                        ])
+                                        ->required()
+                                        ->default('each')
+                                        ->visible(fn (Get $get) => $get('type') !== 'seed'),
+                                ]),
+                            
+                            // Supplier field
+                            Select::make('supplier_id')
+                                ->label('Supplier')
+                                ->relationship('supplier', 'name')
+                                ->searchable()
+                                ->preload()
+                                ->createOptionForm([
+                                    TextInput::make('name')
+                                        ->required()
+                                        ->maxLength(255),
+                                    TextInput::make('email')
+                                        ->email()
+                                        ->maxLength(255),
+                                    TextInput::make('phone')
+                                        ->tel()
+                                        ->maxLength(255),
+                                ]),
+                            
+                            // Last ordered date
+                            DateTimePicker::make('last_ordered_at')
+                                ->label('Last Ordered Date')
+                                ->nullable(),
+                            
+                            // Notes field
+                            TextInput::make('notes')
+                                ->label('Notes')
+                                ->maxLength(1000),
+                            
+                            // Hidden fields for compatibility
+                            Hidden::make('initial_stock')
+                                ->default(0)
+                                ->visible(fn (Get $get) => $get('type') === 'seed'),
+                            Hidden::make('unit')
+                                ->default('g')
+                                ->visible(fn (Get $get) => $get('type') === 'seed'),
+                            Hidden::make('quantity_per_unit')
+                                ->default(1)
+                                ->visible(fn (Get $get) => $get('type') === 'seed'),
+                        ]),
+                ]),
+        ]);
     }
-
+    
     /**
      * Override to provide better validation for seed varieties
      */

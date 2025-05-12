@@ -4,13 +4,17 @@ namespace App\Filament\Resources\CropResource\Pages;
 
 use App\Filament\Resources\CropResource;
 use App\Models\Crop;
-use Filament\Resources\Pages\CreateRecord;
+use App\Models\Recipe;
+use App\Models\CropTask;
+use App\Services\CropTaskGenerator;
+use App\Filament\Pages\BaseCreateRecord;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Filament\Notifications\Notification;
+use Carbon\Carbon;
 
-class CreateCrop extends CreateRecord
+class CreateCrop extends BaseCreateRecord
 {
     protected static string $resource = CropResource::class;
     
@@ -63,19 +67,34 @@ class CreateCrop extends CreateRecord
         $varietyName = 'Unknown Variety';
         
         if (isset($data['recipe_id'])) {
-            $recipe = \App\Models\Recipe::find($data['recipe_id']);
+            $recipe = Recipe::find($data['recipe_id']);
             if ($recipe) {
                 $recipeName = $recipe->name;
                 if ($recipe->seedVariety) {
                     $varietyName = $recipe->seedVariety->name;
                 }
+            } else {
+                // Handle case where recipe not found, maybe throw error or default
+                Log::error("Recipe not found for ID: " . $data['recipe_id']);
+                // Optionally send a failure notification and abort
+                Notification::make()
+                    ->title('Error: Recipe Not Found')
+                    ->danger()
+                    ->send();
+                // You might want to throw an exception here to stop execution
+                throw new \Exception("Recipe not found for ID: " . $data['recipe_id']);
             }
+        } else {
+             // Handle case where recipe_id is missing
+             Log::error("Recipe ID missing in data for Crop creation.");
+             throw new \Exception("Recipe ID is required.");
         }
         
         // Use a transaction to ensure all records are created or none
-        $firstCrop = DB::transaction(function () use ($data, $trayNumbers, $recipeName, $varietyName) {
+        $firstCrop = DB::transaction(function () use ($data, $trayNumbers, $recipe, $varietyName, $recipeName) {
             $firstCrop = null;
             $createdRecords = [];
+            $plantedAt = Carbon::parse($data['planted_at']);
             
             // Create a separate record for each tray number
             foreach ($trayNumbers as $trayNumber) {
@@ -86,9 +105,9 @@ class CreateCrop extends CreateRecord
                 // Create a new crop record with this tray number
                 $cropData = array_merge($data, [
                     'tray_number' => $trayNum,
-                    // Set safe default values for computed time fields
+                    'planting_at' => $plantedAt,
                     'time_to_next_stage_minutes' => 0,
-                    'time_to_next_stage_status' => 'Unknown',
+                    'time_to_next_stage_status' => 'Calculating...',
                     'stage_age_minutes' => 0,
                     'stage_age_status' => '0m',
                     'total_age_minutes' => 0,
@@ -105,6 +124,21 @@ class CreateCrop extends CreateRecord
                 }
             }
             
+            // --- Generate CropTasks for the batch using the service --- 
+            if ($firstCrop && $recipe) {
+                // Instantiate the generator service
+                $taskGenerator = new CropTaskGenerator(); 
+                // Call the method to generate tasks
+                $taskGenerator->generateTasksForBatch($firstCrop, $recipe);
+            } else {
+                 // Log if task generation is skipped (shouldn't happen if validation passed)
+                 Log::warning("Skipping CropTask generation due to missing firstCrop or recipe.", [
+                    'firstCropExists' => !!$firstCrop,
+                    'recipeExists' => !!$recipe
+                 ]);
+            }
+            // --- End Task Generation Call ---
+
             // Log what we created
             Log::debug("Create Grow - Records created:", $createdRecords);
             
@@ -112,7 +146,7 @@ class CreateCrop extends CreateRecord
             $trayCount = count($createdRecords);
             Notification::make()
                 ->title('Grow Batch Created')
-                ->body("Successfully created grow batch with {$trayCount} trays of {$varietyName} ({$recipeName}).")
+                ->body("Successfully created grow batch with {$trayCount} trays of {$varietyName} ({$recipeName}). Crop tasks scheduled.")
                 ->success()
                 ->send();
             

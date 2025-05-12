@@ -110,6 +110,12 @@ class AdjustStock extends Page
                                     ->options(fn () => ConsumableResource::getCompatibleUnits($record))
                                     ->default(fn () => $record->unit)
                                     ->required(),
+                                Forms\Components\TextInput::make('lot_number')
+                                    ->label('Lot/Batch Number')
+                                    ->helperText('Required for seed inventory. Different lot numbers create separate inventory records.')
+                                    ->maxLength(100)
+                                    ->required(fn () => $record->type === 'seed')
+                                    ->visible(fn () => $record->type === 'seed'),
                             ])
                             ->visible(fn (Forms\Get $get): bool => $get('adjustment_type') === 'add')
                             ->columns(2),
@@ -150,8 +156,36 @@ class AdjustStock extends Page
             DB::beginTransaction();
             
             if ($adjustmentType === 'add' && isset($data['add_amount'])) {
-                $record->add((float)$data['add_amount'], $data['add_unit'] ?? null);
-                $this->notify('success', 'Stock added successfully');
+                // For seed consumables, check if we need to create a new inventory record based on lot number
+                if ($record->type === 'seed' && !empty($data['lot_number'])) {
+                    $result = $record->add((float)$data['add_amount'], $data['add_unit'] ?? null, $data['lot_number'] ?? null);
+                    
+                    // If add() returns false, it means the lot numbers don't match and we need to create a new record
+                    if ($result === false) {
+                        // Create a new consumable record with the same properties but different lot number
+                        $newConsumable = $record->replicate(['id', 'consumed_quantity', 'initial_stock', 'total_quantity', 'lot_no']);
+                        $newConsumable->lot_no = $data['lot_number'];
+                        $newConsumable->initial_stock = (float)$data['add_amount'];
+                        $newConsumable->consumed_quantity = 0;
+                        
+                        if ($record->quantity_per_unit) {
+                            $newConsumable->total_quantity = (float)$data['add_amount'] * $record->quantity_per_unit;
+                        } else {
+                            $newConsumable->total_quantity = (float)$data['add_amount'];
+                        }
+                        
+                        $newConsumable->last_ordered_at = now();
+                        $newConsumable->save();
+                        
+                        $this->notify('success', 'New seed inventory record created with different lot number');
+                    } else {
+                        $this->notify('success', 'Stock added successfully');
+                    }
+                } else {
+                    // For non-seed consumables or seeds without lot number, just add to existing stock
+                    $record->add((float)$data['add_amount'], $data['add_unit'] ?? null);
+                    $this->notify('success', 'Stock added successfully');
+                }
             } elseif ($adjustmentType === 'consume' && isset($data['consume_amount'])) {
                 $record->deduct((float)$data['consume_amount'], $data['consume_unit'] ?? null);
                 $this->notify('success', 'Stock consumed successfully');

@@ -4,9 +4,9 @@
             <div>Crop Alerts</div>
             <x-filament::link
                 color="primary"
-                href="{{ route('filament.admin.pages.manage-crop-tasks') }}"
+                href="{{ route('filament.admin.resources.crop-alerts.index') }}"
             >
-                Manage Tasks
+                Manage Alerts
             </x-filament::link>
         </div>
 

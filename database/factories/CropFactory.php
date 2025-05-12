@@ -26,40 +26,30 @@ class CropFactory extends Factory
      */
     public function definition(): array
     {
-        $recipe = Recipe::factory()->create();
-        $plantedAt = fake()->dateTimeBetween('-30 days', 'now');
+        $plantedAt = Carbon::instance($this->faker->dateTimeBetween('-2 weeks', 'now'));
         
-        $stages = ['planting', 'germination', 'blackout', 'light', 'harvested'];
-        $currentStage = fake()->randomElement($stages);
-        
-        // Set timestamps for each stage up to and including the current stage
-        $timestamps = [];
-        $currentTime = Carbon::instance($plantedAt);
-        
-        foreach ($stages as $stage) {
-            $timestampField = "{$stage}_at";
-            
-            // Add the timestamp for this stage
-            $timestamps[$timestampField] = $currentTime->copy();
-            
-            // If we've reached the current stage, stop adding timestamps
-            if ($stage === $currentStage) {
-                break;
-            }
-            
-            // Add 1-3 days to move to the next stage
-            $currentTime = $currentTime->copy()->addDays(fake()->numberBetween(1, 3));
-        }
-        
-        return array_merge([
-            'recipe_id' => $recipe->id,
-            'tray_number' => 'T-' . fake()->unique()->numberBetween(1, 999),
+        return [
+            'recipe_id' => Recipe::factory(), // Associate with a recipe
+            'tray_number' => 'T-' . $this->faker->unique()->numberBetween(100, 999),
             'planted_at' => $plantedAt,
-            'current_stage' => $currentStage,
-            'harvest_weight_grams' => $currentStage === 'harvested' ? fake()->randomFloat(2, 50, 500) : null,
-            'watering_suspended_at' => fake()->optional(0.2)->dateTimeBetween($plantedAt, 'now'),
-            'notes' => fake()->optional(0.7)->paragraph(),
-        ], $timestamps);
+            'planting_at' => $plantedAt, // Set planting timestamp
+            // Set current_stage to a valid enum value
+            'current_stage' => 'germination', // Default to germination
+            'germination_at' => $plantedAt, // Assume germination starts at planting
+            'blackout_at' => null,
+            'light_at' => null,
+            'harvested_at' => null,
+            'harvest_weight_grams' => null,
+            'watering_suspended_at' => null,
+            'notes' => $this->faker->optional()->paragraph,
+            // Default time/status fields (match defaults in CreateCrop)
+            'time_to_next_stage_minutes' => 0,
+            'time_to_next_stage_status' => 'Calculating...',
+            'stage_age_minutes' => 0,
+            'stage_age_status' => '0m',
+            'total_age_minutes' => 0,
+            'total_age_status' => '0m',
+        ];
     }
     
     /**

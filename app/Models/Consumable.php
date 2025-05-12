@@ -5,8 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
+use Illuminate\Support\Facades\DB;
+use Filament\Forms; // Import Forms namespace
+use App\Models\Supplier; // Import Supplier model
 
 class Consumable extends Model
 {
@@ -80,7 +85,13 @@ class Consumable extends Model
     protected static function booted(): void
     {
         static::saving(function (Consumable $consumable) {
-            // If quantity tracking fields are set, calculate the total quantity
+            // For seeds, we now use total_quantity directly (no calculation needed)
+            if ($consumable->type === 'seed') {
+                // The total_quantity field is now managed directly by the user
+                return;
+            }
+            
+            // For other consumable types, keep the previous calculation logic
             if ($consumable->quantity_per_unit) {
                 $availableStock = max(0, $consumable->initial_stock - $consumable->consumed_quantity);
                 $consumable->total_quantity = $availableStock * $consumable->quantity_per_unit;
@@ -147,16 +158,8 @@ class Consumable extends Model
      */
     protected function needsSeedRestock(): bool
     {
-        // If quantity tracking is not set up, fall back to unit count
-        if (!$this->quantity_per_unit) {
-            return $this->current_stock <= $this->restock_threshold;
-        }
-        
-        // Calculate total weight (current_stock * quantity_per_unit)
-        $totalWeight = $this->current_stock * $this->quantity_per_unit;
-        
-        // For seeds, restock_threshold represents the minimum total weight in grams
-        return $totalWeight <= $this->restock_threshold;
+        // For seeds, now directly check the total_quantity field
+        return $this->total_quantity <= $this->restock_threshold;
     }
     
     /**
@@ -221,7 +224,20 @@ class Consumable extends Model
         // Normalize amount based on unit if needed
         $normalizedAmount = $this->normalizeQuantity($amount, $unit);
         
-        // Increase the consumed quantity
+        // For seed consumables, directly update total_quantity
+        if ($this->type === 'seed') {
+            $data = [
+                'total_quantity' => max(0, $this->total_quantity - $normalizedAmount),
+            ];
+            
+            // Still update consumed_quantity for consistency
+            $data['consumed_quantity'] = $this->consumed_quantity + $normalizedAmount;
+            
+            $this->update($data);
+            return;
+        }
+        
+        // For other consumable types, use the original logic
         $newConsumedQuantity = $this->consumed_quantity + $normalizedAmount;
         
         $data = [
@@ -242,13 +258,43 @@ class Consumable extends Model
      * 
      * @param float $amount Amount to add
      * @param string|null $unit Unit of the amount (for conversion)
+     * @param string|null $lotNo Lot number for the new stock (for seeds)
+     * @return bool True if added successfully, false if should create new record
      */
-    public function add(float $amount, ?string $unit = null): void
+    public function add(float $amount, ?string $unit = null, ?string $lotNo = null): bool
     {
+        // For seed consumables, check lot number first
+        if ($this->type === 'seed' && $lotNo !== null) {
+            // If this seed already has a lot number and it's different, 
+            // return false to indicate a new record should be created
+            if ($this->lot_no && strtoupper($lotNo) !== $this->lot_no) {
+                return false;
+            }
+            
+            // If record doesn't have a lot number yet, set it
+            if (!$this->lot_no) {
+                $this->lot_no = strtoupper($lotNo);
+            }
+        }
+        
         // Normalize amount based on unit if needed
         $normalizedAmount = $this->normalizeQuantity($amount, $unit);
         
-        // Increase the initial stock
+        // For seed consumables, directly update total_quantity
+        if ($this->type === 'seed') {
+            $data = [
+                'total_quantity' => $this->total_quantity + $normalizedAmount,
+                'last_ordered_at' => now(),
+            ];
+            
+            // Still update initial_stock for consistency
+            $data['initial_stock'] = $this->initial_stock + $normalizedAmount;
+            
+            $this->update($data);
+            return true;
+        }
+        
+        // For other consumable types, use the original logic
         $newInitialStock = $this->initial_stock + $normalizedAmount;
         
         $data = [
@@ -263,6 +309,7 @@ class Consumable extends Model
         }
         
         $this->update($data);
+        return true;
     }
     
     /**
@@ -366,7 +413,16 @@ class Consumable extends Model
      */
     public function getFormattedCurrentStockAttribute(): string
     {
-        // Map unit codes to their full names
+        // For seed consumables, show the total quantity with its unit
+        if ($this->type === 'seed') {
+            $unit = $this->quantity_unit ?? 'g';
+            $displayUnit = $unit;
+            $availableStock = $this->total_quantity;
+            
+            return "{$availableStock} {$displayUnit}";
+        }
+        
+        // Map unit codes to their full names for other consumables
         $unitMap = [
             'l' => 'litre(s)',
             'g' => 'gram(s)',
@@ -386,6 +442,206 @@ class Consumable extends Model
      */
     public function getCurrentStockAttribute()
     {
+        // For seeds, return the total_quantity directly 
+        if ($this->type === 'seed') {
+            return $this->total_quantity;
+        }
+        
+        // For other consumables, use the original calculation
         return max(0, $this->initial_stock - $this->consumed_quantity);
+    }
+
+    /**
+     * Get the form schema for creating a Seed Consumable.
+     *
+     * @return array
+     */
+    public static function getSeedFormSchema(): array
+    {
+        return [
+            Forms\Components\TextInput::make('name')
+                ->label('Seed Name/Variety')
+                ->helperText('Include the variety name (e.g., "Basil - Genovese")')
+                ->required()
+                ->maxLength(255)
+                ->datalist(function () {
+                    return self::where('type', 'seed')
+                        ->where('is_active', true)
+                        ->pluck('name')
+                        ->unique()
+                        ->toArray();
+                }),
+            Forms\Components\Select::make('supplier_id')
+                ->label('Supplier')
+                ->options(function () {
+                    return Supplier::query()
+                        ->where(function ($query) {
+                            $query->where('type', 'seed') // Changed to seed for seed suppliers
+                                  ->orWhereNull('type')
+                                  ->orWhere('type', 'other');
+                        })
+                        ->pluck('name', 'id');
+                })
+                ->searchable()
+                ->preload()
+                ->createOptionAction(function (Forms\Components\Actions\Action $action) {
+                    return $action
+                        ->form([
+                            Forms\Components\TextInput::make('name')
+                                ->required()
+                                ->maxLength(255),
+                            Forms\Components\Hidden::make('type')
+                                ->default('seed'),
+                            Forms\Components\Textarea::make('contact_info')
+                                ->label('Contact Information')
+                                ->rows(3),
+                        ]);
+                }),
+            // Simplified Quantity Tracking 
+            Forms\Components\TextInput::make('total_quantity')
+                ->label('Total Quantity')
+                ->helperText('Total amount of seed (e.g., 3 for 3 KG)')
+                ->numeric()
+                ->minValue(0)
+                ->required()
+                ->default(0)
+                ->step(0.001),
+                
+            Forms\Components\Select::make('quantity_unit')
+                ->label('Unit of Measurement')
+                ->helperText('Unit for the total amount')
+                ->options([
+                    'g' => 'Grams',
+                    'kg' => 'Kilograms',
+                    'oz' => 'Ounces',
+                    'lb' => 'Pounds',
+                ])
+                ->required()
+                ->default('g'),
+                
+            // Hidden fields to maintain compatibility
+            Forms\Components\Hidden::make('initial_stock')
+                ->default(1),
+            Forms\Components\Hidden::make('unit')
+                ->default('unit'),
+            Forms\Components\Hidden::make('quantity_per_unit')
+                ->default(1),
+                
+            // Restock Settings
+            Forms\Components\TextInput::make('restock_threshold')
+                ->label('Restock Threshold')
+                ->helperText('When total quantity falls below this amount, reorder')
+                ->numeric()
+                ->required()
+                ->default(500)
+                ->step(0.001),
+                
+            Forms\Components\TextInput::make('restock_quantity')
+                ->label('Restock Quantity')
+                ->helperText('How much to order when restocking')
+                ->numeric()
+                ->required()
+                ->default(1000)
+                ->step(0.001),
+                
+            Forms\Components\TextInput::make('lot_no')
+                ->label('Lot/Batch Number')
+                ->helperText('Will be converted to uppercase')
+                ->maxLength(100),
+                
+            Forms\Components\Textarea::make('notes')
+                ->label('Additional Notes')
+                ->helperText('Any additional information about this seed')
+                ->rows(3),
+                
+            Forms\Components\Toggle::make('is_active')
+                ->label('Active')
+                ->default(true),
+        ];
+    }
+
+    /**
+     * Get the form schema for creating a Soil Consumable.
+     *
+     * @return array
+     */
+    public static function getSoilFormSchema(): array
+    {
+        return [
+            Forms\Components\TextInput::make('name')
+                ->label('Soil Name')
+                ->required()
+                ->maxLength(255),
+            Forms\Components\Select::make('supplier_id')
+                ->label('Supplier')
+                ->options(function () {
+                    return Supplier::query()
+                        ->where(function ($query) {
+                            $query->where('type', 'soil')
+                                  ->orWhereNull('type')
+                                  ->orWhere('type', 'other');
+                        })
+                        ->pluck('name', 'id');
+                })
+                ->searchable()
+                ->preload()
+                ->createOptionAction(function (Forms\Components\Actions\Action $action) {
+                    return $action
+                        ->form([
+                            Forms\Components\TextInput::make('name')
+                                ->required()
+                                ->maxLength(255),
+                            Forms\Components\Hidden::make('type')
+                                ->default('soil'),
+                            Forms\Components\Textarea::make('contact_info')
+                                ->label('Contact Information')
+                                ->rows(3),
+                        ]);
+                }),
+            Forms\Components\TextInput::make('initial_stock')
+                ->label('Initial Stock')
+                ->numeric()
+                ->required()
+                ->default(1),
+            Forms\Components\TextInput::make('unit')
+                ->label('Unit of Measurement')
+                ->default('bags')
+                ->required(),
+            Forms\Components\TextInput::make('quantity_per_unit')
+                ->label('Quantity Per Unit (L)')
+                ->helperText('Amount of soil in liters per bag')
+                ->numeric()
+                ->required()
+                ->default(50)
+                ->minValue(0.01)
+                ->step(0.01),
+            Forms\Components\Hidden::make('quantity_unit')
+                ->default('l'),
+            // Hidden type is set in createOptionUsing
+            Forms\Components\TextInput::make('cost_per_unit')
+                ->label('Cost Per Unit ($)')
+                ->numeric()
+                ->prefix('$')
+                ->required()
+                ->default(0),
+            Forms\Components\TextInput::make('restock_threshold')
+                ->label('Restock Threshold (bags)')
+                ->helperText('Minimum number of bags to maintain in inventory')
+                ->numeric()
+                ->required()
+                ->default(2),
+            Forms\Components\TextInput::make('restock_quantity')
+                ->label('Restock Quantity')
+                ->helperText('Quantity to order when restocking')
+                ->numeric()
+                ->required()
+                ->default(5),
+            Forms\Components\Textarea::make('notes')
+                ->label('Additional Information')
+                ->rows(3),
+            Forms\Components\Toggle::make('is_active')
+                ->label('Active')
+                ->default(true),
+        ];
     }
 }

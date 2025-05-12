@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\PriceVariationResource\Pages;
 
 use App\Filament\Resources\PriceVariationResource;
-use App\Filament\Resources\ItemResource;
+use App\Filament\Resources\ProductResource;
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
 
@@ -18,7 +18,7 @@ class ListPriceVariations extends ListRecords
             Actions\Action::make('view_products')
                 ->label('View Products')
                 ->icon('heroicon-o-shopping-bag')
-                ->url(ItemResource::getUrl('index')),
+                ->url(ProductResource::getUrl('index')),
         ];
     }
 }

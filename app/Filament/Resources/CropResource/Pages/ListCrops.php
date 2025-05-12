@@ -58,7 +58,8 @@ class ListCrops extends ListRecords
     {
         return [
             Actions\CreateAction::make()
-                ->label('Create Grow Batch'),
+                ->icon('heroicon-o-plus')
+                ->tooltip('Create Grow Batch'),
         ];
     }
 } 

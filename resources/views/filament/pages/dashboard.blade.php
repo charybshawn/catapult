@@ -1,492 +1,233 @@
-<x-filament-panels::page>
-    <style>
-        .dashboard-container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 1rem;
-        }
-        
-        .dashboard-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5rem;
-        }
-        
-        .dashboard-tabs {
-            display: flex;
-            border-bottom: 1px solid #e5e7eb;
-            margin-bottom: 1.5rem;
-            overflow-x: auto;
-        }
-        
-        .dashboard-tab {
-            padding: 0.75rem 1rem;
-            font-weight: 500;
-            border-bottom: 2px solid transparent;
-            cursor: pointer;
-            white-space: nowrap;
-        }
-        
-        .dashboard-tab.active {
-            border-bottom-color: #10b981;
-            color: #10b981;
-        }
-        
-        .tab-content {
-            display: none;
-        }
-        
-        .tab-content.active {
-            display: block;
-        }
-        
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-        
-        .dashboard-card {
-            background-color: white;
-            border-radius: 0.5rem;
-            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-            padding: 1.5rem;
-            height: 100%;
-        }
-        
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-            border-bottom: 1px solid #e5e7eb;
-            padding-bottom: 0.75rem;
-        }
-        
-        .card-title {
-            font-size: 1.125rem;
-            font-weight: 600;
-            color: #111827;
-        }
-        
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 700;
-            color: #10b981;
-            margin-bottom: 0.5rem;
-        }
-        
-        .stat-label {
-            color: #6b7280;
-            font-size: 0.875rem;
-        }
-        
-        .task-list {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-        }
-        
-        .task-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.75rem;
-            border-radius: 0.375rem;
-            background-color: #f9fafb;
-        }
-        
-        .task-info {
-            flex: 1;
-        }
-        
-        .task-detail {
-            font-size: 0.875rem;
-            color: #6b7280;
-            margin-top: 0.25rem;
-        }
-        
-        .task-actions {
-            display: flex;
-            gap: 0.5rem;
-        }
-        
-        @media (max-width: 768px) {
-            .dashboard-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .task-item {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            
-            .task-actions {
-                margin-top: 0.75rem;
-                width: 100%;
-                justify-content: flex-end;
-            }
-        }
-    </style>
+@php
+    $heading = 'Farm Dashboard';
+@endphp
 
-    <div class="dashboard-container">
-        <div class="dashboard-header">
-            <h1 class="text-2xl font-bold">Farm Dashboard</h1>
+<x-filament-panels::page>
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Farm Dashboard</h1>
             <div>
-                <button onclick="window.location.href='{{ route('filament.admin.resources.crops.create') }}'" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                <x-filament::button
+                    tag="a"
+                    :href="route('filament.admin.resources.crops.create')"
+                    icon="heroicon-o-plus-circle"
+                >
                     Start New Crop
-                </button>
+                </x-filament::button>
             </div>
         </div>
-        
-        <div class="dashboard-tabs">
-            <div class="dashboard-tab active" onclick="switchTab('active-crops')">Active Crops</div>
-            <div class="dashboard-tab" onclick="switchTab('stats')">Stats</div>
-            <div class="dashboard-tab" onclick="switchTab('crop-alerts')">Crop Alerts</div>
-            <div class="dashboard-tab" onclick="switchTab('inventory-alerts')">Inventory Alerts</div>
-        </div>
-        
-        <!-- Active Crops Tab -->
-        <div id="active-crops" class="tab-content active">
-            <div class="dashboard-grid">
-                <div class="dashboard-card">
-                    <div class="card-header">
-                        <h2 class="card-title">Active Crops</h2>
-                        <a href="{{ route('filament.admin.resources.crops.index') }}" class="text-sm text-blue-600 hover:underline">View All</a>
-                    </div>
-                    <div class="stat-value">{{ $activeCropsCount }}</div>
-                    <div class="stat-label">Crops in production</div>
-                </div>
-                
-                <div class="dashboard-card">
-                    <div class="card-header">
-                        <h2 class="card-title">Active Trays</h2>
-                    </div>
-                    <div class="stat-value">{{ $activeTraysCount }}</div>
-                    <div class="stat-label">Trays in use</div>
-                </div>
-                
-                <div class="dashboard-card">
-                    <div class="card-header">
-                        <h2 class="card-title">Crop Tasks</h2>
-                        <a href="{{ route('filament.admin.pages.manage-crop-tasks') }}" class="text-sm text-blue-600 hover:underline">Manage Tasks</a>
-                    </div>
-                    <div>
-                        <div class="stat-value">{{ $tasksCount }}</div>
-                        <div class="stat-label">Active tasks</div>
+
+        <x-filament::tabs label="Dashboard Tabs">
+            <x-filament::tabs.item
+                :active="$this->activeTab === 'active-crops'"
+                wire:click="$set('activeTab', 'active-crops')"
+                icon="heroicon-m-squares-2x2"
+            >
+                Active Crops
+            </x-filament::tabs.item>
+
+            <x-filament::tabs.item
+                :active="$this->activeTab === 'crop-alerts'"
+                wire:click="$set('activeTab', 'crop-alerts')"
+                icon="heroicon-m-bell-alert"
+            >
+                Crop Alerts
+            </x-filament::tabs.item>
+
+            <x-filament::tabs.item
+                :active="$this->activeTab === 'inventory-alerts'"
+                wire:click="$set('activeTab', 'inventory-alerts')"
+                icon="heroicon-m-archive-box-arrow-down"
+            >
+                Inventory/Consumable Alerts
+            </x-filament::tabs.item>
+        </x-filament::tabs>
+
+        <div class="mt-6">
+            <!-- Active Crops Tab -->
+            <div x-show="$wire.activeTab === 'active-crops'" x-cloak>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                    <x-filament::section class="col-span-1">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Active Crops</h2>
+                            <x-filament::link
+                                color="primary"
+                                tag="a"
+                                :href="route('filament.admin.resources.crops.index')"
+                                size="sm"
+                            >
+                                View All
+                            </x-filament::link>
+                        </div>
+                        <p class="text-3xl font-bold text-primary-600 dark:text-primary-400">{{ $activeCropsCount }}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Crops in production</p>
+                    </x-filament::section>
+
+                    <x-filament::section class="col-span-1">
+                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Active Trays</h2>
+                        <p class="text-3xl font-bold text-primary-600 dark:text-primary-400">{{ $activeTraysCount }}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Trays in use</p>
+                    </x-filament::section>
+
+                    <x-filament::section class="col-span-1">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Crop Alerts</h2>
+                            <x-filament::link
+                                color="primary"
+                                tag="a"
+                                :href="route('filament.admin.resources.crop-alerts.index')"
+                                size="sm"
+                            >
+                                Manage Alerts
+                            </x-filament::link>
+                        </div>
+                        <p class="text-3xl font-bold text-primary-600 dark:text-primary-400">{{ $tasksCount }}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Active alerts</p>
                         @if($overdueTasksCount > 0)
-                            <div class="mt-2 text-red-600 font-medium">{{ $overdueTasksCount }} overdue</div>
+                            <p class="mt-2 text-sm font-medium text-danger-600 dark:text-danger-400">{{ $overdueTasksCount }} overdue</p>
                         @endif
-                    </div>
+                    </x-filament::section>
+
+                    <x-filament::section class="col-span-1">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Low Stock Items</h2>
+                            <x-filament::link
+                                color="primary"
+                                tag="a"
+                                :href="route('filament.admin.resources.consumables.index')"
+                                size="sm"
+                            >
+                                View Inventory
+                            </x-filament::link>
+                        </div>
+                        <p class="text-3xl font-bold text-warning-600 dark:text-warning-400">{{ $lowStockCount }}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Items below threshold</p>
+                    </x-filament::section>
                 </div>
-                
-                <div class="dashboard-card">
-                    <div class="card-header">
-                        <h2 class="card-title">Low Stock Items</h2>
-                        <a href="{{ route('filament.admin.resources.consumables.index') }}" class="text-sm text-blue-600 hover:underline">View Inventory</a>
-                    </div>
-                    <div class="stat-value">{{ $lowStockCount }}</div>
-                    <div class="stat-label">Items below threshold</div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    @if($cropsNeedingHarvest->count() > 0)
+                        <x-filament::section>
+                            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Ready to Harvest</h2>
+                            <div class="space-y-3">
+                                @foreach($cropsNeedingHarvest as $crop)
+                                    <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                                        <div>
+                                            <p class="font-medium text-gray-900 dark:text-white">{{ $crop->recipe->seedVariety->name }}</p>
+                                            <p class="text-sm text-gray-500 dark:text-gray-400">
+                                                Tray #{{ $crop->tray_number }} • Planted: {{ $crop->planted_at->format('M d') }} • Days: {{ $crop->planted_at->diffInDays(now()) }}
+                                            </p>
+                                        </div>
+                                        <div class="flex gap-2">
+                                            <x-filament::icon-button
+                                                icon="heroicon-o-eye"
+                                                tag="a"
+                                                :href="route('filament.admin.resources.crops.edit', $crop)"
+                                                tooltip="View Crop"
+                                                size="sm"
+                                            />
+                                            <x-filament::icon-button
+                                                icon="heroicon-o-scissors"
+                                                color="success"
+                                                tag="a"
+                                                :href="route('filament.admin.resources.crops.harvest', $crop)"
+                                                tooltip="Harvest Crop"
+                                                size="sm"
+                                            />
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </x-filament::section>
+                    @endif
+
+                    @if($recentlySowedCrops->count() > 0)
+                        <x-filament::section>
+                            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recently Sowed</h2>
+                            <div class="space-y-3">
+                                @foreach($recentlySowedCrops as $crop)
+                                    <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                                        <div>
+                                            <p class="font-medium text-gray-900 dark:text-white">{{ $crop->recipe->seedVariety->name }}</p>
+                                            <p class="text-sm text-gray-500 dark:text-gray-400">
+                                                Tray #{{ $crop->tray_number }} • Planted: {{ $crop->planted_at->format('M d') }} • Stage: {{ ucfirst($crop->current_stage) }}
+                                            </p>
+                                        </div>
+                                        <x-filament::icon-button
+                                            icon="heroicon-o-eye"
+                                            tag="a"
+                                            :href="route('filament.admin.resources.crops.edit', $crop)"
+                                            tooltip="View Crop"
+                                            size="sm"
+                                        />
+                                    </div>
+                                @endforeach
+                            </div>
+                        </x-filament::section>
+                    @endif
                 </div>
             </div>
-            
-            @if($cropsNeedingHarvest->count() > 0)
-                <div class="dashboard-card mb-6">
-                    <div class="card-header">
-                        <h2 class="card-title">Ready to Harvest</h2>
+
+            <!-- Crop Alerts Tab -->
+            <div x-show="$wire.activeTab === 'crop-alerts'" x-cloak>
+                 <livewire:app.filament.widgets.grouped-crop-alerts-widget />
+            </div>
+
+            <!-- Inventory/Consumable Alerts Tab -->
+            <div x-show="$wire.activeTab === 'inventory-alerts'" x-cloak>
+                <x-filament::section>
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Inventory & Consumable Alerts</h2>
+                        <x-filament::link
+                            color="primary"
+                            tag="a"
+                            :href="route('filament.admin.resources.consumables.index')"
+                            size="sm"
+                        >
+                            View All Inventory
+                        </x-filament::link>
                     </div>
-                    <div class="task-list">
-                        @foreach($cropsNeedingHarvest as $crop)
-                            <div class="task-item">
-                                <div class="task-info">
-                                    <div class="font-medium">{{ $crop->recipe->seedVariety->name }}</div>
-                                    <div class="task-detail">
-                                        Tray #{{ $crop->tray_number }} • 
-                                        Planted: {{ $crop->planted_at->format('M d') }} • 
-                                        Days grown: {{ $crop->planted_at->diffInDays(now()) }}
+                    @if($lowStockItems->count() > 0)
+                        <div class="space-y-3">
+                            @foreach($lowStockItems as $item)
+                                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                                    <div>
+                                        <p class="font-medium text-gray-900 dark:text-white">{{ $item->name }}</p>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                                            Current: <span class="font-semibold {{ $item->current_stock <= $item->restock_threshold ? 'text-danger-600 dark:text-danger-400' : 'text-gray-700 dark:text-gray-200' }}">{{ $item->current_stock }}</span> • Threshold: {{ $item->restock_threshold }}
+                                        </p>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <x-filament::icon-button
+                                            icon="heroicon-o-eye"
+                                            tag="a"
+                                            :href="route('filament.admin.resources.consumables.edit', $item)"
+                                            tooltip="View Item"
+                                            size="sm"
+                                        />
+                                        <x-filament::icon-button
+                                            icon="heroicon-o-shopping-cart"
+                                            color="warning"
+                                            tag="a"
+                                            :href="route('filament.admin.resources.consumables.adjust-stock', $item)" 
+                                            tooltip="Restock Item"
+                                            size="sm"
+                                        />
                                     </div>
                                 </div>
-                                <div class="task-actions">
-                                    <a href="{{ route('filament.admin.resources.crops.edit', $crop) }}" class="px-3 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200">View</a>
-                                    <a href="{{ route('filament.admin.resources.crops.harvest', $crop) }}" class="px-3 py-1 bg-green-100 text-green-800 rounded hover:bg-green-200">Harvest</a>
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                </div>
-            @endif
-            
-            @if($recentlySowedCrops->count() > 0)
-                <div class="dashboard-card">
-                    <div class="card-header">
-                        <h2 class="card-title">Recently Sowed</h2>
-                    </div>
-                    <div class="task-list">
-                        @foreach($recentlySowedCrops as $crop)
-                            <div class="task-item">
-                                <div class="task-info">
-                                    <div class="font-medium">{{ $crop->recipe->seedVariety->name }}</div>
-                                    <div class="task-detail">
-                                        Tray #{{ $crop->tray_number }} • 
-                                        Planted: {{ $crop->planted_at->format('M d') }} • 
-                                        Stage: {{ ucfirst($crop->current_stage) }}
-                                    </div>
-                                </div>
-                                <div class="task-actions">
-                                    <a href="{{ route('filament.admin.resources.crops.edit', $crop) }}" class="px-3 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200">View</a>
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                </div>
-            @endif
-        </div>
-        
-        <!-- Stats Tab -->
-        <div id="stats" class="tab-content">
-            <div class="dashboard-grid">
-                <div class="dashboard-card">
-                    <div class="card-header">
-                        <h2 class="card-title">Production Stats</h2>
-                    </div>
-                    <div class="p-4">
-                        <div class="mb-4">
-                            <div class="stat-value">{{ $totalHarvestedCrops }}</div>
-                            <div class="stat-label">Total crops harvested</div>
+                            @endforeach
                         </div>
-                        <div class="mb-4">
-                            <div class="stat-value">{{ $totalHarvestedWeight }} oz</div>
-                            <div class="stat-label">Total weight harvested</div>
-                        </div>
-                        <div>
-                            <div class="stat-value">${{ number_format($totalHarvestedValue, 2) }}</div>
-                            <div class="stat-label">Total harvest value</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Add more stats cards as needed -->
-            </div>
-        </div>
-        
-        <!-- Crop Alerts Tab -->
-        <div id="crop-alerts" class="tab-content">
-            <div class="dashboard-card">
-                <div class="card-header">
-                    <h2 class="card-title">Crop Alerts</h2>
-                </div>
-                <div>
-                    <div class="space-y-6">
-                        <div class="text-lg font-medium flex items-center justify-between border-b pb-2">
-                            <span>Crops Needing Attention</span>
-                            <a href="{{ route('filament.admin.pages.manage-crop-tasks') }}" class="text-sm text-blue-600 hover:underline">
-                                Manage Tasks
-                            </a>
-                        </div>
-                        
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <!-- Seeded Stage -->
-                            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-                                <div class="flex items-center gap-2 font-medium text-lg mb-3">
-                                    <span>Seeded Crops</span>
-                                    <span class="ml-auto bg-blue-100 text-blue-800 rounded-full px-2 py-0.5 text-xs">
-                                        New
-                                    </span>
-                                </div>
-                                
-                                @php
-                                    $seedingCrops = App\Models\Crop::where('current_stage', 'planting')
-                                        ->with('recipe.seedVariety')
-                                        ->take(3)
-                                        ->get();
-                                @endphp
-                                
-                                <div class="space-y-3">
-                                    @if($seedingCrops->count() > 0)
-                                        @foreach($seedingCrops as $crop)
-                                            <div class="border-b pb-3">
-                                                <div class="flex items-center justify-between">
-                                                    <div>
-                                                        <div class="font-medium">{{ $crop->recipe->seedVariety->name }}</div>
-                                                        <div class="text-sm text-gray-500">Tray: {{ $crop->tray_number }}</div>
-                                                    </div>
-                                                    <div class="text-right">
-                                                        <div class="font-medium">
-                                                            {{ $crop->planting_at ? $crop->planting_at->diffInDays(now()) : 0 }} days
-                                                        </div>
-                                                        <div class="text-xs text-gray-500">
-                                                            (Rec: 1 day)
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div class="mt-2 flex justify-end">
-                                                    <a href="{{ route('filament.admin.resources.crops.edit', $crop) }}" 
-                                                       class="px-3 py-1 bg-blue-100 text-blue-800 rounded text-xs hover:bg-blue-200">
-                                                        Manage
-                                                    </a>
-                                                </div>
-                                            </div>
-                                        @endforeach
-                                    @else
-                                        <div class="text-gray-500 text-sm py-2 text-center">
-                                            No crops in seeding stage need attention
-                                        </div>
-                                    @endif
-                                </div>
-                            </div>
-                            
-                            <!-- Blackout Stage -->
-                            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-                                <div class="flex items-center gap-2 font-medium text-lg mb-3">
-                                    <span>Blackout Stage</span>
-                                </div>
-                                
-                                @php
-                                    $blackoutCrops = App\Models\Crop::where('current_stage', 'blackout')
-                                        ->with('recipe.seedVariety')
-                                        ->take(3)
-                                        ->get();
-                                @endphp
-                                
-                                <div class="space-y-3">
-                                    @if($blackoutCrops->count() > 0)
-                                        @foreach($blackoutCrops as $crop)
-                                            <div class="border-b pb-3">
-                                                <div class="flex items-center justify-between">
-                                                    <div>
-                                                        <div class="font-medium">{{ $crop->recipe->seedVariety->name }}</div>
-                                                        <div class="text-sm text-gray-500">Tray: {{ $crop->tray_number }}</div>
-                                                    </div>
-                                                    <div class="text-right">
-                                                        <div class="font-medium">
-                                                            {{ $crop->blackout_at ? $crop->blackout_at->diffInDays(now()) : 0 }} days
-                                                        </div>
-                                                        <div class="text-xs text-gray-500">
-                                                            (Rec: {{ $crop->recipe->blackout_days ?? 3 }} days)
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div class="mt-2 flex justify-end">
-                                                    <a href="{{ route('filament.admin.resources.crops.edit', $crop) }}" 
-                                                       class="px-3 py-1 bg-blue-100 text-blue-800 rounded text-xs hover:bg-blue-200">
-                                                        Manage
-                                                    </a>
-                                                </div>
-                                            </div>
-                                        @endforeach
-                                    @else
-                                        <div class="text-gray-500 text-sm py-2 text-center">
-                                            No crops in blackout stage need attention
-                                        </div>
-                                    @endif
-                                </div>
-                            </div>
-                            
-                            <!-- Growing Stage -->
-                            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-                                <div class="flex items-center gap-2 font-medium text-lg mb-3">
-                                    <span>Growing Crops</span>
-                                </div>
-                                
-                                @php
-                                    $growingCrops = App\Models\Crop::where('current_stage', 'light')
-                                        ->with('recipe.seedVariety')
-                                        ->take(3)
-                                        ->get();
-                                @endphp
-                                
-                                <div class="space-y-3">
-                                    @if($growingCrops->count() > 0)
-                                        @foreach($growingCrops as $crop)
-                                            <div class="border-b pb-3">
-                                                <div class="flex items-center justify-between">
-                                                    <div>
-                                                        <div class="font-medium">{{ $crop->recipe->seedVariety->name }}</div>
-                                                        <div class="text-sm text-gray-500">Tray: {{ $crop->tray_number }}</div>
-                                                    </div>
-                                                    <div class="text-right">
-                                                        <div class="font-medium">
-                                                            {{ $crop->light_at ? $crop->light_at->diffInDays(now()) : 0 }} days
-                                                        </div>
-                                                        <div class="text-xs text-gray-500">
-                                                            (Rec: {{ $crop->recipe->light_days ?? 7 }} days)
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div class="mt-2 flex justify-end">
-                                                    <a href="{{ route('filament.admin.resources.crops.edit', $crop) }}" 
-                                                       class="px-3 py-1 bg-blue-100 text-blue-800 rounded text-xs hover:bg-blue-200">
-                                                        Manage
-                                                    </a>
-                                                </div>
-                                            </div>
-                                        @endforeach
-                                    @else
-                                        <div class="text-gray-500 text-sm py-2 text-center">
-                                            No crops in growing stage need attention
-                                        </div>
-                                    @endif
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Inventory Alerts Tab -->
-        <div id="inventory-alerts" class="tab-content">
-            <div class="dashboard-card">
-                <div class="card-header">
-                    <h2 class="card-title">Low Stock Alerts</h2>
-                    <a href="{{ route('filament.admin.resources.consumables.index') }}" class="text-sm text-blue-600 hover:underline">View All Inventory</a>
-                </div>
-                <div class="task-list">
-                    @foreach($lowStockItems as $item)
-                        <div class="task-item">
-                            <div class="task-info">
-                                <div class="font-medium">{{ $item->name }}</div>
-                                <div class="task-detail">
-                                    Current stock: <span class="text-red-600 font-medium">{{ $item->current_stock }}</span> • 
-                                    Threshold: {{ $item->restock_threshold }}
-                                </div>
-                            </div>
-                            <div class="task-actions">
-                                <a href="{{ route('filament.admin.resources.consumables.edit', $item) }}" class="px-3 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200">View</a>
-                                <a href="{{ route('filament.admin.resources.consumables.adjust-stock', $item) }}" class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200">Restock</a>
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
+                    @else
+                        <p class="text-center text-gray-500 dark:text-gray-400 py-4">No items are currently low on stock.</p>
+                    @endif
+                </x-filament::section>
             </div>
         </div>
     </div>
-    
-    @push('scripts')
-    <script>
-        function switchTab(tabId) {
-            // Hide all tab contents
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            // Deactivate all tabs
-            document.querySelectorAll('.dashboard-tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            // Activate selected tab
-            document.getElementById(tabId).classList.add('active');
-            
-            // Find and activate the tab button
-            document.querySelectorAll('.dashboard-tab').forEach(tab => {
-                if (tab.textContent.trim().toLowerCase().includes(tabId.replace('-', ' '))) {
-                    tab.classList.add('active');
-                }
-            });
-        }
-    </script>
-    @endpush
+
+    @assets
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+    @endassets
 </x-filament-panels::page> 

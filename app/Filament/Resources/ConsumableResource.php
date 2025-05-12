@@ -34,16 +34,28 @@ class ConsumableResource extends Resource
                     ->schema([
                         Forms\Components\Select::make('type')
                             ->label('Category')
-                            ->options(Consumable::getValidTypes())
+                            ->options([
+                                'seed' => 'Seed',
+                                'soil' => 'Soil',
+                                'packaging' => 'Packaging',
+                                'mix' => 'Product Mix',
+                                'label' => 'Label',
+                                'other' => 'Other',
+                            ])
                             ->required()
                             ->reactive()
-                            ->disabled($isEditMode) // Disable in edit mode
-                            ->dehydrated() // Ensure the field value is still submitted
+                            ->disabled($isEditMode)
+                            ->dehydrated()
                             ->columnSpanFull()
                             ->afterStateUpdated(function ($state, Forms\Set $set) {
                                 // Reset packaging type when type changes
                                 if ($state !== 'packaging') {
                                     $set('packaging_type_id', null);
+                                }
+                                
+                                // Reset mix when type changes
+                                if ($state !== 'mix') {
+                                    $set('product_mix_id', null);
                                 }
                                 
                                 // Also reset the name field
@@ -103,14 +115,34 @@ class ConsumableResource extends Resource
                                                             ->pluck('name', 'id')
                                                             ->toArray();
                                                             
-                                                        \Illuminate\Support\Facades\Log::info('Seed variety options:', ['count' => count($options)]);
-                                                        
                                                         return $options;
                                                     })
                                                     ->searchable()
                                                     ->required()
                                                     ->live() // Make the field live to update instantly
-                                                    ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                                    ->createOptionForm([
+                                                        Forms\Components\TextInput::make('name')
+                                                            ->label('Variety Name')
+                                                            ->required()
+                                                            ->maxLength(255),
+                                                        Forms\Components\TextInput::make('crop_type')
+                                                            ->label('Crop Type')
+                                                            ->default('microgreens')
+                                                            ->maxLength(255),
+                                                        Forms\Components\Toggle::make('is_active')
+                                                            ->label('Active')
+                                                            ->default(true),
+                                                    ])
+                                                    ->createOptionUsing(function (array $data) {
+                                                        return \App\Models\SeedVariety::create($data)->id;
+                                                    })
+                                                    ->createOptionAction(function (Forms\Components\Actions\Action $action) {
+                                                        return $action
+                                                            ->modalHeading('Create Seed Variety')
+                                                            ->modalSubmitActionLabel('Create Seed Variety')
+                                                            ->modalWidth('lg');
+                                                    })
+                                                    ->afterStateUpdated(function ($state, callable $set) {
                                                         \Illuminate\Support\Facades\Log::info('Seed variety selected:', ['state' => $state]);
                                                         if ($state) {
                                                             $seedVariety = \App\Models\SeedVariety::find($state);
@@ -126,6 +158,36 @@ class ConsumableResource extends Resource
                                             ]),
                                             
                                         // Hidden name field - will be set from the seed variety
+                                        Forms\Components\Hidden::make('name'),
+                                    ];
+                                } else if ($get('type') === 'mix') {
+                                    // Product mix selection
+                                    return [
+                                        Forms\Components\Grid::make()
+                                            ->schema([
+                                                Forms\Components\Select::make('product_mix_id')
+                                                    ->label('Product Mix')
+                                                    ->helperText('Required: Please select a product mix')
+                                                    ->options(function () {
+                                                        return \App\Models\ProductMix::where('is_active', true)
+                                                            ->pluck('name', 'id')
+                                                            ->toArray();
+                                                    })
+                                                    ->searchable()
+                                                    ->required()
+                                                    ->live()
+                                                    ->afterStateUpdated(function ($state, callable $set) {
+                                                        if ($state) {
+                                                            $mix = \App\Models\ProductMix::find($state);
+                                                            if ($mix) {
+                                                                $set('name', $mix->name);
+                                                            }
+                                                        }
+                                                    })
+                                                    ->columnSpanFull()
+                                            ]),
+                                            
+                                        // Hidden name field - will be set from the mix
                                         Forms\Components\Hidden::make('name'),
                                     ];
                                 } else {
@@ -156,7 +218,32 @@ class ConsumableResource extends Resource
                             ->relationship('supplier', 'name')
                             ->searchable()
                             ->preload()
-                            ->required(),
+                            ->required()
+                            ->createOptionForm([
+                                Forms\Components\TextInput::make('name')
+                                    ->required()
+                                    ->maxLength(255),
+                                Forms\Components\Select::make('type')
+                                    ->options([
+                                        'seed' => 'Seed Supplier',
+                                        'soil' => 'Soil Supplier',
+                                        'packaging' => 'Packaging Supplier',
+                                        'other' => 'Other',
+                                    ])
+                                    ->default('other'),
+                                Forms\Components\Textarea::make('contact_info')
+                                    ->label('Contact Information')
+                                    ->rows(3),
+                                Forms\Components\Toggle::make('is_active')
+                                    ->label('Active')
+                                    ->default(true),
+                            ])
+                            ->createOptionAction(function (Forms\Components\Actions\Action $action) {
+                                return $action
+                                    ->modalHeading('Create Supplier')
+                                    ->modalSubmitActionLabel('Create Supplier')
+                                    ->modalWidth('lg');
+                            }),
                         
                         Forms\Components\TextInput::make('lot_no')
                             ->label('Lot/Batch Number')
@@ -174,135 +261,187 @@ class ConsumableResource extends Resource
                 
                 Forms\Components\Section::make('Inventory Details')
                     ->schema([
+                        // Conditional form fields based on consumable type
                         Forms\Components\Grid::make()
-                            ->schema([
-                                // Quantity field
-                                Forms\Components\TextInput::make('initial_stock')
-                                    ->label('Quantity')
-                                    ->helperText('Number of units in stock')
-                                    ->numeric()
-                                    ->minValue(0)
-                                    ->required()
-                                    ->default(0)
-                                    ->reactive()
-                                    ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get) use ($isEditMode) {
-                                        if ($isEditMode) {
+                            ->schema(function (Forms\Get $get) use ($isEditMode) {
+                                $type = $get('type');
+                                
+                                // For seed consumables - simplified approach with direct total quantity
+                                if ($type === 'seed') {
+                                    return [
+                                        // Direct total quantity input for seeds
+                                        Forms\Components\TextInput::make('total_quantity')
+                                            ->label('Total Weight')
+                                            ->helperText('Total weight of seed (e.g., 3 for 3 KG)')
+                                            ->numeric()
+                                            ->minValue(0)
+                                            ->required()
+                                            ->default(0)
+                                            ->step(0.001),
+                                            
+                                        // Unit of measurement for seeds
+                                        Forms\Components\Select::make('quantity_unit')
+                                            ->label('Unit of Measurement')
+                                            ->helperText('Unit for the total weight')
+                                            ->options([
+                                                'g' => 'Grams',
+                                                'kg' => 'Kilograms',
+                                                'oz' => 'Ounces',
+                                                'lb' => 'Pounds',
+                                            ])
+                                            ->required()
+                                            ->default('g'),
+                                            
+                                        // Lot/batch number for seeds
+                                        Forms\Components\TextInput::make('lot_no')
+                                            ->label('Lot/Batch Number')
+                                            ->helperText('Batch identifier for this seed (will be stored as uppercase)')
+                                            ->maxLength(100),
+                                    ];
+                                }
+                                
+                                // For all other consumable types - standard approach
+                                return [
+                                    // Quantity field
+                                    Forms\Components\TextInput::make('initial_stock')
+                                        ->label('Quantity')
+                                        ->helperText('Number of units in stock')
+                                        ->numeric()
+                                        ->minValue(0)
+                                        ->required()
+                                        ->default(0)
+                                        ->reactive()
+                                        ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get) use ($isEditMode) {
+                                            if ($isEditMode) {
+                                                $set('current_stock_display', max(0, (float)$get('initial_stock') - (float)$get('consumed_quantity')));
+                                            }
+                                            
+                                            // If unit capacity is set, also update total quantity calculation
+                                            if (null !== $get('quantity_per_unit') && $get('quantity_per_unit') > 0) {
+                                                $availableStock = $isEditMode 
+                                                    ? max(0, (float)$get('initial_stock') - (float)$get('consumed_quantity')) 
+                                                    : (float)$get('initial_stock');
+                                                
+                                                $set('total_quantity', $availableStock * (float)$get('quantity_per_unit'));
+                                            }
+                                        }),
+                                    
+                                    // Consumed quantity field (only in edit mode)
+                                    Forms\Components\TextInput::make('consumed_quantity')
+                                        ->label('Used Quantity')
+                                        ->helperText('Number of units consumed')
+                                        ->numeric()
+                                        ->minValue(0)
+                                        ->default(0)
+                                        ->reactive()
+                                        ->visible($isEditMode)
+                                        ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get) {
                                             $set('current_stock_display', max(0, (float)$get('initial_stock') - (float)$get('consumed_quantity')));
-                                        }
-                                        
-                                        // If unit capacity is set, also update total quantity calculation
-                                        if (null !== $get('quantity_per_unit') && $get('quantity_per_unit') > 0) {
-                                            $availableStock = $isEditMode 
-                                                ? max(0, (float)$get('initial_stock') - (float)$get('consumed_quantity')) 
+                                            
+                                            // If unit capacity is set, also update total quantity calculation
+                                            if (null !== $get('quantity_per_unit') && $get('quantity_per_unit') > 0) {
+                                                $availableStock = max(0, (float)$get('initial_stock') - (float)$get('consumed_quantity'));
+                                                $set('total_quantity', $availableStock * (float)$get('quantity_per_unit'));
+                                            }
+                                        }),
+                                    
+                                    // Available stock display (only in edit mode)
+                                    Forms\Components\TextInput::make('current_stock_display')
+                                        ->label('Available Stock')
+                                        ->helperText('Current available quantity')
+                                        ->disabled()
+                                        ->dehydrated(false)
+                                        ->numeric()
+                                        ->visible($isEditMode),
+                                    
+                                    // Packaging type (unit type)
+                                    Forms\Components\Select::make('unit')
+                                        ->label('Packaging Type')
+                                        ->helperText('Container or form of packaging')
+                                        ->options([
+                                            'unit' => 'Unit(s)',
+                                            'bag' => 'Bag(s)',
+                                            'box' => 'Box(es)',
+                                            'bottle' => 'Bottle(s)',
+                                            'container' => 'Container(s)',
+                                            'roll' => 'Roll(s)',
+                                            'packet' => 'Packet(s)',
+                                            'kg' => 'Kilogram(s)',
+                                            'g' => 'Gram(s)',
+                                            'l' => 'Liter(s)',
+                                            'ml' => 'Milliliter(s)',
+                                        ])
+                                        ->required()
+                                        ->default('unit'),
+                                    
+                                    // Unit size/capacity
+                                    Forms\Components\TextInput::make('quantity_per_unit')
+                                        ->label('Unit Size')
+                                        ->helperText('Capacity or size of each unit (e.g., 107L per bag)')
+                                        ->numeric()
+                                        ->minValue(0)
+                                        ->default(0)
+                                        ->step(0.01)
+                                        ->reactive()
+                                        ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get) use ($isEditMode) {
+                                            // Update total quantity based on available stock and unit size
+                                            $availableStock = $isEditMode
+                                                ? max(0, (float)$get('initial_stock') - (float)$get('consumed_quantity'))
                                                 : (float)$get('initial_stock');
                                             
                                             $set('total_quantity', $availableStock * (float)$get('quantity_per_unit'));
-                                        }
-                                    }),
-                                
-                                // Consumed quantity field (only in edit mode)
-                                Forms\Components\TextInput::make('consumed_quantity')
-                                    ->label('Used Quantity')
-                                    ->helperText('Number of units consumed')
-                                    ->numeric()
-                                    ->minValue(0)
-                                    ->default(0)
-                                    ->reactive()
-                                    ->visible($isEditMode)
-                                    ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get) {
-                                        $set('current_stock_display', max(0, (float)$get('initial_stock') - (float)$get('consumed_quantity')));
-                                        
-                                        // If unit capacity is set, also update total quantity calculation
-                                        if (null !== $get('quantity_per_unit') && $get('quantity_per_unit') > 0) {
-                                            $availableStock = max(0, (float)$get('initial_stock') - (float)$get('consumed_quantity'));
-                                            $set('total_quantity', $availableStock * (float)$get('quantity_per_unit'));
-                                        }
-                                    }),
-                                
-                                // Available stock display (only in edit mode)
-                                Forms\Components\TextInput::make('current_stock_display')
-                                    ->label('Available Stock')
-                                    ->helperText('Current available quantity')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->numeric()
-                                    ->visible($isEditMode),
-                                
-                                // Packaging type (unit type)
-                                Forms\Components\Select::make('unit')
-                                    ->label('Packaging Type')
-                                    ->helperText('Container or form of packaging')
-                                    ->options([
-                                        'unit' => 'Unit(s)',
-                                        'bag' => 'Bag(s)',
-                                        'box' => 'Box(es)',
-                                        'bottle' => 'Bottle(s)',
-                                        'container' => 'Container(s)',
-                                        'roll' => 'Roll(s)',
-                                        'packet' => 'Packet(s)',
-                                        'kg' => 'Kilogram(s)',
-                                        'g' => 'Gram(s)',
-                                        'l' => 'Liter(s)',
-                                        'ml' => 'Milliliter(s)',
-                                    ])
-                                    ->required()
-                                    ->default('unit'),
-                                
-                                // Unit size/capacity
-                                Forms\Components\TextInput::make('quantity_per_unit')
-                                    ->label('Unit Size')
-                                    ->helperText('Capacity or size of each unit (e.g., 107L per bag)')
-                                    ->numeric()
-                                    ->minValue(0)
-                                    ->default(0)
-                                    ->step(0.01)
-                                    ->reactive()
-                                    ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get) use ($isEditMode) {
-                                        // Update total quantity based on available stock and unit size
-                                        $availableStock = $isEditMode
-                                            ? max(0, (float)$get('initial_stock') - (float)$get('consumed_quantity'))
-                                            : (float)$get('initial_stock');
-                                        
-                                        $set('total_quantity', $availableStock * (float)$get('quantity_per_unit'));
-                                    }),
-                                
-                                // Measurement unit for quantity_per_unit
-                                Forms\Components\Select::make('quantity_unit')
-                                    ->label('Unit of Measurement')
-                                    ->helperText('Unit for the size/capacity value')
-                                    ->options([
-                                        'g' => 'Grams',
-                                        'kg' => 'Kilograms',
-                                        'l' => 'Liters',
-                                        'ml' => 'Milliliters',
-                                        'oz' => 'Ounces',
-                                        'lb' => 'Pounds',
-                                        'cm' => 'Centimeters',
-                                        'm' => 'Meters',
-                                    ])
-                                    ->required()
-                                    ->default('l'),
-                                
-                                // Hidden field for total_quantity calculation
-                                Forms\Components\Hidden::make('total_quantity')
-                                    ->default(0),
-                            ])
+                                        }),
+                                    
+                                    // Measurement unit for quantity_per_unit
+                                    Forms\Components\Select::make('quantity_unit')
+                                        ->label('Unit of Measurement')
+                                        ->helperText('Unit for the size/capacity value')
+                                        ->options([
+                                            'g' => 'Grams',
+                                            'kg' => 'Kilograms',
+                                            'l' => 'Liters',
+                                            'ml' => 'Milliliters',
+                                            'oz' => 'Ounces',
+                                            'lb' => 'Pounds',
+                                            'cm' => 'Centimeters',
+                                            'm' => 'Meters',
+                                        ])
+                                        ->required()
+                                        ->default('l'),
+                                    
+                                    // Hidden field for total_quantity calculation
+                                    Forms\Components\Hidden::make('total_quantity')
+                                        ->default(0),
+                                ];
+                            })
                             ->columns(3),
                         
                         Forms\Components\Fieldset::make('Restock Settings')
                             ->schema([
                                 Forms\Components\TextInput::make('restock_threshold')
                                     ->label('Restock Threshold')
-                                    ->helperText('When stock falls below this number, reorder')
+                                    ->helperText(function (Forms\Get $get) {
+                                        return $get('type') === 'seed' 
+                                            ? 'When total quantity falls below this amount, reorder' 
+                                            : 'When stock falls below this number, reorder';
+                                    })
                                     ->numeric()
                                     ->required()
-                                    ->default(5),
+                                    ->default(function (Forms\Get $get) {
+                                        return $get('type') === 'seed' ? 500 : 5;
+                                    }),
                                 Forms\Components\TextInput::make('restock_quantity')
                                     ->label('Restock Quantity')
-                                    ->helperText('How many to order when restocking')
+                                    ->helperText(function (Forms\Get $get) {
+                                        return $get('type') === 'seed'
+                                            ? 'How much to order when restocking'
+                                            : 'How many to order when restocking';
+                                    })
                                     ->numeric()
                                     ->required()
-                                    ->default(10),
+                                    ->default(function (Forms\Get $get) {
+                                        return $get('type') === 'seed' ? 1000 : 10;
+                                    }),
                             ])->columns(2),
                     ]),
                 
@@ -371,7 +510,12 @@ class ConsumableResource extends Resource
                     ->formatStateUsing(function ($state, $record) {
                         if (!$record) return $state;
                         
-                        // Map unit codes to their full names
+                        // For seed consumables, show total weight
+                        if ($record->type === 'seed') {
+                            return "{$record->total_quantity} {$record->quantity_unit}";
+                        }
+                        
+                        // For other types, show units as before
                         $unitMap = [
                             'l' => 'litre(s)',
                             'g' => 'gram(s)',

@@ -3,10 +3,10 @@
 namespace App\Filament\Resources\TaskResource\Pages;
 
 use App\Filament\Resources\TaskResource;
+use App\Filament\Pages\BaseCreateRecord;
 use Filament\Actions;
-use Filament\Resources\Pages\CreateRecord;
 
-class CreateTask extends CreateRecord
+class CreateTask extends BaseCreateRecord
 {
     protected static string $resource = TaskResource::class;
 }

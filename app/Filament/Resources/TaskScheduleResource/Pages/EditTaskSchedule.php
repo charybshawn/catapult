@@ -12,6 +12,11 @@ class EditTaskSchedule extends EditRecord
 {
     protected static string $resource = TaskScheduleResource::class;
 
+    protected function getHeaderTitle(): string 
+    {
+        return 'Edit Crop Alert';
+    }
+
     protected function getHeaderActions(): array
     {
         return [

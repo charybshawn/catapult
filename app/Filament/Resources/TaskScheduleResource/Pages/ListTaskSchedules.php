@@ -10,10 +10,20 @@ use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\DB;
+use Filament\Tables\Columns\Layout\Panel;
+use Filament\Tables\Actions\ToggleColumnsAction as TableToggleColumnsAction;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Enums\ActionsPosition;
+use Filament\Tables\Actions\ActionGroup;
 
 class ListTaskSchedules extends ListRecords
 {
     protected static string $resource = TaskScheduleResource::class;
+
+    protected function getHeaderTitle(): string
+    {
+        return 'Crop Alerts';
+    }
 
     protected function getHeaderActions(): array
     {

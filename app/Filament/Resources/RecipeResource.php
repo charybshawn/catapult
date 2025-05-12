@@ -31,83 +31,156 @@ class RecipeResource extends Resource
     protected static ?string $navigationGroup = 'Farm Operations';
     protected static ?int $navigationSort = 1;
 
+    public static function getFormSchema(): array
+    {
+        return [
+            Forms\Components\Section::make('Recipe Information')
+                ->schema([
+                    Forms\Components\TextInput::make('name')
+                        ->required()
+                        ->maxLength(255),
+
+                    Forms\Components\Select::make('seed_variety_id')
+                        ->relationship('seedVariety', 'name')
+                        ->searchable()
+                        ->preload()
+                        ->required()
+                        ->createOptionAction(function (Forms\Components\Actions\Action $action) {
+                            return $action
+                                ->modalHeading('Create Seed Variety')
+                                ->modalSubmitActionLabel('Create Seed Variety')
+                                ->modalWidth('lg')
+                                ->form([
+                                    Forms\Components\TextInput::make('name')
+                                        ->label('Variety Name')
+                                        ->required()
+                                        ->maxLength(255),
+                                    Forms\Components\TextInput::make('crop_type')
+                                        ->label('Crop Type')
+                                        ->default('microgreens')
+                                        ->maxLength(255),
+                                    Forms\Components\Toggle::make('is_active')
+                                        ->label('Active')
+                                        ->default(true),
+                                ]);
+                        }),
+
+                    Forms\Components\Select::make('supplier_soil_id')
+                        ->label('Soil Supplier')
+                        ->options(fn () => Supplier::where('type', 'soil')
+                            ->orWhereNull('type')
+                            ->pluck('name', 'id'))
+                        ->searchable(),
+
+                    Forms\Components\Toggle::make('is_active')
+                        ->label('Active')
+                        ->default(true),
+                ])
+                ->columns(2),
+
+            Forms\Components\Section::make('Growing Parameters')
+                ->schema([
+                    Forms\Components\TextInput::make('days_to_maturity')
+                        ->label('Days to Maturity (DTM)')
+                        ->helperText('Total days from planting to harvest')
+                        ->numeric()
+                        ->minValue(0)
+                        ->step(0.1)
+                        ->default(12)
+                        ->required()
+                        ->live()
+                        ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
+                            $germ = floatval($get('germination_days') ?? 0);
+                            $blackout = floatval($get('blackout_days') ?? 0);
+                            $dtm = floatval($state ?? 0);
+                            
+                            $lightDays = max(0, $dtm - ($germ + $blackout));
+                            $set('light_days', $lightDays);
+                        }),
+
+                    Forms\Components\TextInput::make('seed_soak_hours')
+                        ->label('Seed Soak Hours')
+                        ->numeric()
+                        ->integer()
+                        ->minValue(0)
+                        ->default(0),
+
+                    Forms\Components\TextInput::make('germination_days')
+                        ->label('Germination Days')
+                        ->helperText('Days in germination stage')
+                        ->numeric()
+                        ->minValue(0)
+                        ->step(0.1)
+                        ->default(3)
+                        ->required()
+                        ->live()
+                        ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
+                            $germ = floatval($state ?? 0);
+                            $blackout = floatval($get('blackout_days') ?? 0);
+                            $dtm = floatval($get('days_to_maturity') ?? 0);
+                            
+                            $lightDays = max(0, $dtm - ($germ + $blackout));
+                            $set('light_days', $lightDays);
+                        }),
+
+                    Forms\Components\TextInput::make('blackout_days')
+                        ->label('Blackout Days')
+                        ->helperText('Days in blackout stage')
+                        ->numeric()
+                        ->minValue(0)
+                        ->step(0.1)
+                        ->default(2)
+                        ->required()
+                        ->live()
+                        ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
+                            $germ = floatval($get('germination_days') ?? 0);
+                            $blackout = floatval($state ?? 0);
+                            $dtm = floatval($get('days_to_maturity') ?? 0);
+                            
+                            $lightDays = max(0, $dtm - ($germ + $blackout));
+                            $set('light_days', $lightDays);
+                        }),
+
+                    Forms\Components\TextInput::make('light_days')
+                        ->label('Light Days')
+                        ->helperText('Automatically calculated from DTM - (germination + blackout)')
+                        ->numeric()
+                        ->disabled()
+                        ->dehydrated(true)
+                        ->afterStateHydrated(function (Forms\Components\TextInput $component, $state, callable $set, Forms\Get $get) {
+                            // Calculate initial value when form loads
+                            if ($get('days_to_maturity')) {
+                                $germ = floatval($get('germination_days') ?? 0);
+                                $blackout = floatval($get('blackout_days') ?? 0);
+                                $dtm = floatval($get('days_to_maturity') ?? 0);
+                                
+                                $lightDays = max(0, $dtm - ($germ + $blackout));
+                                $set('light_days', $lightDays);
+                            }
+                        }),
+                    
+                    Forms\Components\TextInput::make('seed_density_grams_per_tray')
+                        ->label('Seed Density (g/tray)')
+                        ->numeric()
+                        ->minValue(0)
+                        ->step(0.01)
+                        ->default(25)
+                        ->required(),
+                        
+                    Forms\Components\TextInput::make('expected_yield_grams')
+                        ->label('Expected Yield (g/tray)')
+                        ->numeric()
+                        ->minValue(0)
+                        ->step(0.01),
+                ])
+                ->columns(2),
+        ];
+    }
+
     public static function form(Form $form): Form
     {
         return $form
-            ->schema([
-                Forms\Components\Section::make('Recipe Information')
-                    ->schema([
-                        Forms\Components\TextInput::make('name')
-                            ->required()
-                            ->maxLength(255),
-
-                        Forms\Components\Select::make('seed_variety_id')
-                            ->relationship('seedVariety', 'name')
-                            ->searchable()
-                            ->preload()
-                            ->required(),
-
-                        Forms\Components\Select::make('supplier_soil_id')
-                            ->label('Soil Supplier')
-                            ->options(fn () => Supplier::where('type', 'soil')
-                                ->orWhereNull('type')
-                                ->pluck('name', 'id'))
-                            ->searchable(),
-
-                        Forms\Components\Toggle::make('is_active')
-                            ->label('Active')
-                            ->default(true),
-                    ])
-                    ->columns(2),
-
-                Forms\Components\Section::make('Growing Parameters')
-                    ->schema([
-                        Forms\Components\TextInput::make('seed_soak_hours')
-                            ->label('Seed Soak Hours')
-                            ->numeric()
-                            ->integer()
-                            ->minValue(0)
-                            ->default(0),
-
-                        Forms\Components\TextInput::make('germination_days')
-                            ->label('Germination Days')
-                            ->helperText('Days in germination stage')
-                            ->numeric()
-                            ->minValue(0)
-                            ->default(3)
-                            ->required(),
-
-                        Forms\Components\TextInput::make('blackout_days')
-                            ->label('Blackout Days')
-                            ->helperText('Days in blackout stage')
-                            ->numeric()
-                            ->minValue(0)
-                            ->default(2)
-                            ->required(),
-
-                        Forms\Components\TextInput::make('light_days')
-                            ->label('Light Days')
-                            ->helperText('Days under light until harvest')
-                            ->numeric()
-                            ->minValue(0)
-                            ->default(7)
-                            ->required(),
-                        
-                        Forms\Components\TextInput::make('seed_density_grams_per_tray')
-                            ->label('Seed Density (g/tray)')
-                            ->numeric()
-                            ->minValue(0)
-                            ->step(0.01)
-                            ->required(),
-                            
-                        Forms\Components\TextInput::make('expected_yield_grams')
-                            ->label('Expected Yield (g/tray)')
-                            ->numeric()
-                            ->minValue(0)
-                            ->step(0.01),
-                    ])
-                    ->columns(2),
-            ]);
+            ->schema(self::getFormSchema());
     }
 
     public static function table(Table $table): Table
@@ -133,10 +206,16 @@ class RecipeResource extends Resource
                     
                 Tables\Columns\TextColumn::make('totalDays')
                     ->label('Total Days')
-                    ->getStateUsing(fn (Recipe $record): int => $record->totalDays())
+                    ->getStateUsing(fn (Recipe $record): float => $record->totalDays())
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderByRaw('(germination_days + blackout_days + light_days) ' . $direction);
                     })
+                    ->toggleable(),
+                    
+                Tables\Columns\TextColumn::make('days_to_maturity')
+                    ->label('DTM')
+                    ->numeric(1)
+                    ->sortable()
                     ->toggleable(),
                     
                 Tables\Columns\TextColumn::make('seed_density_grams_per_tray')

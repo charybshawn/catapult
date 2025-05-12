@@ -16,6 +16,8 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use App\Filament\Resources\CropAlertResource;
+use App\Filament\Resources\TaskScheduleResource;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -26,6 +28,7 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
+            ->darkMode()
             ->brandName('Catapult Farm')
             ->colors([
                 'primary' => Color::Amber,
@@ -38,11 +41,18 @@ class AdminPanelProvider extends PanelProvider
                 'Finance',
                 'Administration',
             ])
+            ->resources([
+                CropAlertResource::class,
+                // Hide the original TaskScheduleResource from navigation but keep it available for now
+                // Will be completely removed in a future update
+                // This approach allows us to switch to the new resource without breaking existing links
+            ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
-                Pages\Dashboard::class,
+                \App\Filament\Pages\Dashboard::class,
             ])
+            ->homeUrl('/admin/dashboard')
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
                 // Removed AccountWidget to hide welcome message and sign out button

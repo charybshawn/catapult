@@ -27,17 +27,14 @@ class Recipe extends Model
         'soil_consumable_id',
         'germination_days',
         'blackout_days',
+        'days_to_maturity',
         'light_days',
         'seed_soak_hours',
         'expected_yield_grams', 
         'seed_density_grams_per_tray',
         'is_active',
         'notes',
-        'planting_notes',
-        'germination_notes',
-        'blackout_notes',
-        'light_notes',
-        'harvesting_notes',
+        'suspend_water_hours',
     ];
     
     /**
@@ -48,6 +45,7 @@ class Recipe extends Model
     protected $casts = [
         'germination_days' => 'float',
         'blackout_days' => 'float',
+        'days_to_maturity' => 'float',
         'light_days' => 'float',
         'seed_soak_hours' => 'integer',
         'expected_yield_grams' => 'float',
@@ -114,8 +112,14 @@ class Recipe extends Model
     /**
      * Calculate the total days from planting to harvest.
      */
-    public function totalDays(): int
+    public function totalDays(): float
     {
+        // If days_to_maturity is set, prefer that value
+        if ($this->days_to_maturity) {
+            return $this->days_to_maturity;
+        }
+        
+        // Otherwise use the sum of all stage durations
         return $this->germination_days + $this->blackout_days + $this->light_days;
     }
     
@@ -124,7 +128,7 @@ class Recipe extends Model
      */
     public function effectiveTotalDays(): float
     {
-        return ($this->seed_soak_hours / 24) + $this->germination_days + $this->blackout_days + $this->light_days;
+        return ($this->seed_soak_hours / 24) + $this->totalDays();
     }
 
     /**
@@ -139,6 +143,7 @@ class Recipe extends Model
                 'supplier_soil_id', 
                 'germination_days', 
                 'blackout_days', 
+                'days_to_maturity',
                 'light_days',
                 'expected_yield_grams',
                 'seed_density_grams_per_tray',

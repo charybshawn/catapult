@@ -2,7 +2,7 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\TaskSchedule;
+use App\Models\CropAlert;
 use Filament\Widgets\Widget;
 use Illuminate\Support\Carbon;
 
@@ -18,9 +18,7 @@ class TodaysCropAlertsWidget extends Widget
 
     public function getTodaysAlerts()
     {
-        return TaskSchedule::query()
-            ->where('resource_type', 'crops')
-            ->where('is_active', true)
+        return CropAlert::query()
             ->whereDate('next_run_at', Carbon::today())
             ->orderBy('next_run_at')
             ->get();

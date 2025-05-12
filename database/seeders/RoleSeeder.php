@@ -14,37 +14,34 @@ class RoleSeeder extends Seeder
     public function run(): void
     {
         // Create roles
-        $roles = [
-            'admin',
-            'employee',
-            'customer',
-        ];
-        
-        foreach ($roles as $roleName) {
-            Role::firstOrCreate(['name' => $roleName]);
-            $this->command->info("Role created: {$roleName}");
-        }
-        
-        // In the future, you can add permissions here
-        // $permissions = [
-        //     'view_dashboard',
-        //     'manage_recipes',
-        //     'manage_inventory',
-        //     // etc.
-        // ];
-        
-        // foreach ($permissions as $permissionName) {
-        //     Permission::firstOrCreate(['name' => $permissionName]);
-        // }
-        
+        $admin = Role::create(['name' => 'admin']);
+        $manager = Role::create(['name' => 'manager']);
+        $user = Role::create(['name' => 'user']);
+
+        // Create permissions
+        $manageProducts = Permission::create(['name' => 'manage products']);
+        $viewProducts = Permission::create(['name' => 'view products']);
+        $editProducts = Permission::create(['name' => 'edit products']);
+        $deleteProducts = Permission::create(['name' => 'delete products']);
+        $accessFilament = Permission::create(['name' => 'access filament']);
+
         // Assign permissions to roles
-        // $adminRole = Role::findByName('admin');
-        // $adminRole->givePermissionTo(Permission::all());
-        
-        // $employeeRole = Role::findByName('employee');
-        // $employeeRole->givePermissionTo([
-        //     'view_dashboard',
-        //     // etc.
-        // ]);
+        $admin->givePermissionTo([
+            'manage products',
+            'view products',
+            'edit products',
+            'delete products',
+            'access filament',
+        ]);
+
+        $manager->givePermissionTo([
+            'view products',
+            'edit products',
+            'access filament',
+        ]);
+
+        $user->givePermissionTo([
+            'view products',
+        ]);
     }
 } 

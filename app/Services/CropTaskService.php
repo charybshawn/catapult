@@ -231,7 +231,14 @@ class CropTaskService
                 }
                 
                 // Proceed only if all crops are in the stage immediately preceding the target stage
-                if ($currentStageIndex === $targetStageIndex - 1) {
+                // or if they're earlier in the sequence (allowing multi-stage advancement for overdue alerts)
+                if ($currentStageIndex < $targetStageIndex) {
+                    // For overdue alerts, we may need to advance through multiple stages
+                    $stagesNeeded = [];
+                    for ($i = $currentStageIndex + 1; $i <= $targetStageIndex; $i++) {
+                        $stagesNeeded[] = $stageOrder[$i];
+                    }
+                    
                     // Send notification that action is due
                     // Only need to send one notification for the batch
                     $this->sendStageTransitionNotification($firstCrop, $targetStage, count($crops));
@@ -241,9 +248,31 @@ class CropTaskService
                     $task->last_run_at = now();
                     $task->save();
                     
+                    // Process each crop in the batch
+                    foreach ($crops as $crop) {
+                        // For each stage needed, advance the crop
+                        foreach ($stagesNeeded as $index => $nextStage) {
+                            // Only log for the final stage advancement
+                            $isFinalStage = ($index === count($stagesNeeded) - 1);
+                            
+                            // If we need to go through multiple stages, move through them silently until the target
+                            if ($isFinalStage) {
+                                // This is the target stage, so use advanceStage which will trigger events
+                                $crop->advanceStage();
+                            } else {
+                                // This is an intermediate stage, manually update to avoid triggering extra alerts
+                                $stageField = "{$nextStage}_at";
+                                $crop->$stageField = now();
+                                $crop->current_stage = $nextStage;
+                                $crop->saveQuietly(); // Save without firing events
+                            }
+                        }
+                    }
+                    
                     return [
                         'success' => true,
-                        'message' => "Notification sent for batch {$batchIdentifier} ({$crops->count()} crops) to advance to {$targetStage} stage.",
+                        'message' => "Batch {$batchIdentifier} ({$crops->count()} crops) advanced to {$targetStage} stage" . 
+                                     (count($stagesNeeded) > 1 ? " (skipped " . (count($stagesNeeded) - 1) . " intermediate stages)" : "") . ".",
                     ];
                 } elseif ($currentStageIndex >= $targetStageIndex) {
                     // If the crops are already at or past the target stage, simply deactivate the task
@@ -289,7 +318,14 @@ class CropTaskService
         }
 
         // Proceed only if the crop is in the stage immediately preceding the target stage
-        if ($currentStageIndex === $targetStageIndex - 1) {
+        // or if it's earlier in the sequence (allowing multi-stage advancement for overdue alerts)
+        if ($currentStageIndex < $targetStageIndex) {
+            // For overdue alerts, we may need to advance through multiple stages
+            $stagesNeeded = [];
+            for ($i = $currentStageIndex + 1; $i <= $targetStageIndex; $i++) {
+                $stagesNeeded[] = $stageOrder[$i];
+            }
+            
             // Send notification that action is due
             $this->sendStageTransitionNotification($crop, $targetStage);
             
@@ -298,9 +334,28 @@ class CropTaskService
             $task->last_run_at = now();
             $task->save();
             
+            // For each stage needed, advance the crop
+            foreach ($stagesNeeded as $index => $nextStage) {
+                // Only log for the final stage advancement
+                $isFinalStage = ($index === count($stagesNeeded) - 1);
+                
+                // If we need to go through multiple stages, move through them silently until the target
+                if ($isFinalStage) {
+                    // This is the target stage, so use advanceStage which will trigger events
+                    $crop->advanceStage();
+                } else {
+                    // This is an intermediate stage, manually update to avoid triggering extra alerts
+                    $stageField = "{$nextStage}_at";
+                    $crop->$stageField = now();
+                    $crop->current_stage = $nextStage;
+                    $crop->saveQuietly(); // Save without firing events
+                }
+            }
+            
             return [
                 'success' => true,
-                'message' => "Notification sent for crop ID {$cropId} to advance to {$targetStage} stage.",
+                'message' => "Crop ID {$cropId} advanced to {$targetStage} stage" . 
+                             (count($stagesNeeded) > 1 ? " (skipped " . (count($stagesNeeded) - 1) . " intermediate stages)" : "") . ".",
             ];
         } elseif ($currentStageIndex >= $targetStageIndex) {
              // If the crop is already at or past the target stage, simply deactivate the task

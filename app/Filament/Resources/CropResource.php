@@ -16,6 +16,10 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Filament\Tables\Actions\Action;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use App\Filament\Resources\RecipeResource;
+use Filament\Forms\Components\Actions\Action as FilamentAction;
+use Filament\Forms\Components\Grid;
+use Filament\Forms\Components\Placeholder;
 
 class CropResource extends Resource
 {
@@ -40,57 +44,8 @@ class CropResource extends Resource
                             ->required()
                             ->searchable()
                             ->preload()
-                            ->createOptionForm([
-                                Forms\Components\TextInput::make('name')
-                                    ->label('Recipe Name')
-                                    ->required()
-                                    ->maxLength(255),
-                                Forms\Components\Select::make('seed_variety_id')
-                                    ->label('Seed Variety')
-                                    ->relationship('seedVariety', 'name')
-                                    ->required()
-                                    ->searchable()
-                                    ->preload()
-                                    ->createOptionForm([
-                                        Forms\Components\TextInput::make('name')
-                                            ->label('Variety Name')
-                                            ->required()
-                                            ->maxLength(255),
-                                        Forms\Components\TextInput::make('crop_type')
-                                            ->label('Crop Type')
-                                            ->default('microgreens')
-                                            ->maxLength(255),
-                                        Forms\Components\Toggle::make('is_active')
-                                            ->label('Active')
-                                            ->default(true),
-                                    ])
-                                    ->createOptionUsing(function (array $data) {
-                                        return \App\Models\SeedVariety::create($data)->id;
-                                    }),
-                                Forms\Components\Grid::make([
-                                    Forms\Components\TextInput::make('germination_days')
-                                        ->label('Germination Days')
-                                        ->numeric()
-                                        ->default(3)
-                                        ->required(),
-                                    Forms\Components\TextInput::make('blackout_days')
-                                        ->label('Blackout Days')
-                                        ->numeric()
-                                        ->default(0)
-                                        ->required(),
-                                    Forms\Components\TextInput::make('light_days')
-                                        ->label('Light Days')
-                                        ->numeric()
-                                        ->default(7)
-                                        ->required(),
-                                ])->columns(3),
-                                Forms\Components\Toggle::make('is_active')
-                                    ->label('Active')
-                                    ->default(true),
-                            ])
-                            ->createOptionUsing(function (array $data) {
-                                return \App\Models\Recipe::create($data)->id;
-                            }),
+                            ->createOptionForm(RecipeResource::getFormSchema()),
+
                         Forms\Components\DateTimePicker::make('planted_at')
                             ->label('Planted At')
                             ->required()
@@ -392,141 +347,96 @@ class CropResource extends Resource
                     ]),
             ])
             ->actions([
-                Tables\Actions\Action::make('advance_stage')
-                    ->icon('heroicon-o-arrow-right')
-                    ->tooltip('Advance all trays to next stage')
-                    ->action(function (Crop $record) {
-                        // Get all crops in this grow batch (same recipe_id and planted_at)
-                        $crops = Crop::where('recipe_id', $record->recipe_id)
-                            ->where('planted_at', $record->planted_at)
-                            ->where('current_stage', $record->current_stage)
-                            ->get();
-                            
-                        foreach ($crops as $crop) {
-                            $crop->advanceStage();
-                        }
+                Action::make('advanceStage')
+                    ->label(function (Crop $record): string {
+                        $nextStage = $record->getNextStage();
+                        return $nextStage ? 'Advance to ' . ucfirst($nextStage) : 'Harvested';
                     })
-                    ->visible(fn (Crop $record) => $record->current_stage !== 'harvested'),
-                Tables\Actions\Action::make('harvest')
-                    ->icon('heroicon-o-scissors')
-                    ->tooltip('Harvest all trays')
-                    ->action(function (Crop $record) {
-                        // Get all crops in this grow batch (same recipe_id and planted_at)
-                        $crops = Crop::where('recipe_id', $record->recipe_id)
-                            ->where('planted_at', $record->planted_at)
-                            ->where('current_stage', $record->current_stage)
-                            ->get();
-                            
-                        foreach ($crops as $crop) {
-                            // Check if harvest method exists, if not use advanceStage instead
-                            if (method_exists($crop, 'harvest')) {
-                                $crop->harvest();
-                            } else {
-                                $crop->advanceStage(); // Just advance to harvested stage
-                            }
-                        }
-                    })
-                    ->visible(fn (Crop $record) => $record->current_stage === 'light'),
-                Tables\Actions\Action::make('set_stage')
-                    ->label('Set Stage')
-                    ->icon('heroicon-o-arrow-path')
-                    ->form([
-                        Forms\Components\Select::make('new_stage')
-                            ->label('Growth Stage')
-                            ->options([
-                                'germination' => 'Germination',
-                                'blackout' => 'Blackout',
-                                'light' => 'Light',
-                                'harvested' => 'Harvested',
-                            ])
-                            ->required()
-                            ->helperText('Warning: Setting to an earlier stage will clear timestamps for all later stages for all trays in this grow batch.')
-                    ])
-                    ->action(function (Crop $record, array $data): void {
-                        // Get all crops in this grow batch (same recipe_id and planted_at)
-                        $crops = Crop::where('recipe_id', $record->recipe_id)
-                            ->where('planted_at', $record->planted_at)
-                            ->get();
-                            
-                        foreach ($crops as $crop) {
-                            $crop->resetToStage($data['new_stage']);
-                        }
-                    })
+                    ->icon('heroicon-o-chevron-double-right')
+                    ->color('success')
+                    ->visible(fn (Crop $record): bool => $record->current_stage !== 'harvested')
                     ->requiresConfirmation()
-                    ->modalHeading('Set Growth Stage')
-                    ->modalDescription('Set all trays in this grow batch to a specific growth stage. This will clear timestamps for any later stages.'),
-                Tables\Actions\EditAction::make()
-                    ->tooltip('Edit grow batch'),
-                Tables\Actions\DeleteAction::make()
-                    ->tooltip('Delete grow batch')
-                    ->requiresConfirmation()
-                    ->modalDescription('Are you sure you want to delete this entire grow batch? This will delete all trays in this batch.')
-                    ->action(function (Crop $record): void {
-                        // Delete all crops in this grow batch (same recipe_id and planted_at)
-                        Crop::where('recipe_id', $record->recipe_id)
-                            ->where('planted_at', $record->planted_at)
-                            ->delete();
+                    ->modalHeading(function (Crop $record): string {
+                        $nextStage = $record->getNextStage();
+                        return 'Advance to ' . ucfirst($nextStage) . '?';
+                    })
+                    ->modalDescription('This will update the current stage of the crop and mark the corresponding task as completed.')
+                    ->action(function (Crop $record) {
+                        $nextStage = $record->getNextStage();
+                        
+                        if (!$nextStage) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('Already Harvested')
+                                ->body('This crop has already reached its final stage.')
+                                ->warning()
+                                ->send();
+                            return;
+                        }
+
+                        // Update Crop stage and timestamp
+                        $timestampField = "{$nextStage}_at";
+                        $record->current_stage = $nextStage;
+                        $record->$timestampField = now();
+                        $record->save();
+                        
+                        // Deactivate the corresponding TaskSchedule
+                        $task = \App\Models\TaskSchedule::where('resource_type', 'crops')
+                            ->where('conditions->crop_id', $record->id)
+                            ->where('conditions->target_stage', $nextStage)
+                            ->where('is_active', true)
+                            ->first();
+                            
+                        if ($task) {
+                            $task->update([
+                                'is_active' => false,
+                                'last_run_at' => now(),
+                            ]);
+                        }
+                        
+                        \Filament\Notifications\Notification::make()
+                            ->title('Stage Advanced')
+                            ->body("Crop successfully advanced to {$nextStage}.")
+                            ->success()
+                            ->send();
                     }),
+                Action::make('suspendWatering')
+                    ->label('Suspend Watering')
+                    ->icon('heroicon-o-no-symbol')
+                    ->color('warning')
+                    ->visible(fn (Crop $record): bool => $record->current_stage === 'light' && !$record->isWateringSuspended())
+                    ->requiresConfirmation()
+                    ->modalHeading('Suspend Watering?')
+                    ->modalDescription('This will mark watering as suspended for this crop and complete the corresponding task.')
+                    ->action(function (Crop $record) {
+                        // Suspend watering on the Crop model
+                        $record->suspendWatering(); // This method should set the timestamp and save
+
+                        // Deactivate the corresponding TaskSchedule
+                        $task = \App\Models\TaskSchedule::where('resource_type', 'crops')
+                            ->where('conditions->crop_id', $record->id)
+                            ->where('task_name', 'suspend_watering') // Match the task name
+                            ->where('is_active', true)
+                            ->first();
+                            
+                        if ($task) {
+                            $task->update([
+                                'is_active' => false,
+                                'last_run_at' => now(),
+                            ]);
+                        }
+                        
+                        \Filament\Notifications\Notification::make()
+                            ->title('Watering Suspended')
+                            ->body('Watering has been successfully suspended for this crop.')
+                            ->success()
+                            ->send();
+                    }),
+                Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make()
-                        ->action(function ($records): void {
-                            foreach ($records as $record) {
-                                // Delete all crops in this grow batch (same recipe_id and planted_at)
-                                Crop::where('recipe_id', $record->recipe_id)
-                                    ->where('planted_at', $record->planted_at)
-                                    ->delete();
-                            }
-                        }),
-                    Tables\Actions\BulkAction::make('advance_stage_bulk')
-                        ->label('Advance Stage')
-                        ->icon('heroicon-o-arrow-right')
-                        ->action(function ($records) {
-                            foreach ($records as $record) {
-                                if ($record->current_stage !== 'harvested') {
-                                    // Get all crops in this grow batch (same recipe_id and planted_at)
-                                    $crops = Crop::where('recipe_id', $record->recipe_id)
-                                        ->where('planted_at', $record->planted_at)
-                                        ->where('current_stage', $record->current_stage)
-                                        ->get();
-                                        
-                                    foreach ($crops as $crop) {
-                                        $crop->advanceStage();
-                                    }
-                                }
-                            }
-                        }),
-                    Tables\Actions\BulkAction::make('set_stage_bulk')
-                        ->label('Set Stage')
-                        ->icon('heroicon-o-arrow-path')
-                        ->form([
-                            Forms\Components\Select::make('new_stage')
-                                ->label('Growth Stage')
-                                ->options([
-                                    'germination' => 'Germination',
-                                    'blackout' => 'Blackout',
-                                    'light' => 'Light',
-                                    'harvested' => 'Harvested',
-                                ])
-                                ->required()
-                                ->helperText('Warning: Setting to an earlier stage will clear timestamps for all later stages for all trays in the selected grow batches.')
-                        ])
-                        ->action(function ($records, array $data) {
-                            foreach ($records as $record) {
-                                // Get all crops in this grow batch (same recipe_id and planted_at)
-                                $crops = Crop::where('recipe_id', $record->recipe_id)
-                                    ->where('planted_at', $record->planted_at)
-                                    ->get();
-                                    
-                                foreach ($crops as $crop) {
-                                    $crop->resetToStage($data['new_stage']);
-                                }
-                            }
-                        })
-                        ->requiresConfirmation()
-                        ->modalHeading('Set Growth Stage for Selected Grows')
-                        ->modalDescription('Set all trays in the selected grow batches to a specific growth stage. This will clear timestamps for any later stages.'),
+                    Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
     }
