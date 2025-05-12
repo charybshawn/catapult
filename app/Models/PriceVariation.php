@@ -50,6 +50,11 @@ class PriceVariation extends Model
                 $priceVariation->weight = 0;
             }
             
+            // Set item_id to NULL for global price variations
+            if ($priceVariation->is_global) {
+                $priceVariation->item_id = null;
+            }
+            
             // Handle default pricing
             if ($priceVariation->is_default) {
                 static::where('item_id', $priceVariation->item_id)
@@ -62,6 +67,11 @@ class PriceVariation extends Model
             // Ensure weight is never null
             if (is_null($priceVariation->weight)) {
                 $priceVariation->weight = 0;
+            }
+            
+            // Set item_id to NULL for global price variations
+            if ($priceVariation->is_global && !$priceVariation->isDirty('is_global')) {
+                $priceVariation->item_id = null;
             }
             
             // Handle default pricing
@@ -85,11 +95,21 @@ class PriceVariation extends Model
     }
 
     /**
+     * Get the product that owns the price variation.
+     */
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class, 'item_id');
+    }
+
+    /**
      * Get the item that owns the price variation.
+     * 
+     * @deprecated Use product() instead
      */
     public function item(): BelongsTo
     {
-        return $this->belongsTo(Item::class);
+        return $this->product();
     }
 
     /**

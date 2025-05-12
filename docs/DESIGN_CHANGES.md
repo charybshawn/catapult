@@ -276,4 +276,98 @@ Replaced repeater-based components with modal-based interfaces for managing rela
 - Improved overall user experience for product management
 
 ### Implementation Notes
-This modal-based approach is now the preferred method over repeater elements for managing relations in Catapult v2. Future relation management implementations should follow this pattern for consistency. 
+This modal-based approach is now the preferred method over repeater elements for managing relations in Catapult v2. Future relation management implementations should follow this pattern for consistency.
+
+## Item to Product Model Migration
+
+### Date
+November 18, 2023
+
+### Description
+Migrated from the Item model to a dedicated Product model to better align the codebase with business terminology and improve semantic clarity. This change maintains database compatibility while providing a more intuitive API for product-related operations.
+
+### Changes Made
+- Created a new `Product` model that uses the existing `items` table:
+  - Added proper table association via `protected $table = 'items'`
+  - Ensured all necessary fields are marked as fillable
+  - Added proper casting for boolean and decimal fields
+  - Enhanced the `getPriceForCustomerType` method with intuitive fallbacks
+- Created a `ProductPhoto` model that uses the existing `item_photos` table:
+  - Maintained compatibility with existing database schema
+  - Added proper relationship to the new Product model
+  - Preserved the `setAsDefault` functionality
+- Updated `ProductResource` to use the new Product model instead of Item
+- Modified the product-price-calculator view to work with the new model
+- Created a comprehensive `ProductFactory` for testing
+- Updated all tests to use the new Product model:
+  - Fixed Livewire test approach for Filament compatibility
+  - Updated validation tests to use proper Laravel validation
+
+### Impact
+- More intuitive naming that aligns with business terminology
+- Clearer separation of concerns in the codebase
+- Improved developer experience with more semantic model naming
+- Maintained backward compatibility with existing database structure
+- Enhanced testing infrastructure with dedicated product factory
+- All tests passing with the new model structure
+
+## Enhanced Product Price Variations Integration
+
+### Date
+June 25, 2025
+
+### Description
+Improved the product creation process to automatically create price variations during the initial product creation, eliminating the need to save before creating price variations. This enhancement streamlines the workflow for creating products with different pricing tiers.
+
+### Changes Made
+1. Enhanced CreateProduct page:
+   - Added mutateFormDataBeforeCreate method to capture price data during form submission
+   - Improved the createDefaultPriceVariations method to use captured data from the session
+   - Ensured all standard price types (Default, Wholesale, Bulk, Special) are created when present
+   
+2. Modified Product model booted method:
+   - Added logic to update existing price variations when product prices change
+   - Implemented better synchronization between legacy price fields and price variation models
+   - Fixed issues with automatic creation of price variations
+
+### Impact
+- Streamlined product creation workflow - price variations are created immediately
+- Eliminated the need to save a product before adding price variations
+- Maintained backward compatibility with legacy price fields
+- Improved user experience with a more intuitive pricing UI
+- Enhanced data integrity by keeping price variations in sync with product data
+
+## Global Price Variations With Nullable Item ID
+
+### Date
+May 7, 2025
+
+### Description
+Enhanced the price variations system to support truly global price variations that can be used across multiple products. This allows for standardized packaging or unit pricing that can be applied to any product in the system.
+
+### Changes Made
+1. Database Schema:
+   - Modified the `price_variations` table to make the `item_id` column nullable via migration
+   - Updated foreign key constraints to handle nullable relationships
+   
+2. Models:
+   - Enhanced the `PriceVariation` model to handle global variations with null item_id
+   - Updated the `booted` method to automatically set item_id to NULL when is_global is true
+   - Modified relationship queries to handle nullable foreign keys
+   
+3. Filament Resources:
+   - Updated the CreatePriceVariation page to explicitly handle global variations
+   - Added `handleRecordCreation` method to ensure proper data processing
+   - Enhanced the afterCreate method to check for item_id before updating default status
+   
+4. Testing:
+   - Added comprehensive tests for global price variations functionality
+   - Verified that global variations work with null item_id
+   - Tested integration with products to ensure compatibility
+
+### Impact
+- Support for truly global price variations that apply across products
+- Standardized pricing for common packaging options (clamshells, boxes, etc.)
+- Better organization of pricing options that aren't product-specific
+- Improved efficiency by reusing price variations across multiple products
+- Fixed internal server error when creating global price variations 
