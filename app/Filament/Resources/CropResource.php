@@ -236,7 +236,9 @@ class CropResource extends Resource
                         }
                         return null;
                     })
-                    ->sortable()
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderBy('stage_age_minutes', $direction);
+                    })
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('time_to_next_stage')
                     ->label('Time to Next Stage')
