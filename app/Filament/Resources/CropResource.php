@@ -296,7 +296,9 @@ class CropResource extends Resource
                         return $baseStatus;
                     })
                     ->html()
-                    ->sortable()
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderBy('time_to_next_stage_minutes', $direction);
+                    })
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('total_age')
                     ->label('Total Age')
