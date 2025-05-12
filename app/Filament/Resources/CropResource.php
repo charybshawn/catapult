@@ -136,10 +136,7 @@ class CropResource extends Resource
         return $table
             ->persistSortInSession()
             ->modifyQueryUsing(function (Builder $query): Builder {
-                // We'll still need a few raw statements for MySQL-specific functions like GROUP_CONCAT
-                // But we can use Laravel's aggregate methods for most operations
-                return $query
-                    ->select('recipe_id', 'planted_at', 'current_stage')
+                $baseQuery = $query->select('recipe_id', 'planted_at', 'current_stage')
                     ->selectRaw('MIN(id) as id')
                     ->selectRaw('MIN(created_at) as created_at')
                     ->selectRaw('MIN(updated_at) as updated_at')
@@ -159,18 +156,25 @@ class CropResource extends Resource
                     ->selectRaw('MIN(notes) as notes')
                     ->selectRaw('COUNT(id) as tray_count')
                     ->selectRaw('GROUP_CONCAT(DISTINCT tray_number ORDER BY tray_number SEPARATOR ", ") as tray_number_list')
-                    ->groupBy(['recipe_id', 'planted_at', 'current_stage'])
-                    ->when(request()->query('tableSortColumn'), function ($query, $column) {
-                        $direction = request()->query('tableSortDirection', 'asc');
-                        
-                        // Handle special cases for sorting
-                        if ($column === 'id') {
-                            return $query->orderByRaw("MIN(id) {$direction}");
-                        }
-                        
-                        // For other columns, use the column name directly
-                        return $query->orderBy($column, $direction);
-                    });
+                    ->groupBy(['recipe_id', 'planted_at', 'current_stage']);
+
+                $sortColumn = request()->query('tableSortColumn');
+                $direction = request()->query('tableSortDirection', 'asc');
+
+                if ($sortColumn) {
+                    // Handle special cases for sorting
+                    if ($sortColumn === 'id') {
+                        return $baseQuery->orderByRaw("MIN(id) {$direction}");
+                    }
+                    
+                    // For other columns, use the column name directly
+                    return $baseQuery->orderBy($sortColumn, $direction);
+                }
+
+                // Default sorting using a subquery
+                return DB::table(DB::raw("({$baseQuery->toSql()}) as subquery"))
+                    ->mergeBindings($baseQuery->getQuery())
+                    ->orderBy('id', 'asc');
             })
             ->recordUrl(fn ($record) => static::getUrl('edit', ['record' => $record]))
             ->columns([
