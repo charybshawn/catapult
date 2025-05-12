@@ -135,48 +135,6 @@ class CropResource extends Resource
     {
         return $table
             ->persistSortInSession()
-            ->modifyQueryUsing(function (Builder $query): Builder {
-                $baseQuery = $query->select('recipe_id', 'planted_at', 'current_stage')
-                    ->selectRaw('MIN(id) as id')
-                    ->selectRaw('MIN(created_at) as created_at')
-                    ->selectRaw('MIN(updated_at) as updated_at')
-                    ->selectRaw('MIN(planting_at) as planting_at')
-                    ->selectRaw('MIN(germination_at) as germination_at')
-                    ->selectRaw('MIN(blackout_at) as blackout_at')
-                    ->selectRaw('MIN(light_at) as light_at')
-                    ->selectRaw('MIN(harvested_at) as harvested_at')
-                    ->selectRaw('AVG(harvest_weight_grams) as harvest_weight_grams')
-                    ->selectRaw('MIN(time_to_next_stage_minutes) as time_to_next_stage_minutes')
-                    ->selectRaw('MIN(time_to_next_stage_status) as time_to_next_stage_status')
-                    ->selectRaw('MIN(stage_age_minutes) as stage_age_minutes')
-                    ->selectRaw('MIN(stage_age_status) as stage_age_status')
-                    ->selectRaw('MIN(total_age_minutes) as total_age_minutes')
-                    ->selectRaw('MIN(total_age_status) as total_age_status')
-                    ->selectRaw('MIN(watering_suspended_at) as watering_suspended_at')
-                    ->selectRaw('MIN(notes) as notes')
-                    ->selectRaw('COUNT(id) as tray_count')
-                    ->selectRaw('GROUP_CONCAT(DISTINCT tray_number ORDER BY tray_number SEPARATOR ", ") as tray_number_list')
-                    ->groupBy(['recipe_id', 'planted_at', 'current_stage']);
-
-                $sortColumn = request()->query('tableSortColumn');
-                $direction = request()->query('tableSortDirection', 'asc');
-
-                if ($sortColumn) {
-                    // Handle special cases for sorting
-                    if ($sortColumn === 'id') {
-                        return $baseQuery->orderByRaw("MIN(id) {$direction}");
-                    }
-                    
-                    // For other columns, use the column name directly
-                    return $baseQuery->orderBy($sortColumn, $direction);
-                }
-
-                // Default sorting using a subquery
-                return DB::table(DB::raw("({$baseQuery->toSql()}) as subquery"))
-                    ->mergeBindings($baseQuery->getQuery())
-                    ->orderBy('id', 'asc');
-            })
-            ->recordUrl(fn ($record) => static::getUrl('edit', ['record' => $record]))
             ->columns([
                 Tables\Columns\TextColumn::make('recipe.seedVariety.name')
                     ->label('Variety')
@@ -185,26 +143,13 @@ class CropResource extends Resource
                     ->toggleable()
                     ->weight('medium')
                     ->description(fn (Crop $record): ?string => $record->recipe?->name)
-                    ->size('md')
-                    ->getStateUsing(function (Crop $record): ?string {
-                        if (!$record->recipe) {
-                            return 'No Recipe';
-                        }
-                        
-                        // Get seed variety name if it exists
-                        if ($record->recipe->seedVariety) {
-                            return $record->recipe->seedVariety->name;
-                        }
-                        
-                        // If no seed variety, only show this message
-                        return 'Unknown Variety';
-                    }),
+                    ->size('md'),
                 Tables\Columns\TextColumn::make('tray_count')
                     ->label('# of Trays')
-                    ->formatStateUsing(fn ($state) => $state ? $state : 1)
+                    ->sortable()
                     ->alignCenter()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('tray_number_list')
+                Tables\Columns\TextColumn::make('tray_numbers')
                     ->label('Tray Numbers')
                     ->toggleable(isToggledHiddenByDefault: true)
                     ->wrap(),
@@ -226,112 +171,22 @@ class CropResource extends Resource
                     })
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('stage_age')
+                Tables\Columns\TextColumn::make('stage_age_display')
                     ->label('Time in Stage')
-                    ->getStateUsing(fn (Crop $record): string => $record->stage_age_status ?? $record->getStageAgeStatus())
-                    ->color(function (Crop $record) {
-                        $stageField = "{$record->current_stage}_at";
-                        if ($record->$stageField) {
-                            $now = now();
-                            $stageStart = $record->$stageField;
-                            $totalHours = $stageStart->diffInHours($now);
-                            
-                            $stageDuration = match ($record->current_stage) {
-                                'germination' => $record->recipe?->germination_days ?? 0,
-                                'blackout' => $record->recipe?->blackout_days ?? 0,
-                                'light' => $record->recipe?->light_days ?? 0,
-                                default => 0,
-                            };
-                            
-                            $expectedHours = $stageDuration * 24;
-                            
-                            if ($expectedHours > 0 && $totalHours > $expectedHours) {
-                                return 'danger';
-                            }
-                        }
-                        return null;
-                    })
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderBy('stage_age_minutes', $direction);
-                    })
+                    ->sortable('stage_age_minutes')
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('time_to_next_stage')
+                Tables\Columns\TextColumn::make('time_to_next_stage_display')
                     ->label('Time to Next Stage')
-                    ->getStateUsing(function (Crop $record): ?string {
-                        $baseStatus = $record->time_to_next_stage_status ?? $record->timeToNextStage();
-                        
-                        // Check if the status includes overflow information (format: "Ready to advance|2d 4h")
-                        if (str_contains($baseStatus, 'Ready to advance|')) {
-                            $parts = explode('|', $baseStatus);
-                            if (count($parts) === 2) {
-                                $overflowText = $parts[1];
-                                return "Ready to advance<br><span style=\"color: #ef4444; font-size: 0.875em;\">+{$overflowText} overdue</span>";
-                            }
-                        }
-                        
-                        // If status is "Ready to advance" without stored overflow time, calculate it now
-                        if ($baseStatus === 'Ready to advance') {
-                            // Get the timestamp for the current stage
-                            $stageField = "{$record->current_stage}_at";
-                            $stageStartTime = $record->$stageField;
-                            
-                            if ($stageStartTime && $record->recipe) {
-                                // Get the duration for the current stage from the recipe
-                                $stageDuration = match ($record->current_stage) {
-                                    'germination' => $record->recipe->germination_days,
-                                    'blackout' => $record->recipe->blackout_days,
-                                    'light' => $record->recipe->light_days,
-                                    default => 0,
-                                };
-                                
-                                // Calculate the expected end date for this stage
-                                $stageEndDate = $stageStartTime->copy()->addDays($stageDuration);
-                                
-                                // Calculate how much time has passed since stage should have ended
-                                $now = now();
-                                $overTime = $stageEndDate->diff($now);
-                                $days = (int)$overTime->format('%a');
-                                $hours = $overTime->h;
-                                $minutes = $overTime->i;
-                                
-                                // Format the overtime
-                                $overflowText = '';
-                                if ($days > 0) {
-                                    $overflowText = "{$days}d {$hours}h";
-                                } elseif ($hours > 0) {
-                                    $overflowText = "{$hours}h {$minutes}m";
-                                } else {
-                                    $overflowText = "{$minutes}m";
-                                }
-                                
-                                return "Ready to advance<br><span style=\"color: #ef4444; font-size: 0.875em;\">+{$overflowText} overdue</span>";
-                            }
-                        }
-                        
-                        return $baseStatus;
-                    })
-                    ->html()
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderBy('time_to_next_stage_minutes', $direction);
-                    })
+                    ->sortable('time_to_next_stage_minutes')
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('total_age')
+                Tables\Columns\TextColumn::make('total_age_display')
                     ->label('Total Age')
-                    ->getStateUsing(fn (Crop $record): ?string => $record->total_age_status ?? $record->getTotalAgeStatus())
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderBy('planting_at', $direction);
-                    })
+                    ->sortable('total_age_minutes')
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('expected_harvest_date')
+                Tables\Columns\TextColumn::make('expected_harvest_at')
                     ->label('Expected Harvest')
-                    ->getStateUsing(function (Crop $record): ?string {
-                        $date = $record->expectedHarvestDate();
-                        return $date ? $date->format('M j, Y') : '-';
-                    })
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        // Custom sorting for expected harvest date
-                        return $query->orderBy('light_at', $direction);
-                    })
+                    ->date()
+                    ->sortable()
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('harvest_weight_grams')
                     ->label('Harvest Weight')
