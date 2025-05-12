@@ -159,7 +159,18 @@ class CropResource extends Resource
                     ->selectRaw('MIN(notes) as notes')
                     ->selectRaw('COUNT(id) as tray_count')
                     ->selectRaw('GROUP_CONCAT(DISTINCT tray_number ORDER BY tray_number SEPARATOR ", ") as tray_number_list')
-                    ->groupBy(['recipe_id', 'planted_at', 'current_stage']);
+                    ->groupBy(['recipe_id', 'planted_at', 'current_stage'])
+                    ->when(request()->query('tableSortColumn'), function ($query, $column) {
+                        $direction = request()->query('tableSortDirection', 'asc');
+                        
+                        // Handle special cases for sorting
+                        if ($column === 'id') {
+                            return $query->orderByRaw("MIN(id) {$direction}");
+                        }
+                        
+                        // For other columns, use the column name directly
+                        return $query->orderBy($column, $direction);
+                    });
             })
             ->recordUrl(fn ($record) => static::getUrl('edit', ['record' => $record]))
             ->columns([
