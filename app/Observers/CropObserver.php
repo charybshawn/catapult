@@ -79,7 +79,7 @@ class CropObserver
     /**
      * Format a DateInterval into a human-readable duration.
      */
-    protected function formatDuration(\DateInterval $interval): string
+    public function formatDuration(\DateInterval $interval): string
     {
         $parts = [];
         
