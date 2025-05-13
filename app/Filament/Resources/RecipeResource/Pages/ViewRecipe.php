@@ -189,7 +189,9 @@ class ViewRecipe extends ViewRecord
                                 
                                 return implode('<br>', $schedule);
                             })
-                            ->html()
+                            ->extraAttributes(fn (Recipe $record) => [
+                                'data-markdown' => $record->wateringSchedule->isNotEmpty(),
+                            ])
                             ->columnSpanFull()
                             ->visible(fn (Recipe $record) => $record->wateringSchedule->isNotEmpty()),
                     ])

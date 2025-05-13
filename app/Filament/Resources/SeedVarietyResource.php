@@ -82,7 +82,11 @@ class SeedVarietyResource extends Resource
             ->actions([
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make()
-                    ->before(function (SeedVariety $record) {
+                    ->requiresConfirmation()
+                    ->successNotificationTitle('Seed variety deleted successfully')
+                    ->modalHeading('Delete Seed Variety')
+                    ->modalDescription('Are you sure you want to delete this seed variety?')
+                    ->before(function (Tables\Actions\DeleteAction $action, SeedVariety $record) {
                         // Check if this variety is used in any seed inventory
                         $hasInventory = $record->consumables()
                             ->where('type', 'seed')
@@ -90,21 +94,32 @@ class SeedVarietyResource extends Resource
                             ->exists();
                             
                         if ($hasInventory) {
+                            // Cancel the action
+                            $action->cancel();
+                            
+                            // Show a warning modal
                             Notification::make()
                                 ->title('Cannot Delete Seed Variety')
                                 ->body('This seed variety is currently being used in active seed inventory. Please deactivate or delete the related seed inventory first.')
                                 ->danger()
                                 ->persistent()
                                 ->send();
-                                
-                            throw new \Exception('Cannot delete seed variety with active inventory');
+                            
+                            // Return false to cancel the deletion
+                            return false;
                         }
+                        
+                        return true;
                     }),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make()
-                        ->before(function ($records) {
+                        ->requiresConfirmation()
+                        ->modalHeading('Delete Seed Varieties')
+                        ->modalDescription('Are you sure you want to delete these seed varieties?')
+                        ->successNotificationTitle('Seed varieties deleted successfully')
+                        ->before(function (Tables\Actions\DeleteBulkAction $action, array $records) {
                             $hasInventory = false;
                             $varietiesWithInventory = [];
                             
@@ -119,6 +134,10 @@ class SeedVarietyResource extends Resource
                             }
                             
                             if ($hasInventory) {
+                                // Cancel the action
+                                $action->cancel();
+                                
+                                // Show warning notification
                                 Notification::make()
                                     ->title('Cannot Delete Some Seed Varieties')
                                     ->body('The following varieties are currently being used in active seed inventory: ' . implode(', ', $varietiesWithInventory) . '. Please deactivate or delete the related seed inventory first.')

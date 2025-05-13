@@ -318,15 +318,36 @@ class Product extends Model
      */
     public function getDefaultPhotoAttribute()
     {
-        return $this->defaultPhoto();
+        $defaultPhoto = $this->defaultPhoto()->first();
+        
+        if ($defaultPhoto) {
+            return $defaultPhoto->photo_path;
+        }
+        
+        // Return the legacy image field or a placeholder
+        return $this->image ?? null;
     }
 
     /**
-     * Get the product mix associated with this product.
+     * Get the product mix for this product.
      */
     public function productMix(): BelongsTo
     {
-        return $this->belongsTo(ProductMix::class);
+        try {
+            // Add debug logging when the relationship is accessed
+            \Illuminate\Support\Facades\Log::info('Product: productMix relationship accessed', [
+                'product_id' => $this->id ?? 'null',
+                'product_mix_id' => $this->product_mix_id ?? 'null',
+            ]);
+            
+            return $this->belongsTo(ProductMix::class);
+        } catch (\Throwable $e) {
+            // Log any errors
+            \App\Services\DebugService::logError($e, 'Product::productMix');
+            
+            // We have to return a relationship, so re-throw after logging
+            throw $e;
+        }
     }
 
     /**

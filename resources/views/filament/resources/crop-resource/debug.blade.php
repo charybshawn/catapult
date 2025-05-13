@@ -142,4 +142,17 @@ Recipe:
 {{ print_r($recipe ? $recipe->toArray() : 'No recipe', true) }}
         </pre>
     </div>
+</div>
+
+<h2>Debug Information</h2>
+
+<h3>Query Information</h3>
+<div style="background: #f5f5f5; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; overflow: auto;">
+    <strong>SQL:</strong> {{ $query['sql'] ?? 'No SQL' }}<br>
+    <strong>Bindings:</strong> {{ json_encode($query['bindings'] ?? []) }}
+</div>
+
+<h3>Records</h3>
+<div style="background: #f5f5f5; padding: 1rem; border-radius: 0.5rem; overflow: auto;">
+    <pre>{{ json_encode($records ?? [], JSON_PRETTY_PRINT) }}</pre>
 </div> 

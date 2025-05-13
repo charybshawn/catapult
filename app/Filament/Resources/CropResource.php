@@ -135,44 +135,95 @@ class CropResource extends Resource
     {
         return $table
             ->persistSortInSession()
+            ->defaultSort('planted_at', 'desc')
             ->modifyQueryUsing(function (Builder $query): Builder {
-                return $query->select([
-                        'recipe_id',
-                        'planted_at',
-                        'current_stage',
-                        DB::raw('MIN(id) as id'),
-                        DB::raw('MIN(created_at) as created_at'),
-                        DB::raw('MIN(updated_at) as updated_at'),
-                        DB::raw('MIN(planting_at) as planting_at'),
-                        DB::raw('MIN(germination_at) as germination_at'),
-                        DB::raw('MIN(blackout_at) as blackout_at'),
-                        DB::raw('MIN(light_at) as light_at'),
-                        DB::raw('MIN(harvested_at) as harvested_at'),
-                        DB::raw('AVG(harvest_weight_grams) as harvest_weight_grams'),
-                        DB::raw('MIN(time_to_next_stage_minutes) as time_to_next_stage_minutes'),
-                        DB::raw('MIN(time_to_next_stage_display) as time_to_next_stage_display'),
-                        DB::raw('MIN(stage_age_minutes) as stage_age_minutes'),
-                        DB::raw('MIN(stage_age_display) as stage_age_display'),
-                        DB::raw('MIN(total_age_minutes) as total_age_minutes'),
-                        DB::raw('MIN(total_age_display) as total_age_display'),
-                        DB::raw('MIN(expected_harvest_at) as expected_harvest_at'),
-                        DB::raw('MIN(watering_suspended_at) as watering_suspended_at'),
-                        DB::raw('MIN(notes) as notes'),
-                        DB::raw('COUNT(id) as tray_count'),
-                        DB::raw('GROUP_CONCAT(DISTINCT tray_number ORDER BY tray_number SEPARATOR ", ") as tray_numbers')
+                // Check if recipes table exists
+                $recipesExists = \Illuminate\Support\Facades\Schema::hasTable('recipes');
+                \Illuminate\Support\Facades\Log::debug('Checking recipes table', [
+                    'exists' => $recipesExists
+                ]);
+                
+                // Get a sample recipe
+                if ($recipesExists) {
+                    $sampleRecipe = \Illuminate\Support\Facades\DB::table('recipes')->first();
+                    \Illuminate\Support\Facades\Log::debug('Sample recipe', [
+                        'recipe' => $sampleRecipe
+                    ]);
+                }
+                
+                // Build the query
+                $result = $query->select([
+                        'crops.recipe_id',
+                        'crops.planted_at',
+                        'crops.current_stage',
+                        DB::raw('MIN(crops.id) as id'),
+                        DB::raw('MIN(crops.created_at) as created_at'),
+                        DB::raw('MIN(crops.updated_at) as updated_at'),
+                        DB::raw('MIN(crops.planting_at) as planting_at'),
+                        DB::raw('MIN(crops.germination_at) as germination_at'),
+                        DB::raw('MIN(crops.blackout_at) as blackout_at'),
+                        DB::raw('MIN(crops.light_at) as light_at'),
+                        DB::raw('MIN(crops.harvested_at) as harvested_at'),
+                        DB::raw('AVG(crops.harvest_weight_grams) as harvest_weight_grams'),
+                        DB::raw('MIN(crops.time_to_next_stage_minutes) as time_to_next_stage_minutes'),
+                        DB::raw('MIN(crops.time_to_next_stage_display) as time_to_next_stage_display'),
+                        DB::raw('MIN(crops.stage_age_minutes) as stage_age_minutes'),
+                        DB::raw('MIN(crops.stage_age_display) as stage_age_display'),
+                        DB::raw('MIN(crops.total_age_minutes) as total_age_minutes'),
+                        DB::raw('MIN(crops.total_age_display) as total_age_display'),
+                        DB::raw('MIN(crops.expected_harvest_at) as expected_harvest_at'),
+                        DB::raw('MIN(crops.watering_suspended_at) as watering_suspended_at'),
+                        DB::raw('MIN(crops.notes) as notes'),
+                        DB::raw('COUNT(crops.id) as tray_count'),
+                        DB::raw('GROUP_CONCAT(DISTINCT crops.tray_number ORDER BY crops.tray_number SEPARATOR ", ") as tray_numbers'),
+                        DB::raw('(SELECT recipes.name FROM recipes WHERE recipes.id = crops.recipe_id) as recipe_name')
                     ])
-                    ->groupBy(['recipe_id', 'planted_at', 'current_stage']);
+                    ->from('crops')
+                    ->groupBy(['crops.recipe_id', 'crops.planted_at', 'crops.current_stage']);
+                
+                // Log the query
+                \Illuminate\Support\Facades\Log::debug('CropResource query', [
+                    'sql' => $result->toSql(),
+                    'bindings' => $result->getBindings()
+                ]);
+                
+                return $result;
             })
             ->recordUrl(fn ($record) => static::getUrl('edit', ['record' => $record]))
             ->columns([
-                Tables\Columns\TextColumn::make('recipe.seedVariety.name')
-                    ->label('Variety')
-                    ->searchable()
-                    ->sortable()
+                Tables\Columns\TextColumn::make('recipe_name')
+                    ->label('Recipe')
+                    ->weight('bold')
+                    ->getStateUsing(function ($record) {
+                        // Log what we're getting for debugging
+                        \Illuminate\Support\Facades\Log::debug('Recipe name from record:', [
+                            'record_id' => $record->id ?? 'unknown',
+                            'recipe_id' => $record->recipe_id ?? null,
+                            'recipe_name' => $record->recipe_name ?? 'not found',
+                            'record_attrs' => (array) $record,
+                        ]);
+                        
+                        // Return the recipe name from the query-generated field
+                        return $record->recipe_name ?? "Recipe #{$record->recipe_id}";
+                    })
+                    ->searchable(false)
+                    ->sortable(false),
+                Tables\Columns\TextColumn::make('debug_data')
+                    ->label('Debug Data')
+                    ->getStateUsing(function ($record) {
+                        $data = (array) $record;
+                        // Log the full record data
+                        \Illuminate\Support\Facades\Log::debug('Record data:', [
+                            'data' => $data,
+                            'recipe_id' => $record->recipe_id ?? null,
+                            'recipe_name' => $record->recipe_name ?? null
+                        ]);
+                        return json_encode($data, JSON_PRETTY_PRINT);
+                    })
+                    ->extraAttributes(['class' => 'prose'])
                     ->toggleable()
-                    ->weight('medium')
-                    ->description(fn (Crop $record): ?string => $record->recipe?->name)
-                    ->size('md'),
+                    ->wrap()
+                    ->size('xs'),
                 Tables\Columns\TextColumn::make('tray_count')
                     ->label('# of Trays')
                     ->sortable()
@@ -203,14 +254,17 @@ class CropResource extends Resource
                 Tables\Columns\TextColumn::make('stage_age_display')
                     ->label('Time in Stage')
                     ->sortable('stage_age_minutes')
+                    ->getStateUsing(fn ($record): string => $record->getStageAgeStatus())
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('time_to_next_stage_display')
                     ->label('Time to Next Stage')
                     ->sortable('time_to_next_stage_minutes')
+                    ->getStateUsing(fn ($record): string => $record->timeToNextStage())
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('total_age_display')
                     ->label('Total Age')
                     ->sortable('total_age_minutes')
+                    ->getStateUsing(fn ($record): string => $record->getTotalAgeStatus())
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('expected_harvest_at')
                     ->label('Expected Harvest')
@@ -228,16 +282,15 @@ class CropResource extends Resource
                     ->toggleable(),
             ])
             ->groups([
-                Tables\Grouping\Group::make('recipe.seedVariety.name')
-                    ->label('Variety')
-                    ->collapsible(),
+                Tables\Grouping\Group::make('recipe_name')
+                    ->label('Recipe'),
                 Tables\Grouping\Group::make('planted_at')
                     ->label('Plant Date')
                     ->date(),
                 Tables\Grouping\Group::make('current_stage')
                     ->label('Growth Stage'),
             ])
-            ->defaultGroup('recipe.seedVariety.name')
+            ->defaultGroup('recipe_name')
             ->filters([
                 Tables\Filters\SelectFilter::make('current_stage')
                     ->label('Stage')

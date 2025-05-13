@@ -13,6 +13,10 @@ This document tracks all significant changes to the Catapult v2 project.
   - Created dedicated price variations panel for product view/edit pages
   - Added data migration to generate price variations for existing products
   - Updated tests to work with the price variations system
+- Added Germina as a seed supplier in Montreal, Canada (2025-06-20)
+  - Updated MicrogreenSeeder with complete contact information
+  - Expanded seed supplier options for Canadian customers
+  - Added support for organic certified sprouting and microgreen seeds
 - Enhanced "Ready to advance" display for crops with overdue time (2024-09-10)
   - Added red display of elapsed time past expected stage transition
   - Added logic to calculate and show how overdue a crop is for advancement
@@ -131,6 +135,11 @@ This document tracks all significant changes to the Catapult v2 project.
   - Created new inventory records automatically for different lot numbers
   - Improved seed inventory management with better traceability
   - Enhanced food safety tracking with lot-specific inventory
+- Added debug tools for tracking and resolving errors (2024-09-18)
+  - Created DebugService for detailed error logging and object inspection
+  - Added error interception in AppServiceProvider to capture "isContained() on null" errors
+  - Enhanced Product model and ProductResource with debugging capabilities
+  - Implemented robust error handling in ViewProduct page with fallback display
 
 ### Changed
 - Completely redesigned seed inventory management (2024-08-15)
@@ -215,8 +224,23 @@ This document tracks all significant changes to the Catapult v2 project.
   - Removed "Create Full Recipe" button from the crop creation form
   - Streamlined UI to avoid unnecessary navigation options
   - Recipe creation options remain available via the inline "Create" option
+- Improved Products list UI with icon-based mix indicator (2025-06-20)
+  - Changed product mix column from text to boolean icon for cleaner UI
+  - Simplified product mix display to show presence/absence instead of name
+  - Updated product mix filter to use ternary (yes/no/any) filtering
+  - Better visual consistency with other boolean columns like "active" and "in store"
 
 ### Fixed
+- Fixed crop stage age calculation to use current time (2024-09-18)
+  - Modified Crop model's getStageAgeStatus method to always use the current time
+  - Added detailed logging to track time calculations for debugging
+  - Improved accuracy of stage duration display on Grows list page
+  - Ensures proper real-time tracking of crop growth stages
+- Fixed real-time display of crop timing fields in Grows list (2025-06-20)
+  - Updated CropResource table columns to calculate values in real-time instead of using cached database values
+  - Applied real-time calculations to Time in Stage, Time to Next Stage, and Total Age columns
+  - Ensures accurate time display regardless of when the record was last updated
+  - Eliminates confusion when stored database values appear outdated
 - Fixed migration ordering issue with consumables and packaging types tables
   - Separated the packaging_type_id foreign key constraint into a separate migration
   - Ensures migrations can run in any environment without sequence errors
@@ -293,6 +317,21 @@ This document tracks all significant changes to the Catapult v2 project.
   - Updated Recipe form to use proper `live()` and `afterStateUpdated()` methods
   - Ensured Light Days value is correctly saved with the form
   - Added form save hook to guarantee correct calculation
+- Fixed error in ProductResource.php with ViewProduct page (2024-09-18)
+  - Fixed "Call to a member function isContained() on null" error when viewing product details
+  - Improved error handling in form schema generation to prevent crashes
+  - Implemented safer handling of form schema and panels in ViewProduct page
+  - Simplified the ViewProduct page to avoid using potentially problematic panels
+- Fixed error in ProductResource.php with Placeholder component (2024-09-18)
+  - Replaced incompatible ->html() and ->markdown() methods with ->extraAttributes(['class' => 'prose'])
+  - Fixed "Method Filament\Forms\Components\Placeholder::markdown does not exist" error
+  - Ensures proper rendering of HTML content in product mix and price variations panels
+  - Also fixed the same issue in RecipeResource/Pages/ViewRecipe.php and CropResource.php
+- Fixed error in ProductResource's ViewProduct page with component compatibility (2024-09-18)
+  - Replaced TextEntry components with Placeholder components in ViewProduct page
+  - Fixed "Class Filament\Forms\Components\TextEntry not found" error
+  - Implemented safer form rendering with proper component usage
+  - Added additional error handling to prevent crashes when viewing products
 
 ### Enhanced
 - Improved crop stage duration display in the crops list view

@@ -14,16 +14,16 @@ class RoleSeeder extends Seeder
     public function run(): void
     {
         // Create roles
-        $admin = Role::create(['name' => 'admin']);
-        $manager = Role::create(['name' => 'manager']);
-        $user = Role::create(['name' => 'user']);
+        $admin = Role::firstOrCreate(['name' => 'admin']);
+        $manager = Role::firstOrCreate(['name' => 'manager']);
+        $user = Role::firstOrCreate(['name' => 'user']);
 
         // Create permissions
-        $manageProducts = Permission::create(['name' => 'manage products']);
-        $viewProducts = Permission::create(['name' => 'view products']);
-        $editProducts = Permission::create(['name' => 'edit products']);
-        $deleteProducts = Permission::create(['name' => 'delete products']);
-        $accessFilament = Permission::create(['name' => 'access filament']);
+        $manageProducts = Permission::firstOrCreate(['name' => 'manage products']);
+        $viewProducts = Permission::firstOrCreate(['name' => 'view products']);
+        $editProducts = Permission::firstOrCreate(['name' => 'edit products']);
+        $deleteProducts = Permission::firstOrCreate(['name' => 'delete products']);
+        $accessFilament = Permission::firstOrCreate(['name' => 'access filament']);
 
         // Assign permissions to roles
         $admin->givePermissionTo([

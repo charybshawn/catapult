@@ -41,20 +41,35 @@ class ProductMixResource extends Resource
                             ->default(true),
                     ])
                     ->columns(2),
-                    
+                
                 Forms\Components\Section::make('Mix Components')
                     ->schema([
                         Forms\Components\Repeater::make('components')
-                            ->relationship('seedVarieties')
                             ->label('Varieties')
-                            ->addActionLabel('Add Variety')
                             ->schema([
                                 Forms\Components\Select::make('seed_variety_id')
                                     ->label('Variety')
-                                    ->options(SeedVariety::query()->pluck('name', 'id'))
+                                    ->options(SeedVariety::all()->pluck('name', 'id'))
+                                    ->createOptionForm([
+                                        Forms\Components\TextInput::make('name')
+                                            ->required()
+                                            ->maxLength(255),
+                                        Forms\Components\TextInput::make('crop_type')
+                                            ->maxLength(255),
+                                        Forms\Components\Toggle::make('is_active')
+                                            ->default(true),
+                                    ])
+                                    ->createOptionUsing(function (array $data) {
+                                        return SeedVariety::create([
+                                            'name' => $data['name'],
+                                            'crop_type' => $data['crop_type'] ?? null,
+                                            'is_active' => $data['is_active'] ?? true,
+                                        ])->id;
+                                    })
+                                    ->preload()
                                     ->searchable()
                                     ->required(),
-                                    
+                                
                                 Forms\Components\TextInput::make('percentage')
                                     ->label('Percentage (%)')
                                     ->numeric()
@@ -65,15 +80,7 @@ class ProductMixResource extends Resource
                             ])
                             ->columns(2)
                             ->defaultItems(1)
-                            ->reorderable(false)
-                            ->columnSpanFull()
-                            ->mutateRelationshipDataBeforeCreateUsing(function (array $data): array {
-                                return [
-                                    'seed_variety_id' => $data['seed_variety_id'],
-                                    'percentage' => $data['percentage'],
-                                ];
-                            }),
-                    ]),
+                    ])
             ]);
     }
 

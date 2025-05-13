@@ -41,6 +41,13 @@ class Crop extends Model
     ];
     
     /**
+     * The attributes that should be appended to arrays.
+     *
+     * @var array
+     */
+    protected $appends = ['variety_name'];
+    
+    /**
      * The attributes that should be cast.
      *
      * @var array<string, string>
@@ -81,6 +88,47 @@ class Crop extends Model
         if ($this->recipe) {
             return $this->recipe->seedVariety;
         }
+        return null;
+    }
+    
+    /**
+     * Get the variety name for this crop.
+     */
+    public function getVarietyNameAttribute()
+    {
+        if ($this->recipe && $this->recipe->seedVariety) {
+            $varietyName = $this->recipe->seedVariety->name;
+            \Illuminate\Support\Facades\Log::debug('Variety name found', [
+                'crop_id' => $this->id, 
+                'recipe_id' => $this->recipe_id,
+                'variety_name' => $varietyName
+            ]);
+            return $varietyName;
+        }
+        
+        // If the recipe is not eager loaded, fetch it directly
+        if ($this->recipe_id) {
+            $recipe = Recipe::find($this->recipe_id);
+            \Illuminate\Support\Facades\Log::debug('Looking up recipe directly', [
+                'crop_id' => $this->id, 
+                'recipe_id' => $this->recipe_id,
+                'recipe_found' => (bool)$recipe
+            ]);
+            
+            if ($recipe && $recipe->seedVariety) {
+                \Illuminate\Support\Facades\Log::debug('Variety found through direct lookup', [
+                    'crop_id' => $this->id, 
+                    'recipe_id' => $this->recipe_id,
+                    'variety_name' => $recipe->seedVariety->name
+                ]);
+                return $recipe->seedVariety->name;
+            }
+        }
+        
+        \Illuminate\Support\Facades\Log::debug('No variety name found', [
+            'crop_id' => $this->id, 
+            'recipe_id' => $this->recipe_id ?? null
+        ]);
         return null;
     }
     
@@ -589,8 +637,19 @@ class Crop extends Model
             return '0m';
         }
         
+        // Always use current timestamp, never rely on updated_at
         $now = now();
         $stageStart = $this->$stageField;
+        
+        // Log calculation for debugging
+        \Illuminate\Support\Facades\Log::debug('Crop Stage Age Calculation', [
+            'crop_id' => $this->id,
+            'current_stage' => $this->current_stage,
+            'stage_field' => $stageField,
+            'stage_start_time' => $stageStart->toDateTimeString(),
+            'current_time' => $now->toDateTimeString(),
+            'diff_in_minutes' => $stageStart->diffInMinutes($now)
+        ]);
         
         // Calculate total time difference
         $totalHours = $stageStart->diffInHours($now);
