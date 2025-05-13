@@ -82,18 +82,18 @@ class CropResource extends Resource
                             ->label('Tray Numbers')
                             ->placeholder('Add tray numbers')
                             ->separator(',')
-                            ->helperText('Enter tray numbers for this grow batch')
+                            ->helperText('Enter tray numbers or IDs for this grow batch (alphanumeric supported)')
                             ->rules(['array', 'min:1'])
-                            ->nestedRecursiveRules(['integer'])
+                            ->nestedRecursiveRules(['string', 'max:20'])
                             ->visible(fn ($livewire) => $livewire instanceof Pages\CreateCrop),
                         
                         Forms\Components\TagsInput::make('tray_numbers')
                             ->label('Tray Numbers')
                             ->placeholder('Edit tray numbers')
                             ->separator(',')
-                            ->helperText('Edit the tray numbers for this grow batch')
+                            ->helperText('Edit the tray numbers or IDs for this grow batch (alphanumeric supported)')
                             ->rules(['array', 'min:1'])
-                            ->nestedRecursiveRules(['integer'])
+                            ->nestedRecursiveRules(['string', 'max:20'])
                             ->visible(fn ($livewire) => !($livewire instanceof Pages\CreateCrop))
                             ->afterStateHydrated(function ($component, $state) {
                                 if (is_array($state)) {
