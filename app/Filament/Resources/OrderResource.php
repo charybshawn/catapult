@@ -5,7 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\OrderResource\Pages;
 use App\Filament\Resources\OrderResource\RelationManagers;
 use App\Models\Order;
-use App\Models\Item;
+use App\Models\Product;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -66,19 +66,17 @@ class OrderResource extends Resource
                 Forms\Components\Section::make('Order Items')
                     ->schema([
                         Forms\Components\Repeater::make('orderItems')
-                            ->relationship()
                             ->schema([
                                 Forms\Components\Select::make('item_id')
                                     ->label('Product')
-                                    ->relationship('item', 'name')
+                                    ->options(Product::query()->pluck('name', 'id'))
                                     ->searchable()
-                                    ->preload()
                                     ->reactive()
-                                    ->afterStateUpdated(function ($state, callable $set, callable $get, Forms\Set $context) {
+                                    ->afterStateUpdated(function ($state, callable $set, $get) {
                                         if ($state) {
-                                            $item = Item::find($state);
+                                            $product = Product::find($state);
                                             $customer_type = $get('../../customer_type') ?? 'retail';
-                                            $price = $item ? $item->getPriceForCustomerType($customer_type) : 0;
+                                            $price = $product ? $product->getPriceForCustomerType($customer_type) : 0;
                                             $set('price', $price);
                                         }
                                     })

@@ -22,7 +22,17 @@ class WeeklyPlanning extends Page
     protected static ?string $navigationGroup = 'Farm Operations';
     protected static ?int $navigationSort = 2;
     
+    public static function getSlug(): string
+    {
+        return static::$slug ?? 'weekly-planning';
+    }
+    
     protected static string $view = 'filament.pages.weekly-planning';
+    
+    public function getMaxContentWidth(): ?string
+    {
+        return 'full';
+    }
     
     // Specify the panel this page belongs to
     public static function getActiveNavigationIcon(): ?string
@@ -41,11 +51,6 @@ class WeeklyPlanning extends Page
         $this->selectedDate = Carbon::now()->toDateString();
     }
     
-    public function render(): View
-    {
-        return view(static::$view, $this->getViewData());
-    }
-    
     public function form(Form $form): Form
     {
         return $form
@@ -56,7 +61,6 @@ class WeeklyPlanning extends Page
                     ->live()
                     ->afterStateUpdated(function ($state) {
                         $this->selectedDate = $state;
-                        $this->resetPage();
                     }),
             ]);
     }
