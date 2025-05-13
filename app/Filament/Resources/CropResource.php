@@ -253,18 +253,24 @@ class CropResource extends Resource
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('stage_age_display')
                     ->label('Time in Stage')
-                    ->sortable('stage_age_minutes')
                     ->getStateUsing(fn ($record): string => $record->getStageAgeStatus())
+                    ->sortable(function (Builder $query, string $direction): Builder {
+                        return $query->orderBy('stage_age_minutes', $direction);
+                    })
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('time_to_next_stage_display')
                     ->label('Time to Next Stage')
-                    ->sortable('time_to_next_stage_minutes')
                     ->getStateUsing(fn ($record): string => $record->timeToNextStage())
+                    ->sortable(function (Builder $query, string $direction): Builder {
+                        return $query->orderBy('time_to_next_stage_minutes', $direction);
+                    })
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('total_age_display')
                     ->label('Total Age')
-                    ->sortable('total_age_minutes')
                     ->getStateUsing(fn ($record): string => $record->getTotalAgeStatus())
+                    ->sortable(function (Builder $query, string $direction): Builder {
+                        return $query->orderBy('total_age_minutes', $direction);
+                    })
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('expected_harvest_at')
                     ->label('Expected Harvest')

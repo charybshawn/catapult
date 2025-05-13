@@ -241,6 +241,11 @@ This document tracks all significant changes to the Catapult v2 project.
   - Applied real-time calculations to Time in Stage, Time to Next Stage, and Total Age columns
   - Ensures accurate time display regardless of when the record was last updated
   - Eliminates confusion when stored database values appear outdated
+- Fixed column sorting in Grows list for time-based fields (2025-06-20)
+  - Implemented proper sorting for columns with real-time calculated values
+  - Enhanced the update command to ensure sort values are accurately maintained
+  - Added better logging of significant time value changes
+  - Improved consistent time calculations by using a single timestamp for all calculations
 - Fixed migration ordering issue with consumables and packaging types tables
   - Separated the packaging_type_id foreign key constraint into a separate migration
   - Ensures migrations can run in any environment without sequence errors
