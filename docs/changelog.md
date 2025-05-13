@@ -236,6 +236,11 @@ This document tracks all significant changes to the Catapult v2 project.
   - Added detailed logging to track time calculations for debugging
   - Improved accuracy of stage duration display on Grows list page
   - Ensures proper real-time tracking of crop growth stages
+- Fixed real-time display of crop timing fields in Grows list (2025-06-20)
+  - Updated CropResource table columns to calculate values in real-time instead of using cached database values
+  - Applied real-time calculations to Time in Stage, Time to Next Stage, and Total Age columns
+  - Ensures accurate time display regardless of when the record was last updated
+  - Eliminates confusion when stored database values appear outdated
 - Fixed migration ordering issue with consumables and packaging types tables
   - Separated the packaging_type_id foreign key constraint into a separate migration
   - Ensures migrations can run in any environment without sequence errors
