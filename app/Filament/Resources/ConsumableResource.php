@@ -97,65 +97,57 @@ class ConsumableResource extends Resource
                                 } else if ($get('type') === 'seed') {
                                     // Simple, explicit seed variety selection
                                     return [
-                                        Forms\Components\Grid::make()
-                                            ->schema([
-                                                Forms\Components\Select::make('seed_variety_id')
-                                                    ->label('Seed Variety')
-                                                    ->helperText('Required: Please select a seed variety')
-                                                    ->options(function () {
-                                                        // Get unique seed varieties by name, preferring older IDs
-                                                        $options = \App\Models\SeedVariety::where('is_active', true)
-                                                            ->orderBy('id', 'asc')
-                                                            ->get()
-                                                            ->groupBy('name')
-                                                            ->map(function ($group) {
-                                                                // Use the first (oldest) record for each name
-                                                                return $group->first();
-                                                            })
-                                                            ->pluck('name', 'id')
-                                                            ->toArray();
-                                                            
-                                                        return $options;
+                                        Forms\Components\Select::make('seed_variety_id')
+                                            ->label('Seed Variety')
+                                            ->helperText('Required: Please select a seed variety')
+                                            ->options(function () {
+                                                // Get unique seed varieties by name, preferring older IDs
+                                                $options = \App\Models\SeedVariety::where('is_active', true)
+                                                    ->orderBy('id', 'asc')
+                                                    ->get()
+                                                    ->groupBy('name')
+                                                    ->map(function ($group) {
+                                                        // Use the first (oldest) record for each name
+                                                        return $group->first();
                                                     })
-                                                    ->searchable()
+                                                    ->pluck('name', 'id')
+                                                    ->toArray();
+                                                    
+                                                return $options;
+                                            })
+                                            ->searchable()
+                                            ->required()
+                                            ->live() // Make the field live to update instantly
+                                            ->createOptionForm([
+                                                Forms\Components\TextInput::make('name')
+                                                    ->label('Variety Name')
                                                     ->required()
-                                                    ->live() // Make the field live to update instantly
-                                                    ->createOptionForm([
-                                                        Forms\Components\TextInput::make('name')
-                                                            ->label('Variety Name')
-                                                            ->required()
-                                                            ->maxLength(255),
-                                                        Forms\Components\TextInput::make('crop_type')
-                                                            ->label('Crop Type')
-                                                            ->default('microgreens')
-                                                            ->maxLength(255),
-                                                        Forms\Components\Toggle::make('is_active')
-                                                            ->label('Active')
-                                                            ->default(true),
-                                                    ])
-                                                    ->createOptionUsing(function (array $data) {
-                                                        return \App\Models\SeedVariety::create($data)->id;
-                                                    })
-                                                    ->createOptionAction(function (Forms\Components\Actions\Action $action) {
-                                                        return $action
-                                                            ->modalHeading('Create Seed Variety')
-                                                            ->modalSubmitActionLabel('Create Seed Variety')
-                                                            ->modalWidth('lg');
-                                                    })
-                                                    ->afterStateUpdated(function ($state, callable $set) {
-                                                        \Illuminate\Support\Facades\Log::info('Seed variety selected:', ['state' => $state]);
-                                                        if ($state) {
-                                                            $seedVariety = \App\Models\SeedVariety::find($state);
-                                                            if ($seedVariety) {
-                                                                $set('name', $seedVariety->name);
-                                                                \Illuminate\Support\Facades\Log::info('Set name from variety:', ['name' => $seedVariety->name]);
-                                                            } else {
-                                                                \Illuminate\Support\Facades\Log::warning('Could not find seed variety with ID:', ['id' => $state]);
-                                                            }
-                                                        }
-                                                    })
-                                                    ->columnSpanFull()
-                                            ]),
+                                                    ->maxLength(255),
+                                                Forms\Components\TextInput::make('crop_type')
+                                                    ->label('Crop Type')
+                                                    ->default('microgreens')
+                                                    ->maxLength(255),
+                                                Forms\Components\Toggle::make('is_active')
+                                                    ->label('Active')
+                                                    ->default(true),
+                                            ])
+                                            ->createOptionUsing(function (array $data) {
+                                                return \App\Models\SeedVariety::create($data)->id;
+                                            })
+                                            ->createOptionAction(function (Forms\Components\Actions\Action $action) {
+                                                return $action
+                                                    ->modalHeading('Create Seed Variety')
+                                                    ->modalSubmitActionLabel('Create Seed Variety')
+                                                    ->modalWidth('lg');
+                                            })
+                                            ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                                if ($state) {
+                                                    $seedVariety = \App\Models\SeedVariety::find($state);
+                                                    if ($seedVariety) {
+                                                        $set('name', $seedVariety->name);
+                                                    }
+                                                }
+                                            }),
                                             
                                         // Hidden name field - will be set from the seed variety
                                         Forms\Components\Hidden::make('name'),
@@ -163,29 +155,25 @@ class ConsumableResource extends Resource
                                 } else if ($get('type') === 'mix') {
                                     // Product mix selection
                                     return [
-                                        Forms\Components\Grid::make()
-                                            ->schema([
-                                                Forms\Components\Select::make('product_mix_id')
-                                                    ->label('Product Mix')
-                                                    ->helperText('Required: Please select a product mix')
-                                                    ->options(function () {
-                                                        return \App\Models\ProductMix::where('is_active', true)
-                                                            ->pluck('name', 'id')
-                                                            ->toArray();
-                                                    })
-                                                    ->searchable()
-                                                    ->required()
-                                                    ->live()
-                                                    ->afterStateUpdated(function ($state, callable $set) {
-                                                        if ($state) {
-                                                            $mix = \App\Models\ProductMix::find($state);
-                                                            if ($mix) {
-                                                                $set('name', $mix->name);
-                                                            }
-                                                        }
-                                                    })
-                                                    ->columnSpanFull()
-                                            ]),
+                                        Forms\Components\Select::make('product_mix_id')
+                                            ->label('Product Mix')
+                                            ->helperText('Required: Please select a product mix')
+                                            ->options(function () {
+                                                return \App\Models\ProductMix::where('is_active', true)
+                                                    ->pluck('name', 'id')
+                                                    ->toArray();
+                                            })
+                                            ->searchable()
+                                            ->required()
+                                            ->live()
+                                            ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                                if ($state) {
+                                                    $mix = \App\Models\ProductMix::find($state);
+                                                    if ($mix) {
+                                                        $set('name', $mix->name);
+                                                    }
+                                                }
+                                            }),
                                             
                                         // Hidden name field - will be set from the mix
                                         Forms\Components\Hidden::make('name'),
@@ -244,12 +232,6 @@ class ConsumableResource extends Resource
                                     ->modalSubmitActionLabel('Create Supplier')
                                     ->modalWidth('lg');
                             }),
-                        
-                        Forms\Components\TextInput::make('lot_no')
-                            ->label('Lot/Batch Number')
-                            ->helperText('Will be converted to uppercase')
-                            ->maxLength(100)
-                            ->visible(fn (Forms\Get $get) => in_array($get('type'), ['seed', 'soil'])),
                         
                         Forms\Components\Toggle::make('is_active')
                             ->label('Active')

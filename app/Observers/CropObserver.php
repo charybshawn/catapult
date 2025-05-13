@@ -20,14 +20,26 @@ class CropObserver
      */
     protected function updateCalculatedColumns(Crop $crop): void
     {
+        // Always use the current time for calculations
         $now = now();
 
         // Update stage age
         $stageField = "{$crop->current_stage}_at";
         if ($crop->$stageField) {
             $stageStart = Carbon::parse($crop->$stageField);
+            // Calculate stage age using the current timestamp, not updated_at
             $crop->stage_age_minutes = abs($now->diffInMinutes($stageStart));
             $crop->stage_age_display = $this->formatDuration($now->diff($stageStart));
+            
+            // Add debug information to verify this calculation
+            \Illuminate\Support\Facades\Log::info('CropObserver: Updated stage age', [
+                'crop_id' => $crop->id,
+                'current_stage' => $crop->current_stage,
+                'stage_start' => $stageStart->toDateTimeString(),
+                'now' => $now->toDateTimeString(),
+                'diff_minutes' => $crop->stage_age_minutes,
+                'diff_display' => $crop->stage_age_display
+            ]);
         }
 
         // Update time to next stage

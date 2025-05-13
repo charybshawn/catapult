@@ -131,6 +131,11 @@ This document tracks all significant changes to the Catapult v2 project.
   - Created new inventory records automatically for different lot numbers
   - Improved seed inventory management with better traceability
   - Enhanced food safety tracking with lot-specific inventory
+- Added debug tools for tracking and resolving errors (2024-09-18)
+  - Created DebugService for detailed error logging and object inspection
+  - Added error interception in AppServiceProvider to capture "isContained() on null" errors
+  - Enhanced Product model and ProductResource with debugging capabilities
+  - Implemented robust error handling in ViewProduct page with fallback display
 
 ### Changed
 - Completely redesigned seed inventory management (2024-08-15)
@@ -217,6 +222,11 @@ This document tracks all significant changes to the Catapult v2 project.
   - Recipe creation options remain available via the inline "Create" option
 
 ### Fixed
+- Fixed crop stage age calculation to use current time (2024-09-18)
+  - Modified Crop model's getStageAgeStatus method to always use the current time
+  - Added detailed logging to track time calculations for debugging
+  - Improved accuracy of stage duration display on Grows list page
+  - Ensures proper real-time tracking of crop growth stages
 - Fixed migration ordering issue with consumables and packaging types tables
   - Separated the packaging_type_id foreign key constraint into a separate migration
   - Ensures migrations can run in any environment without sequence errors
@@ -293,6 +303,21 @@ This document tracks all significant changes to the Catapult v2 project.
   - Updated Recipe form to use proper `live()` and `afterStateUpdated()` methods
   - Ensured Light Days value is correctly saved with the form
   - Added form save hook to guarantee correct calculation
+- Fixed error in ProductResource.php with ViewProduct page (2024-09-18)
+  - Fixed "Call to a member function isContained() on null" error when viewing product details
+  - Improved error handling in form schema generation to prevent crashes
+  - Implemented safer handling of form schema and panels in ViewProduct page
+  - Simplified the ViewProduct page to avoid using potentially problematic panels
+- Fixed error in ProductResource.php with Placeholder component (2024-09-18)
+  - Replaced incompatible ->html() and ->markdown() methods with ->extraAttributes(['class' => 'prose'])
+  - Fixed "Method Filament\Forms\Components\Placeholder::markdown does not exist" error
+  - Ensures proper rendering of HTML content in product mix and price variations panels
+  - Also fixed the same issue in RecipeResource/Pages/ViewRecipe.php and CropResource.php
+- Fixed error in ProductResource's ViewProduct page with component compatibility (2024-09-18)
+  - Replaced TextEntry components with Placeholder components in ViewProduct page
+  - Fixed "Class Filament\Forms\Components\TextEntry not found" error
+  - Implemented safer form rendering with proper component usage
+  - Added additional error handling to prevent crashes when viewing products
 
 ### Enhanced
 - Improved crop stage duration display in the crops list view

@@ -45,13 +45,6 @@ class EditConsumable extends EditRecord
         return $this->getResource()::getUrl('index');
     }
 
-    protected function afterSave(): void
-    {
-        parent::afterSave();
-        
-        // Add any custom logic after save if needed
-    }
-    
     protected function mutateFormDataBeforeFill(array $data): array
     {
         // Calculate current stock for display
@@ -65,29 +58,7 @@ class EditConsumable extends EditRecord
     // Show seed variety information if available
     protected function getHeaderWidgets(): array
     {
-        $record = $this->getRecord();
-        
-        // Only show seed variety info for seed type consumables with a variety
-        if ($record->type === 'seed' && $record->seedVariety) {
-            return [
-                \Filament\Widgets\StatsOverviewWidget::make([
-                    \Filament\Widgets\StatsOverviewWidget\Stat::make('Variety Information', $record->seedVariety->name)
-                        ->description("Crop Type: {$record->seedVariety->crop_type}")
-                        ->descriptionIcon('heroicon-o-information-circle'),
-                        
-                    \Filament\Widgets\StatsOverviewWidget\Stat::make('Germination Rate', 
-                        $record->seedVariety->germination_rate ? "{$record->seedVariety->germination_rate}%" : 'Not specified')
-                        ->color('success')
-                        ->icon('heroicon-o-arrow-trending-up'),
-                        
-                    \Filament\Widgets\StatsOverviewWidget\Stat::make('Days to Maturity', 
-                        $record->seedVariety->days_to_maturity ?? 'Not specified')
-                        ->color('info')
-                        ->icon('heroicon-o-calendar'),
-                ])
-            ];
-        }
-        
+        // Temporarily disabled to fix Livewire error
         return [];
     }
 } 

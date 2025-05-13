@@ -59,6 +59,10 @@ class ProductResource extends Resource
                 Tables\Columns\TextColumn::make('category.name')
                     ->label('Category')
                     ->sortable(),
+                Tables\Columns\TextColumn::make('productMix.name')
+                    ->label('Product Mix')
+                    ->default('—')
+                    ->sortable(),
                 Tables\Columns\IconColumn::make('active')
                     ->boolean()
                     ->sortable(),
@@ -78,6 +82,9 @@ class ProductResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('category')
                     ->relationship('category', 'name'),
+                Tables\Filters\SelectFilter::make('product_mix_id')
+                    ->label('Product Mix')
+                    ->relationship('productMix', 'name'),
                 Tables\Filters\TernaryFilter::make('active'),
                 Tables\Filters\TernaryFilter::make('is_visible_in_store')
                     ->label('Visible in Store'),
@@ -143,53 +150,114 @@ class ProductResource extends Resource
      */
     public static function getPanels(): array
     {
-        return [
-            'price_variations' => Forms\Components\Section::make('Price Variations')
-                ->schema([
-                    Forms\Components\Grid::make(2)
-                        ->schema([
-                            Forms\Components\Placeholder::make('base_price_display')
-                                ->label('Default Price')
-                                ->content(function ($record) {
-                                    $variation = $record->defaultPriceVariation();
-                                    return $variation 
-                                        ? '$' . number_format($variation->price, 2) . ' (' . $variation->name . ')'
-                                        : '$' . number_format($record->base_price ?? 0, 2);
-                                }),
-                            Forms\Components\Placeholder::make('variations_count')
-                                ->label('Price Variations')
-                                ->content(function ($record) {
-                                    $count = $record->priceVariations()->count();
-                                    $activeCount = $record->priceVariations()->where('is_active', true)->count();
-                                    return "{$activeCount} active / {$count} total";
-                                }),
-                        ]),
-                    Forms\Components\Placeholder::make('variations_info')
-                        ->content(function ($record) {
-                            $priceTypes = ['Default', 'Wholesale', 'Bulk', 'Special'];
-                            $content = "Price variations allow you to set different prices based on customer type or purchase unit.";
-                            
-                            $missingTypes = [];
-                            foreach ($priceTypes as $type) {
-                                if (!$record->priceVariations()->where('name', $type)->exists()) {
-                                    $missingTypes[] = $type;
+        try {
+            \Illuminate\Support\Facades\Log::info('ProductResource: getPanels method called');
+            
+            return [
+                'price_variations' => Forms\Components\Section::make('Price Variations')
+                    ->schema([
+                        Forms\Components\Grid::make(2)
+                            ->schema([
+                                Forms\Components\Placeholder::make('base_price_display')
+                                    ->label('Default Price')
+                                    ->content(function ($record) {
+                                        $variation = $record->defaultPriceVariation();
+                                        return $variation 
+                                            ? '$' . number_format($variation->price, 2) . ' (' . $variation->name . ')'
+                                            : '$' . number_format($record->base_price ?? 0, 2);
+                                    }),
+                                Forms\Components\Placeholder::make('variations_count')
+                                    ->label('Price Variations')
+                                    ->content(function ($record) {
+                                        $count = $record->priceVariations()->count();
+                                        $activeCount = $record->priceVariations()->where('is_active', true)->count();
+                                        return "{$activeCount} active / {$count} total";
+                                    }),
+                            ]),
+                        Forms\Components\Placeholder::make('variations_info')
+                            ->content(function ($record) {
+                                $priceTypes = ['Default', 'Wholesale', 'Bulk', 'Special'];
+                                $content = "Price variations allow you to set different prices based on customer type or purchase unit.";
+                                
+                                $missingTypes = [];
+                                foreach ($priceTypes as $type) {
+                                    if (!$record->priceVariations()->where('name', $type)->exists()) {
+                                        $missingTypes[] = $type;
+                                    }
                                 }
-                            }
-                            
-                            if (!empty($missingTypes)) {
-                                $content .= "<br><br>Standard pricing types not yet created: <span class='text-primary-500'>" . implode(', ', $missingTypes) . "</span>";
-                            }
-                            
-                            return $content;
-                        })
-                        ->columnSpanFull()
-                        ->html(),
-                    Forms\Components\ViewField::make('price_variations_panel')
-                        ->view('filament.resources.product-resource.partials.price-variations')
-                ])
-                ->collapsible()
-                ->columnSpanFull(),
-        ];
+                                
+                                if (!empty($missingTypes)) {
+                                    $content .= "<br><br>Standard pricing types not yet created: <span class='text-primary-500'>" . implode(', ', $missingTypes) . "</span>";
+                                }
+                                
+                                return $content;
+                            })
+                            ->columnSpanFull()
+                            ->extraAttributes(['class' => 'prose']),
+                        Forms\Components\ViewField::make('price_variations_panel')
+                            ->view('filament.resources.product-resource.partials.price-variations')
+                    ])
+                    ->collapsible()
+                    ->columnSpanFull(),
+                
+                'product_mix' => Forms\Components\Section::make('Product Mix')
+                    ->schema([
+                        Forms\Components\Grid::make(2)
+                            ->schema([
+                                Forms\Components\Placeholder::make('mix_name')
+                                    ->label('Mix Name')
+                                    ->content(function ($record) {
+                                        return $record->productMix ? $record->productMix->name : 'No mix assigned';
+                                    }),
+                                Forms\Components\Placeholder::make('variety_count')
+                                    ->label('Number of Varieties')
+                                    ->content(function ($record) {
+                                        return $record->productMix ? $record->productMix->seedVarieties->count() : '0';
+                                    }),
+                            ]),
+                        Forms\Components\Placeholder::make('varieties')
+                            ->label('Varieties in Mix')
+                            ->content(function ($record) {
+                                if (!$record->productMix) {
+                                    return 'No mix assigned';
+                                }
+                                
+                                $varieties = $record->productMix->seedVarieties;
+                                if ($varieties->isEmpty()) {
+                                    return 'No varieties in this mix';
+                                }
+                                
+                                $content = '<ul class="list-disc list-inside space-y-1">';
+                                foreach ($varieties as $variety) {
+                                    $percentage = $variety->pivot->percentage ?? 0;
+                                    $content .= "<li><strong>{$variety->name}</strong> ({$percentage}%)</li>";
+                                }
+                                $content .= '</ul>';
+                                
+                                return $content;
+                            })
+                            ->extraAttributes(['class' => 'prose'])
+                            ->columnSpanFull(),
+                    ])
+                    ->hidden(function ($record) {
+                        return $record->productMix === null;
+                    })
+                    ->collapsible()
+                    ->columnSpanFull(),
+            ];
+        } catch (\Throwable $e) {
+            \App\Services\DebugService::logError($e, 'ProductResource::getPanels');
+            
+            // Return a minimal panel set that won't cause errors
+            return [
+                'debug' => Forms\Components\Section::make('Debug Information')
+                    ->schema([
+                        Forms\Components\Placeholder::make('error')
+                            ->label('Error')
+                            ->content('An error occurred loading panels: ' . $e->getMessage()),
+                    ]),
+            ];
+        }
     }
 
     public static function getPages(): array
@@ -237,6 +305,12 @@ class ProductResource extends Resource
                                 ->modalSubmitActionLabel('Create category')
                                 ->modalWidth('lg');
                         }),
+                    Forms\Components\Select::make('product_mix_id')
+                        ->label('Product Mix')
+                        ->relationship('productMix', 'name')
+                        ->searchable()
+                        ->preload()
+                        ->helperText('If this product uses a mix of varieties, select the mix here.'),
                     Toggle::make('active')
                         ->label('Active')
                         ->default(true),

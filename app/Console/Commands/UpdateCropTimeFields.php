@@ -41,7 +41,7 @@ class UpdateCropTimeFields extends Command
             foreach ($crops as $crop) {
                 // Update time to next stage
                 $timeToNextStage = $crop->timeToNextStage();
-                $crop->time_to_next_stage_status = $timeToNextStage;
+                $crop->time_to_next_stage_display = $timeToNextStage;
                 
                 // Calculate minutes for sorting
                 if (str_contains($timeToNextStage, 'Ready to advance')) {
@@ -63,7 +63,7 @@ class UpdateCropTimeFields extends Command
                 
                 // Update stage age
                 $stageAgeStatus = $crop->getStageAgeStatus();
-                $crop->stage_age_status = $stageAgeStatus;
+                $crop->stage_age_display = $stageAgeStatus;
                 
                 // Calculate stage age minutes for sorting
                 $days = preg_match('/(\d+)d/', $stageAgeStatus, $dayMatches) ? (int)$dayMatches[1] : 0;
@@ -74,9 +74,19 @@ class UpdateCropTimeFields extends Command
                 $totalStageMinutes = ($days * 24 * 60) + ($hours * 60) + $minutes;
                 $crop->stage_age_minutes = $totalStageMinutes;
                 
+                // Add debug logging to track what's being calculated
+                $this->info(sprintf(
+                    "Crop #%d: Stage %s, Age: %s (%d minutes), Started: %s",
+                    $crop->id,
+                    $crop->current_stage,
+                    $stageAgeStatus,
+                    $totalStageMinutes,
+                    $crop->{$crop->current_stage . '_at'}
+                ));
+                
                 // Update total age
                 $totalAgeStatus = $crop->getTotalAgeStatus();
-                $crop->total_age_status = $totalAgeStatus;
+                $crop->total_age_display = $totalAgeStatus;
                 
                 // Calculate total age minutes for sorting
                 $days = preg_match('/(\d+)d/', $totalAgeStatus, $dayMatches) ? (int)$dayMatches[1] : 0;
