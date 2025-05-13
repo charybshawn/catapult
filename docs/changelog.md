@@ -246,6 +246,10 @@ This document tracks all significant changes to the Catapult v2 project.
   - Enhanced the update command to ensure sort values are accurately maintained
   - Added better logging of significant time value changes
   - Improved consistent time calculations by using a single timestamp for all calculations
+- Fixed internal server error when sorting columns in Grows list (2025-06-20)
+  - Fixed binding resolution error in column sorting closures
+  - Added proper named parameter 'query' to sortable method calls
+  - Ensures compatibility with Filament's latest API requirements
 - Fixed migration ordering issue with consumables and packaging types tables
   - Separated the packaging_type_id foreign key constraint into a separate migration
   - Ensures migrations can run in any environment without sequence errors
