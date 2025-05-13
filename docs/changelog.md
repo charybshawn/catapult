@@ -224,6 +224,11 @@ This document tracks all significant changes to the Catapult v2 project.
   - Removed "Create Full Recipe" button from the crop creation form
   - Streamlined UI to avoid unnecessary navigation options
   - Recipe creation options remain available via the inline "Create" option
+- Improved Products list UI with icon-based mix indicator (2025-06-20)
+  - Changed product mix column from text to boolean icon for cleaner UI
+  - Simplified product mix display to show presence/absence instead of name
+  - Updated product mix filter to use ternary (yes/no/any) filtering
+  - Better visual consistency with other boolean columns like "active" and "in store"
 
 ### Fixed
 - Fixed crop stage age calculation to use current time (2024-09-18)

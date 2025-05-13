@@ -59,9 +59,10 @@ class ProductResource extends Resource
                 Tables\Columns\TextColumn::make('category.name')
                     ->label('Category')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('productMix.name')
-                    ->label('Product Mix')
-                    ->default('—')
+                Tables\Columns\IconColumn::make('has_product_mix')
+                    ->label('Mix')
+                    ->boolean()
+                    ->getStateUsing(fn ($record): bool => $record->productMix !== null)
                     ->sortable(),
                 Tables\Columns\IconColumn::make('active')
                     ->boolean()
@@ -82,9 +83,12 @@ class ProductResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('category')
                     ->relationship('category', 'name'),
-                Tables\Filters\SelectFilter::make('product_mix_id')
-                    ->label('Product Mix')
-                    ->relationship('productMix', 'name'),
+                Tables\Filters\TernaryFilter::make('has_product_mix')
+                    ->label('Has Mix')
+                    ->queries(
+                        true: fn (Builder $query): Builder => $query->whereHas('productMix'),
+                        false: fn (Builder $query): Builder => $query->whereDoesntHave('productMix'),
+                    ),
                 Tables\Filters\TernaryFilter::make('active'),
                 Tables\Filters\TernaryFilter::make('is_visible_in_store')
                     ->label('Visible in Store'),
