@@ -48,8 +48,6 @@ class ListCropAlerts extends ListRecords
                         ->title('All crop alerts refreshed')
                         ->success()
                         ->send();
-                    
-                    $this->refreshData();
                 })
                 ->requiresConfirmation()
                 ->modalHeading('Rebuild All Alerts')

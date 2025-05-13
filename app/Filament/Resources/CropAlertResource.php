@@ -89,9 +89,32 @@ class CropAlertResource extends Resource
                     ->toggleable(),
                     
                 TextColumn::make('tray_number')
-                    ->label('Tray')
+                    ->label('Batch Trays')
                     ->getStateUsing(function (CropAlert $record) {
-                        return $record->conditions['tray_number'] ?? 'Unknown';
+                        // If we have tray_numbers array, it's already a batch operation
+                        if (isset($record->conditions['tray_numbers']) && is_array($record->conditions['tray_numbers'])) {
+                            $count = count($record->conditions['tray_numbers']);
+                            return "{$count} trays";
+                        }
+                        
+                        // For operations targeting single trays, find the batch info
+                        if (isset($record->conditions['crop_id'])) {
+                            $cropId = $record->conditions['crop_id'];
+                            $crop = Crop::find($cropId);
+                            
+                            if ($crop) {
+                                // Get all crops with the same batch identifier
+                                $batchCount = Crop::where('recipe_id', $crop->recipe_id)
+                                    ->where('planted_at', $crop->planted_at)
+                                    ->where('current_stage', $crop->current_stage)
+                                    ->count();
+                                    
+                                return "{$batchCount} trays";
+                            }
+                        }
+                        
+                        // Fallback to original behavior
+                        return $record->conditions['tray_number'] ? 'Single tray' : 'Unknown';
                     })
                     ->sortable(query: function ($query, $direction) {
                         return $query->orderByRaw("json_extract(conditions, '$.tray_number') {$direction}");
