@@ -229,6 +229,11 @@ This document tracks all significant changes to the Catapult v2 project.
   - Simplified product mix display to show presence/absence instead of name
   - Updated product mix filter to use ternary (yes/no/any) filtering
   - Better visual consistency with other boolean columns like "active" and "in store"
+- Added auto-refresh to Grows list page (2025-06-20)
+  - Configured 5-minute automatic refresh interval for the crops table
+  - Ensures time-based fields (stage age, time to next stage, total age) are regularly updated
+  - Provides farmers with accurate, real-time crop status without manual refreshing
+  - Complements real-time calculated values with periodic UI updates
 
 ### Fixed
 - Fixed crop stage age calculation to use current time (2024-09-18)

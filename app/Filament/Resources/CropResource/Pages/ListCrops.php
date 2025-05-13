@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Contracts\Pagination\CursorPaginator;
+use Filament\Tables\Table;
 
 class ListCrops extends ListRecords
 {
@@ -122,5 +123,11 @@ class ListCrops extends ListRecords
                 ->icon('heroicon-o-plus')
                 ->tooltip('Create Grow Batch'),
         ];
+    }
+    
+    public function getTableRefreshInterval(): ?string
+    {
+        // Refresh the table every 5 minutes to update time values
+        return '5m';
     }
 } 
