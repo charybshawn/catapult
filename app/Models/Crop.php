@@ -33,11 +33,11 @@ class Crop extends Model
         'watering_suspended_at',
         'notes',
         'time_to_next_stage_minutes',
-        'time_to_next_stage_status',
+        'time_to_next_stage_display',
         'stage_age_minutes',
-        'stage_age_status',
+        'stage_age_display',
         'total_age_minutes',
-        'total_age_status',
+        'total_age_display',
     ];
     
     /**
@@ -314,20 +314,20 @@ class Crop extends Model
             if (!isset($crop->time_to_next_stage_minutes)) {
                 $crop->time_to_next_stage_minutes = 0;
             }
-            if (!isset($crop->time_to_next_stage_status)) {
-                $crop->time_to_next_stage_status = 'Unknown';
+            if (!isset($crop->time_to_next_stage_display)) {
+                $crop->time_to_next_stage_display = 'Unknown';
             }
             if (!isset($crop->stage_age_minutes)) {
                 $crop->stage_age_minutes = 0;
             }
-            if (!isset($crop->stage_age_status)) {
-                $crop->stage_age_status = '0m';
+            if (!isset($crop->stage_age_display)) {
+                $crop->stage_age_display = '0m';
             }
             if (!isset($crop->total_age_minutes)) {
                 $crop->total_age_minutes = 0;
             }
-            if (!isset($crop->total_age_status)) {
-                $crop->total_age_status = '0m';
+            if (!isset($crop->total_age_display)) {
+                $crop->total_age_display = '0m';
             }
         });
         
@@ -516,7 +516,7 @@ class Crop extends Model
     {
         // Calculate and store time to next stage values
         $status = $this->timeToNextStage();
-        $this->time_to_next_stage_status = $status;
+        $this->time_to_next_stage_display = $status;
         
         // Calculate minutes for sorting
         if (str_contains($status, 'Ready to advance')) {
@@ -538,7 +538,7 @@ class Crop extends Model
         
         // Calculate and store stage age values
         $stageAgeStatus = $this->getStageAgeStatus();
-        $this->stage_age_status = $stageAgeStatus;
+        $this->stage_age_display = $stageAgeStatus;
         
         // Calculate stage age minutes for sorting
         if ($stageAgeStatus === '0m' || empty($stageAgeStatus)) {
@@ -558,7 +558,7 @@ class Crop extends Model
         
         // Calculate and store total age values
         $totalAgeStatus = $this->getTotalAgeStatus();
-        $this->total_age_status = $totalAgeStatus;
+        $this->total_age_display = $totalAgeStatus;
         
         // Calculate total age minutes for sorting
         if ($totalAgeStatus === '0m' || empty($totalAgeStatus)) {

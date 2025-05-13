@@ -372,8 +372,7 @@ class RecipeResource extends Resource
                         Forms\Components\Checkbox::make('confirm_updates')
                             ->label('I understand this will modify existing grows')
                             ->required()
-                            ->helperText('This action cannot be undone.')
-                            ->dehydrated(false),
+                            ->helperText('This action cannot be undone.'),
                     ])
                     ->action(function (Recipe $record, array $data) {
                         if (!isset($data['confirm_updates']) || !$data['confirm_updates']) {

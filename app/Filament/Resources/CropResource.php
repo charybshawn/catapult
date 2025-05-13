@@ -247,6 +247,17 @@ class CropResource extends Resource
                         'light' => 'Light',
                         'harvested' => 'Harvested',
                     ]),
+                Tables\Filters\TernaryFilter::make('active_crops')
+                    ->label('Active Crops')
+                    ->placeholder('All Crops')
+                    ->trueLabel('Active Only')
+                    ->falseLabel('Harvested Only')
+                    ->queries(
+                        true: fn (Builder $query): Builder => $query->where('current_stage', '!=', 'harvested'),
+                        false: fn (Builder $query): Builder => $query->where('current_stage', '=', 'harvested'),
+                        blank: fn (Builder $query): Builder => $query,
+                    )
+                    ->default(true),
             ])
             ->actions([
                 Action::make('advanceStage')
@@ -371,7 +382,47 @@ class CropResource extends Resource
                             ->send();
                     }),
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\DeleteAction::make()
+                    ->requiresConfirmation()
+                    ->modalHeading('Delete Entire Grow Batch?')
+                    ->modalDescription(fn (Crop $record) => "This will delete all trays with the same planting date and stage.")
+                    ->modalSubmitActionLabel('Yes, Delete All Trays')
+                    ->action(function (Crop $record) {
+                        // Begin transaction for safety
+                        DB::beginTransaction();
+                        
+                        try {
+                            // Find all tray numbers in this batch
+                            $trayNumbers = Crop::where('recipe_id', $record->recipe_id)
+                                ->where('planted_at', $record->planted_at)
+                                ->where('current_stage', $record->current_stage)
+                                ->pluck('tray_number')
+                                ->toArray();
+                            
+                            // Delete all crops in this batch
+                            $count = Crop::where('recipe_id', $record->recipe_id)
+                                ->where('planted_at', $record->planted_at)
+                                ->where('current_stage', $record->current_stage)
+                                ->delete();
+                            
+                            DB::commit();
+                            
+                            // Show a detailed notification
+                            \Filament\Notifications\Notification::make()
+                                ->title('Grow Batch Deleted')
+                                ->body("Successfully deleted {$count} tray(s): " . implode(', ', $trayNumbers))
+                                ->success()
+                                ->send();
+                        } catch (\Exception $e) {
+                            DB::rollBack();
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('Error')
+                                ->body('Failed to delete grow batch: ' . $e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
