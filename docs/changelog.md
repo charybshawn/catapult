@@ -13,6 +13,10 @@ This document tracks all significant changes to the Catapult v2 project.
   - Created dedicated price variations panel for product view/edit pages
   - Added data migration to generate price variations for existing products
   - Updated tests to work with the price variations system
+- Added Germina as a seed supplier in Montreal, Canada (2025-06-20)
+  - Updated MicrogreenSeeder with complete contact information
+  - Expanded seed supplier options for Canadian customers
+  - Added support for organic certified sprouting and microgreen seeds
 - Enhanced "Ready to advance" display for crops with overdue time (2024-09-10)
   - Added red display of elapsed time past expected stage transition
   - Added logic to calculate and show how overdue a crop is for advancement

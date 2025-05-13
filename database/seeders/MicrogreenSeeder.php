@@ -51,6 +51,15 @@ class MicrogreenSeeder extends Seeder
                 'address' => '123 Seed Street, Portland, OR 97201, USA',
                 'is_active' => true,
             ],
+            [
+                'name' => 'Germina',
+                'type' => 'seed',
+                'contact_name' => 'Rafael Dostie Blais',
+                'contact_email' => 'info@germina.ca',
+                'contact_phone' => '438-809-5197',
+                'address' => '9250, Avenue du Parc, #201, Montréal, QC H2N 1Z2, Canada',
+                'is_active' => true,
+            ],
         ];
 
         foreach ($suppliers as $supplierData) {
@@ -59,7 +68,7 @@ class MicrogreenSeeder extends Seeder
             // Common microgreen varieties
             $varieties = [
                 [
-                    'name' => 'Sunflower - Black Oil',
+                    'name' => 'Sunflower (Black Oil)',
                     'is_active' => true,
                 ],
                 [
