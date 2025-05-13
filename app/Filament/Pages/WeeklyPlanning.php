@@ -24,6 +24,12 @@ class WeeklyPlanning extends Page
     
     protected static string $view = 'filament.pages.weekly-planning';
     
+    // Specify the panel this page belongs to
+    public static function getActiveNavigationIcon(): ?string
+    {
+        return 'heroicon-o-calendar';
+    }
+    
     public $selectedDate;
     
     public function mount(): void
