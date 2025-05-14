@@ -345,31 +345,57 @@ class CropResource extends Resource
                             return;
                         }
 
-                        // Update Crop stage and timestamp
-                        $timestampField = "{$nextStage}_at";
-                        $record->current_stage = $nextStage;
-                        $record->$timestampField = now();
-                        $record->save();
+                        // Begin transaction for safety
+                        DB::beginTransaction();
                         
-                        // Deactivate the corresponding TaskSchedule
-                        $task = \App\Models\TaskSchedule::where('resource_type', 'crops')
-                            ->where('conditions->crop_id', $record->id)
-                            ->where('conditions->target_stage', $nextStage)
-                            ->where('is_active', true)
-                            ->first();
+                        try {
+                            // Find all crops in this batch
+                            $crops = Crop::where('recipe_id', $record->recipe_id)
+                                ->where('planted_at', $record->planted_at)
+                                ->where('current_stage', $record->current_stage)
+                                ->get();
                             
-                        if ($task) {
-                            $task->update([
-                                'is_active' => false,
-                                'last_run_at' => now(),
-                            ]);
+                            $count = $crops->count();
+                            $trayNumbers = $crops->pluck('tray_number')->toArray();
+                            
+                            // Update all crops in this batch
+                            foreach ($crops as $crop) {
+                                $timestampField = "{$nextStage}_at";
+                                $crop->current_stage = $nextStage;
+                                $crop->$timestampField = now();
+                                $crop->save();
+                                
+                                // Deactivate the corresponding TaskSchedule
+                                $task = \App\Models\TaskSchedule::where('resource_type', 'crops')
+                                    ->where('conditions->crop_id', $crop->id)
+                                    ->where('conditions->target_stage', $nextStage)
+                                    ->where('is_active', true)
+                                    ->first();
+                                    
+                                if ($task) {
+                                    $task->update([
+                                        'is_active' => false,
+                                        'last_run_at' => now(),
+                                    ]);
+                                }
+                            }
+                            
+                            DB::commit();
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('Batch Advanced')
+                                ->body("Successfully advanced {$count} tray(s) to {$nextStage}.")
+                                ->success()
+                                ->send();
+                        } catch (\Exception $e) {
+                            DB::rollBack();
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('Error')
+                                ->body('Failed to advance stage: ' . $e->getMessage())
+                                ->danger()
+                                ->send();
                         }
-                        
-                        \Filament\Notifications\Notification::make()
-                            ->title('Stage Advanced')
-                            ->body("Crop successfully advanced to {$nextStage}.")
-                            ->success()
-                            ->send();
                     }),
                 Action::make('harvest')
                     ->label('Harvest')
@@ -388,25 +414,55 @@ class CropResource extends Resource
                             ->maxValue(10000),
                     ])
                     ->action(function (Crop $record, array $data) {
-                        $record->current_stage = 'harvested';
-                        $record->harvested_at = now();
-                        $record->harvest_weight_grams = $data['harvest_weight_grams'];
-                        $record->save();
+                        // Begin transaction for safety
+                        DB::beginTransaction();
                         
-                        // Deactivate any active task schedules for this crop
-                        \App\Models\TaskSchedule::where('resource_type', 'crops')
-                            ->where('conditions->crop_id', $record->id)
-                            ->where('is_active', true)
-                            ->update([
-                                'is_active' => false,
-                                'last_run_at' => now(),
-                            ]);
-                        
-                        \Filament\Notifications\Notification::make()
-                            ->title('Crop Harvested')
-                            ->body('The crop has been successfully harvested.')
-                            ->success()
-                            ->send();
+                        try {
+                            // Find all crops in this batch
+                            $crops = Crop::where('recipe_id', $record->recipe_id)
+                                ->where('planted_at', $record->planted_at)
+                                ->where('current_stage', $record->current_stage)
+                                ->get();
+                            
+                            $count = $crops->count();
+                            $trayNumbers = $crops->pluck('tray_number')->toArray();
+                            
+                            // Update all crops in this batch
+                            foreach ($crops as $crop) {
+                                $crop->current_stage = 'harvested';
+                                $crop->harvested_at = now();
+                                $crop->harvest_weight_grams = $data['harvest_weight_grams'];
+                                $crop->save();
+                                
+                                // Deactivate any active task schedules for this crop
+                                \App\Models\TaskSchedule::where('resource_type', 'crops')
+                                    ->where('conditions->crop_id', $crop->id)
+                                    ->where('is_active', true)
+                                    ->update([
+                                        'is_active' => false,
+                                        'last_run_at' => now(),
+                                    ]);
+                            }
+                            
+                            DB::commit();
+                            
+                            // Calculate total harvest weight
+                            $totalWeight = $data['harvest_weight_grams'] * $count;
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('Batch Harvested')
+                                ->body("Successfully harvested {$count} tray(s) with a total weight of {$totalWeight}g.")
+                                ->success()
+                                ->send();
+                        } catch (\Exception $e) {
+                            DB::rollBack();
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('Error')
+                                ->body('Failed to harvest batch: ' . $e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
                     }),
                 Action::make('suspendWatering')
                     ->label('Suspend Watering')
@@ -417,28 +473,55 @@ class CropResource extends Resource
                     ->modalHeading('Suspend Watering?')
                     ->modalDescription('This will mark watering as suspended for this crop and complete the corresponding task.')
                     ->action(function (Crop $record) {
-                        // Suspend watering on the Crop model
-                        $record->suspendWatering(); // This method should set the timestamp and save
-
-                        // Deactivate the corresponding TaskSchedule
-                        $task = \App\Models\TaskSchedule::where('resource_type', 'crops')
-                            ->where('conditions->crop_id', $record->id)
-                            ->where('task_name', 'suspend_watering') // Match the task name
-                            ->where('is_active', true)
-                            ->first();
-                            
-                        if ($task) {
-                            $task->update([
-                                'is_active' => false,
-                                'last_run_at' => now(),
-                            ]);
-                        }
+                        // Begin transaction for safety
+                        DB::beginTransaction();
                         
-                        \Filament\Notifications\Notification::make()
-                            ->title('Watering Suspended')
-                            ->body('Watering has been successfully suspended for this crop.')
-                            ->success()
-                            ->send();
+                        try {
+                            // Find all crops in this batch
+                            $crops = Crop::where('recipe_id', $record->recipe_id)
+                                ->where('planted_at', $record->planted_at)
+                                ->where('current_stage', $record->current_stage)
+                                ->get();
+                            
+                            $count = $crops->count();
+                            $trayNumbers = $crops->pluck('tray_number')->toArray();
+                            
+                            // Update all crops in this batch
+                            foreach ($crops as $crop) {
+                                // Suspend watering on the Crop model
+                                $crop->suspendWatering(); // This method should set the timestamp and save
+                                
+                                // Deactivate the corresponding TaskSchedule
+                                $task = \App\Models\TaskSchedule::where('resource_type', 'crops')
+                                    ->where('conditions->crop_id', $crop->id)
+                                    ->where('task_name', 'suspend_watering') // Match the task name
+                                    ->where('is_active', true)
+                                    ->first();
+                                    
+                                if ($task) {
+                                    $task->update([
+                                        'is_active' => false,
+                                        'last_run_at' => now(),
+                                    ]);
+                                }
+                            }
+                            
+                            DB::commit();
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('Watering Suspended for Batch')
+                                ->body("Successfully suspended watering for {$count} tray(s).")
+                                ->success()
+                                ->send();
+                        } catch (\Exception $e) {
+                            DB::rollBack();
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('Error')
+                                ->body('Failed to suspend watering: ' . $e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
                     }),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make()
@@ -486,6 +569,27 @@ class CropResource extends Resource
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\BulkAction::make('advance_stage_bulk')
+                        ->label('Advance Stage')
+                        ->icon('heroicon-o-arrow-right')
+                        ->action(function ($records) {
+                            $count = 0;
+                            foreach ($records as $record) {
+                                if ($record->current_stage !== 'harvested') {
+                                    $record->advanceStage();
+                                    $count++;
+                                }
+                            }
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('Trays Advanced')
+                                ->body("Successfully advanced {$count} trays to the next stage.")
+                                ->success()
+                                ->send();
+                        })
+                        ->requiresConfirmation()
+                        ->modalHeading('Advance Selected Trays?')
+                        ->modalDescription('This will advance all selected trays to their next stage.'),
                 ]),
             ]);
     }

@@ -236,6 +236,14 @@ This document tracks all significant changes to the Catapult v2 project.
   - Complements real-time calculated values with periodic UI updates
 
 ### Fixed
+- Fixed tray batch advancement in Crops list (2024-10-01)
+  - Completely redesigned all actions (advance stage, harvest, suspend watering) to operate on entire batches
+  - Modified single-tray actions to automatically apply to all trays in the same batch
+  - Added missing bulk action for advancing multiple selected trays at once
+  - Fixed issue where advancing a batch of trays only moved one tray instead of all
+  - Implemented proper notification showing how many trays were advanced in each operation
+  - Added transaction support for safer batch operations
+  - Improved farm efficiency by allowing batch operations on multiple trays
 - Fixed crop stage age calculation to use current time (2024-09-18)
   - Modified Crop model's getStageAgeStatus method to always use the current time
   - Added detailed logging to track time calculations for debugging
