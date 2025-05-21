@@ -17,7 +17,10 @@ return new class extends Migration
         // Get all products that have price fields set but no price variations
         $products = Product::from('items')
             ->whereNotNull('base_price')
-            ->whereDoesntHave('priceVariations')
+            ->whereDoesntHave('priceVariations', function($query) {
+                $query->from('price_variations');
+            })
+            ->whereNull('deleted_at')
             ->get();
             
         foreach ($products as $product) {
