@@ -3,8 +3,9 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use App\Models\Product;
+use App\Models\Item;
 use App\Models\PriceVariation;
+use App\Models\Product;
 
 return new class extends Migration
 {
@@ -14,7 +15,8 @@ return new class extends Migration
     public function up(): void
     {
         // Get all products that have price fields set but no price variations
-        $products = Product::whereNotNull('base_price')
+        $products = Product::from('items')
+            ->whereNotNull('base_price')
             ->whereDoesntHave('priceVariations')
             ->get();
             
