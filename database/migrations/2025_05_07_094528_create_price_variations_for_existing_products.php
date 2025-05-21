@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Schema;
 use App\Models\Item;
 use App\Models\PriceVariation;
 use App\Models\Product;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -15,10 +16,12 @@ return new class extends Migration
     public function up(): void
     {
         // Get all products that have price fields set but no price variations
-        $products = Product::from('items')
+        $products = DB::table('items')
             ->whereNotNull('base_price')
-            ->whereDoesntHave('priceVariations', function($query) {
-                $query->from('price_variations');
+            ->whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('price_variations')
+                    ->whereRaw('items.id = price_variations.item_id');
             })
             ->whereNull('deleted_at')
             ->get();
@@ -31,8 +34,9 @@ return new class extends Migration
                 'price' => $product->base_price,
                 'is_default' => true,
                 'is_active' => true,
+                'item_id' => $product->id
             ]);
-            $product->priceVariations()->save($defaultVariation);
+            $defaultVariation->save();
             
             // Create wholesale price variation if set
             if (!is_null($product->wholesale_price)) {
@@ -42,8 +46,9 @@ return new class extends Migration
                     'price' => $product->wholesale_price,
                     'is_default' => false,
                     'is_active' => true,
+                    'item_id' => $product->id
                 ]);
-                $product->priceVariations()->save($wholesaleVariation);
+                $wholesaleVariation->save();
             }
             
             // Create bulk price variation if set
@@ -54,8 +59,9 @@ return new class extends Migration
                     'price' => $product->bulk_price,
                     'is_default' => false,
                     'is_active' => true,
+                    'item_id' => $product->id
                 ]);
-                $product->priceVariations()->save($bulkVariation);
+                $bulkVariation->save();
             }
             
             // Create special price variation if set
@@ -66,8 +72,9 @@ return new class extends Migration
                     'price' => $product->special_price,
                     'is_default' => false,
                     'is_active' => true,
+                    'item_id' => $product->id
                 ]);
-                $product->priceVariations()->save($specialVariation);
+                $specialVariation->save();
             }
         }
     }
