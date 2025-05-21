@@ -164,4 +164,16 @@ return [
 
     'aliases' => [],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Production Safety Settings
+    |--------------------------------------------------------------------------
+    |
+    | These settings help protect your production environment from accidental
+    | changes that could cause data loss or outages. Modify with caution.
+    |
+    */
+
+    'allow_migrations_in_production' => env('ALLOW_MIGRATIONS_IN_PRODUCTION', false),
+
 ];

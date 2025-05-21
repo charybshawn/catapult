@@ -8,6 +8,7 @@ use App\Http\Livewire\ItemPriceCalculator;
 use Livewire\Livewire;
 use App\Models\Crop;
 use App\Observers\CropObserver;
+use Illuminate\Support\Facades\DB;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -30,6 +31,29 @@ class AppServiceProvider extends ServiceProvider
 
         // Add debug logging for isContained method
         $this->debugIsContainedMethod();
+        
+        // Prevent migrations in production unless explicitly allowed
+        if ($this->app->environment('production') && !$this->app->runningInConsole()) {
+            // Disable database statements in production to prevent changes
+            DB::preventLazyLoading(!$this->app->environment('production'));
+            
+            // Prevent migrations in production unless explicitly overridden
+            if (app()->environment('production') && 
+                !config('app.allow_migrations_in_production', false)) {
+                // Disable migrations in production 
+                $this->app->bind('migrator', function ($app) {
+                    return new class($app['migration.repository'], $app['db'], $app['files'], $app['events']) extends \Illuminate\Database\Migrations\Migrator {
+                        public function run($paths = [], array $options = [])
+                        {
+                            throw new \RuntimeException(
+                                'Migrations are disabled in production for safety. ' .
+                                'To run migrations in production, set ALLOW_MIGRATIONS_IN_PRODUCTION=true in your .env file.'
+                            );
+                        }
+                    };
+                });
+            }
+        }
     }
 
     /**
