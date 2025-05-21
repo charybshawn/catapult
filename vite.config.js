@@ -12,6 +12,8 @@ export default defineConfig({
         hmr: {
             host: 'catapult.roguespy.co',
         },
+        host: '0.0.0.0',
+        port: 5173,
     },
     build: {
         // Ensure assets are built with the correct base URL
