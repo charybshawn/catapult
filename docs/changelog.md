@@ -140,6 +140,19 @@ This document tracks all significant changes to the Catapult v2 project.
   - Added error interception in AppServiceProvider to capture "isContained() on null" errors
   - Enhanced Product model and ProductResource with debugging capabilities
   - Implemented robust error handling in ViewProduct page with fallback display
+- Added debug slideout panel to Grows resource (2025-06-21)
+  - Implemented detailed crop data inspection tool for farm managers
+  - Displays current crop timestamps, stage ages, and related recipe information
+  - Shows precise time calculations for stage age and time to next stage
+  - Helps diagnose issues with time display and stage transitions
+  - Provides real-time calculation values for comparison with database stored values
+  - Assists farmers with troubleshooting growth tracking anomalies
+- Made "no grouping" the default view for Grows resource (2025-06-21)
+  - Removed default grouping by recipe name
+  - Provides a flatter view of all grow batches by default
+  - Grouping options (by recipe, plant date, growth stage) remain available
+  - Improves immediate visibility of all active grows without additional clicks
+  - Better aligns with most farmers' preference for seeing all current grows at once
 
 ### Changed
 - Completely redesigned seed inventory management (2024-08-15)
@@ -234,6 +247,18 @@ This document tracks all significant changes to the Catapult v2 project.
   - Ensures time-based fields (stage age, time to next stage, total age) are regularly updated
   - Provides farmers with accurate, real-time crop status without manual refreshing
   - Complements real-time calculated values with periodic UI updates
+- Removed legacy debug code from Grows resource (2025-06-21)
+  - Removed debug logging statements and temporary debug column from CropResource
+  - Replaced with a cleaner implementation using the debug slideout panel
+  - Improved code quality and readability by removing verbose logging
+  - Reduced potential performance impact of excessive logging
+  - Streamlined query structure for better maintainability
+- Made "no grouping" the default view for Grows resource (2025-06-21)
+  - Removed default grouping by recipe name
+  - Provides a flatter view of all grow batches by default
+  - Grouping options (by recipe, plant date, growth stage) remain available
+  - Improves immediate visibility of all active grows without additional clicks
+  - Better aligns with most farmers' preference for seeing all current grows at once
 
 ### Fixed
 - Fixed tray batch advancement in Crops list (2024-10-01)

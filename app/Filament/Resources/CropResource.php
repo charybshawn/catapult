@@ -20,6 +20,8 @@ use App\Filament\Resources\RecipeResource;
 use Filament\Forms\Components\Actions\Action as FilamentAction;
 use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Placeholder;
+use Filament\Notifications\Notification;
+use Carbon\Carbon;
 
 class CropResource extends Resource
 {
@@ -137,22 +139,8 @@ class CropResource extends Resource
             ->persistSortInSession()
             ->defaultSort('planted_at', 'desc')
             ->modifyQueryUsing(function (Builder $query): Builder {
-                // Check if recipes table exists
-                $recipesExists = \Illuminate\Support\Facades\Schema::hasTable('recipes');
-                \Illuminate\Support\Facades\Log::debug('Checking recipes table', [
-                    'exists' => $recipesExists
-                ]);
-                
-                // Get a sample recipe
-                if ($recipesExists) {
-                    $sampleRecipe = \Illuminate\Support\Facades\DB::table('recipes')->first();
-                    \Illuminate\Support\Facades\Log::debug('Sample recipe', [
-                        'recipe' => $sampleRecipe
-                    ]);
-                }
-                
                 // Build the query
-                $result = $query->select([
+                return $query->select([
                         'crops.recipe_id',
                         'crops.planted_at',
                         'crops.current_stage',
@@ -180,14 +168,6 @@ class CropResource extends Resource
                     ])
                     ->from('crops')
                     ->groupBy(['crops.recipe_id', 'crops.planted_at', 'crops.current_stage']);
-                
-                // Log the query
-                \Illuminate\Support\Facades\Log::debug('CropResource query', [
-                    'sql' => $result->toSql(),
-                    'bindings' => $result->getBindings()
-                ]);
-                
-                return $result;
             })
             ->recordUrl(fn ($record) => static::getUrl('edit', ['record' => $record]))
             ->columns([
@@ -195,35 +175,10 @@ class CropResource extends Resource
                     ->label('Recipe')
                     ->weight('bold')
                     ->getStateUsing(function ($record) {
-                        // Log what we're getting for debugging
-                        \Illuminate\Support\Facades\Log::debug('Recipe name from record:', [
-                            'record_id' => $record->id ?? 'unknown',
-                            'recipe_id' => $record->recipe_id ?? null,
-                            'recipe_name' => $record->recipe_name ?? 'not found',
-                            'record_attrs' => (array) $record,
-                        ]);
-                        
-                        // Return the recipe name from the query-generated field
                         return $record->recipe_name ?? "Recipe #{$record->recipe_id}";
                     })
                     ->searchable(false)
                     ->sortable(false),
-                Tables\Columns\TextColumn::make('debug_data')
-                    ->label('Debug Data')
-                    ->getStateUsing(function ($record) {
-                        $data = (array) $record;
-                        // Log the full record data
-                        \Illuminate\Support\Facades\Log::debug('Record data:', [
-                            'data' => $data,
-                            'recipe_id' => $record->recipe_id ?? null,
-                            'recipe_name' => $record->recipe_name ?? null
-                        ]);
-                        return json_encode($data, JSON_PRETTY_PRINT);
-                    })
-                    ->extraAttributes(['class' => 'prose'])
-                    ->toggleable()
-                    ->wrap()
-                    ->size('xs'),
                 Tables\Columns\TextColumn::make('tray_count')
                     ->label('# of Trays')
                     ->sortable()
@@ -296,7 +251,6 @@ class CropResource extends Resource
                 Tables\Grouping\Group::make('current_stage')
                     ->label('Growth Stage'),
             ])
-            ->defaultGroup('recipe_name')
             ->filters([
                 Tables\Filters\SelectFilter::make('current_stage')
                     ->label('Stage')
@@ -319,6 +273,172 @@ class CropResource extends Resource
                     ->default(true),
             ])
             ->actions([
+                Tables\Actions\Action::make('debug')
+                    ->label('')
+                    ->icon('heroicon-o-code-bracket')
+                    ->tooltip('Debug Info')
+                    ->action(function (Crop $record) {
+                        // Get the recipe information
+                        $recipe = $record->recipe;
+                        
+                        // Calculate current times for debugging
+                        $now = now();
+                        
+                        // Prepare crop data
+                        $cropData = [
+                            'ID' => $record->id,
+                            'Tray Number' => $record->tray_number,
+                            'Current Stage' => $record->current_stage,
+                            'Planted At' => $record->planted_at ? $record->planted_at->format('Y-m-d H:i:s') : 'N/A',
+                            'Germination At' => $record->germination_at ? $record->germination_at->format('Y-m-d H:i:s') : 'N/A',
+                            'Blackout At' => $record->blackout_at ? $record->blackout_at->format('Y-m-d H:i:s') : 'N/A',
+                            'Light At' => $record->light_at ? $record->light_at->format('Y-m-d H:i:s') : 'N/A',
+                            'Harvested At' => $record->harvested_at ? $record->harvested_at->format('Y-m-d H:i:s') : 'N/A',
+                            'Stage Updated At' => $record->stage_updated_at ? $record->stage_updated_at->format('Y-m-d H:i:s') : 'N/A',
+                            'Current Time' => $now->format('Y-m-d H:i:s'),
+                        ];
+                        
+                        // Prepare recipe data if available
+                        $recipeData = [];
+                        if ($recipe) {
+                            $recipeData = [
+                                'ID' => $recipe->id,
+                                'Name' => $recipe->name,
+                                'Seed Variety' => $recipe->seedVariety ? $recipe->seedVariety->name : 'N/A',
+                                'Germination Days' => $recipe->germination_days,
+                                'Blackout Days' => $recipe->blackout_days,
+                                'Light Days' => $recipe->light_days,
+                                'Days to Maturity' => $recipe->days_to_maturity,
+                            ];
+                        }
+                        
+                        // Add time calculations
+                        $timeCalculations = [];
+                        
+                        // Stage age calculation
+                        $stageField = "{$record->current_stage}_at";
+                        if ($record->$stageField) {
+                            $stageStart = Carbon::parse($record->$stageField);
+                            $stageAgeMinutes = $now->diffInMinutes($stageStart);
+                            $stageAgeDuration = $now->diff($stageStart);
+                            
+                            $timeCalculations['Stage Age Calculation'] = [
+                                'Stage Start Time' => $stageStart->format('Y-m-d H:i:s'),
+                                'Current Time' => $now->format('Y-m-d H:i:s'),
+                                'Difference (minutes)' => $stageAgeMinutes,
+                                'Human Format' => $stageAgeDuration->days . 'd ' . $stageAgeDuration->h . 'h ' . $stageAgeDuration->i . 'm',
+                                'DB Stored Value' => $record->stage_age_minutes . ' minutes',
+                                'DB Display Value' => $record->stage_age_display,
+                            ];
+                        }
+                        
+                        // Time to next stage calculation
+                        if ($recipe && $record->current_stage !== 'harvested') {
+                            $nextStage = match($record->current_stage) {
+                                'planted' => 'germination',
+                                'germination' => 'blackout',
+                                'blackout' => 'light',
+                                'light' => 'harvested',
+                                default => null
+                            };
+                            
+                            if ($nextStage) {
+                                $phaseDurationField = match($record->current_stage) {
+                                    'planted' => 'germination_days',
+                                    'germination' => 'blackout_days',
+                                    'blackout' => 'light_days',
+                                    default => null
+                                };
+                                
+                                if ($phaseDurationField) {
+                                    $phaseDuration = $recipe->$phaseDurationField * 1440; // Convert days to minutes
+                                    $timeElapsed = $stageAgeMinutes ?? 0;
+                                    $timeRemaining = max(0, $phaseDuration - $timeElapsed);
+                                    
+                                    $daysRemaining = floor($timeRemaining / 1440);
+                                    $hoursRemaining = floor(($timeRemaining % 1440) / 60);
+                                    $minutesRemaining = $timeRemaining % 60;
+                                    
+                                    $timeCalculations['Time to Next Stage Calculation'] = [
+                                        'Current Stage' => $record->current_stage,
+                                        'Next Stage' => $nextStage,
+                                        'Phase Duration' => $recipe->$phaseDurationField . ' days (' . $phaseDuration . ' minutes)',
+                                        'Time Elapsed' => $timeElapsed . ' minutes',
+                                        'Time Remaining' => $timeRemaining . ' minutes',
+                                        'Human Format' => $daysRemaining . 'd ' . $hoursRemaining . 'h ' . $minutesRemaining . 'm',
+                                        'DB Stored Value' => $record->time_to_next_stage_minutes . ' minutes',
+                                        'DB Display Value' => $record->time_to_next_stage_status,
+                                    ];
+                                }
+                            }
+                        }
+                        
+                        // Format the debug data for display in a notification
+                        $cropDataHtml = '<div class="mb-4">';
+                        $cropDataHtml .= '<h3 class="text-lg font-medium mb-2">Crop Data</h3>';
+                        $cropDataHtml .= '<div class="overflow-auto max-h-48 space-y-1">';
+                        
+                        foreach ($cropData as $key => $value) {
+                            $cropDataHtml .= '<div class="flex">';
+                            $cropDataHtml .= '<span class="font-medium w-32">' . $key . ':</span>';
+                            $cropDataHtml .= '<span class="text-gray-600">' . $value . '</span>';
+                            $cropDataHtml .= '</div>';
+                        }
+                        
+                        $cropDataHtml .= '</div></div>';
+                        
+                        // Format recipe data if available
+                        $recipeDataHtml = '';
+                        if (!empty($recipeData)) {
+                            $recipeDataHtml = '<div class="mb-4">';
+                            $recipeDataHtml .= '<h3 class="text-lg font-medium mb-2">Recipe Data</h3>';
+                            $recipeDataHtml .= '<div class="overflow-auto max-h-48 space-y-1">';
+                            
+                            foreach ($recipeData as $key => $value) {
+                                $recipeDataHtml .= '<div class="flex">';
+                                $recipeDataHtml .= '<span class="font-medium w-32">' . $key . ':</span>';
+                                $recipeDataHtml .= '<span class="text-gray-600">' . $value . '</span>';
+                                $recipeDataHtml .= '</div>';
+                            }
+                            
+                            $recipeDataHtml .= '</div></div>';
+                        } else {
+                            $recipeDataHtml = '<div class="text-gray-500 mb-4">Recipe not found</div>';
+                        }
+                        
+                        // Format time calculations
+                        $timeCalcHtml = '<div class="mb-4">';
+                        $timeCalcHtml .= '<h3 class="text-lg font-medium mb-2">Time Calculations</h3>';
+                        $timeCalcHtml .= '<div class="overflow-auto max-h-80 space-y-4">';
+                        
+                        foreach ($timeCalculations as $section => $data) {
+                            $timeCalcHtml .= '<div class="border-t pt-2">';
+                            $timeCalcHtml .= '<h4 class="font-medium text-blue-600 mb-1">' . $section . '</h4>';
+                            
+                            foreach ($data as $key => $value) {
+                                $timeCalcHtml .= '<div class="flex">';
+                                $timeCalcHtml .= '<span class="font-medium w-40 text-sm">' . $key . ':</span>';
+                                $timeCalcHtml .= '<span class="text-gray-600 text-sm">' . $value . '</span>';
+                                $timeCalcHtml .= '</div>';
+                            }
+                            
+                            $timeCalcHtml .= '</div>';
+                        }
+                        
+                        $timeCalcHtml .= '</div></div>';
+                        
+                        Notification::make()
+                            ->title('Debug Information')
+                            ->body($cropDataHtml . $recipeDataHtml . $timeCalcHtml)
+                            ->persistent()
+                            ->actions([
+                                \Filament\Notifications\Actions\Action::make('close')
+                                    ->label('Close')
+                                    ->color('gray')
+                            ])
+                            ->send();
+                    }),
+                
                 Action::make('advanceStage')
                     ->label(function (Crop $record): string {
                         $nextStage = $record->getNextStage();
