@@ -18,7 +18,7 @@ class PriceVariation extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'item_id',
+        'product_id',
         'name',
         'unit',
         'sku',
@@ -50,14 +50,14 @@ class PriceVariation extends Model
                 $priceVariation->weight = 0;
             }
             
-            // Set item_id to NULL for global price variations
+            // Set product_id to NULL for global price variations
             if ($priceVariation->is_global) {
-                $priceVariation->item_id = null;
+                $priceVariation->product_id = null;
             }
             
             // Handle default pricing
             if ($priceVariation->is_default) {
-                static::where('item_id', $priceVariation->item_id)
+                static::where('product_id', $priceVariation->product_id)
                     ->where('is_default', true)
                     ->update(['is_default' => false]);
             }
@@ -69,14 +69,14 @@ class PriceVariation extends Model
                 $priceVariation->weight = 0;
             }
             
-            // Set item_id to NULL for global price variations
+            // Set product_id to NULL for global price variations
             if ($priceVariation->is_global && !$priceVariation->isDirty('is_global')) {
-                $priceVariation->item_id = null;
+                $priceVariation->product_id = null;
             }
             
             // Handle default pricing
             if ($priceVariation->is_default && $priceVariation->isDirty('is_default')) {
-                static::where('item_id', $priceVariation->item_id)
+                static::where('product_id', $priceVariation->product_id)
                     ->where('id', '!=', $priceVariation->id)
                     ->where('is_default', true)
                     ->update(['is_default' => false]);
@@ -86,7 +86,7 @@ class PriceVariation extends Model
         // Ensure there's always a default price if possible
         static::deleted(function ($priceVariation) {
             if ($priceVariation->is_default) {
-                $firstVariation = static::where('item_id', $priceVariation->item_id)->first();
+                $firstVariation = static::where('product_id', $priceVariation->product_id)->first();
                 if ($firstVariation) {
                     $firstVariation->update(['is_default' => true]);
                 }
@@ -99,7 +99,7 @@ class PriceVariation extends Model
      */
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class, 'item_id');
+        return $this->belongsTo(Product::class, 'product_id');
     }
 
     /**
@@ -119,7 +119,7 @@ class PriceVariation extends Model
     {
         return LogOptions::defaults()
             ->logOnly([
-                'item_id',
+                'product_id',
                 'name',
                 'unit',
                 'sku',
