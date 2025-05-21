@@ -28,6 +28,19 @@ class Kernel extends ConsoleKernel
 
         // Add command to process crop tasks
         $schedule->command('app:process-crop-tasks')->everyFifteenMinutes(); // Check every 15 minutes
+
+        // Run database optimization weekly during low-traffic period
+        $schedule->command('db:optimize --analyze --optimize')
+            ->weekly()
+            ->sundays()
+            ->at('03:00')
+            ->appendOutputTo(storage_path('logs/db-optimize.log'));
+        
+        // Prune old database records and optimize file storage weekly
+        $schedule->command('model:prune')
+            ->weekly()
+            ->sundays()
+            ->at('04:00');
     }
 
     /**

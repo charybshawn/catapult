@@ -55,7 +55,8 @@ class ProductResource extends Resource
                     ->searchable(),
                 Tables\Columns\ImageColumn::make('default_photo')
                     ->label('Image')
-                    ->circular(),
+                    ->circular()
+                    ->lazy(),
                 Tables\Columns\TextColumn::make('category.name')
                     ->label('Category')
                     ->sortable(),
