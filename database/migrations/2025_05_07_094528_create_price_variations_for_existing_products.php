@@ -16,12 +16,12 @@ return new class extends Migration
     public function up(): void
     {
         // Get all products that have price fields set but no price variations
-        $products = DB::table('items')
+        $products = DB::table('products')
             ->whereNotNull('base_price')
             ->whereNotExists(function ($query) {
                 $query->select(DB::raw(1))
                     ->from('price_variations')
-                    ->whereRaw('items.id = price_variations.item_id');
+                    ->whereRaw('products.id = price_variations.item_id');
             })
             ->whereNull('deleted_at')
             ->get();
