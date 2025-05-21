@@ -4,10 +4,7 @@ namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Cache;
-use App\Models\Product;
-use App\Models\Category;
-use App\Models\PriceVariation;
-use App\Models\Setting;
+use Illuminate\Support\Facades\Event;
 
 class CacheServiceProvider extends ServiceProvider
 {
@@ -24,97 +21,58 @@ class CacheServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Cache active categories for 30 minutes
-        $this->cacheActiveCategories();
+        // Use generic event listeners for models
+        // This prevents errors during migrations when models might not be loaded yet
         
-        // Cache active products for 15 minutes
-        $this->cacheActiveProducts();
-        
-        // Cache global price variations for 60 minutes
-        $this->cacheGlobalPriceVariations();
-        
-        // Cache application settings for 24 hours
-        $this->cacheSettings();
-        
-        // Set up cache invalidation listeners for models
-        $this->setupCacheInvalidation();
-    }
-    
-    /**
-     * Cache active categories
-     */
-    private function cacheActiveCategories(): void
-    {
-        Category::saved(function () {
-            Cache::forget('active_categories');
-        });
-        
-        Category::deleted(function () {
-            Cache::forget('active_categories');
-        });
-    }
-    
-    /**
-     * Cache active products
-     */
-    private function cacheActiveProducts(): void
-    {
-        Product::saved(function () {
-            Cache::forget('active_products');
-            Cache::forget('store_visible_products');
-        });
-        
-        Product::deleted(function () {
-            Cache::forget('active_products');
-            Cache::forget('store_visible_products');
-        });
-    }
-    
-    /**
-     * Cache global price variations
-     */
-    private function cacheGlobalPriceVariations(): void
-    {
-        PriceVariation::saved(function ($variation) {
-            if ($variation->is_global) {
-                Cache::forget('global_price_variations');
+        // Listen for any Eloquent model events
+        Event::listen('eloquent.saved: *', function ($event, $models) {
+            if (isset($models[0])) {
+                $this->handleModelChanged($models[0]);
             }
         });
         
-        PriceVariation::deleted(function ($variation) {
-            if ($variation->is_global) {
-                Cache::forget('global_price_variations');
+        Event::listen('eloquent.deleted: *', function ($event, $models) {
+            if (isset($models[0])) {
+                $this->handleModelChanged($models[0]);
             }
         });
     }
     
     /**
-     * Cache application settings
+     * Handle model changes and clear appropriate caches
      */
-    private function cacheSettings(): void
+    private function handleModelChanged($model): void
     {
-        Setting::saved(function () {
-            Cache::forget('app_settings');
-        });
+        if (!$model) return;
         
-        Setting::deleted(function () {
-            Cache::forget('app_settings');
-        });
-    }
-    
-    /**
-     * Set up cache invalidation listeners
-     */
-    private function setupCacheInvalidation(): void
-    {
-        // When a model is updated, invalidate related caches
+        $class = get_class($model);
         
-        // Example: When a product is updated, invalidate related category caches
-        Product::updated(function ($product) {
-            if ($product->isDirty('category_id')) {
-                Cache::forget('category_products_' . $product->getOriginal('category_id'));
-                Cache::forget('category_products_' . $product->category_id);
-            }
-        });
+        // Handle different model types
+        switch ($class) {
+            case 'App\Models\Category':
+                Cache::forget('active_categories');
+                break;
+                
+            case 'App\Models\Product':
+                Cache::forget('active_products');
+                Cache::forget('store_visible_products');
+                
+                // Clear category cache if category changed
+                if ($model->isDirty('category_id')) {
+                    Cache::forget('category_products_' . $model->getOriginal('category_id'));
+                    Cache::forget('category_products_' . $model->category_id);
+                }
+                break;
+                
+            case 'App\Models\PriceVariation':
+                if ($model->is_global ?? false) {
+                    Cache::forget('global_price_variations');
+                }
+                break;
+                
+            case 'App\Models\Setting':
+                Cache::forget('app_settings');
+                break;
+        }
     }
 }
