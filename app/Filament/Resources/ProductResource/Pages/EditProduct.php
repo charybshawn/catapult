@@ -3,11 +3,11 @@
 namespace App\Filament\Resources\ProductResource\Pages;
 
 use App\Filament\Resources\ProductResource;
+use App\Filament\Pages\Base\BaseEditRecord;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
 use Filament\Notifications\Notification;
 
-class EditProduct extends EditRecord
+class EditProduct extends BaseEditRecord
 {
     protected static string $resource = ProductResource::class;
 

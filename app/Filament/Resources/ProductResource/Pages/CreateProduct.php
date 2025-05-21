@@ -3,12 +3,12 @@
 namespace App\Filament\Resources\ProductResource\Pages;
 
 use App\Filament\Resources\ProductResource;
+use App\Filament\Pages\Base\BaseCreateRecord;
 use App\Models\PriceVariation;
-use Filament\Resources\Pages\CreateRecord;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Model;
 
-class CreateProduct extends CreateRecord
+class CreateProduct extends BaseCreateRecord
 {
     protected static string $resource = ProductResource::class;
     
