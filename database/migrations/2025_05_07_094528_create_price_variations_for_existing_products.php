@@ -21,7 +21,7 @@ return new class extends Migration
             ->whereNotExists(function ($query) {
                 $query->select(DB::raw(1))
                     ->from('price_variations')
-                    ->whereRaw('products.id = price_variations.item_id');
+                    ->whereRaw('products.id = price_variations.product_id');
             })
             ->whereNull('deleted_at')
             ->get();
@@ -34,7 +34,7 @@ return new class extends Migration
                 'price' => $product->base_price,
                 'is_default' => true,
                 'is_active' => true,
-                'item_id' => $product->id
+                'product_id' => $product->id
             ]);
             $defaultVariation->save();
             
@@ -46,7 +46,7 @@ return new class extends Migration
                     'price' => $product->wholesale_price,
                     'is_default' => false,
                     'is_active' => true,
-                    'item_id' => $product->id
+                    'product_id' => $product->id
                 ]);
                 $wholesaleVariation->save();
             }
@@ -59,7 +59,7 @@ return new class extends Migration
                     'price' => $product->bulk_price,
                     'is_default' => false,
                     'is_active' => true,
-                    'item_id' => $product->id
+                    'product_id' => $product->id
                 ]);
                 $bulkVariation->save();
             }
@@ -72,7 +72,7 @@ return new class extends Migration
                     'price' => $product->special_price,
                     'is_default' => false,
                     'is_active' => true,
-                    'item_id' => $product->id
+                    'product_id' => $product->id
                 ]);
                 $specialVariation->save();
             }
