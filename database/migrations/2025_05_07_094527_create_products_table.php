@@ -11,6 +11,24 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Create categories table first since products references it
+        Schema::create('categories', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->text('description')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+        });
+
+        // Create product_mixes table first since products references it
+        Schema::create('product_mixes', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->text('description')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+        });
+
         // Create products table
         Schema::create('products', function (Blueprint $table) {
             $table->id();
@@ -43,8 +61,10 @@ return new class extends Migration
         Schema::create('price_variations', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('unit');
-            $table->decimal('price', 10, 2);
+            $table->string('unit')->default('item')->comment('per item, lbs, gram, etc.');
+            $table->string('sku')->nullable();
+            $table->decimal('weight', 10, 3)->default(0)->comment('Weight in the specified unit');
+            $table->decimal('price', 8, 2);
             $table->boolean('is_default')->default(false);
             $table->boolean('is_active')->default(true);
             $table->foreignId('product_id')->nullable()->constrained()->cascadeOnDelete();
@@ -60,5 +80,7 @@ return new class extends Migration
         Schema::dropIfExists('price_variations');
         Schema::dropIfExists('order_products');
         Schema::dropIfExists('products');
+        Schema::dropIfExists('product_mixes');
+        Schema::dropIfExists('categories');
     }
 }; 
