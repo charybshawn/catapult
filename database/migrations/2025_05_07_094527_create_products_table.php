@@ -66,6 +66,7 @@ return new class extends Migration
             $table->decimal('weight', 10, 3)->default(0)->comment('Weight in the specified unit');
             $table->decimal('price', 8, 2);
             $table->boolean('is_default')->default(false);
+            $table->boolean('is_global')->default(false)->comment('When true, this variation can be used with any product');
             $table->boolean('is_active')->default(true);
             $table->foreignId('product_id')->nullable()->constrained()->cascadeOnDelete();
             $table->timestamps();
