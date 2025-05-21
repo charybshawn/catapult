@@ -134,7 +134,7 @@ class Product extends Model
      */
     public function priceVariations(): HasMany
     {
-        return $this->hasMany(PriceVariation::class, 'item_id');
+        return $this->hasMany(PriceVariation::class, 'product_id');
     }
 
     /**
@@ -288,7 +288,7 @@ class Product extends Model
      */
     public function photos(): HasMany
     {
-        return $this->hasMany(ProductPhoto::class, 'item_id')->orderBy('order');
+        return $this->hasMany(ProductPhoto::class, 'product_id')->orderBy('order');
     }
 
     /**
@@ -296,7 +296,7 @@ class Product extends Model
      */
     public function defaultPhoto()
     {
-        return $this->hasOne(ProductPhoto::class, 'item_id')
+        return $this->hasOne(ProductPhoto::class, 'product_id')
             ->where('is_default', true)
             ->withDefault(function () {
                 // If no default photo exists, try to get any photo
