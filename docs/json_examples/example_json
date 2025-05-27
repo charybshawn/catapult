@@ -1,0 +1,37 @@
+{
+  "timestamp": "string (ISO 8601 format, e.g., \"2025-05-26T15:21:44.404766\")",
+  "scrape_duration_seconds": "float (e.g., 33.95)",
+  "source_site": "string (URL, e.g., \"https://www.damseeds.com\")",
+  "product_count": "integer (e.g., 25)",
+  "global_scrape_error": "string | null (Error message for the entire scrape, if any, otherwise null)",
+  "data": [ // Array of Product Objects
+    {
+      "title": "string (e.g., \"Greencrops, 4010 Green Forage Pea - Organic\")",
+      "cultivar": "string (e.g., \"Greencrops\")",
+      "plant_variety": "string | null (e.g., \"4010 Green Forage Pea - Organic\", \"N/A\", or null)",
+      "url": "string (Product URL)",
+      "vendor": "string | null (e.g., \"William Dam Seeds\", or null)",
+      "product_type": "string | null (e.g., \"\", or null)",
+      "image_url": "string (Image URL) | null",
+      "description": "string | null (Product description, or null)",
+      "tags": "array of strings (e.g., [\"microgreens\", \"organic\"], or [])",
+      "is_in_stock": "boolean (Overall product availability)",
+      "product_scrape_error": "string | null (Error message if scraping this product failed, otherwise null)",
+      "variants": [ // Array of Variant Objects
+        {
+          "variant_title": "string (Description of the variant, e.g., \"450 grams\")",
+          "currency": "string (e.g., \"CAD\")",
+          "price": "float (e.g., 9.95)",
+          "sku": "string | null (e.g., \"4881A\", \"N/A\", or null)",
+          "weight_kg": "float | null (e.g., 0.45, or null)",
+          "original_weight_value": "float | null (e.g., 450.0, or null)",
+          "original_weight_unit": "string | null (e.g., \"grams\", or null)",
+          "is_variant_in_stock": "boolean (Availability of this specific variant)",
+          "variant_scrape_error": "string | null (Error message for this variant, if any, otherwise null)"
+        }
+        // ... more variants
+      ]
+    }
+    // ... more products
+  ]
+}

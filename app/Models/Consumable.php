@@ -644,4 +644,12 @@ class Consumable extends Model
                 ->default(true),
         ];
     }
+
+    /**
+     * Get the seed variations associated with this consumable
+     */
+    public function seedVariations()
+    {
+        return $this->hasMany(SeedVariation::class);
+    }
 }
