@@ -12,6 +12,8 @@ use Spatie\Activitylog\Traits\LogsActivity;
 use Illuminate\Support\Facades\DB;
 use Filament\Forms; // Import Forms namespace
 use App\Models\Supplier; // Import Supplier model
+use App\Services\InventoryService;
+use App\Services\ConsumableCalculatorService;
 
 class Consumable extends Model
 {
@@ -132,11 +134,7 @@ class Consumable extends Model
      */
     public function getDisplayNameAttribute(): string
     {
-        if ($this->type === 'seed' && $this->seedVariety) {
-            return $this->seedVariety->name;
-        }
-        
-        return $this->name;
+        return app(ConsumableCalculatorService::class)->formatDisplayName($this);
     }
     
     /**
@@ -144,22 +142,7 @@ class Consumable extends Model
      */
     public function needsRestock(): bool
     {
-        // For seeds, check based on total weight instead of unit count
-        if ($this->type === 'seed') {
-            return $this->needsSeedRestock();
-        }
-        
-        // For all other consumables, check based on unit count
-        return $this->current_stock <= $this->restock_threshold;
-    }
-    
-    /**
-     * Check if a seed consumable needs restocking based on total weight.
-     */
-    protected function needsSeedRestock(): bool
-    {
-        // For seeds, now directly check the total_quantity field
-        return $this->total_quantity <= $this->restock_threshold;
+        return app(InventoryService::class)->needsRestock($this);
     }
     
     /**
@@ -167,7 +150,7 @@ class Consumable extends Model
      */
     public function totalValue(): float
     {
-        return $this->current_stock * ($this->cost_per_unit ?? 0);
+        return app(InventoryService::class)->calculateTotalValue($this);
     }
     
     /**
@@ -221,36 +204,7 @@ class Consumable extends Model
      */
     public function deduct(float $amount, ?string $unit = null): void
     {
-        // Normalize amount based on unit if needed
-        $normalizedAmount = $this->normalizeQuantity($amount, $unit);
-        
-        // For seed consumables, directly update total_quantity
-        if ($this->type === 'seed') {
-            $data = [
-                'total_quantity' => max(0, $this->total_quantity - $normalizedAmount),
-            ];
-            
-            // Still update consumed_quantity for consistency
-            $data['consumed_quantity'] = $this->consumed_quantity + $normalizedAmount;
-            
-            $this->update($data);
-            return;
-        }
-        
-        // For other consumable types, use the original logic
-        $newConsumedQuantity = $this->consumed_quantity + $normalizedAmount;
-        
-        $data = [
-            'consumed_quantity' => $newConsumedQuantity,
-        ];
-        
-        // Update total quantity if applicable
-        if ($this->quantity_per_unit) {
-            $availableStock = max(0, $this->initial_stock - $newConsumedQuantity);
-            $data['total_quantity'] = $availableStock * $this->quantity_per_unit;
-        }
-        
-        $this->update($data);
+        app(InventoryService::class)->deductStock($this, $amount, $unit);
     }
     
     /**
@@ -263,53 +217,7 @@ class Consumable extends Model
      */
     public function add(float $amount, ?string $unit = null, ?string $lotNo = null): bool
     {
-        // For seed consumables, check lot number first
-        if ($this->type === 'seed' && $lotNo !== null) {
-            // If this seed already has a lot number and it's different, 
-            // return false to indicate a new record should be created
-            if ($this->lot_no && strtoupper($lotNo) !== $this->lot_no) {
-                return false;
-            }
-            
-            // If record doesn't have a lot number yet, set it
-            if (!$this->lot_no) {
-                $this->lot_no = strtoupper($lotNo);
-            }
-        }
-        
-        // Normalize amount based on unit if needed
-        $normalizedAmount = $this->normalizeQuantity($amount, $unit);
-        
-        // For seed consumables, directly update total_quantity
-        if ($this->type === 'seed') {
-            $data = [
-                'total_quantity' => $this->total_quantity + $normalizedAmount,
-                'last_ordered_at' => now(),
-            ];
-            
-            // Still update initial_stock for consistency
-            $data['initial_stock'] = $this->initial_stock + $normalizedAmount;
-            
-            $this->update($data);
-            return true;
-        }
-        
-        // For other consumable types, use the original logic
-        $newInitialStock = $this->initial_stock + $normalizedAmount;
-        
-        $data = [
-            'initial_stock' => $newInitialStock,
-            'last_ordered_at' => now(),
-        ];
-        
-        // Update total quantity if applicable
-        if ($this->quantity_per_unit) {
-            $availableStock = max(0, $newInitialStock - $this->consumed_quantity);
-            $data['total_quantity'] = $availableStock * $this->quantity_per_unit;
-        }
-        
-        $this->update($data);
-        return true;
+        return app(InventoryService::class)->addStock($this, $amount, $unit, $lotNo);
     }
     
     /**
@@ -345,7 +253,7 @@ class Consumable extends Model
      */
     public function isOutOfStock(): bool
     {
-        return $this->current_stock <= 0;
+        return app(InventoryService::class)->isOutOfStock($this);
     }
 
     /**
@@ -353,16 +261,7 @@ class Consumable extends Model
      */
     public function getFormattedTotalWeightAttribute(): string
     {
-        // For packaging consumables, return empty string
-        if ($this->type === 'packaging') {
-            return '';
-        }
-        
-        if (!$this->total_quantity || !$this->quantity_unit) {
-            return '-';
-        }
-        
-        return number_format($this->total_quantity, 2) . ' ' . $this->quantity_unit;
+        return app(InventoryService::class)->getFormattedTotalWeight($this);
     }
     
     /**
@@ -370,13 +269,7 @@ class Consumable extends Model
      */
     public static function getValidMeasurementUnits(): array
     {
-        return [
-            'g' => 'Grams',
-            'kg' => 'Kilograms',
-            'l' => 'Litre(s)',
-            'ml' => 'Milliliters',
-            'oz' => 'Ounces',
-        ];
+        return app(ConsumableCalculatorService::class)->getValidMeasurementUnits();
     }
     
     /**
@@ -384,13 +277,7 @@ class Consumable extends Model
      */
     public static function getValidTypes(): array
     {
-        return [
-            'packaging' => 'Packaging',
-            'soil' => 'Soil',
-            'seed' => 'Seeds',
-            'label' => 'Labels',
-            'other' => 'Other',
-        ];
+        return app(ConsumableCalculatorService::class)->getValidTypes();
     }
     
     /**
@@ -398,14 +285,7 @@ class Consumable extends Model
      */
     public static function getValidUnitTypes(): array
     {
-        return [
-            'unit' => 'Unit(s)',
-            'kg' => 'Kilograms',
-            'g' => 'Grams',
-            'oz' => 'Ounces',
-            'l' => 'Litre(s)',
-            'ml' => 'Milliliters',
-        ];
+        return app(ConsumableCalculatorService::class)->getValidUnitTypes();
     }
 
     /**
