@@ -9,6 +9,12 @@ class SeedScrapeUpload extends Model
 {
     use HasFactory;
 
+    // Status constants
+    public const STATUS_PENDING = 'pending';
+    public const STATUS_PROCESSING = 'processing';
+    public const STATUS_COMPLETED = 'completed';
+    public const STATUS_ERROR = 'error';
+
     protected $fillable = [
         'original_filename', 
         'status', 
@@ -21,10 +27,4 @@ class SeedScrapeUpload extends Model
         'uploaded_at' => 'datetime',
         'processed_at' => 'datetime',
     ];
-
-    // Status constants
-    const STATUS_PENDING = 'pending';
-    const STATUS_PROCESSING = 'processing';
-    const STATUS_COMPLETED = 'completed';
-    const STATUS_ERROR = 'error';
 }

@@ -9,6 +9,9 @@ class SeedPriceHistory extends Model
 {
     use HasFactory;
 
+    // Explicitly set the table name to match the database
+    protected $table = 'seed_price_history';
+
     protected $fillable = [
         'seed_variation_id', 
         'price', 

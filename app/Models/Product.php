@@ -6,9 +6,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Collection;
 
 class Product extends Model
 {
@@ -140,7 +142,7 @@ class Product extends Model
     /**
      * Get the default price variation for the product.
      */
-    public function defaultPriceVariation()
+    public function defaultPriceVariation(): ?PriceVariation
     {
         return $this->priceVariations()->where('is_default', true)->first();
     }
@@ -148,7 +150,7 @@ class Product extends Model
     /**
      * Get the active price variations for the product.
      */
-    public function activePriceVariations()
+    public function activePriceVariations(): Collection
     {
         return $this->priceVariations()->where('is_active', true)->get();
     }
@@ -220,11 +222,8 @@ class Product extends Model
 
     /**
      * Get a price variation by name.
-     * 
-     * @param string $name
-     * @return \App\Models\PriceVariation|null
      */
-    public function getPriceVariationByName(string $name)
+    public function getPriceVariationByName(string $name): ?PriceVariation
     {
         return $this->priceVariations()
             ->where('name', $name)
@@ -294,7 +293,7 @@ class Product extends Model
     /**
      * Get the default photo for this product.
      */
-    public function defaultPhoto()
+    public function defaultPhoto(): HasOne
     {
         return $this->hasOne(ProductPhoto::class, 'product_id')
             ->where('is_default', true)
@@ -489,9 +488,8 @@ class Product extends Model
      * Get the base price attribute.
      * 
      * @deprecated Use price variations instead
-     * @return float|null
      */
-    public function getBasePriceAttribute()
+    public function getBasePriceAttribute(): ?float
     {
         $variation = $this->defaultPriceVariation();
         if ($variation) {

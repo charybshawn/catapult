@@ -10,6 +10,7 @@ use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 use App\Services\CropLifecycleService;
 use App\Services\CropTimeCalculator;
+use App\Models\SeedVariety;
 
 class Crop extends Model
 {
@@ -85,7 +86,7 @@ class Crop extends Model
     /**
      * Get the seed variety for this crop through the recipe.
      */
-    public function seedVariety()
+    public function seedVariety(): ?SeedVariety
     {
         if ($this->recipe) {
             return $this->recipe->seedVariety;
@@ -96,7 +97,7 @@ class Crop extends Model
     /**
      * Get the variety name for this crop.
      */
-    public function getVarietyNameAttribute()
+    public function getVarietyNameAttribute(): ?string
     {
         if ($this->recipe && $this->recipe->seedVariety) {
             $varietyName = $this->recipe->seedVariety->name;
