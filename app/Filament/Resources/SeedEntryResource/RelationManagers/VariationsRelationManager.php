@@ -1,41 +1,23 @@
 <?php
 
-namespace App\Filament\Resources;
+namespace App\Filament\Resources\SeedEntryResource\RelationManagers;
 
-use App\Filament\Resources\SeedVariationResource\Pages;
-use App\Filament\Resources\SeedVariationResource\RelationManagers;
-use App\Models\SeedVariation;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Filament\Support\Enums\FontWeight;
-use Filament\Tables\Columns\Layout\Panel;
-use Filament\Tables\Columns\Layout\Stack;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
-class SeedVariationResource extends Resource
+class VariationsRelationManager extends RelationManager
 {
-    protected static ?string $model = SeedVariation::class;
+    protected static string $relationship = 'variations';
 
-    protected static ?string $navigationIcon = 'heroicon-o-circle-stack';
-
-    protected static ?string $navigationLabel = 'Seed Variations';
-    
-    protected static ?string $navigationGroup = 'Seed Inventory';
-    
-    protected static ?int $navigationSort = 20;
-
-    public static function form(Form $form): Form
+    public function form(Form $form): Form
     {
         return $form
             ->schema([
-                Forms\Components\Select::make('seed_entry_id')
-                    ->relationship('seedEntry', 'supplier_product_title')
-                    ->required()
-                    ->searchable()
-                    ->preload(),
                 Forms\Components\TextInput::make('size_description')
                     ->required()
                     ->maxLength(255),
@@ -70,34 +52,14 @@ class SeedVariationResource extends Resource
                 Forms\Components\DateTimePicker::make('last_checked_at')
                     ->required()
                     ->default(now()),
-                Forms\Components\Select::make('consumable_id')
-                    ->relationship('consumable', 'name')
-                    ->searchable()
-                    ->preload()
-                    ->disabled()
-                    ->helperText('Note: Integration with the inventory system is temporarily disabled.')
-                    ->label('Connected Inventory Item (Disabled)'),
-                Forms\Components\Placeholder::make('consumable_notice')
-                    ->content('Integration with the Consumables inventory system is temporarily disabled to prevent SQL errors. This feature will be re-enabled in a future update.')
-                    ->extraAttributes(['class' => 'text-orange-500']),
             ]);
     }
 
-    public static function table(Table $table): Table
+    public function table(Table $table): Table
     {
         return $table
+            ->recordTitleAttribute('size_description')
             ->columns([
-                Tables\Columns\TextColumn::make('seedEntry.seedCultivar.name')
-                    ->label('Cultivar')
-                    ->searchable()
-                    ->sortable()
-                    ->weight(FontWeight::Bold)
-                    ->toggleable(),
-                Tables\Columns\TextColumn::make('seedEntry.supplier.name')
-                    ->label('Supplier')
-                    ->searchable()
-                    ->sortable()
-                    ->toggleable(),
                 Tables\Columns\TextColumn::make('size_description')
                     ->searchable()
                     ->sortable(),
@@ -111,7 +73,10 @@ class SeedVariationResource extends Resource
                 Tables\Columns\TextColumn::make('price_per_kg')
                     ->label('Price per kg')
                     ->money('USD')
-                    ->getStateUsing(fn (SeedVariation $record): ?float => $record->price_per_kg)
+                    ->getStateUsing(fn ($record): ?float => 
+                        $record->weight_kg && $record->weight_kg > 0 ? 
+                        $record->current_price / $record->weight_kg : null
+                    )
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderByRaw('current_price / NULLIF(weight_kg, 0) ' . $direction);
                     }),
@@ -121,27 +86,18 @@ class SeedVariationResource extends Resource
                     ->sortable(),
                 Tables\Columns\TextColumn::make('last_checked_at')
                     ->dateTime()
-                    ->sortable()
-                    ->toggleable(),
+                    ->sortable(),
             ])
-            ->defaultSort('seedEntry.seedCultivar.name')
             ->filters([
-                Tables\Filters\SelectFilter::make('cultivar')
-                    ->relationship('seedEntry.seedCultivar', 'name')
-                    ->searchable()
-                    ->preload()
-                    ->label('Cultivar'),
-                Tables\Filters\SelectFilter::make('supplier')
-                    ->relationship('seedEntry.supplier', 'name')
-                    ->searchable()
-                    ->preload()
-                    ->label('Supplier'),
                 Tables\Filters\SelectFilter::make('stock_status')
                     ->options([
                         '1' => 'In Stock',
                         '0' => 'Out of Stock',
                     ])
                     ->attribute('is_in_stock'),
+            ])
+            ->headerActions([
+                Tables\Actions\CreateAction::make(),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
@@ -153,20 +109,4 @@ class SeedVariationResource extends Resource
                 ]),
             ]);
     }
-
-    public static function getRelations(): array
-    {
-        return [
-            RelationManagers\PriceHistoryRelationManager::class,
-        ];
-    }
-
-    public static function getPages(): array
-    {
-        return [
-            'index' => Pages\ListSeedVariations::route('/'),
-            'create' => Pages\CreateSeedVariation::route('/create'),
-            'edit' => Pages\EditSeedVariation::route('/{record}/edit'),
-        ];
-    }
-}
+} 

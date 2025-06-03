@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Jobs\ProcessSeedScrapeUpload;
 use App\Models\SeedScrapeUpload;
+use App\Services\SeedScrapeImporter;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -35,6 +36,9 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
     
     public $jsonFiles = [];
     
+    // Refresh interval in seconds
+    public $refreshInterval = 10;
+    
     public function mount(): void
     {
         $this->form->fill();
@@ -45,40 +49,119 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
         return $form
             ->schema([
                 Section::make('Upload Seed Data')
-                    ->description('Upload JSON files scraped from seed supplier websites.')
+                    ->description('Upload JSON files scraped from seed supplier websites. After uploading, the table below will show processing status.')
                     ->schema([
                         FileUpload::make('jsonFiles')
                             ->label('JSON Files')
                             ->multiple()
                             ->acceptedFileTypes(['application/json'])
-                            ->directory('seed-scrape-uploads')
                             ->maxSize(10240) // 10MB
                             ->disk('local')
-                            ->saveUploadedFileUsing(function (TemporaryUploadedFile $file): string {
-                                $filename = $file->getClientOriginalName();
-                                $path = $file->storeAs('seed-scrape-uploads', $filename, 'local');
+                            ->afterStateUpdated(function ($state, callable $set) {
+                                \Illuminate\Support\Facades\Log::info("[PROCESS IN AFTER_STATE_UPDATED] CALLED.");
                                 
-                                // Create upload record
-                                $scrapeUpload = SeedScrapeUpload::create([
-                                    'original_filename' => $filename,
-                                    'status' => SeedScrapeUpload::STATUS_PENDING,
-                                    'uploaded_at' => now(),
-                                ]);
+                                $processedFilesPaths = [];
+
+                                $filesToProcess = [];
+                                if (is_array($state)) {
+                                    $filesToProcess = $state;
+                                } elseif ($state instanceof \Livewire\Features\SupportFileUploads\TemporaryUploadedFile) {
+                                    $filesToProcess = [$state];
+                                }
+
+                                if (empty($filesToProcess)) {
+                                    \Illuminate\Support\Facades\Log::info("[PROCESS IN AFTER_STATE_UPDATED] No files in state to process.");
+                                    return;
+                                }
+
+                                foreach ($filesToProcess as $fileInState) {
+                                    if (!($fileInState instanceof \Livewire\Features\SupportFileUploads\TemporaryUploadedFile)) {
+                                        \Illuminate\Support\Facades\Log::warning("[PROCESS IN AFTER_STATE_UPDATED] Encountered an item in state that is not a TemporaryUploadedFile. Skipping.");
+                                        continue;
+                                    }
+
+                                    $originalFilename = "unknown.json";
+                                    $tempPath = null;
+
+                                    try {
+                                        $originalFilename = $fileInState->getClientOriginalName();
+                                        $tempPath = $fileInState->getRealPath();
+                                    } catch (\Throwable $e) {
+                                        \Illuminate\Support\Facades\Log::error("[PROCESS IN AFTER_STATE_UPDATED] Error getting file details for one of the files: " . $e->getMessage());
+                                        // Optionally notify for this specific file error, or collect errors
+                                        Notification::make()
+                                            ->title('File Detail Error')
+                                            ->body("Could not get details for an uploaded file: " . $e->getMessage())
+                                            ->danger()
+                                            ->send();
+                                        continue; // Move to the next file if details can't be obtained
+                                    }
+
+                                    \Illuminate\Support\Facades\Log::info("[PROCESS IN AFTER_STATE_UPDATED] Attempting to process: {$originalFilename} from temp path: {$tempPath}");
+
+                                    if (!$tempPath || !file_exists($tempPath)) {
+                                        \Illuminate\Support\Facades\Log::error("[PROCESS IN AFTER_STATE_UPDATED] Temporary file not found or path is invalid for {$originalFilename}: {$tempPath}");
+                                        Notification::make()
+                                            ->title('File Error')
+                                            ->body("Temporary file for '{$originalFilename}' is not accessible.")
+                                            ->danger()
+                                            ->send();
+                                        continue; // Move to next file
+                                    }
+
+                                    $scrapeUpload = null; 
+                                    try {
+                                        $scrapeUpload = SeedScrapeUpload::create([
+                                            'original_filename' => $originalFilename,
+                                            'status' => SeedScrapeUpload::STATUS_PROCESSING,
+                                            'uploaded_at' => now(),
+                                        ]);
+                                        \Illuminate\Support\Facades\Log::info("[PROCESS IN AFTER_STATE_UPDATED] Created SeedScrapeUpload record ID: {$scrapeUpload->id} for {$originalFilename}");
+
+                                        $importer = new SeedScrapeImporter();
+                                        \Illuminate\Support\Facades\Log::info("[PROCESS IN AFTER_STATE_UPDATED] Starting direct import for temp file: {$tempPath}");
+                                        $importer->import($tempPath, $scrapeUpload);
+                                        
+                                        $scrapeUpload->refresh();
+                                        \Illuminate\Support\Facades\Log::info("[PROCESS IN AFTER_STATE_UPDATED] Import finished for {$originalFilename}. Status: {$scrapeUpload->status}");
+
+                                        Notification::make()
+                                            ->title('File Processed Directly!')
+                                            ->body("File '{$originalFilename}' processed. Status: {$scrapeUpload->status}. Notes: {$scrapeUpload->notes}")
+                                            ->success()
+                                            ->send();
+                                        
+                                        // Add original filename to array for form state
+                                        $processedFilesPaths[] = $originalFilename; 
+
+                                    } catch (\Exception $e) {
+                                        \Illuminate\Support\Facades\Log::error("[PROCESS IN AFTER_STATE_UPDATED] Error during direct processing of '{$originalFilename}': " . $e->getMessage(), ['exception' => $e]);
+                                        if ($scrapeUpload) {
+                                            $scrapeUpload->refresh();
+                                            $scrapeUpload->update([
+                                                'status' => SeedScrapeUpload::STATUS_ERROR,
+                                                'notes' => ($scrapeUpload->notes ? $scrapeUpload->notes . " | " : "") . "Exception: " . $e->getMessage(),
+                                                'processed_at' => now(),
+                                            ]);
+                                        }
+                                        Notification::make()
+                                            ->title('Direct Processing Error')
+                                            ->body("Failed to process file '{$originalFilename}' directly: " . $e->getMessage())
+                                            ->danger()
+                                            ->send();
+                                        // Decide if one error stops all, or continue processing other files.
+                                        // For now, we continue.
+                                    }
+                                } // end foreach
                                 
-                                // Process the upload
-                                ProcessSeedScrapeUpload::dispatch(
-                                    $scrapeUpload,
-                                    Storage::disk('local')->path($path)
-                                );
-                                
-                                Notification::make()
-                                    ->title('Upload received')
-                                    ->body('Your file is being processed.')
-                                    ->success()
-                                    ->send();
-                                
-                                return $path;
-                            }),
+                                // After processing all files, update the form state with the paths (original filenames in our case)
+                                // This tells Filament what to store as the value of the jsonFiles field.
+                                // If you don't set this, the field might appear empty after upload, or retain old values.
+                                $set('jsonFiles', $processedFilesPaths);
+                                \Illuminate\Support\Facades\Log::info("[PROCESS IN AFTER_STATE_UPDATED] Finished processing all files. Updated form state.");
+                            })
+                            ->uploadProgressIndicatorPosition('left')
+                            ->helperText('Upload JSON files. Processing happens directly from temporary location inside afterStateUpdated hook.'),
                     ]),
             ]);
     }
@@ -119,6 +202,11 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
             ->actions([
                 Tables\Actions\ViewAction::make()
                     ->modalContent(fn (SeedScrapeUpload $record): string => $record->notes ?? 'No notes available.'),
+                Tables\Actions\Action::make('view_data')
+                    ->label('View Imported Data')
+                    ->url(route('filament.admin.resources.seed-variations.index'))
+                    ->icon('heroicon-m-eye')
+                    ->visible(fn (SeedScrapeUpload $record): bool => $record->status === SeedScrapeUpload::STATUS_COMPLETED),
                 Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
@@ -126,6 +214,12 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])
-            ->defaultSort('uploaded_at', 'desc');
+            ->defaultSort('uploaded_at', 'desc')
+            ->poll();
+    }
+    
+    public function getPollingInterval()
+    {
+        return $this->refreshInterval * 1000; // Convert to milliseconds
     }
 } 
