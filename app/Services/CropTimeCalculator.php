@@ -12,24 +12,25 @@ class CropTimeCalculator
      */
     public function updateTimeCalculations(Crop $crop): void
     {
-        // Prevent recursive saves and memory issues
-        if ($crop->isDirty() && !$crop->exists) {
-            // Skip calculations for new models to prevent infinite loops
-            return;
-        }
+        // Calculate the time values
+        $timeToNextStage = $this->calculateTimeToNextStage($crop);
+        $stageAge = $this->calculateStageAge($crop);
+        $totalAge = $this->calculateTotalAge($crop);
         
-        $crop->time_to_next_stage_minutes = $this->calculateTimeToNextStage($crop);
-        $crop->time_to_next_stage_display = $this->formatTimeDisplay($crop->time_to_next_stage_minutes);
+        // Update the crop attributes
+        $crop->time_to_next_stage_minutes = $timeToNextStage;
+        $crop->time_to_next_stage_display = $this->formatTimeDisplay($timeToNextStage);
         
-        $crop->stage_age_minutes = $this->calculateStageAge($crop);
-        $crop->stage_age_display = $this->formatTimeDisplay($crop->stage_age_minutes);
+        $crop->stage_age_minutes = $stageAge;
+        $crop->stage_age_display = $this->formatTimeDisplay($stageAge);
         
-        $crop->total_age_minutes = $this->calculateTotalAge($crop);
-        $crop->total_age_display = $this->formatTimeDisplay($crop->total_age_minutes);
+        $crop->total_age_minutes = $totalAge;
+        $crop->total_age_display = $this->formatTimeDisplay($totalAge);
         
-        // Only save if the model exists and has changes
+        // For new models being created, don't save (let the creation process handle it)
+        // For existing models, save quietly to prevent recursive calls
         if ($crop->exists && $crop->isDirty()) {
-            $crop->saveQuietly(); // Use saveQuietly to prevent triggering observers
+            $crop->saveQuietly();
         }
     }
 
@@ -48,9 +49,10 @@ class CropTimeCalculator
             return null;
         }
 
+        // Calculate minutes FROM now TO expected transition time
         $minutesRemaining = Carbon::now()->diffInMinutes($expectedTransitionTime, false);
         
-        return max(0, $minutesRemaining);
+        return max(0, (int) $minutesRemaining);
     }
 
     /**
@@ -64,7 +66,8 @@ class CropTimeCalculator
             return null;
         }
 
-        return $stageStartTime->diffInMinutes(Carbon::now());
+        // Calculate minutes FROM stage start TO now (positive value)
+        return (int) $stageStartTime->diffInMinutes(Carbon::now());
     }
 
     /**
@@ -76,7 +79,8 @@ class CropTimeCalculator
             return null;
         }
 
-        return Carbon::parse($crop->planted_at)->diffInMinutes(Carbon::now());
+        // Calculate minutes FROM planted time TO now (positive value)
+        return (int) Carbon::parse($crop->planted_at)->diffInMinutes(Carbon::now());
     }
 
     /**
@@ -181,7 +185,8 @@ class CropTimeCalculator
             return null;
         }
 
-        return $stageStartTime->addDays($stageDuration);
+        // Use copy() to avoid modifying the original Carbon instance
+        return $stageStartTime->copy()->addDays($stageDuration);
     }
 
     /**
