@@ -1,21 +1,8 @@
 <x-filament-panels::page>
-    <div class="space-y-6">
-        <x-filament::section>
-            <div class="space-y-4">
-                <div class="text-xl font-semibold">
-                    Seed Price Trends
-                </div>
-                
-                <p class="text-gray-500 dark:text-gray-400">
-                    Track how seed prices change over time. Select cultivars and date ranges to visualize price trends.
-                </p>
-                
-                {{ $this->form }}
-            </div>
-        </x-filament::section>
+    <div class="mb-6">
+        <h2 class="text-xl font-bold mb-2">Seed Price Trends</h2>
+        <p class="text-gray-500">Track price changes for seed cultivars over time to identify trends and make informed purchasing decisions.</p>
     </div>
     
-    @push('scripts')
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    @endpush
+    {{ $this->form }}
 </x-filament-panels::page> 

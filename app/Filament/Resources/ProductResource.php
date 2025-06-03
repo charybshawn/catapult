@@ -7,7 +7,6 @@ use App\Filament\Resources\ProductResource\RelationManagers;
 use App\Models\Product;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -26,8 +25,10 @@ use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\ViewField;
 use Filament\Forms\Components\Component;
 use App\Http\Livewire\ProductPriceCalculator;
+use App\Filament\Resources\BaseResource;
+use App\Filament\Forms\Components\Common as FormCommon;
 
-class ProductResource extends Resource
+class ProductResource extends BaseResource
 {
     protected static ?string $model = Product::class;
 
@@ -72,14 +73,7 @@ class ProductResource extends Resource
                     ->label('In Store')
                     ->boolean()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                ...static::getTimestampColumns(),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('category')
@@ -94,34 +88,10 @@ class ProductResource extends Resource
                 Tables\Filters\TernaryFilter::make('is_visible_in_store')
                     ->label('Visible in Store'),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make()
-                    ->tooltip('View product details'),
-                Tables\Actions\EditAction::make()
-                    ->tooltip('Edit product'),
-                Tables\Actions\DeleteAction::make()
-                    ->tooltip('Delete product'),
-            ])
+            ->actions(static::getDefaultTableActions())
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\BulkAction::make('activate')
-                        ->label('Activate')
-                        ->icon('heroicon-o-check')
-                        ->action(function ($records) {
-                            foreach ($records as $record) {
-                                $record->update(['is_active' => true]);
-                            }
-                        }),
-                    Tables\Actions\BulkAction::make('deactivate')
-                        ->label('Deactivate')
-                        ->icon('heroicon-o-x-mark')
-                        ->color('danger')
-                        ->action(function ($records) {
-                            foreach ($records as $record) {
-                                $record->update(['is_active' => false]);
-                            }
-                        }),
+                    ...static::getDefaultBulkActions(),
                     Tables\Actions\BulkAction::make('show_in_store')
                         ->label('Show in Store')
                         ->icon('heroicon-o-eye')

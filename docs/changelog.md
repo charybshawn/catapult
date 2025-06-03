@@ -5,6 +5,14 @@ This document tracks all significant changes to the Catapult v2 project.
 ## [Unreleased]
 
 ### Added
+- Enhanced Seed Scrape Uploader interface (2025-05-27)
+  - Added auto-refresh functionality to display real-time upload status
+  - Implemented visual indicator for page refreshes
+  - Added collapsible sample JSON format display to guide users
+  - Improved error handling and user feedback during uploads
+  - Added direct links to view imported seed data
+  - Enhanced page layout with workflow diagram and helpful tips
+  - Fixed storage directory permissions for file uploads
 - Enhanced Product model with improved Price Variations integration (2025-06-19)
   - Updated PriceVariation model to work with Product model instead of Item
   - Added methods to Product for creating and managing price variations 
@@ -442,16 +450,11 @@ This document tracks all significant changes to the Catapult v2 project.
   - Enhanced payment tracking capabilities
 
 ## 2025-05-26
-- Enhanced packaging system with volumetric measurements
-  - Updated PackagingType model to use capacity_volume and volume_unit fields
-  - Removed the legacy capacity_grams field
-  - Added support for various volume units (oz, ml, l, pt, qt, gal)
-  - Modified UI to display volume appropriately in tables and forms
-  - Created migration script to convert existing data to the new format
-  - Implemented display_name accessor for clear identification of packaging sizes
-  - Created relationship between Consumable and PackagingType models
-  - Enhanced ConsumableResource to display packaging specifications
-  - Improved auto-assign packaging logic to make smarter choices based on volume
+- Implemented Seed Inventory & Pricing Management System
+- Added Filament resources for seed cultivars, entries, variations, and price history
+- Created custom pages for seed price trends and reorder advisors
+- Implemented JSON upload system for importing seed data from suppliers
+- Added dashboard widgets for monitoring seed prices and inventory levels
 
 ## 2025-04-18 - Crop Resource UI Improvements
 - Updated crop list view to show seed variety names with proper emphasis
@@ -636,3 +639,22 @@ This document tracks all significant changes to the Catapult v2 project.
 - Built JSON import system for processing web scraper data with integration to existing consumables
 - Added price history tracking with visualization tools
 - Created Seed Reorder Advisor tool to help with purchasing decisions
+
+## 2023-07-01 - Fixed seed price variations capture in data imports
+- Improved the SeedScrapeImporter to properly handle and store price variations from uploaded JSON data
+- Added better floating-point comparison for detecting price changes
+- Created diagnostic tool for analyzing JSON seed data structure and processing
+
+## 2025-05-27 - Fixed JSON field mapping for supplier seed scrape imports
+- Enhanced the SeedScrapeImporter to handle different JSON structures from various suppliers
+- Added support for "variations" array (Sprouting.com) in addition to "variants" array (DamSeeds)
+- Added support for "size" field (Sprouting.com) in addition to "variant_title"/"title" fields
+- Updated field mapping for stock status to handle "is_variation_in_stock" field in Sprouting.com data
+- Improved field matching with flexible name mapping for more robust JSON importing
+
+## 2025-05-27 - Fixed JSON field mapping for DamSeeds seed scrape imports
+- Enhanced the SeedScrapeImporter to handle different field names in JSON from various suppliers
+- Updated field mapping to recognize 'title' as 'variant_title' and 'is_in_stock' as 'is_variant_in_stock'
+- Improved the TestSeedJsonStructure command to check for multiple field name variations
+- Added better field matching with aliases for more flexible JSON importing
+- Ensured proper capture of price variations from diverse JSON structures

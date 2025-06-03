@@ -7,14 +7,16 @@ use App\Models\Consumable;
 use App\Models\PackagingType;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Database\Eloquent\Model;
+use App\Filament\Resources\BaseResource;
+use App\Filament\Forms\Components\Common as FormCommon;
+use App\Filament\Tables\Components\Common as TableCommon;
 
-class ConsumableResource extends Resource
+class ConsumableResource extends BaseResource
 {
     protected static ?string $model = Consumable::class;
 
@@ -201,41 +203,9 @@ class ConsumableResource extends Resource
                             })
                             ->columnSpanFull(),
                         
-                        Forms\Components\Select::make('supplier_id')
-                            ->label('Supplier')
-                            ->relationship('supplier', 'name')
-                            ->searchable()
-                            ->preload()
-                            ->required()
-                            ->createOptionForm([
-                                Forms\Components\TextInput::make('name')
-                                    ->required()
-                                    ->maxLength(255),
-                                Forms\Components\Select::make('type')
-                                    ->options([
-                                        'seed' => 'Seed Supplier',
-                                        'soil' => 'Soil Supplier',
-                                        'packaging' => 'Packaging Supplier',
-                                        'other' => 'Other',
-                                    ])
-                                    ->default('other'),
-                                Forms\Components\Textarea::make('contact_info')
-                                    ->label('Contact Information')
-                                    ->rows(3),
-                                Forms\Components\Toggle::make('is_active')
-                                    ->label('Active')
-                                    ->default(true),
-                            ])
-                            ->createOptionAction(function (Forms\Components\Actions\Action $action) {
-                                return $action
-                                    ->modalHeading('Create Supplier')
-                                    ->modalSubmitActionLabel('Create Supplier')
-                                    ->modalWidth('lg');
-                            }),
+                        FormCommon::supplierSelect(),
                         
-                        Forms\Components\Toggle::make('is_active')
-                            ->label('Active')
-                            ->default(true)
+                        FormCommon::activeToggle()
                             ->columnSpanFull()
                             ->inline(false),
                     ])
@@ -429,15 +399,9 @@ class ConsumableResource extends Resource
                 
                 Forms\Components\Section::make('Costs')
                     ->schema([
-                        Forms\Components\TextInput::make('cost_per_unit')
-                            ->label('Cost Per Unit')
-                            ->helperText('How much each unit costs to purchase')
-                            ->numeric()
-                            ->prefix('$')
-                            ->default(0),
-                        Forms\Components\Textarea::make('notes')
-                            ->label('Notes')
-                            ->rows(3)
+                        FormCommon::priceInput('cost_per_unit', 'Cost Per Unit')
+                            ->helperText('How much each unit costs to purchase'),
+                        FormCommon::notesTextarea()
                             ->columnSpanFull(),
                     ])
                     ->columns(2),
@@ -526,16 +490,8 @@ class ConsumableResource extends Resource
                         default => 'In Stock',
                     } : 'Unknown')
                     ->toggleable(),
-                Tables\Columns\IconColumn::make('is_active')
-                    ->label('Active')
-                    ->boolean()
-                    ->sortable()
-                    ->toggleable(),
-                Tables\Columns\TextColumn::make('created_at')
-                    ->label('Created')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                static::getActiveBadgeColumn(),
+                ...static::getTimestampColumns(),
                 Tables\Columns\TextColumn::make('seedVariety.name')
                     ->label('Variety')
                     ->description(fn (Model $record): ?string => 
@@ -575,15 +531,10 @@ class ConsumableResource extends Resource
                     ->preload()
                     ->visible(fn ($livewire): bool => $livewire->activeTab === null || $livewire->activeTab === 'seed'),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make()
-                    ->tooltip('Edit consumable'),
-                Tables\Actions\DeleteAction::make()
-                    ->tooltip('Delete consumable'),
-            ])
+            ->actions(static::getDefaultTableActions())
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    ...static::getDefaultBulkActions(),
                     Tables\Actions\BulkAction::make('bulk_add_stock')
                         ->label('Add Stock')
                         ->icon('heroicon-o-plus')

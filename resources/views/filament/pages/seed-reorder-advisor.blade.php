@@ -1,22 +1,10 @@
 <x-filament-panels::page>
-    <div class="space-y-6">
-        <x-filament::section>
-            <div class="space-y-4">
-                <div class="text-xl font-semibold">
-                    Seed Reorder Advisor
-                </div>
-                
-                <p class="text-gray-500 dark:text-gray-400">
-                    This page helps you find the best prices for seeds across suppliers.
-                    Compare prices for various seed cultivars to make informed purchasing decisions.
-                </p>
-                
-                {{ $this->form }}
-            </div>
-        </x-filament::section>
-        
-        <x-filament::section>
-            {{ $this->table }}
-        </x-filament::section>
+    <div class="mb-6">
+        <h2 class="text-xl font-bold mb-2">Seed Reorder Advisor</h2>
+        <p class="text-gray-500">Compare prices across suppliers to make informed reordering decisions.</p>
     </div>
+    
+    {{ $this->form }}
+    
+    {{ $this->table }}
 </x-filament-panels::page> 

@@ -46,9 +46,12 @@ class SeedScrapeImporter
             $supplierName = $jsonData['source_site'] ?? 'Unknown Supplier';
             $supplier = Supplier::firstOrCreate(['name' => $supplierName]);
             
+            // Get currency code from top level if available
+            $currencyCode = $jsonData['currency_code'] ?? 'USD';
+            
             // Process each product
             foreach ($jsonData['data'] as $productData) {
-                $this->processProduct($productData, $supplier, $jsonData['timestamp'] ?? now()->toIso8601String());
+                $this->processProduct($productData, $supplier, $jsonData['timestamp'] ?? now()->toIso8601String(), $currencyCode);
             }
             
             // Update the scrape upload record
@@ -85,12 +88,27 @@ class SeedScrapeImporter
      * @param array $productData
      * @param Supplier $supplier
      * @param string $timestamp
+     * @param string $defaultCurrency
      * @return void
      */
-    protected function processProduct(array $productData, Supplier $supplier, string $timestamp): void
+    protected function processProduct(array $productData, Supplier $supplier, string $timestamp, string $defaultCurrency = 'USD'): void
     {
-        // Extract cultivar name from the title
-        $cultivarName = $productData['cultivar'] ?? 'Unknown Cultivar';
+        // Extract cultivar name - try different field combinations to support different formats
+        $cultivarName = 'Unknown Cultivar';
+        
+        // First, check if we have a dedicated cultivar_name field
+        if (isset($productData['cultivar_name']) && $productData['cultivar_name'] !== 'N/A') {
+            $cultivarName = $productData['cultivar_name'];
+        } 
+        // If not, check if we have a cultivar field (older format)
+        elseif (isset($productData['cultivar']) && !empty($productData['cultivar'])) {
+            $cultivarName = $productData['cultivar'];
+        }
+        // As a fallback, try to extract from common_name
+        elseif (isset($productData['common_name']) && !empty($productData['common_name'])) {
+            $cultivarName = $productData['common_name'];
+        }
+        
         $seedCultivar = SeedCultivar::firstOrCreate(['name' => $cultivarName]);
         
         // Find or create the seed entry
@@ -111,14 +129,28 @@ class SeedScrapeImporter
         Log::debug('Processing seed entry', [
             'cultivar' => $seedCultivar->name,
             'supplier' => $supplier->name,
-            'title' => $seedEntry->supplier_product_title
+            'title' => $seedEntry->supplier_product_title,
+            'product_stock_status' => $productData['is_in_stock'] ?? 'Unknown'
         ]);
         
-        // Process each variant
-        if (isset($productData['variants']) && is_array($productData['variants'])) {
-            foreach ($productData['variants'] as $variantData) {
-                $this->processVariant($variantData, $seedEntry, $timestamp);
+        // Process each variant - check both 'variants' and 'variations' keys
+        // Germina.ca uses 'variations', other sites might use 'variants'
+        $variantsArray = null;
+        if (isset($productData['variations']) && is_array($productData['variations'])) {
+            $variantsArray = $productData['variations'];
+        } elseif (isset($productData['variants']) && is_array($productData['variants'])) {
+            $variantsArray = $productData['variants'];
+        }
+        
+        if ($variantsArray) {
+            foreach ($variantsArray as $variantData) {
+                $this->processVariant($variantData, $seedEntry, $timestamp, $defaultCurrency, $productData['is_in_stock'] ?? true);
             }
+        } else {
+            Log::warning('No variants/variations found for product', [
+                'title' => $seedEntry->supplier_product_title,
+                'url' => $productData['url'] ?? 'No URL'
+            ]);
         }
     }
     
@@ -128,17 +160,63 @@ class SeedScrapeImporter
      * @param array $variantData
      * @param SeedEntry $seedEntry
      * @param string $timestamp
+     * @param string $defaultCurrency
+     * @param bool $productIsInStock Global product stock status
      * @return void
      */
-    protected function processVariant(array $variantData, SeedEntry $seedEntry, string $timestamp): void
+    protected function processVariant(array $variantData, SeedEntry $seedEntry, string $timestamp, string $defaultCurrency = 'USD', bool $productIsInStock = true): void
     {
-        $sizeDescription = $variantData['variant_title'] ?? 'Default';
+        // Field mapping for different JSON structures
+        // Different sites use different field names for size/variant title
+        $sizeDescription = null;
+        
+        // Check for different possible size field names
+        if (isset($variantData['size']) && !empty($variantData['size'])) {
+            $sizeDescription = $variantData['size'];
+        } elseif (isset($variantData['variant_title']) && !empty($variantData['variant_title'])) {
+            $sizeDescription = $variantData['variant_title'];
+        } elseif (isset($variantData['title']) && !empty($variantData['title'])) {
+            $sizeDescription = $variantData['title'];
+        } else {
+            $sizeDescription = 'Default';
+        }
         
         Log::debug('Processing seed variation', [
             'entry_id' => $seedEntry->id,
             'size' => $sizeDescription,
             'price' => $variantData['price'] ?? 0
         ]);
+        
+        // Check if this is a new variation
+        $exists = SeedVariation::where('seed_entry_id', $seedEntry->id)
+            ->where('size_description', $sizeDescription)
+            ->exists();
+        $isNewVariation = !$exists;
+        
+        // Get price from variants
+        $price = null;
+        if (isset($variantData['price']) && is_numeric($variantData['price'])) {
+            $price = floatval($variantData['price']);
+        }
+        
+        // Get currency from variants or use default
+        $currency = $variantData['currency'] ?? $defaultCurrency;
+        
+        // Get stock status - Various sites use different field names
+        // Check variation level stock status first, then fallback to product level
+        $isInStock = false;
+        
+        // Check all possible variation-level stock status field names
+        if (isset($variantData['is_variation_in_stock'])) {
+            $isInStock = (bool)$variantData['is_variation_in_stock'];
+        } elseif (isset($variantData['is_variant_in_stock'])) {
+            $isInStock = (bool)$variantData['is_variant_in_stock'];
+        } elseif (isset($variantData['is_in_stock'])) {
+            $isInStock = (bool)$variantData['is_in_stock']; 
+        } else {
+            // If no variation-level stock status, use product-level
+            $isInStock = $productIsInStock;
+        }
         
         // Find or create the seed variation
         $variation = SeedVariation::firstOrCreate(
@@ -151,48 +229,74 @@ class SeedScrapeImporter
                 'weight_kg' => $variantData['weight_kg'] ?? null,
                 'original_weight_value' => $variantData['original_weight_value'] ?? null,
                 'original_weight_unit' => $variantData['original_weight_unit'] ?? null,
-                'current_price' => $variantData['price'] ?? 0,
-                'currency' => $variantData['currency'] ?? 'USD',
-                'is_in_stock' => $variantData['is_variant_in_stock'] ?? false,
+                'current_price' => $price ?? 0,
+                'currency' => $currency,
+                'is_in_stock' => $isInStock,
                 'last_checked_at' => now(),
             ]
         );
         
+        // Check if price or stock has changed
+        $priceChanged = false;
+        if ($price !== null) {
+            $priceChanged = abs($variation->current_price - $price) > 0.001;
+        }
+        
+        $stockChanged = $variation->is_in_stock !== $isInStock;
+        
         // Update the variation with the latest data
-        $priceChanged = $variation->current_price != ($variantData['price'] ?? 0);
-        $stockChanged = $variation->is_in_stock != ($variantData['is_variant_in_stock'] ?? false);
-        
-        $variation->update([
-            'current_price' => $variantData['price'] ?? $variation->current_price,
-            'currency' => $variantData['currency'] ?? $variation->currency,
-            'is_in_stock' => $variantData['is_variant_in_stock'] ?? $variation->is_in_stock,
-            'last_checked_at' => now(),
-        ]);
-        
-        // Create a price history record only if price or stock status changed
-        if ($priceChanged || $stockChanged) {
-            SeedPriceHistory::create([
-                'seed_variation_id' => $variation->id,
-                'price' => $variantData['price'] ?? $variation->current_price,
-                'currency' => $variantData['currency'] ?? $variation->currency,
-                'is_in_stock' => $variantData['is_variant_in_stock'] ?? $variation->is_in_stock,
-                'scraped_at' => Carbon::parse($timestamp),
-            ]);
+        if ($price !== null || $stockChanged) {
+            $updateData = [];
             
-            Log::info('Created price history record', [
+            if ($price !== null) {
+                $updateData['current_price'] = $price;
+            }
+            
+            $updateData['currency'] = $currency;
+            $updateData['is_in_stock'] = $isInStock;
+            $updateData['last_checked_at'] = now();
+            
+            $variation->update($updateData);
+            
+            Log::debug('Updated variation', [
                 'variation_id' => $variation->id,
-                'price' => $variantData['price'] ?? $variation->current_price,
+                'price' => $price,
+                'is_in_stock' => $isInStock,
                 'price_changed' => $priceChanged,
                 'stock_changed' => $stockChanged
             ]);
         }
         
-        // Check if we need to create or update a consumable entry
-        $this->syncWithConsumableInventory($variation, $seedEntry);
+        // Create a price history record if:
+        // 1. This is a new variation, OR
+        // 2. Price or stock status changed
+        if ($isNewVariation || $priceChanged || $stockChanged) {
+            SeedPriceHistory::create([
+                'seed_variation_id' => $variation->id,
+                'price' => $price ?? $variation->current_price,
+                'currency' => $currency,
+                'is_in_stock' => $isInStock,
+                'scraped_at' => Carbon::parse($timestamp),
+            ]);
+            
+            Log::info('Created price history record', [
+                'variation_id' => $variation->id,
+                'price' => $price ?? $variation->current_price,
+                'is_new_variation' => $isNewVariation,
+                'price_changed' => $priceChanged,
+                'stock_changed' => $stockChanged
+            ]);
+        }
+        
+        // Disabled consumable integration to prevent SQL errors
+        // $this->syncWithConsumableInventory($variation, $seedEntry);
     }
     
     /**
      * Sync the seed variation with the consumable inventory system
+     * 
+     * DISABLED: This method is currently disabled to prevent SQL errors
+     * with the consumables table. Will be implemented in a future update.
      *
      * @param SeedVariation $variation
      * @param SeedEntry $seedEntry
@@ -200,52 +304,12 @@ class SeedScrapeImporter
      */
     protected function syncWithConsumableInventory(SeedVariation $variation, SeedEntry $seedEntry): void
     {
-        // Skip if already linked to a consumable
-        if ($variation->consumable_id) {
-            return;
-        }
-        
-        // Try to find an existing consumable with matching details
-        $consumable = Consumable::where('type', 'seed')
-            ->where('name', 'LIKE', '%' . $seedEntry->seedCultivar->name . '%')
-            ->where(function($query) use ($variation) {
-                $query->where('sku', $variation->sku)
-                    ->orWhere(function($q) use ($variation) {
-                        // If no SKU, try to match by weight
-                        return $q->whereNull('sku')
-                            ->where('weight_kg', $variation->weight_kg);
-                    });
-            })
-            ->first();
-            
-        if (!$consumable) {
-            // Create a new consumable entry if one doesn't exist
-            $consumable = Consumable::create([
-                'type' => 'seed',
-                'name' => $seedEntry->seedCultivar->name . ' - ' . $variation->size_description,
-                'sku' => $variation->sku,
-                'quantity' => 0, // Start with 0 since we don't know the actual inventory
-                'restock_level' => 1, // Default restock level
-                'weight_kg' => $variation->weight_kg,
-                'supplier_id' => $seedEntry->supplier_id,
-                // Add other required fields based on your Consumable model
-            ]);
-            
-            Log::info('Created new consumable for seed variation', [
-                'consumable_id' => $consumable->id,
-                'variation_id' => $variation->id,
-                'name' => $consumable->name
-            ]);
-        }
-        
-        // Link the variation to the consumable
-        $variation->update([
-            'consumable_id' => $consumable->id
-        ]);
-        
-        Log::info('Linked seed variation to consumable', [
+        // Method disabled to prevent SQL errors
+        Log::info('Consumable integration disabled for seed variation', [
             'variation_id' => $variation->id,
-            'consumable_id' => $consumable->id
+            'cultivar' => $seedEntry->seedCultivar->name
         ]);
+        
+        return;
     }
 } 

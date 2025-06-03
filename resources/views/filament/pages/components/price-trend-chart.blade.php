@@ -1,64 +1,59 @@
-<div class="w-full h-96">
-    <canvas id="priceChart" class="w-full h-full"></canvas>
+<div>
+    <canvas id="priceTrendChart" style="width:100%; height:300px;"></canvas>
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const ctx = document.getElementById('priceChart').getContext('2d');
-        
-        // Generate random colors for each dataset
-        const chartData = {!! json_encode($chartData) !!};
-        const datasets = chartData.datasets.map((dataset, index) => {
-            const hue = (index * 137) % 360; // Generate different hues
-            const color = `hsl(${hue}, 70%, 60%)`;
-            
-            return {
-                ...dataset,
-                borderColor: color,
-                backgroundColor: color + '33',
-            };
-        });
-        
-        const chart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: chartData.labels,
-                datasets: datasets
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'Price per KG (USD)'
-                        }
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Month'
-                        }
-                    }
-                },
-                plugins: {
+document.addEventListener('DOMContentLoaded', function () {
+    const ctx = document.getElementById('priceTrendChart').getContext('2d');
+    
+    // Generate random colors for each dataset
+    const chartData = {!! json_encode($chartData) !!};
+    
+    // Create the chart
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: chartData,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: false,
                     title: {
                         display: true,
-                        text: 'Seed Price Trends Over Time'
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const label = context.dataset.label || '';
-                                const value = context.parsed.y;
-                                return `${label}: $${value.toFixed(2)} per KG`;
+                        text: 'Price per kg (USD)'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Month'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
                             }
+                            if (context.parsed.y !== null) {
+                                label += new Intl.NumberFormat('en-US', {
+                                    style: 'currency',
+                                    currency: 'USD'
+                                }).format(context.parsed.y);
+                            }
+                            return label;
                         }
                     }
                 }
             }
-        });
+        }
     });
+});
 </script> 

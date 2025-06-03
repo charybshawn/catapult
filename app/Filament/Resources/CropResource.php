@@ -8,7 +8,6 @@ use App\Models\Recipe;
 use App\Models\Order;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -22,8 +21,10 @@ use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Placeholder;
 use Filament\Notifications\Notification;
 use Carbon\Carbon;
+use App\Filament\Resources\BaseResource;
+use App\Filament\Forms\Components\Common as FormCommon;
 
-class CropResource extends Resource
+class CropResource extends BaseResource
 {
     protected static ?string $model = Crop::class;
 

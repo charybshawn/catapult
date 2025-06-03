@@ -1,13 +1,18 @@
 # Seed Inventory & Pricing Management System
 
 ## Overview
-This document outlines the implementation plan for a Filament PHP-based seed inventory management system that integrates with the existing Catapult infrastructure. The system will track seed availability, pricing history, and supplier information from scraped JSON data to enable informed purchasing decisions.
+This document outlines the implementation plan for a Filament PHP-based systemthat will track seed availability, pricing history, and supplier information from scraped JSON data to enable informed purchasing decisions.
+
+## Objectives
+1. A simple to use tracking system that provides pricing and availability data from various seed supplier websites.
+2. Provide historical data to track trends using graphs and charts
+3. Data is obtained by uploading json files containing scraped data from the supplier sites
+4. These files are processed by queues and important into the revelant database tables.
 
 ## Database Schema Integration
 
 ### Existing Tables to Leverage
 - We'll use the existing `suppliers` table instead of creating a new one
-- We'll integrate with the existing `consumables` table for inventory tracking
 
 ### New Migrations to Create
 

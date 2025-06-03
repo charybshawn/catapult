@@ -18,6 +18,8 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use App\Filament\Resources\CropAlertResource;
 use App\Filament\Resources\TaskScheduleResource;
+use App\Filament\Widgets\SeedPriceTrendsWidget;
+use App\Filament\Widgets\SeedReorderAdvisorWidget;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -57,6 +59,8 @@ class AdminPanelProvider extends PanelProvider
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
                 // Removed AccountWidget to hide welcome message and sign out button
+                SeedPriceTrendsWidget::class,
+                SeedReorderAdvisorWidget::class,
             ])
             ->userMenuItems([])
             ->middleware([
