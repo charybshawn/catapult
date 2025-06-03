@@ -3,15 +3,16 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\SupplierResource\Pages;
+use App\Filament\Resources\Base\BaseResource;
+use App\Filament\Forms\Components\Common as FormCommon;
 use App\Models\Supplier;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
-class SupplierResource extends Resource
+class SupplierResource extends BaseResource
 {
     protected static ?string $model = Supplier::class;
 
@@ -42,37 +43,16 @@ class SupplierResource extends Resource
                             ->required()
                             ->default('other'),
                             
-                        Forms\Components\Toggle::make('is_active')
-                            ->label('Active')
-                            ->default(true),
+                        FormCommon::activeToggle(),
                     ])
                     ->columns(2),
                     
-                Forms\Components\Section::make('Contact Information')
+                FormCommon::contactInformationSection(),
+                
+                Forms\Components\Section::make('Additional Information')
                     ->schema([
-                        Forms\Components\TextInput::make('contact_name')
-                            ->label('Contact Name')
-                            ->maxLength(255),
-                            
-                        Forms\Components\TextInput::make('contact_email')
-                            ->label('Contact Email')
-                            ->email()
-                            ->maxLength(255),
-                            
-                        Forms\Components\TextInput::make('contact_phone')
-                            ->label('Contact Phone')
-                            ->tel()
-                            ->maxLength(255),
-                            
-                        Forms\Components\Textarea::make('address')
-                            ->label('Address')
-                            ->rows(3),
-                            
-                        Forms\Components\Textarea::make('notes')
-                            ->label('Notes')
-                            ->rows(3),
-                    ])
-                    ->columns(2),
+                        FormCommon::notesTextarea(),
+                    ]),
             ]);
     }
 
@@ -80,11 +60,7 @@ class SupplierResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')
-                    ->label('Name')
-                    ->searchable()
-                    ->sortable()
-                    ->toggleable()
+                static::getTextColumn('name', 'Name')
                     ->url(fn (Supplier $record): string => SupplierResource::getUrl('edit', ['record' => $record]))
                     ->color('primary'),
                     
@@ -96,38 +72,13 @@ class SupplierResource extends Resource
                         'soil' => 'warning',
                         'packaging' => 'info',
                         default => 'gray',
-                    })
-                    ->toggleable(),
+                    }),
                     
-                Tables\Columns\TextColumn::make('contact_name')
-                    ->label('Contact')
-                    ->searchable()
-                    ->sortable()
-                    ->toggleable(),
-                    
-                Tables\Columns\TextColumn::make('contact_email')
-                    ->label('Email')
-                    ->searchable()
-                    ->sortable()
-                    ->toggleable(),
-                    
-                Tables\Columns\TextColumn::make('contact_phone')
-                    ->label('Phone')
-                    ->searchable()
-                    ->sortable()
-                    ->toggleable(),
-                    
-                Tables\Columns\IconColumn::make('is_active')
-                    ->label('Active')
-                    ->boolean()
-                    ->sortable()
-                    ->toggleable(),
-                    
-                Tables\Columns\TextColumn::make('created_at')
-                    ->label('Created')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                static::getTextColumn('contact_name', 'Contact'),
+                static::getTextColumn('contact_email', 'Email'),
+                static::getTextColumn('contact_phone', 'Phone'),
+                static::getActiveBadgeColumn(),
+                ...static::getTimestampColumns(),
             ])
             ->defaultSort('name', 'asc')
             ->filters([
@@ -142,17 +93,8 @@ class SupplierResource extends Resource
                     ->label('Inactive')
                     ->query(fn (Builder $query) => $query->where('is_active', false)),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make()
-                    ->tooltip('Edit supplier'),
-                Tables\Actions\DeleteAction::make()
-                    ->tooltip('Delete supplier'),
-            ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
-            ])
+            ->actions(static::getDefaultTableActions())
+            ->bulkActions([static::getDefaultBulkActions()])
             ->toggleColumnsTriggerAction(
                 fn (Tables\Actions\Action $action) => $action
                     ->button()

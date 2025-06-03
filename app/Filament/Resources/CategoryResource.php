@@ -4,17 +4,17 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\CategoryResource\Pages;
 use App\Filament\Resources\CategoryResource\RelationManagers;
+use App\Filament\Resources\Base\BaseResource;
+use App\Filament\Forms\Components\Common as FormCommon;
 use App\Models\Category;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
-use Filament\Resources\RelationManagers\RelationManager;
 
-class CategoryResource extends Resource
+class CategoryResource extends BaseResource
 {
     protected static ?string $model = Category::class;
 
@@ -30,57 +30,24 @@ class CategoryResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\Section::make('Category Information')
-                    ->schema([
-                        Forms\Components\TextInput::make('name')
-                            ->required()
-                            ->maxLength(255),
-                        Forms\Components\Textarea::make('description')
-                            ->maxLength(65535)
-                            ->columnSpanFull(),
-                        Forms\Components\Toggle::make('is_active')
-                            ->label('Active')
-                            ->default(true),
-                    ])
-                    ->columns(2),
-            ])
-            ->columns(3);
+                FormCommon::basicInformationSection()
+                    ->heading('Category Information'),
+            ]);
     }
 
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')
-                    ->searchable()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('description')
-                    ->limit(50)
-                    ->tooltip(function (Tables\Columns\TextColumn $column): ?string {
-                        $state = $column->getState();
-                        if (strlen($state) <= $column->getLimit()) {
-                            return null;
-                        }
-                        return $state;
-                    })
-                    ->searchable(),
-                Tables\Columns\IconColumn::make('is_active')
-                    ->label('Active')
-                    ->boolean()
-                    ->sortable(),
+                static::getTextColumn('name', 'Name'),
+                static::getTruncatedTextColumn('description', 'Description'),
+                static::getActiveBadgeColumn(),
                 Tables\Columns\TextColumn::make('items_count')
                     ->label('Products')
                     ->counts('items')
                     ->sortable()
                     ->color('primary'),
-                Tables\Columns\TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                ...static::getTimestampColumns(),
             ])
             ->filters([
                 Tables\Filters\TernaryFilter::make('is_active')
@@ -89,30 +56,8 @@ class CategoryResource extends Resource
                     ->trueLabel('Active Categories')
                     ->falseLabel('Inactive Categories'),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make()
-                    ->tooltip('Edit category'),
-                Tables\Actions\DeleteAction::make()
-                    ->tooltip('Delete category'),
-            ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\BulkAction::make('activate')
-                        ->label('Activate')
-                        ->icon('heroicon-o-check')
-                        ->action(function (Builder $query) {
-                            $query->update(['is_active' => true]);
-                        }),
-                    Tables\Actions\BulkAction::make('deactivate')
-                        ->label('Deactivate')
-                        ->icon('heroicon-o-x-mark')
-                        ->color('danger')
-                        ->action(function (Builder $query) {
-                            $query->update(['is_active' => false]);
-                        }),
-                ]),
-            ]);
+            ->actions(static::getDefaultTableActions())
+            ->bulkActions([static::getDefaultBulkActions()]);
     }
 
     public static function getRelations(): array
