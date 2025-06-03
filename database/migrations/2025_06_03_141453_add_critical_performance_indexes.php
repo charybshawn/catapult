@@ -37,7 +37,7 @@ return new class extends Migration
         Schema::table('seed_variations', function (Blueprint $table) {
             $table->index('last_checked_at', 'seed_variations_last_checked_index');
             $table->index(['is_in_stock', 'last_checked_at'], 'seed_variations_stock_status_index');
-            $table->index(['seed_entry_id', 'supplier_product_id'], 'seed_variations_entry_product_index');
+            $table->index(['seed_entry_id', 'size_description'], 'seed_variations_entry_size_index');
         });
 
         Schema::table('seed_entries', function (Blueprint $table) {
@@ -92,7 +92,7 @@ return new class extends Migration
         Schema::table('seed_variations', function (Blueprint $table) {
             $table->dropIndex('seed_variations_last_checked_index');
             $table->dropIndex('seed_variations_stock_status_index');
-            $table->dropIndex('seed_variations_entry_product_index');
+            $table->dropIndex('seed_variations_entry_size_index');
         });
 
         Schema::table('seed_entries', function (Blueprint $table) {
