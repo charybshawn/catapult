@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
+use App\Services\CropLifecycleService;
+use App\Services\CropTimeCalculator;
 
 class Crop extends Model
 {
@@ -160,8 +162,7 @@ class Crop extends Model
      */
     public function suspendWatering(): void
     {
-        $this->watering_suspended_at = now();
-        $this->save();
+        app(CropLifecycleService::class)->suspendWatering($this);
     }
     
     /**
@@ -169,8 +170,7 @@ class Crop extends Model
      */
     public function resumeWatering(): void
     {
-        $this->watering_suspended_at = null;
-        $this->save();
+        app(CropLifecycleService::class)->resumeWatering($this);
     }
     
     /**
@@ -178,25 +178,7 @@ class Crop extends Model
      */
     public function advanceStage(): void
     {
-        $currentStage = $this->current_stage;
-        $now = now();
-        
-        // Determine next stage, skipping blackout if duration is 0
-        $nextStage = match ($currentStage) {
-            'germination' => ($this->recipe && $this->recipe->blackout_days > 0) ? 'blackout' : 'light',
-            'blackout' => 'light',
-            'light' => 'harvested',
-            default => $this->current_stage,
-        };
-        
-        // Record timestamp for the new stage
-        $stageTimestampField = "{$nextStage}_at";
-        $this->$stageTimestampField = $now;
-        
-        // Update current stage
-        $this->current_stage = $nextStage;
-        
-        $this->save();
+        app(CropLifecycleService::class)->advanceStage($this);
     }
     
     /**
@@ -226,69 +208,7 @@ class Crop extends Model
      */
     public function expectedHarvestDate(): ?Carbon
     {
-        if (!$this->planted_at || !$this->recipe) {
-            return null;
-        }
-        
-        // Get current time
-        $now = now();
-        
-        // Calculate based on current stage
-        switch ($this->current_stage) {
-            case 'germination':
-                // Get actual or calculated germination start time
-                $germinationStart = $this->germination_at ?? $this->planted_at;
-                
-                // Calculate when germination should end
-                $germinationEnd = $this->planted_at->copy()->addDays($this->recipe->germination_days);
-                
-                // Calculate when blackout should end
-                $blackoutDuration = $this->recipe->blackout_days;
-                $blackoutEnd = $germinationEnd->copy()->addDays($blackoutDuration);
-                
-                // Calculate when light should end (harvest date)
-                $lightDuration = $this->recipe->light_days;
-                $lightEnd = $blackoutEnd->copy()->addDays($lightDuration);
-                
-                return $lightEnd;
-                
-            case 'blackout':
-                // Get actual or calculated blackout start time
-                $blackoutStart = $this->blackout_at;
-                if (!$blackoutStart) {
-                    // Calculate based on germination duration
-                    $blackoutStart = $this->planted_at->copy()->addDays($this->recipe->germination_days);
-                }
-                
-                // Calculate when blackout should end
-                $blackoutDuration = $this->recipe->blackout_days;
-                $blackoutEnd = $blackoutStart->copy()->addDays($blackoutDuration);
-                
-                // Calculate when light should end (harvest date)
-                $lightDuration = $this->recipe->light_days;
-                $lightEnd = $blackoutEnd->copy()->addDays($lightDuration);
-                
-                return $lightEnd;
-                
-            case 'light':
-                // Get actual or calculated light start time
-                $lightStart = $this->light_at;
-                if (!$lightStart) {
-                    // Calculate based on germination and blackout durations
-                    $lightStart = $this->planted_at->copy()
-                        ->addDays($this->recipe->germination_days)
-                        ->addDays($this->recipe->blackout_days);
-                }
-                
-                // Calculate when light should end (harvest date)
-                $lightDuration = $this->recipe->light_days;
-                $lightEnd = $lightStart->copy()->addDays($lightDuration);
-                
-                return $lightEnd;
-                
-            default:
-                return null;
-        }
+        return app(CropLifecycleService::class)->calculateExpectedHarvestDate($this);
     }
     
     /**
@@ -296,15 +216,7 @@ class Crop extends Model
      */
     public function daysInCurrentStage(): int
     {
-        $stageField = "{$this->current_stage}_at";
-        
-        if (!$this->$stageField) {
-            return 0;
-        }
-        
-        // Use hours for more precise calculations
-        $hoursInStage = $this->$stageField->diffInHours(now());
-        return intval($hoursInStage / 24); // Convert hours to days
+        return app(CropLifecycleService::class)->calculateDaysInCurrentStage($this);
     }
     
     /**
@@ -426,40 +338,7 @@ class Crop extends Model
      */
     public function resetToStage(string $newStage): void
     {
-        $currentStage = $this->current_stage;
-        $now = now();
-        
-        // Set the new stage
-        $this->current_stage = $newStage;
-        
-        // Update the timestamp for the current stage
-        $stageTimestampField = "{$newStage}_at";
-        
-        // Always update the timestamp for the new stage to now
-        $this->$stageTimestampField = $now;
-        
-        // Clear all timestamps for stages that come after the current stage
-        $stageOrder = ['germination', 'blackout', 'light', 'harvested'];
-        $currentStageIndex = array_search($newStage, $stageOrder);
-        
-        // If we found the stage in our ordered list
-        if ($currentStageIndex !== false) {
-            // Clear timestamps for all stages after the current one
-            for ($i = $currentStageIndex + 1; $i < count($stageOrder); $i++) {
-                $fieldName = "{$stageOrder[$i]}_at";
-                $this->$fieldName = null;
-            }
-            
-            // Also clear harvest weight if we're no longer at the harvested stage
-            if ($newStage !== 'harvested') {
-                $this->harvest_weight_grams = null;
-            }
-        }
-        
-        $this->save();
-        
-        // Recalculate expected stage timestamps for future tasks
-        // This will be handled by the updated hook that detects stage changes
+        app(CropLifecycleService::class)->resetToStage($this, $newStage);
     }
     
     /**
@@ -562,67 +441,7 @@ class Crop extends Model
      */
     protected function updateTimeToNextStageValues(): void
     {
-        // Calculate and store time to next stage values
-        $status = $this->timeToNextStage();
-        $this->time_to_next_stage_display = $status;
-        
-        // Calculate minutes for sorting
-        if (str_contains($status, 'Ready to advance')) {
-            // Highest priority (lowest minutes) for ready to advance
-            $this->time_to_next_stage_minutes = 0;
-        } elseif ($status === '-' || $status === 'No recipe' || $status === 'Unknown') {
-            // Lowest priority (highest minutes) for special statuses
-            // Use a large but safe integer value instead of PHP_INT_MAX
-            $this->time_to_next_stage_minutes = 2147483647; // Max value for a signed 32-bit integer
-        } else {
-            // Extract time components
-            $days = preg_match('/(\d+)d/', $status, $dayMatches) ? (int)$dayMatches[1] : 0;
-            $hours = preg_match('/(\d+)h/', $status, $hourMatches) ? (int)$hourMatches[1] : 0;
-            $minutes = preg_match('/(\d+)m/', $status, $minuteMatches) ? (int)$minuteMatches[1] : 0;
-            
-            // Calculate total minutes
-            $this->time_to_next_stage_minutes = ($days * 24 * 60) + ($hours * 60) + $minutes;
-        }
-        
-        // Calculate and store stage age values
-        $stageAgeStatus = $this->getStageAgeStatus();
-        $this->stage_age_display = $stageAgeStatus;
-        
-        // Calculate stage age minutes for sorting
-        if ($stageAgeStatus === '0m' || empty($stageAgeStatus)) {
-            $this->stage_age_minutes = 0;
-        } else {
-            // Extract time components
-            $days = preg_match('/(\d+)d/', $stageAgeStatus, $dayMatches) ? (int)$dayMatches[1] : 0;
-            $hours = preg_match('/(\d+)h/', $stageAgeStatus, $hourMatches) ? (int)$hourMatches[1] : 0;
-            $minutes = preg_match('/(\d+)m/', $stageAgeStatus, $minuteMatches) ? (int)$minuteMatches[1] : 0;
-            
-            // Calculate total minutes
-            $totalMinutes = ($days * 24 * 60) + ($hours * 60) + $minutes;
-            
-            // Ensure the value doesn't exceed integer limits
-            $this->stage_age_minutes = min($totalMinutes, 2147483647);
-        }
-        
-        // Calculate and store total age values
-        $totalAgeStatus = $this->getTotalAgeStatus();
-        $this->total_age_display = $totalAgeStatus;
-        
-        // Calculate total age minutes for sorting
-        if ($totalAgeStatus === '0m' || empty($totalAgeStatus)) {
-            $this->total_age_minutes = 0;
-        } else {
-            // Extract time components
-            $days = preg_match('/(\d+)d/', $totalAgeStatus, $dayMatches) ? (int)$dayMatches[1] : 0;
-            $hours = preg_match('/(\d+)h/', $totalAgeStatus, $hourMatches) ? (int)$hourMatches[1] : 0;
-            $minutes = preg_match('/(\d+)m/', $totalAgeStatus, $minuteMatches) ? (int)$minuteMatches[1] : 0;
-            
-            // Calculate total minutes
-            $totalMinutes = ($days * 24 * 60) + ($hours * 60) + $minutes;
-            
-            // Ensure the value doesn't exceed integer limits
-            $this->total_age_minutes = min($totalMinutes, 2147483647);
-        }
+        app(CropTimeCalculator::class)->updateTimeCalculations($this);
     }
     
     /**
@@ -632,68 +451,12 @@ class Crop extends Model
      */
     public function getStageAgeStatus(): string
     {
-        $stageField = "{$this->current_stage}_at";
-        if (!$this->$stageField) {
-            return '0m';
-        }
-        
-        // Always use current timestamp, never rely on updated_at
-        $now = now();
-        $stageStart = $this->$stageField;
-        
-        // Log calculation for debugging
-        \Illuminate\Support\Facades\Log::debug('Crop Stage Age Calculation', [
-            'crop_id' => $this->id,
-            'current_stage' => $this->current_stage,
-            'stage_field' => $stageField,
-            'stage_start_time' => $stageStart->toDateTimeString(),
-            'current_time' => $now->toDateTimeString(),
-            'diff_in_minutes' => $stageStart->diffInMinutes($now)
-        ]);
-        
-        // Calculate total time difference
-        $totalHours = $stageStart->diffInHours($now);
-        $totalMinutes = $stageStart->diffInMinutes($now) % 60;
-        $totalDays = floor($totalHours / 24);
-        $remainingHours = $totalHours % 24;
-        
-        // Format based on total time
-        if ($totalDays > 0) {
-            return "{$totalDays}d {$remainingHours}h";
-        } elseif ($remainingHours > 0) {
-            return "{$remainingHours}h {$totalMinutes}m";
-        } else {
-            return "{$totalMinutes}m";
-        }
+        return app(CropTimeCalculator::class)->getStageAgeStatus($this);
     }
-    
-    /**
-     * Get the formatted total age status text
-     * 
-     * @return string The formatted time since planting
-     */
+
     public function getTotalAgeStatus(): string
     {
-        if (!$this->planted_at) {
-            return '0m';
-        }
-        
-        $now = now();
-        $plantedAt = $this->planted_at;
-        
-        // Calculate total time difference
-        $totalHours = $plantedAt->diffInHours($now);
-        $totalMinutes = $plantedAt->diffInMinutes($now) % 60;
-        $totalDays = floor($totalHours / 24);
-        $remainingHours = $totalHours % 24;
-        
-        // Format based on total time
-        if ($totalDays > 0) {
-            return "{$totalDays}d {$remainingHours}h";
-        } elseif ($remainingHours > 0) {
-            return "{$remainingHours}h {$totalMinutes}m";
-        } else {
-            return "{$totalMinutes}m";
-        }
+        return app(CropTimeCalculator::class)->getTotalAgeStatus($this);
     }
+
 }
