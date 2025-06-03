@@ -15,7 +15,8 @@ return new class extends Migration
         Schema::table('crops', function (Blueprint $table) {
             $table->index('planted_at', 'crops_planted_at_index');
             $table->index(['current_stage', 'planted_at'], 'crops_stage_planted_index');
-            $table->index('stage_updated_at', 'crops_stage_updated_at_index');
+            $table->index('germination_at', 'crops_germination_at_index');
+            $table->index('harvested_at', 'crops_harvested_at_index');
             $table->index(['recipe_id', 'planted_at', 'current_stage'], 'crops_batch_grouping_index');
         });
 
@@ -71,7 +72,8 @@ return new class extends Migration
         Schema::table('crops', function (Blueprint $table) {
             $table->dropIndex('crops_planted_at_index');
             $table->dropIndex('crops_stage_planted_index');
-            $table->dropIndex('crops_stage_updated_at_index');
+            $table->dropIndex('crops_germination_at_index');
+            $table->dropIndex('crops_harvested_at_index');
             $table->dropIndex('crops_batch_grouping_index');
         });
 
