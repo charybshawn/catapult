@@ -52,9 +52,9 @@ return new class extends Migration
             $table->index('packaging_type_id', 'consumables_packaging_type_index');
         });
 
-        // Add indexes for order items - aggregation queries
-        Schema::table('order_items', function (Blueprint $table) {
-            $table->index(['order_id', 'product_id'], 'order_items_order_product_index');
+        // Add indexes for order packagings - aggregation queries
+        Schema::table('order_packagings', function (Blueprint $table) {
+            $table->index(['order_id', 'packaging_type_id'], 'order_packagings_order_packaging_index');
         });
 
         // Add indexes for activities - audit trail queries
@@ -106,8 +106,8 @@ return new class extends Migration
             $table->dropIndex('consumables_packaging_type_index');
         });
 
-        Schema::table('order_items', function (Blueprint $table) {
-            $table->dropIndex('order_items_order_product_index');
+        Schema::table('order_packagings', function (Blueprint $table) {
+            $table->dropIndex('order_packagings_order_packaging_index');
         });
 
         Schema::table('activity_log', function (Blueprint $table) {
