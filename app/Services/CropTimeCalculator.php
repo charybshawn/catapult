@@ -12,6 +12,12 @@ class CropTimeCalculator
      */
     public function updateTimeCalculations(Crop $crop): void
     {
+        // Prevent recursive saves and memory issues
+        if ($crop->isDirty() && !$crop->exists) {
+            // Skip calculations for new models to prevent infinite loops
+            return;
+        }
+        
         $crop->time_to_next_stage_minutes = $this->calculateTimeToNextStage($crop);
         $crop->time_to_next_stage_display = $this->formatTimeDisplay($crop->time_to_next_stage_minutes);
         
@@ -21,7 +27,10 @@ class CropTimeCalculator
         $crop->total_age_minutes = $this->calculateTotalAge($crop);
         $crop->total_age_display = $this->formatTimeDisplay($crop->total_age_minutes);
         
-        $crop->save();
+        // Only save if the model exists and has changes
+        if ($crop->exists && $crop->isDirty()) {
+            $crop->saveQuietly(); // Use saveQuietly to prevent triggering observers
+        }
     }
 
     /**

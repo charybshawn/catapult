@@ -31,15 +31,14 @@ class CropObserver
             $crop->stage_age_minutes = abs($now->diffInMinutes($stageStart));
             $crop->stage_age_display = $this->formatDuration($now->diff($stageStart));
             
-            // Add debug information to verify this calculation
-            \Illuminate\Support\Facades\Log::info('CropObserver: Updated stage age', [
-                'crop_id' => $crop->id,
-                'current_stage' => $crop->current_stage,
-                'stage_start' => $stageStart->toDateTimeString(),
-                'now' => $now->toDateTimeString(),
-                'diff_minutes' => $crop->stage_age_minutes,
-                'diff_display' => $crop->stage_age_display
-            ]);
+            // Debug logging only in debug mode to prevent memory issues
+            if (config('app.debug') && config('logging.default') !== 'production') {
+                \Illuminate\Support\Facades\Log::debug('CropObserver: Updated stage age', [
+                    'crop_id' => $crop->id,
+                    'current_stage' => $crop->current_stage,
+                    'diff_minutes' => $crop->stage_age_minutes,
+                ]);
+            }
         }
 
         // Update time to next stage

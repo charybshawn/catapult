@@ -96,8 +96,12 @@ class CreateCrop extends BaseCreateRecord
             $createdRecords = [];
             $plantedAt = Carbon::parse($data['planted_at']);
             
-            // Create a separate record for each tray number
-            foreach ($trayNumbers as $trayNumber) {
+            // Enable bulk operation mode to prevent memory issues from model events
+            Crop::enableBulkOperation();
+            
+            try {
+                // Create a separate record for each tray number
+                foreach ($trayNumbers as $trayNumber) {
                 // Clean the tray number
                 $trayNum = trim($trayNumber);
                 if (empty($trayNum)) continue;
@@ -121,6 +125,23 @@ class CreateCrop extends BaseCreateRecord
                 
                 if (!$firstCrop) {
                     $firstCrop = $crop;
+                }
+            }
+            
+            } finally {
+                // Always disable bulk operation mode
+                Crop::disableBulkOperation();
+            }
+            
+            // Now manually schedule tasks for the first crop (representing the batch)
+            if ($firstCrop) {
+                try {
+                    app(\App\Services\CropTaskService::class)->scheduleAllStageTasks($firstCrop);
+                } catch (\Exception $e) {
+                    Log::warning('Error scheduling tasks after bulk crop creation', [
+                        'error' => $e->getMessage(),
+                        'crop_id' => $firstCrop->id
+                    ]);
                 }
             }
             

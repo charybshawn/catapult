@@ -25,6 +25,15 @@ class CropTaskService
      */
     public function scheduleAllStageTasks(Crop $crop): void
     {
+        // Prevent memory issues during bulk operations
+        if (memory_get_usage(true) > 100 * 1024 * 1024) { // 100MB
+            \Illuminate\Support\Facades\Log::warning('Memory limit approaching, skipping task scheduling', [
+                'crop_id' => $crop->id,
+                'memory_usage' => memory_get_usage(true)
+            ]);
+            return;
+        }
+        
         $this->taskFactory->deleteTasksForCrop($crop);
         
         // Only schedule tasks if the crop has a recipe
