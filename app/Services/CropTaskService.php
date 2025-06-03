@@ -5,11 +5,18 @@ namespace App\Services;
 use App\Models\Crop;
 use App\Models\NotificationSetting;
 use App\Models\TaskSchedule;
+use App\Services\TaskFactoryService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class CropTaskService
 {
+    /**
+     * Constructor injection for dependencies
+     */
+    public function __construct(
+        private TaskFactoryService $taskFactory
+    ) {}
     /**
      * Schedule all stage transition tasks for a crop
      *
@@ -18,7 +25,7 @@ class CropTaskService
      */
     public function scheduleAllStageTasks(Crop $crop): void
     {
-        $this->deleteExistingTasks($crop);
+        $this->taskFactory->deleteTasksForCrop($crop);
         
         // Only schedule tasks if the crop has a recipe
         if (!$crop->recipe) {
@@ -84,12 +91,8 @@ class CropTaskService
                     'variety' => $varietyName,
                 ];
 
-                // Create the task schedule directly (as createStageTransitionTask expects a target stage)
-                $task = new TaskSchedule();
-                $task->resource_type = 'crops';
-                $task->task_name = 'suspend_watering';
-                $task->frequency = 'once';
-                $task->conditions = $conditions;
+                // Create the watering suspension task
+                $task = $this->taskFactory->createWateringSuspensionTask($crop, $suspendTime);
                 $task->is_active = true;
                 $task->next_run_at = $suspendTime;
                 $task->save();
@@ -143,17 +146,13 @@ class CropTaskService
             'variety' => $varietyName,
         ];
         
-        // Create the task schedule
-        $task = new TaskSchedule();
-        $task->resource_type = 'crops';
-        $task->task_name = $taskName;
-        $task->frequency = 'once'; // One-time task
-        $task->conditions = $conditions;
-        $task->is_active = true;
-        $task->next_run_at = $transitionTime;
-        $task->save();
-        
-        return $task;
+        // Create the task schedule using the factory
+        return $this->taskFactory->createBatchStageTransitionTask(
+            $crop,
+            $targetStage,
+            $transitionTime,
+            $conditions
+        );
     }
     
     /**
