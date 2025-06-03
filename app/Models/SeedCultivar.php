@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class SeedCultivar extends Model
 {
@@ -14,7 +16,7 @@ class SeedCultivar extends Model
     /**
      * Get the seed entries for this cultivar
      */
-    public function seedEntries()
+    public function seedEntries(): HasMany
     {
         return $this->hasMany(SeedEntry::class);
     }
@@ -22,7 +24,7 @@ class SeedCultivar extends Model
     /**
      * Get all suppliers that have entries for this cultivar
      */
-    public function suppliers()
+    public function suppliers(): HasManyThrough
     {
         return $this->hasManyThrough(Supplier::class, SeedEntry::class, 'seed_cultivar_id', 'id', 'id', 'supplier_id')
             ->distinct();

@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SeedVariation extends Model
 {
@@ -33,7 +35,7 @@ class SeedVariation extends Model
     /**
      * Get the seed entry that this variation belongs to
      */
-    public function seedEntry()
+    public function seedEntry(): BelongsTo
     {
         return $this->belongsTo(SeedEntry::class);
     }
@@ -41,7 +43,7 @@ class SeedVariation extends Model
     /**
      * Get the price history records for this variation
      */
-    public function priceHistory()
+    public function priceHistory(): HasMany
     {
         return $this->hasMany(SeedPriceHistory::class);
     }
@@ -49,7 +51,7 @@ class SeedVariation extends Model
     /**
      * Get the consumable inventory record associated with this seed variation
      */
-    public function consumable()
+    public function consumable(): BelongsTo
     {
         return $this->belongsTo(Consumable::class);
     }
@@ -57,7 +59,7 @@ class SeedVariation extends Model
     /**
      * Get the price per kg for this variation
      */
-    public function getPricePerKgAttribute()
+    public function getPricePerKgAttribute(): ?float
     {
         if ($this->weight_kg && $this->weight_kg > 0) {
             return $this->current_price / $this->weight_kg;

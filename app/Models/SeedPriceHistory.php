@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SeedPriceHistory extends Model
 {
@@ -29,7 +30,7 @@ class SeedPriceHistory extends Model
     /**
      * Get the seed variation that this price history belongs to
      */
-    public function seedVariation()
+    public function seedVariation(): BelongsTo
     {
         return $this->belongsTo(SeedVariation::class);
     }
