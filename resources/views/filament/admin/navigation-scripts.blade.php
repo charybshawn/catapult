@@ -73,383 +73,285 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const NavigationState = {
-        // API endpoints
-        endpoints: {
-            get: '/api/navigation-preferences',
-            toggleGroup: '/api/navigation-preferences/toggle-group',
-            toggleAll: '/api/navigation-preferences/toggle-all'
-        },
+    console.log('Navigation script loaded');
+    
+    // Simple approach: Just observe the DOM and work with what we find
+    setTimeout(() => {
+        console.log('Starting navigation enhancement...');
         
-        // Initialize navigation state management
-        init() {
-            console.log('NavigationState.init() called');
-            
-            // Debug: Check what elements are available
-            console.log('Available elements:');
-            console.log('- .fi-sidebar-nav:', !!document.querySelector('.fi-sidebar-nav'));
-            console.log('- .fi-sidebar-nav-groups:', !!document.querySelector('.fi-sidebar-nav-groups'));
-            console.log('- .fi-sidebar-nav-group:', document.querySelectorAll('.fi-sidebar-nav-group').length);
-            
-            // Small delay to ensure DOM is fully loaded
-            setTimeout(() => {
-                console.log('After timeout - Available elements:');
-                console.log('- .fi-sidebar-nav:', !!document.querySelector('.fi-sidebar-nav'));
-                console.log('- .fi-sidebar-nav-groups:', !!document.querySelector('.fi-sidebar-nav-groups'));
-                console.log('- .fi-sidebar-nav-group:', document.querySelectorAll('.fi-sidebar-nav-group').length);
-                
-                // Debug: Show the actual navigation structure
-                const sidebar = document.querySelector('.fi-sidebar, nav, .sidebar');
-                if (sidebar) {
-                    console.log('Navigation structure preview:');
-                    console.log(sidebar.innerHTML.substring(0, 1000));
-                    
-                    // Look for any elements with "group" in their class or attributes
-                    const groupElements = sidebar.querySelectorAll('*[class*="group"], *[data*="group"], *[role*="group"]');
-                    console.log('Elements with "group" in attributes:', groupElements.length);
-                    groupElements.forEach((el, i) => {
-                        if (i < 5) { // Show first 5
-                            console.log(`  ${i}: ${el.tagName}.${el.className} - ${el.textContent?.trim().substring(0, 30)}`);
-                        }
-                    });
-                }
-                
-                this.loadPreferences();
-                this.setupEventListeners();
-                this.addCollapseToggle();
-            }, 500); // Increased delay
-        },
+        // First, let's see what we're actually working with
+        const body = document.body;
+        console.log('Page HTML preview:', body.innerHTML.substring(0, 500));
         
-        // Load user preferences from server
-        async loadPreferences() {
-            try {
-                const response = await fetch(this.endpoints.get, {
-                    credentials: 'same-origin',
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                    }
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    this.applyPreferences(data.navigation);
-                }
-            } catch (error) {
-                console.warn('Could not load navigation preferences:', error);
-            }
-        },
+        // Look for any navigation elements
+        const allNavElements = document.querySelectorAll('nav, aside, .sidebar, [class*="sidebar"], [class*="nav"]');
+        console.log('Found navigation-like elements:', allNavElements.length);
         
-        // Apply preferences to the navigation
-        applyPreferences(prefs) {
-            console.log('Applying preferences:', prefs);
-            const collapsedGroups = prefs.collapsed_groups || {};
-            const allCollapsed = prefs.all_collapsed || false;
-            
-            console.log('Collapsed groups:', collapsedGroups);
-            console.log('All collapsed:', allCollapsed);
-            
-            // Apply individual group states
-            Object.entries(collapsedGroups).forEach(([groupName, isCollapsed]) => {
-                console.log('Setting group state:', groupName, isCollapsed);
-                this.setGroupState(groupName, isCollapsed, false);
-            });
-            
-            // Update toggle button state
-            this.updateToggleButton(allCollapsed);
-        },
+        allNavElements.forEach((el, i) => {
+            console.log(`Nav element ${i}:`, el.tagName, el.className);
+        });
         
-        // Set up event listeners for group labels
-        setupEventListeners() {
-            // Use event delegation for dynamically added elements
-            document.addEventListener('click', (e) => {
-                const groupLabel = e.target.closest('.fi-sidebar-nav-group-label');
-                if (groupLabel && !groupLabel.closest('.nav-collapse-toggle')) {
-                    e.preventDefault();
-                    this.handleGroupClick(groupLabel);
-                }
-            });
-        },
+        // Look for any list items that might be navigation groups
+        const allLists = document.querySelectorAll('ul, ol');
+        console.log('Found list elements:', allLists.length);
         
-        // Handle clicking on a group label
-        handleGroupClick(groupLabel) {
-            const group = groupLabel.closest('.fi-sidebar-nav-group');
-            if (!group) return;
-            
-            const groupName = groupLabel.textContent.trim().replace(/[▶▼]/g, '').trim();
-            const isCurrentlyCollapsed = group.getAttribute('data-collapsed') === 'true';
-            const newState = !isCurrentlyCollapsed;
-            
-            this.setGroupState(groupName, newState, true);
-            this.saveGroupState(groupName, newState);
-        },
+        allLists.forEach((list, i) => {
+            if (i < 3) { // Check first 3 lists
+                console.log(`List ${i}:`, list.className, 'items:', list.children.length);
+                if (list.children.length > 0) {
+                    console.log('  First item:', list.children[0].textContent?.trim().substring(0, 50));
+                }
+            }
+        });
         
-        // Set the visual state of a group
-        setGroupState(groupName, collapsed, animate = true) {
-            // Try multiple selectors for navigation groups
-            const groupSelectors = [
-                '.fi-sidebar-nav-group',
-                '.fi-sidebar-nav .fi-nav-group',
-                '.fi-nav-group',
-                '[data-nav-group]',
-                'li[role="group"]',
-                '.filament-sidebar-nav-group',
-                'nav ul li',
-                '.fi-sidebar nav > ul > li'
-            ];
-            
-            let groups = [];
-            for (const selector of groupSelectors) {
-                groups = document.querySelectorAll(selector);
-                if (groups.length > 0) {
-                    console.log('Found', groups.length, 'navigation groups with selector:', selector);
-                    break;
-                }
-            }
-            
-            if (groups.length === 0) {
-                console.warn('No navigation groups found with any selector');
-                // Try to find any navigation structure
-                const nav = document.querySelector('nav, .fi-sidebar, .sidebar');
-                if (nav) {
-                    console.log('Found navigation container:', nav.className);
-                    console.log('Navigation HTML:', nav.innerHTML.substring(0, 500));
-                }
-                return;
-            }
-            
-            let found = false;
-            groups.forEach((group, index) => {
-                // Try multiple selectors for group labels
-                const labelSelectors = [
-                    '.fi-sidebar-nav-group-label',
-                    '.fi-nav-group-label', 
-                    '.nav-group-label',
-                    'button[role="button"]',
-                    'summary',
-                    'h3',
-                    'h4',
-                    '.font-medium',
-                    'span:first-child'
-                ];
-                
-                let label = null;
-                for (const labelSelector of labelSelectors) {
-                    label = group.querySelector(labelSelector);
-                    if (label) break;
-                }
-                
-                if (!label) {
-                    // Try to get the first text node or any text content
-                    label = group.firstElementChild || group;
-                    console.log('Group', index, 'fallback text:', label.textContent?.trim().substring(0, 50));
-                }
-                
-                if (label) {
-                    const labelText = label.textContent.trim().replace(/[▶▼]/g, '').trim();
-                    console.log('Group', index, 'label text:', labelText, 'comparing to:', groupName);
-                    
-                    if (labelText === groupName || labelText.includes(groupName) || groupName.includes(labelText)) {
-                        found = true;
-                        console.log('Setting group', groupName, 'to collapsed:', collapsed);
-                        group.setAttribute('data-collapsed', collapsed);
-                        
-                        if (animate) {
-                            // Try multiple selectors for group items
-                            const itemSelectors = [
-                                '.fi-sidebar-nav-group-items',
-                                '.fi-nav-group-items',
-                                'ul',
-                                '.nav-items',
-                                'div[role="group"]'
-                            ];
-                            
-                            let items = null;
-                            for (const itemSelector of itemSelectors) {
-                                items = group.querySelector(itemSelector);
-                                if (items) break;
-                            }
-                            
-                            if (items) {
-                                if (collapsed) {
-                                    items.style.display = 'none';
-                                } else {
-                                    items.style.display = '';
-                                }
-                            }
-                        }
-                        return;
-                    }
-                }
-            });
-            
-            if (!found) {
-                console.warn('Could not find group:', groupName);
-                console.log('Available groups:');
-                groups.forEach((group, index) => {
-                    const text = group.textContent?.trim().substring(0, 50);
-                    console.log(`  ${index}: ${text}`);
-                });
-            }
-        },
+        // Now try the actual implementation
+        NavigationCollapse.init();
         
-        // Save group state to server
-        async saveGroupState(groupName, collapsed) {
-            try {
-                await fetch(this.endpoints.toggleGroup, {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                    },
-                    body: JSON.stringify({
-                        group: groupName,
-                        collapsed: collapsed
-                    })
-                });
-            } catch (error) {
-                console.warn('Could not save navigation state:', error);
-            }
-        },
+    }, 1000);
+});
+
+const NavigationCollapse = {
+    init() {
+        console.log('NavigationCollapse.init() starting...');
         
-        // Add collapse/expand all button
-        addCollapseToggle() {
-            // Try multiple selectors to find the sidebar navigation
-            const selectors = [
-                '.fi-sidebar-nav',
-                '.fi-sidebar nav', 
-                '[data-sidebar-navigation]',
-                '.fi-sidebar .fi-sidebar-nav',
-                '.fi-nav',
-                'nav[role="navigation"]',
-                '.fi-sidebar',
-                '.sidebar',
-                'nav',
-                'aside nav',
-                '.fi-sidebar > div'
-            ];
-            
-            let sidebar = null;
-            for (const selector of selectors) {
-                sidebar = document.querySelector(selector);
-                if (sidebar) {
-                    console.log('Found sidebar with selector:', selector);
-                    break;
-                }
-            }
-            
-            if (!sidebar) {
-                console.warn('Could not find sidebar navigation element');
-                // Try to find navigation groups directly
-                const navGroups = document.querySelector('.fi-sidebar-nav-groups');
-                if (navGroups) {
-                    sidebar = navGroups.parentElement;
-                    console.log('Found sidebar via navigation groups');
-                } else {
-                    console.warn('Could not find navigation groups either');
-                    return;
-                }
-            }
-            
-            // Don't add if already exists
-            if (document.querySelector('.nav-collapse-toggle')) {
-                console.log('Toggle button already exists');
-                return;
-            }
-            
-            const toggleButton = document.createElement('button');
-            toggleButton.className = 'nav-collapse-toggle';
-            toggleButton.innerHTML = `
-                <span>Collapse All Groups</span>
-                <span class="nav-collapse-toggle-icon">▼</span>
-            `;
-            
-            toggleButton.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('Toggle all button clicked');
-                this.toggleAllGroups();
-            });
-            
-            // Insert at the beginning of the sidebar nav
-            if (sidebar.firstChild) {
-                sidebar.insertBefore(toggleButton, sidebar.firstChild);
-            } else {
-                sidebar.appendChild(toggleButton);
-            }
-            
-            console.log('Toggle button added successfully');
-        },
+        // Try to add collapse toggle button
+        this.addToggleButton();
         
-        // Toggle all groups at once
-        async toggleAllGroups() {
-            console.log('toggleAllGroups called');
-            const button = document.querySelector('.nav-collapse-toggle');
-            if (!button) {
-                console.error('Toggle button not found');
-                return;
-            }
-            
-            button.classList.add('nav-toggle-loading');
-            
-            const isCurrentlyAllCollapsed = button.getAttribute('data-all-collapsed') === 'true';
-            const newState = !isCurrentlyAllCollapsed;
-            
-            console.log('Current state:', isCurrentlyAllCollapsed, 'New state:', newState);
-            
-            try {
-                console.log('Making API request to:', this.endpoints.toggleAll);
-                const response = await fetch(this.endpoints.toggleAll, {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                    },
-                    body: JSON.stringify({
-                        collapsed: newState
-                    })
-                });
-                
-                console.log('API response status:', response.status);
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    console.log('API response data:', data);
-                    this.applyPreferences(data.navigation);
-                } else {
-                    const errorText = await response.text();
-                    console.error('API request failed:', response.status, errorText);
-                }
-            } catch (error) {
-                console.error('Could not toggle all groups:', error);
-            } finally {
-                button.classList.remove('nav-toggle-loading');
-            }
-        },
+        // Set up click listeners for existing navigation
+        this.setupClickListeners();
         
-        // Update toggle button state
-        updateToggleButton(allCollapsed) {
-            const button = document.querySelector('.nav-collapse-toggle');
-            if (!button) return;
-            
-            button.setAttribute('data-all-collapsed', allCollapsed);
-            const text = button.querySelector('span:first-child');
-            if (text) {
-                text.textContent = allCollapsed ? 'Expand All Groups' : 'Collapse All Groups';
+        // Load saved preferences
+        this.loadPreferences();
+    },
+    
+    addToggleButton() {
+        console.log('Adding toggle button...');
+        
+        // Find a good place to put the button
+        const targets = [
+            '.fi-sidebar',
+            'aside', 
+            'nav',
+            '[class*="sidebar"]'
+        ];
+        
+        let container = null;
+        for (const selector of targets) {
+            container = document.querySelector(selector);
+            if (container) {
+                console.log('Found container for button:', selector);
+                break;
             }
         }
-    };
+        
+        if (!container) {
+            console.log('No suitable container found for toggle button');
+            return;
+        }
+        
+        // Don't add if already exists
+        if (container.querySelector('.nav-toggle-all')) {
+            console.log('Toggle button already exists');
+            return;
+        }
+        
+        const button = document.createElement('button');
+        button.className = 'nav-toggle-all';
+        button.style.cssText = `
+            width: 100%;
+            padding: 8px 16px;
+            margin: 8px 0;
+            background: rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px;
+            color: rgba(255,255,255,0.8);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        `;
+        button.innerHTML = 'Toggle All Navigation Groups';
+        
+        button.addEventListener('click', () => {
+            console.log('Toggle all button clicked!');
+            this.toggleAllGroups();
+        });
+        
+        // Insert at the top
+        if (container.firstChild) {
+            container.insertBefore(button, container.firstChild);
+        } else {
+            container.appendChild(button);
+        }
+        
+        console.log('Toggle button added successfully');
+    },
     
-    // Initialize the navigation state management
-    NavigationState.init();
+    setupClickListeners() {
+        console.log('Setting up click listeners...');
+        
+        // Find text that looks like our navigation groups
+        const groupNames = [
+            'Dashboard & Overview',
+            'Production Management', 
+            'Seed Management',
+            'Inventory & Materials',
+            'Sales & Products',
+            'Order Management',
+            'Analytics & Reports',
+            'System & Settings'
+        ];
+        
+        // Look for elements containing these group names
+        groupNames.forEach(groupName => {
+            const elements = Array.from(document.querySelectorAll('*')).filter(el => {
+                const text = el.textContent?.trim();
+                return text === groupName || text?.includes(groupName);
+            });
+            
+            console.log(`Found ${elements.length} elements for group "${groupName}"`);
+            
+            elements.forEach(el => {
+                // Make it clickable if it's not already
+                if (!el.hasAttribute('data-nav-toggle')) {
+                    el.setAttribute('data-nav-toggle', groupName);
+                    el.style.cursor = 'pointer';
+                    
+                    el.addEventListener('click', (e) => {
+                        console.log('Group clicked:', groupName);
+                        this.toggleGroup(groupName, el);
+                    });
+                }
+            });
+        });
+    },
     
-    // Reinitialize when Livewire navigates (for SPA-like navigation)
-    document.addEventListener('livewire:navigated', function() {
-        NavigationState.init();
-    });
-});
+    toggleGroup(groupName, element) {
+        console.log('Toggling group:', groupName);
+        
+        // Find items to collapse - look for siblings or children that are lists
+        const parent = element.closest('li, div, section');
+        if (!parent) return;
+        
+        const items = parent.querySelector('ul, ol, .items, [class*="items"]');
+        if (items) {
+            const isHidden = items.style.display === 'none';
+            items.style.display = isHidden ? '' : 'none';
+            
+            // Update visual indicator
+            if (!isHidden) {
+                element.setAttribute('data-collapsed', 'true');
+                if (!element.textContent.includes('▶')) {
+                    element.textContent = element.textContent + ' ▶';
+                }
+            } else {
+                element.setAttribute('data-collapsed', 'false');
+                element.textContent = element.textContent.replace(' ▶', '').replace(' ▼', '');
+                if (!element.textContent.includes('▼')) {
+                    element.textContent = element.textContent + ' ▼';
+                }
+            }
+            
+            // Save to backend
+            this.saveGroupState(groupName, !isHidden);
+        }
+    },
+    
+    async toggleAllGroups() {
+        console.log('Toggle all groups called');
+        
+        try {
+            const response = await fetch('/api/navigation-preferences/toggle-all', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content
+                },
+                body: JSON.stringify({
+                    collapsed: true // Always collapse for now
+                })
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Toggle all response:', data);
+                
+                // Apply the changes to all groups
+                const collapsedGroups = data.navigation?.collapsed_groups || {};
+                Object.entries(collapsedGroups).forEach(([groupName, isCollapsed]) => {
+                    this.applyGroupState(groupName, isCollapsed);
+                });
+            } else {
+                console.error('Toggle all failed:', response.status);
+            }
+        } catch (error) {
+            console.error('Toggle all error:', error);
+        }
+    },
+    
+    applyGroupState(groupName, collapsed) {
+        console.log('Applying state:', groupName, collapsed);
+        
+        // Find all elements with this group name
+        const elements = document.querySelectorAll(`[data-nav-toggle="${groupName}"]`);
+        elements.forEach(el => {
+            const parent = el.closest('li, div, section');
+            if (parent) {
+                const items = parent.querySelector('ul, ol, .items, [class*="items"]');
+                if (items) {
+                    items.style.display = collapsed ? 'none' : '';
+                    el.setAttribute('data-collapsed', collapsed);
+                    
+                    // Update visual
+                    el.textContent = el.textContent.replace(' ▶', '').replace(' ▼', '');
+                    el.textContent = el.textContent + (collapsed ? ' ▶' : ' ▼');
+                }
+            }
+        });
+    },
+    
+    async saveGroupState(groupName, collapsed) {
+        try {
+            await fetch('/api/navigation-preferences/toggle-group', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content
+                },
+                body: JSON.stringify({
+                    group: groupName,
+                    collapsed: collapsed
+                })
+            });
+        } catch (error) {
+            console.warn('Could not save group state:', error);
+        }
+    },
+    
+    async loadPreferences() {
+        try {
+            const response = await fetch('/api/navigation-preferences', {
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Loaded preferences:', data);
+                
+                const collapsedGroups = data.navigation?.collapsed_groups || {};
+                Object.entries(collapsedGroups).forEach(([groupName, isCollapsed]) => {
+                    this.applyGroupState(groupName, isCollapsed);
+                });
+            }
+        } catch (error) {
+            console.warn('Could not load preferences:', error);
+        }
+};
 </script>
