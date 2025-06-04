@@ -77,6 +77,10 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
-            ]);
+            ])
+            ->renderHook(
+                'panels::body.end',
+                fn (): string => view('filament.admin.navigation-scripts')->render()
+            );
     }
 }
