@@ -4,9 +4,9 @@ namespace App\Filament\Resources\SupplierResource\Pages;
 
 use App\Filament\Resources\SupplierResource;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Pages\Base\BaseEditRecord;
 
-class EditSupplier extends EditRecord
+class EditSupplier extends BaseEditRecord
 {
     protected static string $resource = SupplierResource::class;
 

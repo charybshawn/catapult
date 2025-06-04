@@ -3,9 +3,9 @@
 namespace App\Filament\Resources\ProductPhotoResource\Pages;
 
 use App\Filament\Resources\ProductPhotoResource;
-use Filament\Resources\Pages\CreateRecord;
+use App\Filament\Pages\Base\BaseCreateRecord;
 
-class CreateProductPhoto extends CreateRecord
+class CreateProductPhoto extends BaseCreateRecord
 {
     protected static string $resource = ProductPhotoResource::class;
 } 

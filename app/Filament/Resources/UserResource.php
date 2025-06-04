@@ -6,6 +6,7 @@ use App\Filament\Resources\UserResource\Pages;
 use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -20,7 +21,7 @@ class UserResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-users';
 
-    protected static ?string $navigationGroup = 'Administration';
+    protected static ?string $navigationGroup = 'System & Settings';
 
     protected static ?int $navigationSort = 1;
 
@@ -28,28 +29,62 @@ class UserResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('name')
-                    ->required()
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('email')
-                    ->email()
-                    ->required()
-                    ->maxLength(255)
-                    ->unique(ignoreRecord: true),
-                Forms\Components\TextInput::make('phone')
-                    ->tel()
-                    ->maxLength(20),
-                Forms\Components\DateTimePicker::make('email_verified_at'),
-                Forms\Components\TextInput::make('password')
-                    ->password()
-                    ->dehydrateStateUsing(fn (string $state): string => Hash::make($state))
-                    ->dehydrated(fn (?string $state): bool => filled($state))
-                    ->required(fn (string $operation): bool => $operation === 'create'),
-                Forms\Components\Select::make('roles')
-                    ->multiple()
-                    ->relationship('roles', 'name')
-                    ->preload()
-                    ->searchable(),
+                Forms\Components\Section::make('User Information')
+                    ->schema([
+                        Forms\Components\TextInput::make('name')
+                            ->required()
+                            ->maxLength(255),
+                        Forms\Components\TextInput::make('email')
+                            ->email()
+                            ->required()
+                            ->maxLength(255)
+                            ->unique(ignoreRecord: true),
+                        Forms\Components\TextInput::make('phone')
+                            ->tel()
+                            ->maxLength(20),
+                        Forms\Components\Select::make('customer_type')
+                            ->label('Customer Type')
+                            ->options([
+                                'retail' => 'Retail',
+                                'wholesale' => 'Wholesale',
+                            ])
+                            ->default('retail')
+                            ->required()
+                            ->reactive(),
+                        Forms\Components\TextInput::make('company_name')
+                            ->label('Company Name')
+                            ->maxLength(255)
+                            ->visible(fn (Forms\Get $get) => $get('customer_type') === 'wholesale'),
+                    ])->columns(2),
+                
+                Forms\Components\Section::make('Address Information')
+                    ->schema([
+                        Forms\Components\Textarea::make('address')
+                            ->rows(2)
+                            ->columnSpanFull(),
+                        Forms\Components\TextInput::make('city')
+                            ->maxLength(100),
+                        Forms\Components\TextInput::make('state')
+                            ->maxLength(50),
+                        Forms\Components\TextInput::make('zip')
+                            ->label('ZIP Code')
+                            ->maxLength(20),
+                    ])->columns(3),
+                
+                Forms\Components\Section::make('Security')
+                    ->schema([
+                        Forms\Components\DateTimePicker::make('email_verified_at'),
+                        Forms\Components\TextInput::make('password')
+                            ->password()
+                            ->dehydrateStateUsing(fn (string $state): string => Hash::make($state))
+                            ->dehydrated(fn (?string $state): bool => filled($state))
+                            ->required(fn (string $operation): bool => $operation === 'create'),
+                        Forms\Components\Select::make('roles')
+                            ->multiple()
+                            ->relationship('roles', 'name')
+                            ->preload()
+                            ->searchable(),
+                    ]),
             ]);
     }
 
@@ -63,6 +98,16 @@ class UserResource extends Resource
                     ->searchable(),
                 Tables\Columns\TextColumn::make('phone')
                     ->searchable(),
+                Tables\Columns\TextColumn::make('customer_type')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'retail' => 'success',
+                        'wholesale' => 'info',
+                        default => 'gray',
+                    }),
+                Tables\Columns\TextColumn::make('company_name')
+                    ->searchable()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('roles.name')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {

@@ -4,9 +4,9 @@ namespace App\Filament\Resources\SeedCultivarResource\Pages;
 
 use App\Filament\Resources\SeedCultivarResource;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Pages\Base\BaseEditRecord;
 
-class EditSeedCultivar extends EditRecord
+class EditSeedCultivar extends BaseEditRecord
 {
     protected static string $resource = SeedCultivarResource::class;
 

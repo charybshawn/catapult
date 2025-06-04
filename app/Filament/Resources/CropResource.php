@@ -30,7 +30,7 @@ class CropResource extends BaseResource
 
     protected static ?string $navigationIcon = 'heroicon-o-fire';
     protected static ?string $navigationLabel = 'Grows';
-    protected static ?string $navigationGroup = 'Farm Operations';
+    protected static ?string $navigationGroup = 'Production Management';
     protected static ?int $navigationSort = 2;
     
     protected static ?string $recordTitleAttribute = 'name';

@@ -36,12 +36,14 @@ class AdminPanelProvider extends PanelProvider
                 'primary' => Color::Amber,
             ])
             ->navigationGroups([
-                'Dashboard',
+                'Dashboard & Overview',
+                'Production Management', 
+                'Seed Management',
+                'Inventory & Materials',
                 'Sales & Products',
-                'Farm Operations',
-                'Inventory & Supplies',
-                'Finance',
-                'Administration',
+                'Order Management',
+                'Analytics & Reports',
+                'System & Settings',
             ])
             ->resources([
                 CropAlertResource::class,

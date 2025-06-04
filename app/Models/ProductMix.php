@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -30,6 +31,14 @@ class ProductMix extends Model
         return $this->belongsToMany(SeedVariety::class, 'product_mix_components')
             ->withPivot('percentage')
             ->withTimestamps();
+    }
+    
+    /**
+     * Get the products that use this mix.
+     */
+    public function products(): HasMany
+    {
+        return $this->hasMany(Product::class, 'product_mix_id');
     }
     
     /**

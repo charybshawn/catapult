@@ -3,9 +3,9 @@
 namespace App\Filament\Resources\ProductMixResource\Pages;
 
 use App\Filament\Resources\ProductMixResource;
-use Filament\Resources\Pages\CreateRecord;
+use App\Filament\Pages\Base\BaseCreateRecord;
 
-class CreateProductMix extends CreateRecord
+class CreateProductMix extends BaseCreateRecord
 {
     protected static string $resource = ProductMixResource::class;
     

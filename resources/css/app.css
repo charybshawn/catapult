@@ -1,3 +1,194 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Flat Minimalist Theme for Filament */
+
+/* Remove excessive borders and create cleaner cards */
+.fi-section {
+    @apply border-0 shadow-none bg-white dark:bg-gray-900 rounded-lg;
+}
+
+.fi-section-content {
+    @apply border-0;
+}
+
+.fi-section-header {
+    @apply border-0 bg-gray-50 dark:bg-gray-800 rounded-t-lg;
+}
+
+/* Flatten form inputs */
+.fi-input {
+    @apply border-gray-200 dark:border-gray-700 shadow-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 rounded-md;
+}
+
+.fi-select {
+    @apply border-gray-200 dark:border-gray-700 shadow-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 rounded-md;
+}
+
+.fi-textarea {
+    @apply border-gray-200 dark:border-gray-700 shadow-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 rounded-md;
+}
+
+/* Flatten buttons */
+.fi-btn {
+    @apply shadow-none border-0 rounded-md font-medium;
+}
+
+.fi-btn-primary {
+    @apply bg-blue-600 hover:bg-blue-700 text-white;
+}
+
+.fi-btn-secondary {
+    @apply bg-gray-100 hover:bg-gray-200 text-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100;
+}
+
+.fi-btn-outline {
+    @apply border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700;
+}
+
+/* Clean table styling */
+.fi-ta {
+    @apply border-0 rounded-lg overflow-hidden shadow-sm;
+}
+
+.fi-ta-header {
+    @apply bg-gray-50 dark:bg-gray-800 border-0;
+}
+
+.fi-ta-header-cell {
+    @apply border-0 py-3 text-gray-600 dark:text-gray-400 font-medium;
+}
+
+.fi-ta-row {
+    @apply border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50;
+}
+
+.fi-ta-cell {
+    @apply border-0 py-3;
+}
+
+/* Minimize navigation styling */
+.fi-sidebar-nav {
+    @apply border-0;
+}
+
+.fi-sidebar-nav-item {
+    @apply rounded-md mx-2 border-0;
+}
+
+.fi-sidebar-nav-item-active {
+    @apply bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400;
+}
+
+/* Flatten modals */
+.fi-modal {
+    @apply rounded-lg border-0 shadow-xl;
+}
+
+.fi-modal-header {
+    @apply border-0 bg-gray-50 dark:bg-gray-800 rounded-t-lg;
+}
+
+/* Clean form field groups */
+.fi-fo-field-wrp {
+    @apply space-y-2;
+}
+
+.fi-fo-field-wrp-label {
+    @apply text-gray-700 dark:text-gray-300 font-medium text-sm;
+}
+
+.fi-fo-field-wrp-helper-text {
+    @apply text-gray-500 dark:text-gray-400 text-xs;
+}
+
+/* Flatten repeater items */
+.fi-fo-repeater-item {
+    @apply border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 shadow-none;
+}
+
+.fi-fo-repeater-item-header {
+    @apply border-0 bg-gray-50 dark:bg-gray-800 rounded-t-lg;
+}
+
+/* Clean tabs */
+.fi-tabs {
+    @apply border-0;
+}
+
+.fi-tabs-tab {
+    @apply border-0 rounded-md;
+}
+
+.fi-tabs-tab-active {
+    @apply bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400;
+}
+
+/* Wizard steps styling */
+.fi-wizard-step {
+    @apply border-0 rounded-lg bg-white dark:bg-gray-900 shadow-sm;
+}
+
+.fi-wizard-step-header {
+    @apply border-0 bg-gray-50 dark:bg-gray-800 rounded-t-lg;
+}
+
+/* Notification styling */
+.fi-no {
+    @apply border-0 rounded-lg shadow-sm;
+}
+
+/* Page header styling */
+.fi-page-header {
+    @apply border-0;
+}
+
+/* Resource page styling */
+.fi-resource-page {
+    @apply bg-gray-50 dark:bg-gray-900;
+}
+
+/* Card styling */
+.fi-card {
+    @apply border-0 rounded-lg shadow-sm bg-white dark:bg-gray-900;
+}
+
+/* Stats card styling */
+.fi-stats-card {
+    @apply border-0 rounded-lg shadow-sm bg-white dark:bg-gray-900;
+}
+
+/* Widget styling */
+.fi-widget {
+    @apply border-0 rounded-lg shadow-sm bg-white dark:bg-gray-900;
+}
+
+/* Action group styling */
+.fi-ac-group {
+    @apply space-x-2;
+}
+
+.fi-ac-group .fi-btn {
+    @apply shadow-none;
+}
+
+/* Badge styling */
+.fi-badge {
+    @apply rounded-full px-2 py-1 text-xs font-medium border-0;
+}
+
+/* Custom invoice order items styling */
+.invoice-order-items .fi-fo-field-wrp {
+    @apply border-0;
+}
+
+/* Clean breadcrumbs */
+.fi-breadcrumbs {
+    @apply border-0;
+}
+
+/* Dashboard improvements */
+.fi-dashboard-widget {
+    @apply border-0 rounded-lg shadow-sm bg-white dark:bg-gray-900;
+}

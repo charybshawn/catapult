@@ -4,9 +4,9 @@ namespace App\Filament\Resources\SeedEntryResource\Pages;
 
 use App\Filament\Resources\SeedEntryResource;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Pages\Base\BaseEditRecord;
 
-class EditSeedEntry extends EditRecord
+class EditSeedEntry extends BaseEditRecord
 {
     protected static string $resource = SeedEntryResource::class;
 
@@ -16,10 +16,5 @@ class EditSeedEntry extends EditRecord
             Actions\ViewAction::make(),
             Actions\DeleteAction::make(),
         ];
-    }
-    
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
     }
 } 

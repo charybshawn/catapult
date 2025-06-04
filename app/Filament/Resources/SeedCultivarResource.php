@@ -21,7 +21,9 @@ class SeedCultivarResource extends Resource
     
     protected static ?string $navigationLabel = 'Seed Cultivars';
     
-    protected static ?string $navigationGroup = 'Seed Inventory';
+    protected static ?string $navigationGroup = 'Seed Management';
+    
+    protected static ?int $navigationSort = 2;
 
     public static function form(Form $form): Form
     {

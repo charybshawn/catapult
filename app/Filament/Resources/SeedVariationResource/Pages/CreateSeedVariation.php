@@ -4,9 +4,9 @@ namespace App\Filament\Resources\SeedVariationResource\Pages;
 
 use App\Filament\Resources\SeedVariationResource;
 use Filament\Actions;
-use Filament\Resources\Pages\CreateRecord;
+use App\Filament\Pages\Base\BaseCreateRecord;
 
-class CreateSeedVariation extends CreateRecord
+class CreateSeedVariation extends BaseCreateRecord
 {
     protected static string $resource = SeedVariationResource::class;
 }

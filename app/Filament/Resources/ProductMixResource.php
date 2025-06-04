@@ -16,10 +16,11 @@ class ProductMixResource extends Resource
 {
     protected static ?string $model = ProductMix::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-squares-plus';
     protected static ?string $navigationLabel = 'Product Mixes';
-    protected static ?string $navigationGroup = 'Inventory & Supplies';
-    protected static ?int $navigationSort = 4;
+    protected static ?string $navigationGroup = 'Sales & Products';
+    
+    protected static ?int $navigationSort = 3;
 
     public static function form(Form $form): Form
     {
@@ -96,17 +97,35 @@ class ProductMixResource extends Resource
                     ->url(fn (ProductMix $record): string => ProductMixResource::getUrl('edit', ['record' => $record]))
                     ->color('primary'),
                     
-                Tables\Columns\TextColumn::make('seedVarieties.name')
-                    ->label('Components')
-                    ->listWithLineBreaks()
-                    ->searchable()
-                    ->toggleable(),
+                Tables\Columns\TextColumn::make('components_summary')
+                    ->label('Mix Components')
+                    ->html()
+                    ->getStateUsing(function (ProductMix $record): string {
+                        $components = $record->seedVarieties()
+                            ->withPivot('percentage')
+                            ->get()
+                            ->map(fn ($variety) => 
+                                "<span class='inline-flex items-center px-2 py-1 mr-1 mb-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full dark:bg-gray-700 dark:text-gray-300'>" .
+                                "{$variety->name} ({$variety->pivot->percentage}%)" .
+                                "</span>"
+                            )
+                            ->join('');
+                        
+                        return $components ?: '<span class="text-gray-400">No components</span>';
+                    })
+                    ->searchable(false)
+                    ->sortable(false),
                     
-                Tables\Columns\TextColumn::make('seedVarieties.pivot.percentage')
-                    ->label('Percentages')
-                    ->formatStateUsing(fn ($state) => $state . '%')
-                    ->listWithLineBreaks()
-                    ->toggleable(),
+                Tables\Columns\TextColumn::make('products_count')
+                    ->label('Used in Products')
+                    ->getStateUsing(fn (ProductMix $record): string => 
+                        $record->products()->count() . ' product(s)'
+                    )
+                    ->badge()
+                    ->color(fn (ProductMix $record): string => 
+                        $record->products()->count() > 0 ? 'success' : 'gray'
+                    )
+                    ->sortable(false),
                     
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Active')
@@ -122,15 +141,49 @@ class ProductMixResource extends Resource
             ])
             ->defaultSort('name', 'asc')
             ->filters([
-                Tables\Filters\Filter::make('inactive')
-                    ->label('Inactive')
-                    ->query(fn (Builder $query) => $query->where('is_active', false)),
+                Tables\Filters\TernaryFilter::make('is_active')
+                    ->label('Status')
+                    ->placeholder('All mixes')
+                    ->trueLabel('Active only')
+                    ->falseLabel('Inactive only'),
+                Tables\Filters\Filter::make('unused')
+                    ->label('Unused Mixes')
+                    ->query(fn (Builder $query) => $query->whereDoesntHave('products')),
+                Tables\Filters\Filter::make('incomplete')
+                    ->label('Incomplete Mixes')
+                    ->query(fn (Builder $query) => $query->whereDoesntHave('seedVarieties')),
             ])
             ->actions([
+                Tables\Actions\ViewAction::make()
+                    ->tooltip('View mix details'),
                 Tables\Actions\EditAction::make()
                     ->tooltip('Edit mix'),
+                Tables\Actions\Action::make('duplicate')
+                    ->label('Duplicate')
+                    ->icon('heroicon-o-document-duplicate')
+                    ->color('gray')
+                    ->tooltip('Create a copy of this mix')
+                    ->action(function (ProductMix $record) {
+                        $newMix = $record->replicate();
+                        $newMix->name = $record->name . ' (Copy)';
+                        $newMix->save();
+                        
+                        // Copy the seed varieties
+                        foreach ($record->seedVarieties as $variety) {
+                            $newMix->seedVarieties()->attach($variety->id, [
+                                'percentage' => $variety->pivot->percentage,
+                            ]);
+                        }
+                        
+                        redirect(static::getUrl('edit', ['record' => $newMix]));
+                    }),
                 Tables\Actions\DeleteAction::make()
-                    ->tooltip('Delete mix'),
+                    ->tooltip('Delete mix')
+                    ->before(function (ProductMix $record) {
+                        if ($record->products()->count() > 0) {
+                            throw new \Exception('Cannot delete mix that is used by products.');
+                        }
+                    }),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -150,6 +203,7 @@ class ProductMixResource extends Resource
         return [
             'index' => Pages\ListProductMixes::route('/'),
             'create' => Pages\CreateProductMix::route('/create'),
+            'view' => Pages\ViewProductMix::route('/{record}'),
             'edit' => Pages\EditProductMix::route('/{record}/edit'),
         ];
     }

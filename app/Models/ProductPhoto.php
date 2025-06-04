@@ -17,7 +17,7 @@ class ProductPhoto extends Model
      *
      * @var string
      */
-    protected $table = 'item_photos';
+    protected $table = 'product_photos';
     
     /**
      * The attributes that are mass assignable.
@@ -25,8 +25,8 @@ class ProductPhoto extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'item_id',
-        'photo_path',
+        'product_id',
+        'photo',
         'is_default',
         'order',
     ];
@@ -45,7 +45,7 @@ class ProductPhoto extends Model
      */
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class, 'item_id');
+        return $this->belongsTo(Product::class, 'product_id');
     }
     
     /**
@@ -56,7 +56,7 @@ class ProductPhoto extends Model
     {
         if (!$this->is_default) {
             // Clear any existing default photos
-            static::where('item_id', $this->item_id)
+            static::where('product_id', $this->product_id)
                 ->where('id', '!=', $this->id)
                 ->where('is_default', true)
                 ->update(['is_default' => false]);
@@ -73,7 +73,7 @@ class ProductPhoto extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['item_id', 'photo_path', 'is_default', 'order'])
+            ->logOnly(['product_id', 'photo', 'is_default', 'order'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
     }

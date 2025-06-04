@@ -19,9 +19,9 @@ class TaskResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
     
-    protected static ?string $navigationGroup = 'Farm Operations';
+    protected static ?string $navigationGroup = 'Production Management';
     
-    protected static ?int $navigationSort = 4;
+    protected static ?int $navigationSort = 3;
 
     public static function shouldRegisterNavigation(): bool
     {

@@ -3,10 +3,10 @@
 namespace App\Filament\Resources\SeedScrapeUploadResource\Pages;
 
 use App\Filament\Resources\SeedScrapeUploadResource;
+use App\Filament\Pages\Base\BaseEditRecord;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
 
-class EditSeedScrapeUpload extends EditRecord
+class EditSeedScrapeUpload extends BaseEditRecord
 {
     protected static string $resource = SeedScrapeUploadResource::class;
 
@@ -16,10 +16,5 @@ class EditSeedScrapeUpload extends EditRecord
             Actions\ViewAction::make(),
             Actions\DeleteAction::make(),
         ];
-    }
-    
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
     }
 } 

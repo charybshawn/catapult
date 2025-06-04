@@ -29,6 +29,12 @@ class Kernel extends ConsoleKernel
         // Add command to process crop tasks
         $schedule->command('app:process-crop-tasks')->everyFifteenMinutes(); // Check every 15 minutes
 
+        // Process recurring orders daily at 6 AM (before typical business hours)
+        $schedule->command('orders:process-recurring')
+            ->dailyAt('06:00')
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/recurring-orders.log'));
+
         // Run database optimization weekly during low-traffic period
         $schedule->command('db:optimize --analyze --optimize')
             ->weekly()

@@ -153,4 +153,31 @@ abstract class BaseResource extends Resource
     {
         return 'name';
     }
+
+    /**
+     * Default redirect behavior after creating a record.
+     * Returns to the index page unless overridden.
+     */
+    protected static function getRedirectUrlAfterCreate(): string
+    {
+        return static::getUrl('index');
+    }
+
+    /**
+     * Default redirect behavior after editing a record.
+     * Returns to the index page unless overridden.
+     */
+    protected static function getRedirectUrlAfterEdit(): string
+    {
+        return static::getUrl('index');
+    }
+
+    /**
+     * Default redirect behavior after deleting a record.
+     * Returns to the index page unless overridden.
+     */
+    protected static function getRedirectUrlAfterDelete(): string
+    {
+        return static::getUrl('index');
+    }
 }

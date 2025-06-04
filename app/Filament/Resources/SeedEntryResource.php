@@ -21,9 +21,9 @@ class SeedEntryResource extends Resource
     
     protected static ?string $navigationLabel = 'Seed Entries';
     
-    protected static ?string $navigationGroup = 'Seed Inventory';
+    protected static ?string $navigationGroup = 'Seed Management';
     
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 3;
 
     public static function form(Form $form): Form
     {

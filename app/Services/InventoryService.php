@@ -210,4 +210,41 @@ class InventoryService
 
         $consumable->update($data);
     }
+
+    /**
+     * Get count of consumables that need restocking
+     */
+    public function getLowStockCount(): int
+    {
+        return Consumable::whereRaw('
+            CASE 
+                WHEN type = "seed" THEN total_quantity <= restock_threshold
+                ELSE (initial_stock - consumed_quantity) <= restock_threshold
+            END
+        ')->count();
+    }
+
+    /**
+     * Get consumables that need restocking
+     */
+    public function getLowStockItems($limit = null)
+    {
+        $query = Consumable::whereRaw('
+            CASE 
+                WHEN type = "seed" THEN total_quantity <= restock_threshold
+                ELSE (initial_stock - consumed_quantity) <= restock_threshold
+            END
+        ')->orderByRaw('
+            CASE 
+                WHEN type = "seed" THEN (total_quantity / NULLIF(restock_threshold, 0))
+                ELSE ((initial_stock - consumed_quantity) / NULLIF(restock_threshold, 0))
+            END ASC
+        ');
+
+        if ($limit) {
+            $query->limit($limit);
+        }
+
+        return $query->get();
+    }
 }

@@ -19,9 +19,9 @@ class SeedScrapeUploadResource extends Resource
     
     protected static ?string $navigationLabel = 'Seed Data Uploads';
     
-    protected static ?string $navigationGroup = 'Seed Inventory';
+    protected static ?string $navigationGroup = 'Seed Management';
     
-    protected static ?int $navigationSort = 40;
+    protected static ?int $navigationSort = 5;
 
     public static function form(Form $form): Form
     {

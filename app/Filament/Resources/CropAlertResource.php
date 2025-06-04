@@ -26,8 +26,8 @@ class CropAlertResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-bell-alert';
     protected static ?string $navigationLabel = 'Crop Alerts';
-    protected static ?string $navigationGroup = 'Farm Operations';
-    protected static ?int $navigationSort = 3;
+    protected static ?string $navigationGroup = 'Dashboard & Overview';
+    protected static ?int $navigationSort = 1;
     
     protected static ?string $recordTitleAttribute = 'task_name';
     protected static ?string $modelLabel = 'Crop Alert';

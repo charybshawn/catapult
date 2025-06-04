@@ -19,6 +19,9 @@ Route::middleware('auth')->group(function () {
     
     // Invoice routes
     Route::get('/invoices/{invoice}/download', [InvoiceController::class, 'download'])->name('invoices.download');
+    
+    // Dashboard AJAX endpoint
+    Route::get('/admin/dashboard/data', [\App\Filament\Pages\Dashboard::class, 'getDashboardDataAjax'])->name('dashboard.data');
 });
 
 require __DIR__.'/auth.php';

@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\OrderResource\RelationManagers;
 
-use App\Models\Item;
+use App\Models\Product;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -21,18 +21,18 @@ class OrderItemsRelationManager extends RelationManager
     {
         return $form
             ->schema([
-                Forms\Components\Select::make('item_id')
+                Forms\Components\Select::make('product_id')
                     ->label('Product')
-                    ->relationship('item', 'name')
+                    ->relationship('product', 'name')
                     ->searchable()
                     ->preload()
                     ->reactive()
                     ->afterStateUpdated(function ($state, callable $set, callable $get) {
                         if ($state) {
-                            $item = Item::find($state);
+                            $product = Product::find($state);
                             $order = $this->getOwnerRecord();
                             $customer_type = $order->customer_type ?? 'retail';
-                            $price = $item ? $item->getPriceForCustomerType($customer_type) : 0;
+                            $price = $product ? $product->getPriceForCustomerType($customer_type) : 0;
                             $set('price', $price);
                         }
                     })
@@ -47,8 +47,6 @@ class OrderItemsRelationManager extends RelationManager
                     ->numeric()
                     ->prefix('$')
                     ->required(),
-                Forms\Components\Textarea::make('notes')
-                    ->rows(2),
             ]);
     }
 
@@ -56,7 +54,7 @@ class OrderItemsRelationManager extends RelationManager
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('item.name')
+                Tables\Columns\TextColumn::make('product.name')
                     ->label('Product')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('quantity')
@@ -75,10 +73,10 @@ class OrderItemsRelationManager extends RelationManager
                 Tables\Actions\CreateAction::make()
                     ->mutateFormDataUsing(function (array $data): array {
                         $order = $this->getOwnerRecord();
-                        $item = Item::find($data['item_id']);
+                        $product = Product::find($data['product_id']);
                         
-                        if ($item && empty($data['price'])) {
-                            $data['price'] = $item->getPriceForCustomerType($order->customer_type);
+                        if ($product && empty($data['price'])) {
+                            $data['price'] = $product->getPriceForCustomerType($order->customer_type);
                         }
                         
                         return $data;

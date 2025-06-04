@@ -4,9 +4,9 @@ namespace App\Filament\Resources\PackagingTypeResource\Pages;
 
 use App\Filament\Resources\PackagingTypeResource;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Pages\Base\BaseEditRecord;
 
-class EditPackagingType extends EditRecord
+class EditPackagingType extends BaseEditRecord
 {
     protected static string $resource = PackagingTypeResource::class;
 

@@ -5,10 +5,10 @@ namespace App\Filament\Resources\TaskScheduleResource\Pages;
 use App\Filament\Resources\TaskScheduleResource;
 use App\Services\CropTaskService;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Pages\Base\BaseEditRecord;
 use Filament\Notifications\Notification;
 
-class EditTaskSchedule extends EditRecord
+class EditTaskSchedule extends BaseEditRecord
 {
     protected static string $resource = TaskScheduleResource::class;
 
@@ -49,10 +49,5 @@ class EditTaskSchedule extends EditRecord
                 ->modalDescription('Are you sure you want to execute this task now? This will advance the crop to the next stage immediately.'),
             Actions\DeleteAction::make(),
         ];
-    }
-    
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
     }
 } 

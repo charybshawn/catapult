@@ -4,9 +4,9 @@ namespace App\Filament\Resources\ProductPhotoResource\Pages;
 
 use App\Filament\Resources\ProductPhotoResource;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Pages\Base\BaseEditRecord;
 
-class EditProductPhoto extends EditRecord
+class EditProductPhoto extends BaseEditRecord
 {
     protected static string $resource = ProductPhotoResource::class;
 

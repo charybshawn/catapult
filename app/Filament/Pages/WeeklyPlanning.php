@@ -19,7 +19,8 @@ class WeeklyPlanning extends Page
     protected static ?string $navigationIcon = 'heroicon-o-calendar';
     protected static ?string $navigationLabel = 'Weekly Planning';
     protected static ?string $title = 'Weekly Planning';
-    protected static ?string $navigationGroup = 'Farm Operations';
+    protected static ?string $navigationGroup = 'Dashboard & Overview';
+    
     protected static ?int $navigationSort = 2;
     
     public static function getSlug(): string

@@ -8,10 +8,10 @@ use App\Models\PackagingType;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Forms\Components;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Pages\Base\BaseEditRecord;
 use Illuminate\Database\Eloquent\Model;
 
-class EditConsumable extends EditRecord
+class EditConsumable extends BaseEditRecord
 {
     protected static string $resource = ConsumableResource::class;
 
@@ -39,13 +39,7 @@ class EditConsumable extends EditRecord
             Actions\DeleteAction::make(),
         ];
     }
-    
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
-    }
-
-    protected function mutateFormDataBeforeFill(array $data): array
+protected function mutateFormDataBeforeFill(array $data): array
     {
         // Calculate current stock for display
         if (isset($data['initial_stock']) && isset($data['consumed_quantity'])) {

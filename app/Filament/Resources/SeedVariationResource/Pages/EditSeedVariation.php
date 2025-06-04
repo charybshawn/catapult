@@ -4,9 +4,9 @@ namespace App\Filament\Resources\SeedVariationResource\Pages;
 
 use App\Filament\Resources\SeedVariationResource;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Pages\Base\BaseEditRecord;
 
-class EditSeedVariation extends EditRecord
+class EditSeedVariation extends BaseEditRecord
 {
     protected static string $resource = SeedVariationResource::class;
 

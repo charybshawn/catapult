@@ -19,9 +19,9 @@ class ProductPhotoResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-photo';
     
-    protected static ?string $navigationGroup = 'Products';
+    protected static ?string $navigationGroup = 'Sales & Products';
     
-    protected static ?int $navigationSort = 99;
+    protected static ?int $navigationSort = 4;
     
     protected static ?string $navigationLabel = 'Product Photos';
     

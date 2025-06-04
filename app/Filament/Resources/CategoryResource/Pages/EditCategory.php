@@ -4,9 +4,9 @@ namespace App\Filament\Resources\CategoryResource\Pages;
 
 use App\Filament\Resources\CategoryResource;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Pages\Base\BaseEditRecord;
 
-class EditCategory extends EditRecord
+class EditCategory extends BaseEditRecord
 {
     protected static string $resource = CategoryResource::class;
 

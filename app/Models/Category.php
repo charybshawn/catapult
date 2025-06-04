@@ -33,11 +33,20 @@ class Category extends Model
     ];
 
     /**
+     * Get the products for the category.
+     */
+    public function products(): HasMany
+    {
+        return $this->hasMany(Product::class);
+    }
+
+    /**
      * Get the items for the category.
+     * @deprecated Use products() instead
      */
     public function items(): HasMany
     {
-        return $this->hasMany(Item::class);
+        return $this->products();
     }
 
     /**

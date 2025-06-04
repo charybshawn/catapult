@@ -65,6 +65,14 @@ class PackagingType extends Model
     }
 
     /**
+     * Get the price variations that use this packaging type.
+     */
+    public function priceVariations(): HasMany
+    {
+        return $this->hasMany(PriceVariation::class);
+    }
+
+    /**
      * Configure the activity log options for this model.
      */
     public function getActivitylogOptions(): LogOptions

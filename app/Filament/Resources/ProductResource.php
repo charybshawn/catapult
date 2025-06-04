@@ -56,8 +56,7 @@ class ProductResource extends BaseResource
                     ->searchable(),
                 Tables\Columns\ImageColumn::make('default_photo')
                     ->label('Image')
-                    ->circular()
-                    ->lazy(),
+                    ->circular(),
                 Tables\Columns\TextColumn::make('category.name')
                     ->label('Category')
                     ->sortable(),
@@ -73,6 +72,35 @@ class ProductResource extends BaseResource
                     ->label('In Store')
                     ->boolean()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('available_packaging')
+                    ->label('Packaging')
+                    ->html()
+                    ->getStateUsing(function ($record): string {
+                        $packaging = $record->priceVariations()
+                            ->whereNotNull('packaging_type_id')
+                            ->with('packagingType')
+                            ->get()
+                            ->pluck('packagingType.display_name')
+                            ->unique()
+                            ->take(3);
+                        
+                        if ($packaging->isEmpty()) {
+                            return '<span class="text-gray-400">No packaging</span>';
+                        }
+                        
+                        $badges = $packaging->map(function ($name) {
+                            return '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">' . $name . '</span>';
+                        })->join(' ');
+                        
+                        $total = $record->priceVariations()->whereNotNull('packaging_type_id')->count();
+                        if ($total > 3) {
+                            $badges .= ' <span class="text-xs text-gray-500">+' . ($total - 3) . ' more</span>';
+                        }
+                        
+                        return $badges;
+                    })
+                    ->searchable(false)
+                    ->sortable(false),
                 ...static::getTimestampColumns(),
             ])
             ->filters([
@@ -257,6 +285,10 @@ class ProductResource extends BaseResource
                     Forms\Components\TextInput::make('name')
                         ->required()
                         ->maxLength(255),
+                    Forms\Components\TextInput::make('sku')
+                        ->label('Product SKU')
+                        ->maxLength(255)
+                        ->helperText('Optional unique identifier for this product'),
                     Forms\Components\Textarea::make('description')
                         ->maxLength(65535)
                         ->columnSpanFull(),
@@ -285,7 +317,68 @@ class ProductResource extends BaseResource
                         ->relationship('productMix', 'name')
                         ->searchable()
                         ->preload()
-                        ->helperText('If this product uses a mix of varieties, select the mix here.'),
+                        ->createOptionForm([
+                            Forms\Components\TextInput::make('name')
+                                ->label('Mix Name')
+                                ->required()
+                                ->maxLength(255),
+                            Forms\Components\Textarea::make('description')
+                                ->label('Description')
+                                ->rows(3),
+                            Forms\Components\Repeater::make('components')
+                                ->label('Mix Components')
+                                ->schema([
+                                    Forms\Components\Select::make('seed_variety_id')
+                                        ->label('Variety')
+                                        ->options(\App\Models\SeedVariety::where('is_active', true)->pluck('name', 'id'))
+                                        ->searchable()
+                                        ->required(),
+                                    Forms\Components\TextInput::make('percentage')
+                                        ->label('Percentage (%)')
+                                        ->numeric()
+                                        ->minValue(1)
+                                        ->maxValue(100)
+                                        ->required()
+                                        ->default(25)
+                                        ->suffix('%'),
+                                ])
+                                ->columns(2)
+                                ->defaultItems(2)
+                                ->addActionLabel('Add Variety')
+                                ->reorderableWithButtons()
+                                ->helperText('Each variety\'s percentage should add up to 100%'),
+                            Forms\Components\Toggle::make('is_active')
+                                ->label('Active')
+                                ->default(true),
+                        ])
+                        ->createOptionUsing(function (array $data): int {
+                            // Create the ProductMix
+                            $mix = \App\Models\ProductMix::create([
+                                'name' => $data['name'],
+                                'description' => $data['description'] ?? null,
+                                'is_active' => $data['is_active'] ?? true,
+                            ]);
+                            
+                            // Attach the components
+                            if (isset($data['components']) && is_array($data['components'])) {
+                                foreach ($data['components'] as $component) {
+                                    if (isset($component['seed_variety_id']) && isset($component['percentage'])) {
+                                        $mix->seedVarieties()->attach($component['seed_variety_id'], [
+                                            'percentage' => $component['percentage'],
+                                        ]);
+                                    }
+                                }
+                            }
+                            
+                            return $mix->id;
+                        })
+                        ->createOptionAction(function (Forms\Components\Actions\Action $action) {
+                            return $action
+                                ->modalHeading('Create Product Mix')
+                                ->modalSubmitActionLabel('Create Mix')
+                                ->modalWidth('2xl');
+                        })
+                        ->helperText('Select an existing mix or create a new one if this product uses multiple seed varieties.'),
                     Toggle::make('active')
                         ->label('Active')
                         ->default(true),
@@ -295,47 +388,142 @@ class ProductResource extends BaseResource
                         ->helperText('Whether this product is visible to customers in the online store'),
                 ])
                 ->columns(3),
-            Step::make('Pricing')
+            Step::make('Pricing & Variations')
                 ->icon('heroicon-o-currency-dollar')
                 ->schema([
-                    Forms\Components\Grid::make(2)
+                    Forms\Components\Section::make('Price Variations')
+                        ->description('Create flexible pricing variations for different customer types, units, weights, and packaging options.')
                         ->schema([
-                            Forms\Components\TextInput::make('base_price')
-                                ->label('Base Price')
-                                ->numeric()
-                                ->prefix('$')
-                                ->required()
-                                ->minValue(0)
-                                ->step(0.01)
-                                ->helperText('Standard price for retail customers.'),
-                            Forms\Components\TextInput::make('wholesale_price')
-                                ->label('Wholesale Price')
-                                ->numeric()
-                                ->prefix('$')
-                                ->minValue(0)
-                                ->step(0.01)
-                                ->helperText('Discounted price for wholesale customers.'),
+                            Forms\Components\Repeater::make('priceVariations')
+                                ->relationship('priceVariations')
+                                ->schema([
+                                    Forms\Components\Grid::make(3)
+                                        ->schema([
+                                            Forms\Components\TextInput::make('name')
+                                                ->label('Variation Name')
+                                                ->required()
+                                                ->placeholder('e.g., Retail, Wholesale, 4oz Container')
+                                                ->maxLength(255),
+                                            Forms\Components\Select::make('packaging_type_id')
+                                                ->label('Packaging')
+                                                ->relationship('packagingType', 'name')
+                                                ->getOptionLabelFromRecordUsing(fn (\App\Models\PackagingType $record): string => $record->display_name)
+                                                ->searchable()
+                                                ->preload()
+                                                ->reactive()
+                                                ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                                                    if ($state) {
+                                                        $packaging = \App\Models\PackagingType::find($state);
+                                                        if ($packaging && empty($get('name'))) {
+                                                            $set('name', $packaging->display_name);
+                                                        }
+                                                    }
+                                                })
+                                                ->helperText('Select the container/packaging type'),
+                                            Forms\Components\TextInput::make('sku')
+                                                ->label('SKU')
+                                                ->placeholder('Optional product SKU')
+                                                ->maxLength(100),
+                                        ]),
+                                    Forms\Components\Grid::make(2)
+                                        ->schema([
+                                            Forms\Components\TextInput::make('fill_weight_grams')
+                                                ->label('Product Fill Weight (grams)')
+                                                ->numeric()
+                                                ->minValue(0)
+                                                ->step(0.01)
+                                                ->placeholder('e.g., 113.4')
+                                                ->helperText('How much product (in grams) goes into this packaging')
+                                                ->suffix('g'),
+                                            Forms\Components\TextInput::make('price')
+                                                ->label('Price')
+                                                ->numeric()
+                                                ->prefix('$')
+                                                ->required()
+                                                ->minValue(0)
+                                                ->step(0.01)
+                                                ->reactive(),
+                                        ]),
+                                    Forms\Components\Grid::make(2)
+                                        ->schema([
+                                            Forms\Components\Toggle::make('is_default')
+                                                ->label('Default Price')
+                                                ->helperText('One variation must be default'),
+                                            Forms\Components\Toggle::make('is_active')
+                                                ->label('Active')
+                                                ->default(true),
+                                        ]),
+                                ])
+                                ->defaultItems(1)
+                                ->addActionLabel('Add Price Variation')
+                                ->reorderableWithButtons()
+                                ->collapsible()
+                                ->itemLabel(fn (array $state): ?string => 
+                                    $state['name'] ?? 'New Variation'
+                                )
+                                ->columnSpanFull(),
                         ]),
-                    Forms\Components\Grid::make(2)
+                    
+                    Forms\Components\Section::make('Quick Setup')
+                        ->description('Use these templates to quickly create common pricing variations.')
                         ->schema([
-                            Forms\Components\TextInput::make('bulk_price')
-                                ->label('Bulk Price')
-                                ->numeric()
-                                ->prefix('$')
-                                ->minValue(0)
-                                ->step(0.01)
-                                ->helperText('Discounted price for bulk purchases.'),
-                            Forms\Components\TextInput::make('special_price')
-                                ->label('Special Price')
-                                ->numeric()
-                                ->prefix('$')
-                                ->minValue(0)
-                                ->step(0.01)
-                                ->helperText('Special promotional price.'),
-                        ]),
-                    Forms\Components\Placeholder::make('price_variations_info')
-                        ->content('Price variations will be automatically created based on the prices entered above. After saving, you can add additional variations or modify existing ones.')
-                        ->columnSpanFull(),
+                            Forms\Components\Actions::make([
+                                Forms\Components\Actions\Action::make('add_retail_wholesale')
+                                    ->label('Add Retail + Wholesale')
+                                    ->icon('heroicon-o-plus')
+                                    ->color('primary')
+                                    ->action(function ($livewire) {
+                                        $variations = $livewire->data['priceVariations'] ?? [];
+                                        $variations[] = ['name' => 'Retail', 'price' => 0, 'is_default' => true, 'is_active' => true];
+                                        $variations[] = ['name' => 'Wholesale', 'price' => 0, 'is_default' => false, 'is_active' => true];
+                                        $livewire->data['priceVariations'] = $variations;
+                                    }),
+                                Forms\Components\Actions\Action::make('add_packaging_based')
+                                    ->label('Add Common Packaging Sizes')
+                                    ->icon('heroicon-o-archive-box')
+                                    ->color('success')
+                                    ->action(function ($livewire) {
+                                        $variations = $livewire->data['priceVariations'] ?? [];
+                                        
+                                        // Get common packaging types (16oz and 32oz clamshells)
+                                        $packaging16oz = \App\Models\PackagingType::where('capacity_volume', 16)->where('volume_unit', 'oz')->first();
+                                        $packaging32oz = \App\Models\PackagingType::where('capacity_volume', 32)->where('volume_unit', 'oz')->first();
+                                        
+                                        if ($packaging16oz) {
+                                            $variations[] = [
+                                                'name' => $packaging16oz->display_name,
+                                                'packaging_type_id' => $packaging16oz->id,
+                                                'price' => 0,
+                                                'is_default' => empty($variations),
+                                                'is_active' => true
+                                            ];
+                                        }
+                                        
+                                        if ($packaging32oz) {
+                                            $variations[] = [
+                                                'name' => $packaging32oz->display_name,
+                                                'packaging_type_id' => $packaging32oz->id,
+                                                'price' => 0,
+                                                'is_default' => false,
+                                                'is_active' => true
+                                            ];
+                                        }
+                                        
+                                        $livewire->data['priceVariations'] = $variations;
+                                    }),
+                            ])
+                        ])
+                        ->visible(fn ($livewire) => empty($livewire->data['priceVariations'] ?? [])),
+                    
+                    Forms\Components\Section::make('Pricing Preview')
+                        ->description('Live preview of your pricing structure.')
+                        ->schema([
+                            \App\Forms\Components\PriceVariationsPreview::make('price_preview')
+                                ->label('')
+                                ->reactive(),
+                        ])
+                        ->visible(fn ($livewire) => !empty($livewire->data['priceVariations'] ?? [])),
+                        
                     Forms\Components\ViewField::make('price_calculator')
                         ->view('livewire.product-price-calculator')
                         ->visible(function ($livewire) {

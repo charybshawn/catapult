@@ -3,10 +3,10 @@
 namespace App\Filament\Resources\OrderResource\Pages;
 
 use App\Filament\Resources\OrderResource;
+use App\Filament\Pages\Base\BaseEditRecord;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
 
-class EditOrder extends EditRecord
+class EditOrder extends BaseEditRecord
 {
     protected static string $resource = OrderResource::class;
 
@@ -15,10 +15,5 @@ class EditOrder extends EditRecord
         return [
             Actions\DeleteAction::make(),
         ];
-    }
-    
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
     }
 } 

@@ -5,13 +5,13 @@ namespace App\Filament\Resources\CropResource\Pages;
 use App\Filament\Resources\CropResource;
 use App\Models\Crop;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Pages\Base\BaseEditRecord;
 use Filament\Forms\Components;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Filament\Notifications\Notification;
 
-class EditCrop extends EditRecord
+class EditCrop extends BaseEditRecord
 {
     protected static string $resource = CropResource::class;
 
@@ -147,10 +147,5 @@ class EditCrop extends EditRecord
         $notification->success()->send();
         
         return $record;
-    }
-    
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
     }
 } 

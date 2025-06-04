@@ -25,6 +25,16 @@ class Order extends Model
         'delivery_date',
         'status',
         'customer_type',
+        'is_recurring',
+        'parent_recurring_order_id',
+        'recurring_frequency',
+        'recurring_start_date',
+        'recurring_end_date',
+        'is_recurring_active',
+        'recurring_days_of_week',
+        'recurring_interval',
+        'last_generated_at',
+        'next_generation_date',
         'notes',
     ];
     
@@ -36,7 +46,52 @@ class Order extends Model
     protected $casts = [
         'harvest_date' => 'date',
         'delivery_date' => 'date',
+        'recurring_start_date' => 'date',
+        'recurring_end_date' => 'date',
+        'is_recurring' => 'boolean',
+        'is_recurring_active' => 'boolean',
+        'recurring_days_of_week' => 'array',
+        'last_generated_at' => 'datetime',
+        'next_generation_date' => 'datetime',
     ];
+    
+    /**
+     * Boot the model.
+     */
+    protected static function boot()
+    {
+        parent::boot();
+        
+        static::creating(function ($order) {
+            // Set default status for new orders
+            if (!$order->status) {
+                $order->status = $order->is_recurring ? 'template' : 'pending';
+            }
+        });
+        
+        static::saving(function ($order) {
+            // Automatically set recurring_start_date based on harvest_date when marking as recurring
+            if ($order->is_recurring && !$order->recurring_start_date && $order->harvest_date) {
+                $order->recurring_start_date = $order->harvest_date;
+            }
+            
+            // Automatically set status to template when marked as recurring
+            if ($order->is_recurring && $order->status !== 'template') {
+                $order->status = 'template';
+            } elseif (!$order->is_recurring && $order->status === 'template') {
+                // If no longer recurring, change status from template to pending
+                $order->status = 'pending';
+            }
+            
+            // Automatically set customer_type from user if not set
+            if (!$order->customer_type && $order->user_id) {
+                $user = $order->user_id ? User::find($order->user_id) : null;
+                if ($user) {
+                    $order->customer_type = $user->customer_type ?? 'retail';
+                }
+            }
+        });
+    }
     
     /**
      * Get the user (customer) for this order.
@@ -171,12 +226,189 @@ class Order extends Model
     }
 
     /**
+     * Get the parent recurring order template.
+     */
+    public function parentRecurringOrder(): BelongsTo
+    {
+        return $this->belongsTo(Order::class, 'parent_recurring_order_id');
+    }
+    
+    /**
+     * Get the child orders generated from this recurring order template.
+     */
+    public function generatedOrders(): HasMany
+    {
+        return $this->hasMany(Order::class, 'parent_recurring_order_id');
+    }
+    
+    /**
+     * Check if this is a recurring order template.
+     */
+    public function isRecurringTemplate(): bool
+    {
+        return $this->is_recurring && $this->parent_recurring_order_id === null;
+    }
+    
+    /**
+     * Check if this order was generated from a recurring template.
+     */
+    public function isGeneratedFromRecurring(): bool
+    {
+        return $this->parent_recurring_order_id !== null;
+    }
+    
+    /**
+     * Calculate the next generation date based on frequency and settings.
+     */
+    public function calculateNextGenerationDate(): ?\Carbon\Carbon
+    {
+        if (!$this->isRecurringTemplate() || !$this->is_recurring_active) {
+            return null;
+        }
+        
+        $lastGenerated = $this->last_generated_at ?? $this->recurring_start_date;
+        if (!$lastGenerated) {
+            return null;
+        }
+        
+        $lastDate = $lastGenerated instanceof \Carbon\Carbon ? $lastGenerated : \Carbon\Carbon::parse($lastGenerated);
+        
+        return match($this->recurring_frequency) {
+            'weekly' => $lastDate->addWeek(),
+            'biweekly' => $lastDate->addWeeks($this->recurring_interval ?? 2),
+            'monthly' => $lastDate->addMonth(),
+            default => null
+        };
+    }
+    
+    /**
+     * Generate the next order in the recurring series.
+     */
+    public function generateNextRecurringOrder(): ?Order
+    {
+        if (!$this->isRecurringTemplate() || !$this->is_recurring_active) {
+            return null;
+        }
+        
+        // Check if we're past the end date
+        if ($this->recurring_end_date && now()->gt($this->recurring_end_date)) {
+            $this->update(['is_recurring_active' => false]);
+            return null;
+        }
+        
+        $nextDate = $this->calculateNextGenerationDate();
+        if (!$nextDate) {
+            return null;
+        }
+        
+        // Create new order based on template
+        $newOrder = $this->replicate([
+            'is_recurring',
+            'recurring_frequency',
+            'recurring_start_date', 
+            'recurring_end_date',
+            'recurring_days_of_week',
+            'recurring_interval',
+            'last_generated_at',
+            'next_generation_date'
+        ]);
+        
+        $newOrder->parent_recurring_order_id = $this->id;
+        $newOrder->harvest_date = $nextDate->copy();
+        $newOrder->delivery_date = $nextDate->copy()->addDay(); // Delivery next day
+        $newOrder->status = 'pending';
+        $newOrder->save();
+        
+        // Copy order items
+        foreach ($this->orderItems as $item) {
+            $newOrder->orderItems()->create([
+                'item_id' => $item->item_id,
+                'name' => $item->name,
+                'quantity' => $item->quantity,
+                'price' => $item->price,
+                'notes' => $item->notes,
+            ]);
+        }
+        
+        // Copy packaging
+        foreach ($this->packagingTypes as $packaging) {
+            $newOrder->packagingTypes()->attach($packaging->id, [
+                'quantity' => $packaging->pivot->quantity,
+                'notes' => $packaging->pivot->notes,
+            ]);
+        }
+        
+        // Update template's last generated date
+        $this->update([
+            'last_generated_at' => now(),
+            'next_generation_date' => $this->calculateNextGenerationDate()
+        ]);
+        
+        return $newOrder;
+    }
+    
+    /**
+     * Get formatted recurring frequency display.
+     */
+    public function getRecurringFrequencyDisplayAttribute(): string
+    {
+        if (!$this->is_recurring) {
+            return 'Not recurring';
+        }
+        
+        return match($this->recurring_frequency) {
+            'weekly' => 'Weekly',
+            'biweekly' => 'Every ' . ($this->recurring_interval ?? 2) . ' weeks',
+            'monthly' => 'Monthly',
+            default => 'Unknown frequency'
+        };
+    }
+    
+    /**
+     * Get the total number of generated orders.
+     */
+    public function getGeneratedOrdersCountAttribute(): int
+    {
+        return $this->generatedOrders()->count();
+    }
+
+    /**
+     * Get the customer type (from order or user).
+     */
+    public function getCustomerTypeAttribute($value)
+    {
+        // If order has customer_type set, use it
+        if ($value) {
+            return $value;
+        }
+        
+        // Otherwise get from user
+        return $this->user?->customer_type ?? 'retail';
+    }
+    
+    /**
+     * Get the customer type display name.
+     */
+    public function getCustomerTypeDisplayAttribute(): string
+    {
+        return match($this->customer_type) {
+            'wholesale' => 'Wholesale',
+            'retail' => 'Retail',
+            default => 'Retail',
+        };
+    }
+    
+    /**
      * Configure the activity log options for this model.
      */
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['user_id', 'harvest_date', 'delivery_date', 'status', 'customer_type', 'notes'])
+            ->logOnly([
+                'user_id', 'harvest_date', 'delivery_date', 'status', 'customer_type', 
+                'is_recurring', 'recurring_frequency', 'recurring_start_date', 'recurring_end_date',
+                'is_recurring_active', 'notes'
+            ])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->setDescriptionForEvent(fn(string $eventName) => "Order was {$eventName}");

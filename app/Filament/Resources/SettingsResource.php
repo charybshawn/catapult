@@ -22,8 +22,8 @@ class SettingsResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-cog-6-tooth';
     protected static ?string $navigationLabel = 'Settings';
-    protected static ?string $navigationGroup = 'Administration';
-    protected static ?int $navigationSort = 30;
+    protected static ?string $navigationGroup = 'System & Settings';
+    protected static ?int $navigationSort = 3;
     
     protected static ?string $recordTitleAttribute = 'key';
 
@@ -132,10 +132,11 @@ class SettingsResource extends Resource
                     ->searchable(),
                 Tables\Columns\TextColumn::make('value')
                     ->searchable(),
+                Tables\Columns\TextColumn::make('description')
+                    ->searchable()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('type')
                     ->badge(),
-                Tables\Columns\TextColumn::make('group')
-                    ->searchable(),
                 Tables\Columns\TextColumn::make('updated_at')
                     ->dateTime()
                     ->sortable(),
@@ -149,8 +150,6 @@ class SettingsResource extends Resource
                         'boolean' => 'Boolean',
                         'json' => 'JSON',
                     ]),
-                Tables\Filters\SelectFilter::make('group')
-                    ->options(fn () => Setting::distinct('group')->pluck('group', 'group')->toArray()),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

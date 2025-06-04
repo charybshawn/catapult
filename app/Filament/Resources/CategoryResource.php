@@ -42,9 +42,9 @@ class CategoryResource extends BaseResource
                 static::getTextColumn('name', 'Name'),
                 static::getTruncatedTextColumn('description', 'Description'),
                 static::getActiveBadgeColumn(),
-                Tables\Columns\TextColumn::make('items_count')
+                Tables\Columns\TextColumn::make('products_count')
                     ->label('Products')
-                    ->counts('items')
+                    ->counts('products')
                     ->sortable()
                     ->color('primary'),
                 ...static::getTimestampColumns(),

@@ -19,10 +19,10 @@ class PriceVariation extends Model
      */
     protected $fillable = [
         'product_id',
+        'packaging_type_id',
         'name',
-        'unit',
         'sku',
-        'weight',
+        'fill_weight_grams',
         'price',
         'is_default',
         'is_global',
@@ -38,18 +38,13 @@ class PriceVariation extends Model
         'is_default' => 'boolean',
         'is_global' => 'boolean',
         'is_active' => 'boolean',
-        'weight' => 'float',
+        'fill_weight_grams' => 'decimal:2',
         'price' => 'decimal:2',
     ];
 
     protected static function booted()
     {
         static::creating(function ($priceVariation) {
-            // Ensure weight is never null
-            if (is_null($priceVariation->weight)) {
-                $priceVariation->weight = 0;
-            }
-            
             // Set product_id to NULL for global price variations
             if ($priceVariation->is_global) {
                 $priceVariation->product_id = null;
@@ -64,11 +59,6 @@ class PriceVariation extends Model
         });
         
         static::updating(function ($priceVariation) {
-            // Ensure weight is never null
-            if (is_null($priceVariation->weight)) {
-                $priceVariation->weight = 0;
-            }
-            
             // Set product_id to NULL for global price variations
             if ($priceVariation->is_global && !$priceVariation->isDirty('is_global')) {
                 $priceVariation->product_id = null;
@@ -103,6 +93,14 @@ class PriceVariation extends Model
     }
 
     /**
+     * Get the packaging type for this price variation.
+     */
+    public function packagingType(): BelongsTo
+    {
+        return $this->belongsTo(PackagingType::class, 'packaging_type_id');
+    }
+
+    /**
      * Get the item that owns the price variation.
      * 
      * @deprecated Use product() instead
@@ -120,10 +118,10 @@ class PriceVariation extends Model
         return LogOptions::defaults()
             ->logOnly([
                 'product_id',
+                'packaging_type_id',
                 'name',
-                'unit',
                 'sku',
-                'weight',
+                'fill_weight_grams',
                 'price',
                 'is_default',
                 'is_global',

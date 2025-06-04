@@ -31,14 +31,11 @@ class Product extends Model
     protected $fillable = [
         'name',
         'description',
+        'sku',
         'active',
         'image',
         'category_id',
         'is_visible_in_store',
-        'base_price',
-        'wholesale_price',
-        'bulk_price',
-        'special_price',
         'product_mix_id',
     ];
     
@@ -156,16 +153,20 @@ class Product extends Model
     }
 
     /**
-     * Get the price for a given unit and quantity.
+     * Get the price for a given packaging type or default.
      */
-    public function getPrice(string $unit = 'item', float $quantity = 1): float
+    public function getPrice(?int $packagingTypeId = null, float $quantity = 1): float
     {
-        // Find a price variation that matches the unit
-        $variation = $this->priceVariations()
-            ->where('unit', $unit)
-            ->where('is_active', true)
-            ->orderBy('price')
-            ->first();
+        // Find a price variation that matches the packaging type
+        if ($packagingTypeId) {
+            $variation = $this->priceVariations()
+                ->where('packaging_type_id', $packagingTypeId)
+                ->where('is_active', true)
+                ->orderBy('price')
+                ->first();
+        } else {
+            $variation = null;
+        }
 
         // If no matching variation found, try to get the default
         if (!$variation) {
@@ -320,7 +321,7 @@ class Product extends Model
         $defaultPhoto = $this->defaultPhoto()->first();
         
         if ($defaultPhoto) {
-            return $defaultPhoto->photo_path;
+            return $defaultPhoto->photo;
         }
         
         // Return the legacy image field or a placeholder
@@ -359,7 +360,6 @@ class Product extends Model
     {
         $defaultAttributes = [
             'name' => 'Default',
-            'unit' => 'item',
             'price' => $this->base_price ?? 0,
             'is_default' => true,
             'is_active' => true,
@@ -378,7 +378,6 @@ class Product extends Model
     {
         return $this->priceVariations()->create([
             'name' => 'Wholesale',
-            'unit' => 'item',
             'price' => $price ?? $this->wholesale_price ?? $this->base_price ?? 0,
             'is_default' => false,
             'is_active' => true,
@@ -395,7 +394,6 @@ class Product extends Model
     {
         return $this->priceVariations()->create([
             'name' => 'Bulk',
-            'unit' => 'item',
             'price' => $price ?? $this->bulk_price ?? $this->base_price ?? 0,
             'is_default' => false,
             'is_active' => true,
@@ -412,7 +410,6 @@ class Product extends Model
     {
         return $this->priceVariations()->create([
             'name' => 'Special',
-            'unit' => 'item',
             'price' => $price ?? $this->special_price ?? $this->base_price ?? 0,
             'is_default' => false,
             'is_active' => true,
@@ -424,15 +421,15 @@ class Product extends Model
      * 
      * @param string $name Name of the price variation
      * @param float $price Price for this variation
-     * @param string $unit Unit for this variation (default: 'item')
+     * @param int|null $packagingTypeId Packaging type ID (optional)
      * @param array $additionalAttributes Additional attributes to set
      * @return \App\Models\PriceVariation
      */
-    public function createCustomPriceVariation(string $name, float $price, string $unit = 'item', array $additionalAttributes = [])
+    public function createCustomPriceVariation(string $name, float $price, ?int $packagingTypeId = null, array $additionalAttributes = [])
     {
         $attributes = array_merge([
             'name' => $name,
-            'unit' => $unit,
+            'packaging_type_id' => $packagingTypeId,
             'price' => $price,
             'is_default' => false,
             'is_active' => true,

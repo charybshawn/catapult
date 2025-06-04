@@ -5,10 +5,10 @@ namespace App\Filament\Resources\CropAlertResource\Pages;
 use App\Filament\Resources\CropAlertResource;
 use App\Services\CropTaskService;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Pages\Base\BaseEditRecord;
 use Filament\Notifications\Notification;
 
-class EditCropAlert extends EditRecord
+class EditCropAlert extends BaseEditRecord
 {
     protected static string $resource = CropAlertResource::class;
 
@@ -49,10 +49,5 @@ class EditCropAlert extends EditRecord
                 ->modalDescription('Are you sure you want to execute this alert now? This will advance the crop to the next stage immediately.'),
             Actions\DeleteAction::make(),
         ];
-    }
-    
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
     }
 } 

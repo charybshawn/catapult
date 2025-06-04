@@ -4,9 +4,9 @@ namespace App\Filament\Resources\SeedCultivarResource\Pages;
 
 use App\Filament\Resources\SeedCultivarResource;
 use Filament\Actions;
-use Filament\Resources\Pages\CreateRecord;
+use App\Filament\Pages\Base\BaseCreateRecord;
 
-class CreateSeedCultivar extends CreateRecord
+class CreateSeedCultivar extends BaseCreateRecord
 {
     protected static string $resource = SeedCultivarResource::class;
 }

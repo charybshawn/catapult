@@ -30,9 +30,9 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
     
     protected static ?string $title = 'Upload Seed Data';
     
-    protected static ?string $navigationGroup = 'Seed Inventory';
+    protected static ?string $navigationGroup = 'Seed Management';
     
-    protected static ?int $navigationSort = 30;
+    protected static ?int $navigationSort = 6;
     
     public $jsonFiles = [];
     

@@ -3,14 +3,9 @@
 namespace App\Filament\Resources\SettingsResource\Pages;
 
 use App\Filament\Resources\SettingsResource;
-use Filament\Resources\Pages\CreateRecord;
+use App\Filament\Pages\Base\BaseCreateRecord;
 
-class CreateSetting extends CreateRecord
+class CreateSetting extends BaseCreateRecord
 {
     protected static string $resource = SettingsResource::class;
-    
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
-    }
 } 

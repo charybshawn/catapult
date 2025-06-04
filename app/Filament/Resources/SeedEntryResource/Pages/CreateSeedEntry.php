@@ -4,14 +4,9 @@ namespace App\Filament\Resources\SeedEntryResource\Pages;
 
 use App\Filament\Resources\SeedEntryResource;
 use Filament\Actions;
-use Filament\Resources\Pages\CreateRecord;
+use App\Filament\Pages\Base\BaseCreateRecord;
 
-class CreateSeedEntry extends CreateRecord
+class CreateSeedEntry extends BaseCreateRecord
 {
     protected static string $resource = SeedEntryResource::class;
-    
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
-    }
 } 

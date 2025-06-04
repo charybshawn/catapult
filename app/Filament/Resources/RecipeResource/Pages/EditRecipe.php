@@ -9,7 +9,7 @@ use App\Models\RecipeStage;
 use App\Models\RecipeWateringSchedule;
 use App\Models\Consumable;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Pages\Base\BaseEditRecord;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
 use Filament\Forms\Components\Section;
@@ -25,7 +25,7 @@ use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Forms\Components\TextEntry;
 
-class EditRecipe extends EditRecord
+class EditRecipe extends BaseEditRecord
 {
     protected static string $resource = RecipeResource::class;
     

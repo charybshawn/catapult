@@ -5,9 +5,9 @@ namespace App\Filament\Resources\PriceVariationResource\Pages;
 use App\Filament\Resources\PriceVariationResource;
 use App\Models\PriceVariation;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Pages\Base\BaseEditRecord;
 
-class EditPriceVariation extends EditRecord
+class EditPriceVariation extends BaseEditRecord
 {
     protected static string $resource = PriceVariationResource::class;
 

@@ -4,9 +4,9 @@ namespace App\Filament\Resources\SettingsResource\Pages;
 
 use App\Filament\Resources\SettingsResource;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Pages\Base\BaseEditRecord;
 
-class EditSetting extends EditRecord
+class EditSetting extends BaseEditRecord
 {
     protected static string $resource = SettingsResource::class;
 
@@ -15,10 +15,5 @@ class EditSetting extends EditRecord
         return [
             Actions\DeleteAction::make(),
         ];
-    }
-    
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
     }
 } 

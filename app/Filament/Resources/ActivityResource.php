@@ -19,9 +19,9 @@ class ActivityResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
 
-    protected static ?string $navigationGroup = 'Administration';
-
-    protected static ?int $navigationSort = 100;
+    protected static ?string $navigationGroup = 'System & Settings';
+    
+    protected static ?int $navigationSort = 2;
 
     public static function form(Form $form): Form
     {

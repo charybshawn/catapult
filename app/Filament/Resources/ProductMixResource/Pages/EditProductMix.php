@@ -3,10 +3,10 @@
 namespace App\Filament\Resources\ProductMixResource\Pages;
 
 use App\Filament\Resources\ProductMixResource;
+use App\Filament\Pages\Base\BaseEditRecord;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
 
-class EditProductMix extends EditRecord
+class EditProductMix extends BaseEditRecord
 {
     protected static string $resource = ProductMixResource::class;
 

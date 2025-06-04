@@ -19,8 +19,8 @@ class SeedVarietyResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
     protected static ?string $navigationLabel = 'Seed Varieties';
-    protected static ?string $navigationGroup = 'Inventory & Supplies';
-    protected static ?int $navigationSort = 3;
+    protected static ?string $navigationGroup = 'Seed Management';
+    protected static ?int $navigationSort = 1;
 
     public static function form(Form $form): Form
     {

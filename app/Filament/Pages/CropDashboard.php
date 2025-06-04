@@ -9,9 +9,10 @@ class CropDashboard extends Page
 {
     protected static ?string $navigationIcon = null;
     protected static ?string $navigationLabel = 'Crop Alerts';
-    protected static ?string $navigationGroup = 'Dashboards';
+    protected static ?string $navigationGroup = 'Production Management';
+    
+    protected static ?int $navigationSort = 4;
     protected static ?string $title = 'Crop Alerts Dashboard';
-    protected static ?int $navigationSort = 2;
     
     protected static string $view = 'filament.pages.crop-dashboard';
     

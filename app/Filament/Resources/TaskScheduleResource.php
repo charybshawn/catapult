@@ -29,8 +29,9 @@ class TaskScheduleResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-bell-alert';
     protected static ?string $navigationLabel = 'Crop Alerts';
-    protected static ?string $navigationGroup = 'Farm Operations';
-    protected static ?int $navigationSort = 3;
+    protected static ?string $navigationGroup = 'System & Settings';
+    
+    protected static ?int $navigationSort = 4;
     
     protected static ?string $recordTitleAttribute = 'task_name';
     protected static ?string $modelLabel = 'Crop Alert';
