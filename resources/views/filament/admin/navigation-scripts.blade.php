@@ -189,39 +189,36 @@ const NavigationCollapse = {
     setupClickListeners() {
         console.log('Setting up click listeners...');
         
-        // Find text that looks like our navigation groups
-        const groupNames = [
-            'Dashboard & Overview',
-            'Production Management', 
-            'Seed Management',
-            'Inventory & Materials',
-            'Sales & Products',
-            'Order Management',
-            'Analytics & Reports',
-            'System & Settings'
-        ];
+        // Work with Filament's native structure
+        const groups = document.querySelectorAll('.fi-sidebar-group');
+        console.log('Found Filament sidebar groups:', groups.length);
         
-        // Look for elements containing these group names
-        groupNames.forEach(groupName => {
-            const elements = Array.from(document.querySelectorAll('*')).filter(el => {
-                const text = el.textContent?.trim();
-                return text === groupName || text?.includes(groupName);
-            });
+        groups.forEach((group, index) => {
+            const label = group.querySelector('.fi-sidebar-group-label');
+            const button = group.querySelector('.fi-sidebar-group-collapse-button');
+            const items = group.querySelector('.fi-sidebar-group-items');
             
-            console.log(`Found ${elements.length} elements for group "${groupName}"`);
-            
-            elements.forEach(el => {
-                // Make it clickable if it's not already
-                if (!el.hasAttribute('data-nav-toggle')) {
-                    el.setAttribute('data-nav-toggle', groupName);
-                    el.style.cursor = 'pointer';
+            if (label) {
+                const groupName = label.textContent?.trim();
+                console.log(`Group ${index}: "${groupName}"`);
+                
+                // Add our own click handler that also saves to backend
+                if (button && !button.hasAttribute('data-backend-sync')) {
+                    button.setAttribute('data-backend-sync', 'true');
                     
-                    el.addEventListener('click', (e) => {
-                        console.log('Group clicked:', groupName);
-                        this.toggleGroup(groupName, el);
+                    button.addEventListener('click', () => {
+                        console.log('Filament group toggled:', groupName);
+                        
+                        // Wait a moment for Filament's animation to complete
+                        setTimeout(() => {
+                            const isCollapsed = items?.style.display === 'none' || 
+                                             button?.classList.contains('rotate-180');
+                            console.log('Group state after toggle:', groupName, isCollapsed);
+                            this.saveGroupState(groupName, isCollapsed);
+                        }, 100);
                     });
                 }
-            });
+            }
         });
     },
     
@@ -259,6 +256,22 @@ const NavigationCollapse = {
     async toggleAllGroups() {
         console.log('Toggle all groups called');
         
+        // Check current state - if any groups are expanded, collapse all. Otherwise expand all.
+        const groups = document.querySelectorAll('.fi-sidebar-group');
+        let hasExpanded = false;
+        
+        groups.forEach(group => {
+            const button = group.querySelector('.fi-sidebar-group-collapse-button');
+            const items = group.querySelector('.fi-sidebar-group-items');
+            
+            if (items && items.style.display !== 'none' && !button?.classList.contains('rotate-180')) {
+                hasExpanded = true;
+            }
+        });
+        
+        const shouldCollapse = hasExpanded;
+        console.log('Should collapse all groups:', shouldCollapse);
+        
         try {
             const response = await fetch('/api/navigation-preferences/toggle-all', {
                 method: 'POST',
@@ -269,7 +282,7 @@ const NavigationCollapse = {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content
                 },
                 body: JSON.stringify({
-                    collapsed: true // Always collapse for now
+                    collapsed: shouldCollapse
                 })
             });
             
@@ -277,11 +290,38 @@ const NavigationCollapse = {
                 const data = await response.json();
                 console.log('Toggle all response:', data);
                 
-                // Apply the changes to all groups
+                // Apply the changes to all groups using Filament's structure
                 const collapsedGroups = data.navigation?.collapsed_groups || {};
-                Object.entries(collapsedGroups).forEach(([groupName, isCollapsed]) => {
-                    this.applyGroupState(groupName, isCollapsed);
+                
+                groups.forEach(group => {
+                    const label = group.querySelector('.fi-sidebar-group-label');
+                    const button = group.querySelector('.fi-sidebar-group-collapse-button');
+                    const items = group.querySelector('.fi-sidebar-group-items');
+                    
+                    if (label && button && items) {
+                        const groupName = label.textContent?.trim();
+                        const shouldBeCollapsed = collapsedGroups[groupName];
+                        
+                        if (shouldBeCollapsed !== undefined) {
+                            if (shouldBeCollapsed) {
+                                // Collapse: hide items and rotate button
+                                items.style.display = 'none';
+                                button.classList.add('rotate-180');
+                            } else {
+                                // Expand: show items and reset button
+                                items.style.display = '';
+                                button.classList.remove('rotate-180');
+                            }
+                        }
+                    }
                 });
+                
+                // Update button text
+                const toggleButton = document.querySelector('.nav-toggle-all');
+                if (toggleButton) {
+                    toggleButton.textContent = shouldCollapse ? 'Expand All Navigation Groups' : 'Collapse All Navigation Groups';
+                }
+                
             } else {
                 console.error('Toggle all failed:', response.status);
             }
@@ -293,20 +333,29 @@ const NavigationCollapse = {
     applyGroupState(groupName, collapsed) {
         console.log('Applying state:', groupName, collapsed);
         
-        // Find all elements with this group name
-        const elements = document.querySelectorAll(`[data-nav-toggle="${groupName}"]`);
-        elements.forEach(el => {
-            const parent = el.closest('li, div, section');
-            if (parent) {
-                const items = parent.querySelector('ul, ol, .items, [class*="items"]');
-                if (items) {
-                    items.style.display = collapsed ? 'none' : '';
-                    el.setAttribute('data-collapsed', collapsed);
-                    
-                    // Update visual
-                    el.textContent = el.textContent.replace(' ▶', '').replace(' ▼', '');
-                    el.textContent = el.textContent + (collapsed ? ' ▶' : ' ▼');
+        // Find the Filament sidebar group with this name
+        const groups = document.querySelectorAll('.fi-sidebar-group');
+        
+        groups.forEach(group => {
+            const label = group.querySelector('.fi-sidebar-group-label');
+            const button = group.querySelector('.fi-sidebar-group-collapse-button');
+            const items = group.querySelector('.fi-sidebar-group-items');
+            
+            if (label && label.textContent?.trim() === groupName) {
+                console.log('Found matching group:', groupName);
+                
+                if (button && items) {
+                    if (collapsed) {
+                        // Collapse: hide items and rotate button
+                        items.style.display = 'none';
+                        button.classList.add('rotate-180');
+                    } else {
+                        // Expand: show items and reset button
+                        items.style.display = '';
+                        button.classList.remove('rotate-180');
+                    }
                 }
+                return;
             }
         });
     },
