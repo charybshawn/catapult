@@ -374,7 +374,7 @@ class Product extends Model
      * @param float|null $price Optional price to override the default wholesale price
      * @return \App\Models\PriceVariation
      */
-    public function createWholesalePriceVariation(float $price = null)
+    public function createWholesalePriceVariation(?float $price = null)
     {
         return $this->priceVariations()->create([
             'name' => 'Wholesale',
@@ -390,7 +390,7 @@ class Product extends Model
      * @param float|null $price Optional price to override the default bulk price
      * @return \App\Models\PriceVariation
      */
-    public function createBulkPriceVariation(float $price = null)
+    public function createBulkPriceVariation(?float $price = null)
     {
         return $this->priceVariations()->create([
             'name' => 'Bulk',
@@ -406,7 +406,7 @@ class Product extends Model
      * @param float|null $price Optional price to override the default special price
      * @return \App\Models\PriceVariation
      */
-    public function createSpecialPriceVariation(float $price = null)
+    public function createSpecialPriceVariation(?float $price = null)
     {
         return $this->priceVariations()->create([
             'name' => 'Special',

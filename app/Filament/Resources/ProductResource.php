@@ -17,8 +17,6 @@ use Filament\Forms\Components\View;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Grid;
-use Filament\Forms\Components\Wizard;
-use Filament\Forms\Components\Wizard\Step;
 use Filament\Forms\Components\Radio;
 use Filament\Notifications\Notification;
 use Filament\Forms\Components\Placeholder;
@@ -40,12 +38,7 @@ class ProductResource extends BaseResource
     public static function form(Form $form): Form
     {
         return $form
-            ->schema([
-                Wizard::make(static::getFormSchema($form->getLivewire()))
-                    ->skippable()
-                    ->persistStepInQueryString('product-step')
-                    ->columnSpanFull(),
-            ]);
+            ->schema(static::getSinglePageFormSchema());
     }
 
     public static function table(Table $table): Table
@@ -273,6 +266,97 @@ class ProductResource extends BaseResource
         ];
     }
     
+    /**
+     * Get the single-page form schema
+     */
+    public static function getSinglePageFormSchema(): array
+    {
+        return [
+            Forms\Components\Section::make('Product Information')
+                ->schema([
+                    Forms\Components\Grid::make(3)
+                        ->schema([
+                            Forms\Components\TextInput::make('name')
+                                ->required()
+                                ->maxLength(255)
+                                ->columnSpan(2),
+                            Forms\Components\TextInput::make('sku')
+                                ->label('Product SKU')
+                                ->maxLength(255)
+                                ->helperText('Optional unique identifier'),
+                        ]),
+                    Forms\Components\Textarea::make('description')
+                        ->maxLength(65535)
+                        ->rows(3)
+                        ->columnSpanFull(),
+                    Forms\Components\Grid::make(3)
+                        ->schema([
+                            Forms\Components\Select::make('category_id')
+                                ->relationship('category', 'name')
+                                ->searchable()
+                                ->preload()
+                                ->createOptionForm([
+                                    Forms\Components\TextInput::make('name')
+                                        ->required()
+                                        ->maxLength(255),
+                                    Forms\Components\Textarea::make('description')
+                                        ->maxLength(65535),
+                                    Forms\Components\Toggle::make('is_active')
+                                        ->label('Active')
+                                        ->default(true),
+                                ]),
+                            Forms\Components\Select::make('product_mix_id')
+                                ->label('Product Mix')
+                                ->relationship('productMix', 'name')
+                                ->searchable()
+                                ->preload()
+                                ->helperText('Optional: For multi-variety products'),
+                            Forms\Components\FileUpload::make('photo')
+                                ->label('Primary Photo')
+                                ->image()
+                                ->directory('product-photos')
+                                ->maxSize(5120)
+                                ->imageResizeTargetWidth('800')
+                                ->imageResizeTargetHeight('800')
+                                ->disk('public'),
+                        ]),
+                    Forms\Components\Grid::make(2)
+                        ->schema([
+                            Forms\Components\Toggle::make('active')
+                                ->label('Active')
+                                ->default(true),
+                            Forms\Components\Toggle::make('is_visible_in_store')
+                                ->label('Visible in Store')
+                                ->default(true),
+                        ]),
+                ])
+                ->columns(1),
+            
+            Forms\Components\Section::make('Price Variations')
+                ->description('Select global templates to apply to this product, or create custom variations.')
+                ->schema([
+                    static::getPriceVariationSelectionField(),
+                ])
+                ->collapsible()
+                ->columnSpanFull(),
+        ];
+    }
+
+    /**
+     * Get the price variation selection field using datatable
+     */
+    public static function getPriceVariationSelectionField(): Forms\Components\Component
+    {
+        return Forms\Components\ViewField::make('price_variations_selector')
+            ->view('filament.forms.price-variations-selector')
+            ->afterStateHydrated(function (Forms\Components\ViewField $component, $state) {
+                $component->state([
+                    'selected_templates' => [],
+                    'custom_variations' => [],
+                ]);
+            });
+    }
+
     /**
      * Get the form schema for the wizard steps
      */

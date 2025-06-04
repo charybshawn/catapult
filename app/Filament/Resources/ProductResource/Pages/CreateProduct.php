@@ -14,18 +14,25 @@ class CreateProduct extends BaseCreateRecord
     
     /**
      * Handle before the record is created
-     * This allows us to create price variations immediately
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        // Save any price-related data from the form
-        // It will be accessible after creation
-        session()->flash('product_creation_prices', [
-            'base_price' => $data['base_price'] ?? null,
-            'wholesale_price' => $data['wholesale_price'] ?? null,
-            'bulk_price' => $data['bulk_price'] ?? null,
-            'special_price' => $data['special_price'] ?? null,
-        ]);
+        // Store selected templates and custom variations for after creation
+        if (isset($data['selected_templates'])) {
+            session()->flash('selected_templates', json_decode($data['selected_templates'], true));
+            unset($data['selected_templates']);
+        }
+        
+        if (isset($data['custom_variations'])) {
+            session()->flash('custom_variations', json_decode($data['custom_variations'], true));
+            unset($data['custom_variations']);
+        }
+        
+        // Handle photo upload
+        if (isset($data['photo']) && $data['photo']) {
+            session()->flash('product_photo', $data['photo']);
+            unset($data['photo']);
+        }
         
         return $data;
     }
@@ -35,36 +42,82 @@ class CreateProduct extends BaseCreateRecord
      */
     protected function afterCreate(): void
     {
-        // Create default price variations based on the base price
-        $this->createDefaultPriceVariations();
+        $this->createPriceVariationsFromTemplates();
+        $this->createProductPhoto();
     }
     
     /**
-     * Create the default price variations for the product
+     * Create price variations from selected templates
      */
-    protected function createDefaultPriceVariations(): void
+    protected function createPriceVariationsFromTemplates(): void
     {
         $product = $this->record;
+        $selectedTemplates = session()->get('selected_templates', []);
+        $customVariations = session()->get('custom_variations', []);
         
-        // Get price data from session if available
-        $priceData = session()->get('product_creation_prices', []);
+        $createdCount = 0;
         
-        // Only proceed if we have price data
-        if (!empty($priceData['base_price']) && $priceData['base_price'] > 0) {
-            // Create all standard price variations with the provided prices
-            $variations = $product->createAllStandardPriceVariations($priceData);
-            
-            $count = count($variations);
-            if ($count > 0) {
-                Notification::make()
-                    ->title("Created {$count} price variations")
-                    ->body("Price variations were automatically created based on the product's price settings.")
-                    ->success()
-                    ->send();
-            }
+        // Create variations from selected templates
+        foreach ($selectedTemplates as $templateData) {
+            $variation = PriceVariation::create([
+                'product_id' => $product->id,
+                'packaging_type_id' => $templateData['packaging_type_id'],
+                'name' => $templateData['name'],
+                'sku' => $templateData['sku'] ?? null,
+                'fill_weight_grams' => $templateData['fill_weight_grams'],
+                'price' => $templateData['price'],
+                'is_default' => $templateData['is_default'],
+                'is_global' => false, // Product-specific
+                'is_active' => $templateData['is_active'],
+            ]);
+            $createdCount++;
         }
         
-        // Clear the session data
-        session()->forget('product_creation_prices');
+        // Create custom variations
+        foreach ($customVariations as $variationData) {
+            $variation = PriceVariation::create([
+                'product_id' => $product->id,
+                'packaging_type_id' => $variationData['packaging_type_id'] ?? null,
+                'name' => $variationData['name'],
+                'sku' => $variationData['sku'] ?? null,
+                'fill_weight_grams' => $variationData['fill_weight_grams'] ?? null,
+                'price' => $variationData['price'],
+                'is_default' => $variationData['is_default'] ?? false,
+                'is_global' => false,
+                'is_active' => $variationData['is_active'] ?? true,
+            ]);
+            $createdCount++;
+        }
+        
+        // Show notification if variations were created
+        if ($createdCount > 0) {
+            Notification::make()
+                ->title("Created {$createdCount} price variations")
+                ->body("Price variations were created from the selected templates.")
+                ->success()
+                ->send();
+        }
+        
+        // Clear session data
+        session()->forget(['selected_templates', 'custom_variations']);
+    }
+    
+    /**
+     * Create product photo if uploaded
+     */
+    protected function createProductPhoto(): void
+    {
+        $product = $this->record;
+        $photoPath = session()->get('product_photo');
+        
+        if ($photoPath) {
+            $product->photos()->create([
+                'photo' => $photoPath,
+                'is_default' => true,
+                'order' => 1,
+            ]);
+            
+            session()->forget('product_photo');
+        }
     }
 } 

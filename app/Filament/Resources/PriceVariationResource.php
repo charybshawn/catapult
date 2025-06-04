@@ -75,11 +75,13 @@ class PriceVariationResource extends Resource
                                     ->maxLength(255),
                                 
                                 Forms\Components\TextInput::make('fill_weight_grams')
-                                    ->label('Fill Weight (grams)')
+                                    ->label('Fill Weight / Quantity')
                                     ->numeric()
                                     ->minValue(0)
-                                    ->suffix('g')
-                                    ->helperText('The actual weight of product that goes into the packaging'),
+                                    ->suffix('g / trays')
+                                    ->helperText('Fill weight in grams (for packaged products) or quantity in trays (for live trays)')
+                                    ->required(fn (Forms\Get $get): bool => !$get('is_global'))
+                                    ->reactive(),
                             ]),
                         
                         Forms\Components\TextInput::make('price')
@@ -97,8 +99,8 @@ class PriceVariationResource extends Resource
                                     ->disabled(fn (Forms\Get $get): bool => $get('is_global')),
                                     
                                 Forms\Components\Toggle::make('is_global')
-                                    ->label('Global Pricing')
-                                    ->helperText('When enabled, this price variation can be used with any product')
+                                    ->label('Global Template')
+                                    ->helperText('Creates a pricing template that can be applied to any product with customizable fill weights')
                                     ->default(false)
                                     ->live()
                                     ->afterStateUpdated(function ($state, Forms\Set $set) {
@@ -125,7 +127,7 @@ class PriceVariationResource extends Resource
                     ->label('Product')
                     ->sortable()
                     ->searchable()
-                    ->placeholder('Global Price'),
+                    ->placeholder('Global Template'),
                 Tables\Columns\TextColumn::make('name')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('packagingType.name')
@@ -136,8 +138,28 @@ class PriceVariationResource extends Resource
                     ->label('SKU/UPC')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('fill_weight_grams')
-                    ->label('Fill Weight')
-                    ->formatStateUsing(fn ($state) => $state ? $state . 'g' : 'N/A')
+                    ->label('Weight/Qty')
+                    ->formatStateUsing(function ($state, $record) {
+                        if ($record->is_global && !$state) {
+                            return 'Template';
+                        }
+                        
+                        if (!$state) {
+                            return 'N/A';
+                        }
+                        
+                        // Special formatting for different packaging types
+                        if ($record->packagingType) {
+                            if ($record->packagingType->name === 'Live Tray') {
+                                return $state . ' tray' . ($state != 1 ? 's' : '');
+                            }
+                            if ($record->packagingType->name === 'Bulk') {
+                                return $state . 'g (' . number_format($state / 454, 2) . 'lb)';
+                            }
+                        }
+                        
+                        return $state . 'g';
+                    })
                     ->sortable(),
                 Tables\Columns\TextColumn::make('price')
                     ->money('USD')
@@ -146,7 +168,7 @@ class PriceVariationResource extends Resource
                     ->label('Default')
                     ->boolean(),
                 Tables\Columns\IconColumn::make('is_global')
-                    ->label('Global')
+                    ->label('Template')
                     ->boolean(),
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Active')
@@ -174,12 +196,82 @@ class PriceVariationResource extends Resource
                 Tables\Filters\TernaryFilter::make('is_default')
                     ->label('Default Price'),
                 Tables\Filters\TernaryFilter::make('is_global')
-                    ->label('Global Pricing'),
+                    ->label('Global Templates'),
                 Tables\Filters\TernaryFilter::make('is_active'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make()
                     ->tooltip('Edit price variation'),
+                Tables\Actions\Action::make('apply_template')
+                    ->label('Apply to Product')
+                    ->icon('heroicon-o-document-duplicate')
+                    ->color('success')
+                    ->visible(fn ($record) => $record->is_global)
+                    ->form([
+                        Forms\Components\Select::make('product_id')
+                            ->label('Product')
+                            ->relationship('product', 'name')
+                            ->searchable()
+                            ->preload()
+                            ->required(),
+                        Forms\Components\TextInput::make('name')
+                            ->label('Variation Name')
+                            ->required()
+                            ->default(fn ($record) => $record->name),
+                        Forms\Components\TextInput::make('fill_weight_grams')
+                            ->label('Fill Weight (grams)')
+                            ->numeric()
+                            ->minValue(0)
+                            ->suffix('g')
+                            ->helperText('Specify the actual fill weight for this product')
+                            ->required(),
+                        Forms\Components\TextInput::make('sku')
+                            ->label('SKU/UPC Code')
+                            ->maxLength(255)
+                            ->default(fn ($record) => $record->sku),
+                        Forms\Components\Grid::make(2)
+                            ->schema([
+                                Forms\Components\TextInput::make('price')
+                                    ->label('Custom Price')
+                                    ->numeric()
+                                    ->prefix('$')
+                                    ->minValue(0)
+                                    ->default(fn ($record) => $record->price)
+                                    ->required()
+                                    ->helperText(fn ($record) => 'Template price: $' . number_format($record->price, 2)),
+                                Forms\Components\Placeholder::make('price_comparison')
+                                    ->label('Price Override')
+                                    ->content('Enter a custom price above to override the template pricing')
+                                    ->extraAttributes(['class' => 'prose text-sm']),
+                            ]),
+                        Forms\Components\Toggle::make('is_default')
+                            ->label('Make this the default price for the product')
+                            ->default(false),
+                        Forms\Components\Toggle::make('is_active')
+                            ->label('Active')
+                            ->default(true),
+                    ])
+                    ->action(function ($record, array $data) {
+                        // Create a new product-specific variation based on the template
+                        \App\Models\PriceVariation::create([
+                            'product_id' => $data['product_id'],
+                            'packaging_type_id' => $record->packaging_type_id,
+                            'name' => $data['name'],
+                            'sku' => $data['sku'],
+                            'fill_weight_grams' => $data['fill_weight_grams'],
+                            'price' => $data['price'],
+                            'is_default' => $data['is_default'],
+                            'is_global' => false,
+                            'is_active' => $data['is_active'],
+                        ]);
+                        
+                        \Filament\Notifications\Notification::make()
+                            ->title('Template Applied Successfully')
+                            ->body('The template has been applied to the selected product.')
+                            ->success()
+                            ->send();
+                    })
+                    ->tooltip('Apply this template to a specific product'),
                 Tables\Actions\DeleteAction::make()
                     ->tooltip('Delete price variation')
                     ->requiresConfirmation()

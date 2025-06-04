@@ -51,16 +51,8 @@ Route::middleware('auth:sanctum')->get('/products/{product}/price-variations', f
 });
 
 Route::middleware('auth:sanctum')->post('/price-variations', function (Request $request) {
-    $validated = $request->validate([
-        'product_id' => 'required|exists:products,id',
-        'name' => 'required|string|max:255',
-        'sku' => 'nullable|string|max:255',
-        'price' => 'required|numeric|min:0',
-        'fill_weight_grams' => 'nullable|numeric|min:0',
-        'packaging_type_id' => 'nullable|exists:packaging_types,id',
-        'is_default' => 'boolean',
-        'is_active' => 'boolean'
-    ]);
+    $isGlobal = $request->boolean('is_global', false);
+    $validated = $request->validate(\App\Models\PriceVariation::rules($isGlobal));
 
     $priceVariation = \App\Models\PriceVariation::create($validated);
     
@@ -71,6 +63,7 @@ Route::middleware('auth:sanctum')->post('/price-variations', function (Request $
         'price' => $priceVariation->price,
         'fill_weight_grams' => $priceVariation->fill_weight_grams,
         'is_default' => $priceVariation->is_default,
+        'is_global' => $priceVariation->is_global,
         'packaging_type' => $priceVariation->packagingType?->name,
     ], 201);
 });

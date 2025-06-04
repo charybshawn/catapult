@@ -42,11 +42,11 @@ class PriceVariationsRelationManager extends RelationManager
                             ->maxLength(255)
                             ->columnSpan(1),
                         Forms\Components\TextInput::make('fill_weight_grams')
-                            ->label('Fill Weight (grams)')
+                            ->label('Fill Weight / Quantity')
                             ->numeric()
                             ->minValue(0)
-                            ->suffix('g')
-                            ->helperText('The actual weight of product that goes into the packaging')
+                            ->suffix('g / trays')
+                            ->helperText('Fill weight in grams (packaged) or quantity (live trays, bulk by weight)')
                             ->columnSpan(1),
                         Forms\Components\TextInput::make('price')
                             ->required()
@@ -89,8 +89,24 @@ class PriceVariationsRelationManager extends RelationManager
                     ->searchable()
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('fill_weight_grams')
-                    ->label('Fill Weight')
-                    ->formatStateUsing(fn ($state) => $state ? $state . 'g' : 'N/A')
+                    ->label('Weight/Qty')
+                    ->formatStateUsing(function ($state, $record) {
+                        if (!$state) {
+                            return 'N/A';
+                        }
+                        
+                        // Special formatting for different packaging types
+                        if ($record->packagingType) {
+                            if ($record->packagingType->name === 'Live Tray') {
+                                return $state . ' tray' . ($state != 1 ? 's' : '');
+                            }
+                            if ($record->packagingType->name === 'Bulk') {
+                                return $state . 'g (' . number_format($state / 454, 2) . 'lb)';
+                            }
+                        }
+                        
+                        return $state . 'g';
+                    })
                     ->sortable()
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('price')
@@ -115,7 +131,7 @@ class PriceVariationsRelationManager extends RelationManager
                 Tables\Filters\TernaryFilter::make('is_default')
                     ->label('Default Price'),
                 Tables\Filters\TernaryFilter::make('is_global')
-                    ->label('Global Pricing'),
+                    ->label('Global Templates'),
                 Tables\Filters\TernaryFilter::make('is_active'),
             ])
             ->headerActions([
@@ -143,6 +159,99 @@ class PriceVariationsRelationManager extends RelationManager
                                 ->update(['is_default' => false]);
                         }
                     }),
+                Tables\Actions\Action::make('apply_template')
+                    ->label('Apply Template')
+                    ->icon('heroicon-o-document-duplicate')
+                    ->color('info')
+                    ->form([
+                        Forms\Components\Select::make('template_id')
+                            ->label('Choose Template')
+                            ->options(function () {
+                                return \App\Models\PriceVariation::where('is_global', true)
+                                    ->where('is_active', true)
+                                    ->with('packagingType')
+                                    ->get()
+                                    ->mapWithKeys(function ($template) {
+                                        $label = $template->name;
+                                        if ($template->packagingType) {
+                                            $label .= ' (' . $template->packagingType->name . ')';
+                                        }
+                                        $label .= ' - $' . number_format($template->price, 2);
+                                        return [$template->id => $label];
+                                    });
+                            })
+                            ->searchable()
+                            ->required()
+                            ->reactive()
+                            ->afterStateUpdated(function ($state, callable $set) {
+                                if ($state) {
+                                    $template = \App\Models\PriceVariation::find($state);
+                                    if ($template) {
+                                        $set('name', $template->name);
+                                        $set('sku', $template->sku);
+                                        $set('price', $template->price);
+                                        $set('packaging_type_id', $template->packaging_type_id);
+                                    }
+                                }
+                            }),
+                        Forms\Components\TextInput::make('name')
+                            ->label('Variation Name')
+                            ->required()
+                            ->maxLength(255),
+                        Forms\Components\TextInput::make('fill_weight_grams')
+                            ->label('Fill Weight (grams)')
+                            ->numeric()
+                            ->minValue(0)
+                            ->suffix('g')
+                            ->helperText('Specify the actual fill weight for this product')
+                            ->required(),
+                        Forms\Components\TextInput::make('sku')
+                            ->label('SKU/UPC Code')
+                            ->maxLength(255),
+                        Forms\Components\Grid::make(2)
+                            ->schema([
+                                Forms\Components\TextInput::make('price')
+                                    ->label('Custom Price')
+                                    ->numeric()
+                                    ->prefix('$')
+                                    ->minValue(0)
+                                    ->required()
+                                    ->helperText('Enter custom price or leave as template default'),
+                                Forms\Components\Placeholder::make('template_price_info')
+                                    ->label('Template Info')
+                                    ->content('Template price will be shown here when a template is selected')
+                                    ->reactive(),
+                            ]),
+                        Forms\Components\Toggle::make('is_default')
+                            ->label('Make this the default price for the product')
+                            ->default(false),
+                        Forms\Components\Toggle::make('is_active')
+                            ->label('Active')
+                            ->default(true),
+                    ])
+                    ->action(function (array $data, RelationManager $livewire) {
+                        $template = \App\Models\PriceVariation::find($data['template_id']);
+                        
+                        // Create a new product-specific variation based on the template
+                        \App\Models\PriceVariation::create([
+                            'product_id' => $livewire->ownerRecord->id,
+                            'packaging_type_id' => $template->packaging_type_id,
+                            'name' => $data['name'],
+                            'sku' => $data['sku'],
+                            'fill_weight_grams' => $data['fill_weight_grams'],
+                            'price' => $data['price'],
+                            'is_default' => $data['is_default'],
+                            'is_global' => false,
+                            'is_active' => $data['is_active'],
+                        ]);
+                        
+                        Notification::make()
+                            ->title('Template Applied Successfully')
+                            ->body('The template has been applied to this product.')
+                            ->success()
+                            ->send();
+                    })
+                    ->tooltip('Apply a global pricing template to this product'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

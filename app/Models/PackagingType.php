@@ -53,6 +53,15 @@ class PackagingType extends Model
      */
     public function getDisplayNameAttribute(): string
     {
+        // Special handling for bulk and live tray products
+        if ($this->name === 'Bulk') {
+            return 'Bulk (by weight)';
+        }
+        
+        if ($this->name === 'Live Tray') {
+            return 'Live Tray';
+        }
+        
         return "{$this->name} - {$this->capacity_volume}{$this->volume_unit}";
     }
 
