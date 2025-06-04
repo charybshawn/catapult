@@ -127,12 +127,12 @@ const NavigationCollapse = {
     addToggleButton() {
         console.log('Adding toggle button...');
         
-        // Find a good place to put the button
+        // Find the navigation container specifically
         const targets = [
-            '.fi-sidebar',
-            'aside', 
-            'nav',
-            '[class*="sidebar"]'
+            '.fi-sidebar-nav', // Filament's navigation container
+            '.fi-main-sidebar .fi-sidebar-nav',
+            '.fi-sidebar nav',
+            '.fi-sidebar'
         ];
         
         let container = null;
@@ -150,7 +150,7 @@ const NavigationCollapse = {
         }
         
         // Don't add if already exists
-        if (container.querySelector('.nav-toggle-all')) {
+        if (document.querySelector('.nav-toggle-all')) {
             console.log('Toggle button already exists');
             return;
         }
@@ -158,27 +158,41 @@ const NavigationCollapse = {
         const button = document.createElement('button');
         button.className = 'nav-toggle-all';
         button.style.cssText = `
-            width: 100%;
-            padding: 8px 16px;
-            margin: 8px 0;
-            background: rgba(0,0,0,0.1);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 6px;
-            color: rgba(255,255,255,0.8);
-            font-size: 12px;
+            position: relative;
+            width: calc(100% - 2rem);
+            margin: 0.5rem 1rem 1rem 1rem;
+            padding: 0.5rem 0.75rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 0.375rem;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.75rem;
+            font-weight: 500;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
+            text-align: center;
+            z-index: 10;
         `;
-        button.innerHTML = 'Toggle All Navigation Groups';
+        button.innerHTML = 'Collapse All Groups';
+        
+        button.addEventListener('mouseenter', () => {
+            button.style.background = 'rgba(255, 255, 255, 0.15)';
+            button.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+        });
+        
+        button.addEventListener('mouseleave', () => {
+            button.style.background = 'rgba(255, 255, 255, 0.1)';
+            button.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+        });
         
         button.addEventListener('click', () => {
             console.log('Toggle all button clicked!');
             this.toggleAllGroups();
         });
         
-        // Insert at the top
-        if (container.firstChild) {
-            container.insertBefore(button, container.firstChild);
+        // Insert at the very top of the navigation
+        if (container.firstElementChild) {
+            container.insertBefore(button, container.firstElementChild);
         } else {
             container.appendChild(button);
         }
@@ -256,21 +270,40 @@ const NavigationCollapse = {
     async toggleAllGroups() {
         console.log('Toggle all groups called');
         
-        // Check current state - if any groups are expanded, collapse all. Otherwise expand all.
+        // Check current state more accurately
         const groups = document.querySelectorAll('.fi-sidebar-group');
-        let hasExpanded = false;
+        let expandedCount = 0;
+        let collapsedCount = 0;
         
         groups.forEach(group => {
             const button = group.querySelector('.fi-sidebar-group-collapse-button');
             const items = group.querySelector('.fi-sidebar-group-items');
             
-            if (items && items.style.display !== 'none' && !button?.classList.contains('rotate-180')) {
-                hasExpanded = true;
+            if (button && items) {
+                // Check if group is collapsed (button has rotate-180 class OR items are hidden)
+                const isCollapsed = button.classList.contains('rotate-180') || 
+                                   items.style.display === 'none' ||
+                                   items.offsetHeight === 0;
+                
+                if (isCollapsed) {
+                    collapsedCount++;
+                } else {
+                    expandedCount++;
+                }
+                
+                console.log('Group state check:', {
+                    group: group.querySelector('.fi-sidebar-group-label')?.textContent?.trim(),
+                    hasRotateClass: button.classList.contains('rotate-180'),
+                    displayStyle: items.style.display,
+                    offsetHeight: items.offsetHeight,
+                    isCollapsed: isCollapsed
+                });
             }
         });
         
-        const shouldCollapse = hasExpanded;
-        console.log('Should collapse all groups:', shouldCollapse);
+        // If more groups are expanded than collapsed, collapse all. Otherwise, expand all.
+        const shouldCollapse = expandedCount > collapsedCount;
+        console.log(`State summary: ${expandedCount} expanded, ${collapsedCount} collapsed. Should collapse: ${shouldCollapse}`);
         
         try {
             const response = await fetch('/api/navigation-preferences/toggle-all', {
@@ -302,15 +335,20 @@ const NavigationCollapse = {
                         const groupName = label.textContent?.trim();
                         const shouldBeCollapsed = collapsedGroups[groupName];
                         
+                        console.log(`Applying to ${groupName}: should be collapsed = ${shouldBeCollapsed}`);
+                        
                         if (shouldBeCollapsed !== undefined) {
                             if (shouldBeCollapsed) {
                                 // Collapse: hide items and rotate button
                                 items.style.display = 'none';
                                 button.classList.add('rotate-180');
+                                console.log(`Collapsed ${groupName}`);
                             } else {
                                 // Expand: show items and reset button
                                 items.style.display = '';
+                                items.style.removeProperty('display'); // Remove any inline display style
                                 button.classList.remove('rotate-180');
+                                console.log(`Expanded ${groupName}`);
                             }
                         }
                     }
@@ -319,7 +357,7 @@ const NavigationCollapse = {
                 // Update button text
                 const toggleButton = document.querySelector('.nav-toggle-all');
                 if (toggleButton) {
-                    toggleButton.textContent = shouldCollapse ? 'Expand All Navigation Groups' : 'Collapse All Navigation Groups';
+                    toggleButton.textContent = shouldCollapse ? 'Expand All Groups' : 'Collapse All Groups';
                 }
                 
             } else {
@@ -342,17 +380,20 @@ const NavigationCollapse = {
             const items = group.querySelector('.fi-sidebar-group-items');
             
             if (label && label.textContent?.trim() === groupName) {
-                console.log('Found matching group:', groupName);
+                console.log('Found matching group for state application:', groupName, 'collapsed:', collapsed);
                 
                 if (button && items) {
                     if (collapsed) {
                         // Collapse: hide items and rotate button
                         items.style.display = 'none';
                         button.classList.add('rotate-180');
+                        console.log('Applied collapsed state to', groupName);
                     } else {
                         // Expand: show items and reset button
                         items.style.display = '';
+                        items.style.removeProperty('display'); // Remove any inline display style
                         button.classList.remove('rotate-180');
+                        console.log('Applied expanded state to', groupName);
                     }
                 }
                 return;
