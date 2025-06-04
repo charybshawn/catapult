@@ -98,6 +98,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log('- .fi-sidebar-nav-groups:', !!document.querySelector('.fi-sidebar-nav-groups'));
                 console.log('- .fi-sidebar-nav-group:', document.querySelectorAll('.fi-sidebar-nav-group').length);
                 
+                // Debug: Show the actual navigation structure
+                const sidebar = document.querySelector('.fi-sidebar, nav, .sidebar');
+                if (sidebar) {
+                    console.log('Navigation structure preview:');
+                    console.log(sidebar.innerHTML.substring(0, 1000));
+                    
+                    // Look for any elements with "group" in their class or attributes
+                    const groupElements = sidebar.querySelectorAll('*[class*="group"], *[data*="group"], *[role*="group"]');
+                    console.log('Elements with "group" in attributes:', groupElements.length);
+                    groupElements.forEach((el, i) => {
+                        if (i < 5) { // Show first 5
+                            console.log(`  ${i}: ${el.tagName}.${el.className} - ${el.textContent?.trim().substring(0, 30)}`);
+                        }
+                    });
+                }
+                
                 this.loadPreferences();
                 this.setupEventListeners();
                 this.addCollapseToggle();
@@ -170,40 +186,110 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Set the visual state of a group
         setGroupState(groupName, collapsed, animate = true) {
-            const groups = document.querySelectorAll('.fi-sidebar-nav-group');
-            console.log('Found', groups.length, 'navigation groups');
+            // Try multiple selectors for navigation groups
+            const groupSelectors = [
+                '.fi-sidebar-nav-group',
+                '.fi-sidebar-nav .fi-nav-group',
+                '.fi-nav-group',
+                '[data-nav-group]',
+                'li[role="group"]',
+                '.filament-sidebar-nav-group',
+                'nav ul li',
+                '.fi-sidebar nav > ul > li'
+            ];
+            
+            let groups = [];
+            for (const selector of groupSelectors) {
+                groups = document.querySelectorAll(selector);
+                if (groups.length > 0) {
+                    console.log('Found', groups.length, 'navigation groups with selector:', selector);
+                    break;
+                }
+            }
+            
+            if (groups.length === 0) {
+                console.warn('No navigation groups found with any selector');
+                // Try to find any navigation structure
+                const nav = document.querySelector('nav, .fi-sidebar, .sidebar');
+                if (nav) {
+                    console.log('Found navigation container:', nav.className);
+                    console.log('Navigation HTML:', nav.innerHTML.substring(0, 500));
+                }
+                return;
+            }
             
             let found = false;
-            groups.forEach(group => {
-                const label = group.querySelector('.fi-sidebar-nav-group-label');
-                if (!label) {
-                    console.log('No label found in group');
-                    return;
+            groups.forEach((group, index) => {
+                // Try multiple selectors for group labels
+                const labelSelectors = [
+                    '.fi-sidebar-nav-group-label',
+                    '.fi-nav-group-label', 
+                    '.nav-group-label',
+                    'button[role="button"]',
+                    'summary',
+                    'h3',
+                    'h4',
+                    '.font-medium',
+                    'span:first-child'
+                ];
+                
+                let label = null;
+                for (const labelSelector of labelSelectors) {
+                    label = group.querySelector(labelSelector);
+                    if (label) break;
                 }
                 
-                const labelText = label.textContent.trim().replace(/[▶▼]/g, '').trim();
-                console.log('Checking group label:', labelText, 'against', groupName);
+                if (!label) {
+                    // Try to get the first text node or any text content
+                    label = group.firstElementChild || group;
+                    console.log('Group', index, 'fallback text:', label.textContent?.trim().substring(0, 50));
+                }
                 
-                if (labelText === groupName) {
-                    found = true;
-                    console.log('Setting group', groupName, 'to collapsed:', collapsed);
-                    group.setAttribute('data-collapsed', collapsed);
+                if (label) {
+                    const labelText = label.textContent.trim().replace(/[▶▼]/g, '').trim();
+                    console.log('Group', index, 'label text:', labelText, 'comparing to:', groupName);
                     
-                    if (animate) {
-                        const items = group.querySelector('.fi-sidebar-nav-group-items');
-                        if (items) {
-                            if (collapsed) {
-                                items.style.display = 'none';
-                            } else {
-                                items.style.display = '';
+                    if (labelText === groupName || labelText.includes(groupName) || groupName.includes(labelText)) {
+                        found = true;
+                        console.log('Setting group', groupName, 'to collapsed:', collapsed);
+                        group.setAttribute('data-collapsed', collapsed);
+                        
+                        if (animate) {
+                            // Try multiple selectors for group items
+                            const itemSelectors = [
+                                '.fi-sidebar-nav-group-items',
+                                '.fi-nav-group-items',
+                                'ul',
+                                '.nav-items',
+                                'div[role="group"]'
+                            ];
+                            
+                            let items = null;
+                            for (const itemSelector of itemSelectors) {
+                                items = group.querySelector(itemSelector);
+                                if (items) break;
+                            }
+                            
+                            if (items) {
+                                if (collapsed) {
+                                    items.style.display = 'none';
+                                } else {
+                                    items.style.display = '';
+                                }
                             }
                         }
+                        return;
                     }
                 }
             });
             
             if (!found) {
                 console.warn('Could not find group:', groupName);
+                console.log('Available groups:');
+                groups.forEach((group, index) => {
+                    const text = group.textContent?.trim().substring(0, 50);
+                    console.log(`  ${index}: ${text}`);
+                });
             }
         },
         
@@ -233,11 +319,16 @@ document.addEventListener('DOMContentLoaded', function() {
             // Try multiple selectors to find the sidebar navigation
             const selectors = [
                 '.fi-sidebar-nav',
-                '.fi-sidebar nav',
+                '.fi-sidebar nav', 
                 '[data-sidebar-navigation]',
                 '.fi-sidebar .fi-sidebar-nav',
                 '.fi-nav',
-                'nav[role="navigation"]'
+                'nav[role="navigation"]',
+                '.fi-sidebar',
+                '.sidebar',
+                'nav',
+                'aside nav',
+                '.fi-sidebar > div'
             ];
             
             let sidebar = null;
