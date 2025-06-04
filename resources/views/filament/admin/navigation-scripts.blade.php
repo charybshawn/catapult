@@ -353,5 +353,6 @@ const NavigationCollapse = {
         } catch (error) {
             console.warn('Could not load preferences:', error);
         }
+    }
 };
 </script>
