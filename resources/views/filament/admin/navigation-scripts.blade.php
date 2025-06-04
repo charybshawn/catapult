@@ -83,9 +83,25 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Initialize navigation state management
         init() {
-            this.loadPreferences();
-            this.setupEventListeners();
-            this.addCollapseToggle();
+            console.log('NavigationState.init() called');
+            
+            // Debug: Check what elements are available
+            console.log('Available elements:');
+            console.log('- .fi-sidebar-nav:', !!document.querySelector('.fi-sidebar-nav'));
+            console.log('- .fi-sidebar-nav-groups:', !!document.querySelector('.fi-sidebar-nav-groups'));
+            console.log('- .fi-sidebar-nav-group:', document.querySelectorAll('.fi-sidebar-nav-group').length);
+            
+            // Small delay to ensure DOM is fully loaded
+            setTimeout(() => {
+                console.log('After timeout - Available elements:');
+                console.log('- .fi-sidebar-nav:', !!document.querySelector('.fi-sidebar-nav'));
+                console.log('- .fi-sidebar-nav-groups:', !!document.querySelector('.fi-sidebar-nav-groups'));
+                console.log('- .fi-sidebar-nav-group:', document.querySelectorAll('.fi-sidebar-nav-group').length);
+                
+                this.loadPreferences();
+                this.setupEventListeners();
+                this.addCollapseToggle();
+            }, 500); // Increased delay
         },
         
         // Load user preferences from server
@@ -110,11 +126,16 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Apply preferences to the navigation
         applyPreferences(prefs) {
+            console.log('Applying preferences:', prefs);
             const collapsedGroups = prefs.collapsed_groups || {};
             const allCollapsed = prefs.all_collapsed || false;
             
+            console.log('Collapsed groups:', collapsedGroups);
+            console.log('All collapsed:', allCollapsed);
+            
             // Apply individual group states
             Object.entries(collapsedGroups).forEach(([groupName, isCollapsed]) => {
+                console.log('Setting group state:', groupName, isCollapsed);
                 this.setGroupState(groupName, isCollapsed, false);
             });
             
@@ -150,13 +171,22 @@ document.addEventListener('DOMContentLoaded', function() {
         // Set the visual state of a group
         setGroupState(groupName, collapsed, animate = true) {
             const groups = document.querySelectorAll('.fi-sidebar-nav-group');
+            console.log('Found', groups.length, 'navigation groups');
             
+            let found = false;
             groups.forEach(group => {
                 const label = group.querySelector('.fi-sidebar-nav-group-label');
-                if (!label) return;
+                if (!label) {
+                    console.log('No label found in group');
+                    return;
+                }
                 
                 const labelText = label.textContent.trim().replace(/[▶▼]/g, '').trim();
+                console.log('Checking group label:', labelText, 'against', groupName);
+                
                 if (labelText === groupName) {
+                    found = true;
+                    console.log('Setting group', groupName, 'to collapsed:', collapsed);
                     group.setAttribute('data-collapsed', collapsed);
                     
                     if (animate) {
@@ -171,6 +201,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
             });
+            
+            if (!found) {
+                console.warn('Could not find group:', groupName);
+            }
         },
         
         // Save group state to server
@@ -196,11 +230,43 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Add collapse/expand all button
         addCollapseToggle() {
-            const sidebar = document.querySelector('.fi-sidebar-nav');
-            if (!sidebar) return;
+            // Try multiple selectors to find the sidebar navigation
+            const selectors = [
+                '.fi-sidebar-nav',
+                '.fi-sidebar nav',
+                '[data-sidebar-navigation]',
+                '.fi-sidebar .fi-sidebar-nav',
+                '.fi-nav',
+                'nav[role="navigation"]'
+            ];
+            
+            let sidebar = null;
+            for (const selector of selectors) {
+                sidebar = document.querySelector(selector);
+                if (sidebar) {
+                    console.log('Found sidebar with selector:', selector);
+                    break;
+                }
+            }
+            
+            if (!sidebar) {
+                console.warn('Could not find sidebar navigation element');
+                // Try to find navigation groups directly
+                const navGroups = document.querySelector('.fi-sidebar-nav-groups');
+                if (navGroups) {
+                    sidebar = navGroups.parentElement;
+                    console.log('Found sidebar via navigation groups');
+                } else {
+                    console.warn('Could not find navigation groups either');
+                    return;
+                }
+            }
             
             // Don't add if already exists
-            if (sidebar.querySelector('.nav-collapse-toggle')) return;
+            if (document.querySelector('.nav-collapse-toggle')) {
+                console.log('Toggle button already exists');
+                return;
+            }
             
             const toggleButton = document.createElement('button');
             toggleButton.className = 'nav-collapse-toggle';
@@ -209,23 +275,41 @@ document.addEventListener('DOMContentLoaded', function() {
                 <span class="nav-collapse-toggle-icon">▼</span>
             `;
             
-            toggleButton.addEventListener('click', () => this.toggleAllGroups());
+            toggleButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Toggle all button clicked');
+                this.toggleAllGroups();
+            });
             
             // Insert at the beginning of the sidebar nav
-            sidebar.insertBefore(toggleButton, sidebar.firstChild);
+            if (sidebar.firstChild) {
+                sidebar.insertBefore(toggleButton, sidebar.firstChild);
+            } else {
+                sidebar.appendChild(toggleButton);
+            }
+            
+            console.log('Toggle button added successfully');
         },
         
         // Toggle all groups at once
         async toggleAllGroups() {
+            console.log('toggleAllGroups called');
             const button = document.querySelector('.nav-collapse-toggle');
-            if (!button) return;
+            if (!button) {
+                console.error('Toggle button not found');
+                return;
+            }
             
             button.classList.add('nav-toggle-loading');
             
             const isCurrentlyAllCollapsed = button.getAttribute('data-all-collapsed') === 'true';
             const newState = !isCurrentlyAllCollapsed;
             
+            console.log('Current state:', isCurrentlyAllCollapsed, 'New state:', newState);
+            
             try {
+                console.log('Making API request to:', this.endpoints.toggleAll);
                 const response = await fetch(this.endpoints.toggleAll, {
                     method: 'POST',
                     credentials: 'same-origin',
@@ -239,12 +323,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     })
                 });
                 
+                console.log('API response status:', response.status);
+                
                 if (response.ok) {
                     const data = await response.json();
+                    console.log('API response data:', data);
                     this.applyPreferences(data.navigation);
+                } else {
+                    const errorText = await response.text();
+                    console.error('API request failed:', response.status, errorText);
                 }
             } catch (error) {
-                console.warn('Could not toggle all groups:', error);
+                console.error('Could not toggle all groups:', error);
             } finally {
                 button.classList.remove('nav-toggle-loading');
             }
