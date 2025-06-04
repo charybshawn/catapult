@@ -12,8 +12,11 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('price_variations', function (Blueprint $table) {
-            $table->foreignId('packaging_type_id')->nullable()->after('product_id')->constrained()->onDelete('set null');
-            $table->index(['product_id', 'packaging_type_id']);
+            // Add packaging_type_id column if it doesn't exist
+            if (!Schema::hasColumn('price_variations', 'packaging_type_id')) {
+                $table->foreignId('packaging_type_id')->nullable()->constrained()->onDelete('set null');
+                $table->index(['product_id', 'packaging_type_id']);
+            }
         });
     }
 

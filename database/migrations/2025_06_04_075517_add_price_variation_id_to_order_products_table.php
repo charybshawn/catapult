@@ -12,11 +12,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('order_products', function (Blueprint $table) {
-            $table->foreignId('price_variation_id')
-                ->nullable()
-                ->after('product_id')
-                ->constrained('price_variations')
-                ->nullOnDelete();
+            if (!Schema::hasColumn('order_products', 'price_variation_id')) {
+                $table->foreignId('price_variation_id')
+                    ->nullable()
+                    ->constrained('price_variations')
+                    ->nullOnDelete();
+            }
         });
     }
 

@@ -11,15 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('product_mixes', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->text('description')->nullable();
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-            
-            $table->index(['is_active']);
-        });
+        if (!Schema::hasTable('product_mixes')) {
+            Schema::create('product_mixes', function (Blueprint $table) {
+                $table->id();
+                $table->string('name');
+                $table->text('description')->nullable();
+                $table->boolean('is_active')->default(true);
+                $table->timestamps();
+                
+                $table->index(['is_active']);
+            });
+        }
     }
 
     /**

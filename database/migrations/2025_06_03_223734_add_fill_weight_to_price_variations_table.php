@@ -12,8 +12,18 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('price_variations', function (Blueprint $table) {
-            $table->decimal('fill_weight_grams', 8, 2)->nullable()->after('weight')->comment('Actual product weight in grams that goes into the packaging');
-            $table->dropColumn(['unit', 'weight']);
+            // Add fill_weight_grams if it doesn't exist
+            if (!Schema::hasColumn('price_variations', 'fill_weight_grams')) {
+                $table->decimal('fill_weight_grams', 8, 2)->nullable()->comment('Actual product weight in grams that goes into the packaging');
+            }
+            
+            // Drop old columns if they exist
+            if (Schema::hasColumn('price_variations', 'unit')) {
+                $table->dropColumn('unit');
+            }
+            if (Schema::hasColumn('price_variations', 'weight')) {
+                $table->dropColumn('weight');
+            }
         });
     }
 
