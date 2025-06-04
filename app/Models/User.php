@@ -35,7 +35,6 @@ class User extends Authenticatable implements FilamentUser
         'city',
         'state',
         'zip',
-        'preferences',
     ];
 
     /**
@@ -56,7 +55,6 @@ class User extends Authenticatable implements FilamentUser
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
-        'preferences' => 'array',
     ];
 
     /**
@@ -86,40 +84,4 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasPermissionTo('access filament');
     }
 
-    /**
-     * Get navigation preferences for the user.
-     */
-    public function getNavigationPreferences(): array
-    {
-        return $this->preferences['navigation'] ?? [];
-    }
-
-    /**
-     * Update navigation preferences for the user.
-     */
-    public function updateNavigationPreferences(array $navigationPrefs): void
-    {
-        $preferences = $this->preferences ?? [];
-        $preferences['navigation'] = $navigationPrefs;
-        $this->update(['preferences' => $preferences]);
-    }
-
-    /**
-     * Check if a navigation group is collapsed.
-     */
-    public function isNavigationGroupCollapsed(string $group): bool
-    {
-        $navPrefs = $this->getNavigationPreferences();
-        return $navPrefs['collapsed_groups'][$group] ?? false;
-    }
-
-    /**
-     * Set navigation group collapsed state.
-     */
-    public function setNavigationGroupCollapsed(string $group, bool $collapsed): void
-    {
-        $navPrefs = $this->getNavigationPreferences();
-        $navPrefs['collapsed_groups'][$group] = $collapsed;
-        $this->updateNavigationPreferences($navPrefs);
-    }
 }

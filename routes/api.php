@@ -89,10 +89,4 @@ Route::middleware('auth:sanctum')->get('/packaging-types', function (Request $re
     return response()->json($packagingTypes);
 });
 
-// Navigation preferences routes - using web middleware for Filament compatibility
-Route::middleware(['web', 'auth'])->group(function () {
-    Route::get('/navigation-preferences', [\App\Http\Controllers\Api\NavigationPreferencesController::class, 'show']);
-    Route::put('/navigation-preferences', [\App\Http\Controllers\Api\NavigationPreferencesController::class, 'update']);
-    Route::post('/navigation-preferences/toggle-group', [\App\Http\Controllers\Api\NavigationPreferencesController::class, 'toggleGroup']);
-    Route::post('/navigation-preferences/toggle-all', [\App\Http\Controllers\Api\NavigationPreferencesController::class, 'toggleAll']);
-}); 
+ 
