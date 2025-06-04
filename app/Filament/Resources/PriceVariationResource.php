@@ -20,8 +20,8 @@ class PriceVariationResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-currency-dollar';
 
     protected static ?string $navigationGroup = 'Sales & Products';
-
-    protected static ?int $navigationSort = 3;
+    
+    protected static ?int $navigationSort = 5;
 
     protected static ?string $recordTitleAttribute = 'name';
 
@@ -35,8 +35,8 @@ class PriceVariationResource extends Resource
                             ->content('This is a global price variation that can be applied to any product.')
                             ->visible(fn (Forms\Get $get): bool => $get('is_global')),
                             
-                        Forms\Components\Select::make('item_id')
-                            ->relationship('item', 'name')
+                        Forms\Components\Select::make('product_id')
+                            ->relationship('product', 'name')
                             ->label('Product')
                             ->required(fn (Forms\Get $get): bool => !$get('is_global'))
                             ->searchable()
@@ -51,9 +51,6 @@ class PriceVariationResource extends Resource
                                 Forms\Components\Toggle::make('active')
                                     ->label('Active')
                                     ->default(true),
-                                Forms\Components\Toggle::make('is_visible_in_store')
-                                    ->label('Visible in Store')
-                                    ->default(true),
                             ])
                             ->visible(fn (Forms\Get $get): bool => !$get('is_global')),
                         
@@ -63,15 +60,12 @@ class PriceVariationResource extends Resource
                                     ->required()
                                     ->maxLength(255),
                                     
-                                Forms\Components\Select::make('unit')
-                                    ->options([
-                                        'item' => 'Per Item',
-                                        'lbs' => 'Pounds',
-                                        'gram' => 'Grams',
-                                        'kg' => 'Kilograms',
-                                        'oz' => 'Ounces',
-                                    ])
-                                    ->required(),
+                                Forms\Components\Select::make('packaging_type_id')
+                                    ->relationship('packagingType', 'name')
+                                    ->label('Packaging Type')
+                                    ->searchable()
+                                    ->preload()
+                                    ->nullable(),
                             ]),
                             
                         Forms\Components\Grid::make(2)
@@ -80,18 +74,12 @@ class PriceVariationResource extends Resource
                                     ->label('SKU/UPC Code')
                                     ->maxLength(255),
                                 
-                                Forms\Components\TextInput::make('weight')
+                                Forms\Components\TextInput::make('fill_weight_grams')
+                                    ->label('Fill Weight (grams)')
                                     ->numeric()
                                     ->minValue(0)
-                                    ->default(0)
-                                    ->suffix(fn (Forms\Get $get): string => match ($get('unit')) {
-                                        'lbs' => 'lbs',
-                                        'gram' => 'g',
-                                        'kg' => 'kg',
-                                        'oz' => 'oz',
-                                        default => '',
-                                    })
-                                    ->visible(fn (Forms\Get $get): bool => $get('unit') !== 'item'),
+                                    ->suffix('g')
+                                    ->helperText('The actual weight of product that goes into the packaging'),
                             ]),
                         
                         Forms\Components\TextInput::make('price')
@@ -117,7 +105,7 @@ class PriceVariationResource extends Resource
                                         if ($state) {
                                             // If making global, clear the product association and default status
                                             $set('is_default', false);
-                                            $set('item_id', null);
+                                            $set('product_id', null);
                                         }
                                     }),
                                     
@@ -133,25 +121,24 @@ class PriceVariationResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('item.name')
+                Tables\Columns\TextColumn::make('product.name')
                     ->label('Product')
                     ->sortable()
                     ->searchable()
                     ->placeholder('Global Price'),
                 Tables\Columns\TextColumn::make('name')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('unit')
-                    ->badge()
-                    ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'item' => 'Per Item',
-                        'lbs' => 'Pounds',
-                        'gram' => 'Grams',
-                        'kg' => 'Kilograms',
-                        'oz' => 'Ounces',
-                        default => $state,
-                    }),
+                Tables\Columns\TextColumn::make('packagingType.name')
+                    ->label('Packaging Type')
+                    ->sortable()
+                    ->placeholder('N/A'),
                 Tables\Columns\TextColumn::make('sku')
-                    ->label('SKU/UPC'),
+                    ->label('SKU/UPC')
+                    ->searchable(),
+                Tables\Columns\TextColumn::make('fill_weight_grams')
+                    ->label('Fill Weight')
+                    ->formatStateUsing(fn ($state) => $state ? $state . 'g' : 'N/A')
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('price')
                     ->money('USD')
                     ->sortable(),
@@ -174,32 +161,39 @@ class PriceVariationResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('item')
-                    ->relationship('item', 'name')
+                Tables\Filters\SelectFilter::make('product')
+                    ->relationship('product', 'name')
                     ->searchable()
                     ->preload()
                     ->label('Product'),
-                Tables\Filters\SelectFilter::make('unit')
-                    ->options([
-                        'item' => 'Per Item',
-                        'lbs' => 'Pounds',
-                        'gram' => 'Grams',
-                        'kg' => 'Kilograms',
-                        'oz' => 'Ounces',
-                    ]),
+                Tables\Filters\SelectFilter::make('packagingType')
+                    ->relationship('packagingType', 'name')
+                    ->searchable()
+                    ->preload()
+                    ->label('Packaging Type'),
                 Tables\Filters\TernaryFilter::make('is_default')
                     ->label('Default Price'),
+                Tables\Filters\TernaryFilter::make('is_global')
+                    ->label('Global Pricing'),
                 Tables\Filters\TernaryFilter::make('is_active'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make()
                     ->tooltip('Edit price variation'),
                 Tables\Actions\DeleteAction::make()
-                    ->tooltip('Delete price variation'),
+                    ->tooltip('Delete price variation')
+                    ->requiresConfirmation()
+                    ->modalHeading('Delete Price Variation')
+                    ->modalDescription('Are you sure you want to delete this price variation? This action cannot be undone.')
+                    ->modalSubmitActionLabel('Yes, delete it'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->requiresConfirmation()
+                        ->modalHeading('Delete Price Variations')
+                        ->modalDescription('Are you sure you want to delete the selected price variations? This action cannot be undone.')
+                        ->modalSubmitActionLabel('Yes, delete them'),
                     Tables\Actions\BulkAction::make('activate')
                         ->label('Activate')
                         ->icon('heroicon-o-check-circle')

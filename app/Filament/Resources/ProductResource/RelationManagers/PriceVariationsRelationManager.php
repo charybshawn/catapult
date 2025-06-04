@@ -27,21 +27,12 @@ class PriceVariationsRelationManager extends RelationManager
                         Forms\Components\TextInput::make('name')
                             ->required()
                             ->maxLength(255),
-                        Forms\Components\Select::make('unit')
-                            ->options([
-                                'item' => 'Per Item',
-                                'lbs' => 'Pounds',
-                                'gram' => 'Grams',
-                                'kg' => 'Kilograms',
-                                'oz' => 'Ounces',
-                            ])
-                            ->live()
-                            ->afterStateUpdated(function ($state, Forms\Set $set) {
-                                if ($state === 'item') {
-                                    $set('weight', null);
-                                }
-                            })
-                            ->required(),
+                        Forms\Components\Select::make('packaging_type_id')
+                            ->relationship('packagingType', 'name')
+                            ->label('Packaging Type')
+                            ->searchable()
+                            ->preload()
+                            ->nullable(),
                     ]),
                     
                 Forms\Components\Grid::make(3)
@@ -50,15 +41,12 @@ class PriceVariationsRelationManager extends RelationManager
                             ->label('SKU/UPC Code')
                             ->maxLength(255)
                             ->columnSpan(1),
-                        Forms\Components\TextInput::make('weight')
-                            ->label('Weight')
-                            ->suffix(function (Forms\Get $get): string {
-                                $unit = $get('unit');
-                                return ($unit && $unit !== 'item') ? $unit : '';
-                            })
+                        Forms\Components\TextInput::make('fill_weight_grams')
+                            ->label('Fill Weight (grams)')
                             ->numeric()
-                            ->default(0)
-                            ->visible(fn (Forms\Get $get): bool => $get('unit') && $get('unit') !== 'item')
+                            ->minValue(0)
+                            ->suffix('g')
+                            ->helperText('The actual weight of product that goes into the packaging')
                             ->columnSpan(1),
                         Forms\Components\TextInput::make('price')
                             ->required()
@@ -92,21 +80,19 @@ class PriceVariationsRelationManager extends RelationManager
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('unit')
-                    ->sortable(),
+                Tables\Columns\TextColumn::make('packagingType.name')
+                    ->label('Packaging Type')
+                    ->sortable()
+                    ->placeholder('N/A'),
                 Tables\Columns\TextColumn::make('sku')
                     ->label('SKU/UPC')
+                    ->searchable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('weight')
-                    ->toggleable()
-                    ->formatStateUsing(function ($record) {
-                        if ($record->unit === 'item' || !$record->weight) {
-                            return '-';
-                        }
-                        
-                        // Format with appropriate unit
-                        return $record->weight . ' ' . $record->unit;
-                    }),
+                Tables\Columns\TextColumn::make('fill_weight_grams')
+                    ->label('Fill Weight')
+                    ->formatStateUsing(fn ($state) => $state ? $state . 'g' : 'N/A')
+                    ->sortable()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('price')
                     ->money('USD')
                     ->sortable(),
@@ -121,23 +107,22 @@ class PriceVariationsRelationManager extends RelationManager
                     ->boolean(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('unit')
-                    ->options([
-                        'item' => 'Per Item',
-                        'lbs' => 'Pounds',
-                        'gram' => 'Grams',
-                        'kg' => 'Kilograms',
-                        'oz' => 'Ounces',
-                    ]),
+                Tables\Filters\SelectFilter::make('packagingType')
+                    ->relationship('packagingType', 'name')
+                    ->searchable()
+                    ->preload()
+                    ->label('Packaging Type'),
                 Tables\Filters\TernaryFilter::make('is_default')
                     ->label('Default Price'),
+                Tables\Filters\TernaryFilter::make('is_global')
+                    ->label('Global Pricing'),
                 Tables\Filters\TernaryFilter::make('is_active'),
             ])
             ->headerActions([
                 Tables\Actions\CreateAction::make()
                     ->mutateFormDataUsing(function (array $data) {
-                        // Set the item_id to the owner record
-                        $data['item_id'] = $this->ownerRecord->id;
+                        // Set the product_id to the owner record
+                        $data['product_id'] = $this->ownerRecord->id;
                         
                         return $data;
                     })
@@ -158,76 +143,6 @@ class PriceVariationsRelationManager extends RelationManager
                                 ->update(['is_default' => false]);
                         }
                     }),
-                
-                // Create standard variations action
-                Tables\Actions\Action::make('create_standard')
-                    ->label('Create Standard Variations')
-                    ->icon('heroicon-o-plus-circle')
-                    ->action(function (RelationManager $livewire) {
-                        // Create all standard price variations
-                        $variations = $livewire->ownerRecord->createAllStandardPriceVariations();
-                        $count = count($variations);
-                        
-                        if ($count > 0) {
-                            Notification::make()
-                                ->title("Created {$count} standard price variations")
-                                ->success()
-                                ->send();
-                        } else {
-                            Notification::make()
-                                ->title('No new price variations needed')
-                                ->body('Standard price variations already exist for this product.')
-                                ->info()
-                                ->send();
-                        }
-                    }),
-                
-                // Add action to apply global price variations to this product
-                Tables\Actions\Action::make('apply_global')
-                    ->label('Apply Global Variation')
-                    ->icon('heroicon-o-globe-alt')
-                    ->form([
-                        Forms\Components\Select::make('global_variation_id')
-                            ->label('Global Price Variation')
-                            ->options(function () {
-                                return \App\Models\PriceVariation::where('is_global', true)
-                                    ->where('is_active', true)
-                                    ->pluck('name', 'id');
-                            })
-                            ->required()
-                            ->searchable(),
-                        Forms\Components\Toggle::make('set_as_default')
-                            ->label('Set as Default Price')
-                            ->default(false),
-                    ])
-                    ->action(function (array $data, RelationManager $livewire) {
-                        $globalVariation = \App\Models\PriceVariation::findOrFail($data['global_variation_id']);
-                        
-                        // Create a new price variation based on the global one
-                        $newVariation = $livewire->ownerRecord->priceVariations()->create([
-                            'name' => $globalVariation->name,
-                            'unit' => $globalVariation->unit,
-                            'sku' => $globalVariation->sku,
-                            'weight' => $globalVariation->weight,
-                            'price' => $globalVariation->price,
-                            'is_default' => $data['set_as_default'],
-                            'is_global' => false,
-                            'is_active' => true,
-                        ]);
-                        
-                        // If setting as default, make sure no other variations are default
-                        if ($data['set_as_default']) {
-                            $livewire->ownerRecord->priceVariations()
-                                ->where('id', '!=', $newVariation->id)
-                                ->where('is_default', true)
-                                ->update(['is_default' => false]);
-                        }
-                        
-                        Notification::make()
-                            ->title('Global price variation applied')
-                            ->success()
-                            ->send();
-                    }),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
@@ -235,6 +150,9 @@ class PriceVariationsRelationManager extends RelationManager
                     ->label('Set as Default')
                     ->icon('heroicon-o-star')
                     ->hidden(fn ($record) => $record->is_default)
+                    ->requiresConfirmation()
+                    ->modalHeading('Set as Default Price Variation')
+                    ->modalDescription('This will make this variation the default price and remove the default status from any other variations.')
                     ->action(function ($record, RelationManager $livewire) {
                         // Set this as the default and remove default from all others
                         $record->update(['is_default' => true]);
@@ -249,14 +167,25 @@ class PriceVariationsRelationManager extends RelationManager
                             ->success()
                             ->send();
                     }),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\DeleteAction::make()
+                    ->requiresConfirmation()
+                    ->modalHeading('Delete Price Variation')
+                    ->modalDescription('Are you sure you want to delete this price variation? This action cannot be undone.')
+                    ->modalSubmitActionLabel('Yes, delete it'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->requiresConfirmation()
+                        ->modalHeading('Delete Price Variations')
+                        ->modalDescription('Are you sure you want to delete the selected price variations? This action cannot be undone.')
+                        ->modalSubmitActionLabel('Yes, delete them'),
                     Tables\Actions\BulkAction::make('activate')
                         ->label('Activate')
                         ->icon('heroicon-o-check')
+                        ->requiresConfirmation()
+                        ->modalHeading('Activate Price Variations')
+                        ->modalDescription('Are you sure you want to activate the selected price variations?')
                         ->action(function ($records) {
                             foreach ($records as $record) {
                                 $record->update(['is_active' => true]);
@@ -271,6 +200,9 @@ class PriceVariationsRelationManager extends RelationManager
                         ->label('Deactivate')
                         ->icon('heroicon-o-x-mark')
                         ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Deactivate Price Variations')
+                        ->modalDescription('Are you sure you want to deactivate the selected price variations? Note: Default variations cannot be deactivated.')
                         ->action(function ($records, RelationManager $livewire) {
                             $defaultIds = $records->where('is_default', true)->pluck('id');
                             
@@ -296,22 +228,10 @@ class PriceVariationsRelationManager extends RelationManager
                 ]),
             ])
             ->emptyStateHeading('No price variations')
-            ->emptyStateDescription('Create price variations to set different prices based on customer type or unit of measure.')
+            ->emptyStateDescription('Create price variations to set different prices based on packaging, customer type, or quantity.')
             ->emptyStateActions([
                 Tables\Actions\CreateAction::make()
-                    ->label('Create Price Variation'),
-                Tables\Actions\Action::make('create_standard')
-                    ->label('Create Standard Variations')
-                    ->icon('heroicon-o-plus-circle')
-                    ->action(function (RelationManager $livewire) {
-                        // Create all standard price variations
-                        $livewire->ownerRecord->createAllStandardPriceVariations();
-                        
-                        Notification::make()
-                            ->title('Standard price variations created')
-                            ->success()
-                            ->send();
-                    }),
+                    ->label('Create First Price Variation'),
             ]);
     }
 } 

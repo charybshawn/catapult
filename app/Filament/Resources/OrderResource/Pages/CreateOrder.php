@@ -35,11 +35,16 @@ class CreateOrder extends BaseCreateRecord
         // Now attach order items to the new order
         if (isset($this->orderItems) && is_array($this->orderItems)) {
             foreach ($this->orderItems as $item) {
+                // Skip items with null or empty item_id
+                if (empty($item['item_id'])) {
+                    continue;
+                }
+                
                 $order->orderItems()->create([
-                    'item_id' => $item['item_id'],
+                    'product_id' => $item['item_id'], // Map item_id to product_id
+                    'price_variation_id' => $item['price_variation_id'] ?? null,
                     'quantity' => $item['quantity'],
                     'price' => $item['price'],
-                    'notes' => $item['notes'] ?? null,
                 ]);
             }
         }

@@ -49,10 +49,13 @@ class BadgeColors
         return match ($status) {
             'pending' => 'warning',
             'confirmed' => 'info',
+            'processing' => 'info',
             'planted' => 'primary',
             'harvested' => 'success', 
             'delivered' => 'success',
+            'completed' => 'success',
             'cancelled' => 'danger',
+            'template' => 'primary',
             default => 'gray',
         };
     }

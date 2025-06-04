@@ -6,12 +6,16 @@ use App\Filament\Resources\OrderResource\Pages;
 use App\Filament\Resources\OrderResource\RelationManagers;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Str;
 
 class OrderResource extends Resource
 {
@@ -19,8 +23,8 @@ class OrderResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-shopping-cart';
     protected static ?string $navigationLabel = 'Orders';
-    protected static ?string $navigationGroup = 'Sales & Products';
-    protected static ?int $navigationSort = 4;
+    protected static ?string $navigationGroup = 'Order Management';
+    protected static ?int $navigationSort = 1;
 
     public static function form(Form $form): Form
     {
@@ -33,72 +37,107 @@ class OrderResource extends Resource
                             ->relationship('user', 'name')
                             ->searchable()
                             ->preload()
-                            ->required(),
-                        Forms\Components\Select::make('customer_type')
-                            ->label('Customer Type')
-                            ->options([
-                                'retail' => 'Retail',
-                                'wholesale' => 'Wholesale',
+                            ->required()
+                            ->createOptionForm([
+                                Forms\Components\TextInput::make('name')
+                                    ->required()
+                                    ->maxLength(255),
+                                Forms\Components\TextInput::make('email')
+                                    ->email()
+                                    ->required()
+                                    ->unique(User::class, 'email')
+                                    ->maxLength(255),
+                                Forms\Components\TextInput::make('phone')
+                                    ->tel()
+                                    ->maxLength(255),
+                                Forms\Components\Select::make('customer_type')
+                                    ->label('Customer Type')
+                                    ->options([
+                                        'retail' => 'Retail',
+                                        'wholesale' => 'Wholesale',
+                                    ])
+                                    ->default('retail')
+                                    ->required(),
+                                Forms\Components\TextInput::make('company_name')
+                                    ->label('Company Name')
+                                    ->maxLength(255)
+                                    ->visible(fn (Forms\Get $get) => $get('customer_type') === 'wholesale'),
+                                Forms\Components\Group::make([
+                                    Forms\Components\Textarea::make('address')
+                                        ->rows(2)
+                                        ->columnSpanFull(),
+                                    Forms\Components\TextInput::make('city')
+                                        ->maxLength(100),
+                                    Forms\Components\TextInput::make('state')
+                                        ->maxLength(50),
+                                    Forms\Components\TextInput::make('zip')
+                                        ->label('ZIP Code')
+                                        ->maxLength(20),
+                                ])->columns(3),
                             ])
-                            ->default('retail')
-                            ->required(),
-                        Forms\Components\Select::make('status')
-                            ->options([
-                                'pending' => 'Pending',
-                                'processing' => 'Processing',
-                                'planted' => 'Planted',
-                                'harvested' => 'Harvested',
-                                'delivered' => 'Delivered',
-                                'cancelled' => 'Cancelled',
-                                'completed' => 'Completed',
-                            ])
-                            ->default('pending')
-                            ->required(),
+                            ->createOptionUsing(function (array $data): int {
+                                $data['password'] = bcrypt(Str::random(12)); // Generate random password
+                                return User::create($data)->getKey();
+                            }),
                         Forms\Components\DatePicker::make('harvest_date')
                             ->label('Harvest Date')
                             ->required(),
                         Forms\Components\DatePicker::make('delivery_date')
                             ->label('Delivery Date')
                             ->required(),
+                        Forms\Components\Toggle::make('is_recurring')
+                            ->label('Make this a recurring order')
+                            ->reactive()
+                            ->afterStateUpdated(function ($state, callable $set) {
+                                if (!$state) {
+                                    // Clear recurring fields when toggled off
+                                    $set('recurring_frequency', null);
+                                    $set('recurring_interval', null);
+                                }
+                            }),
                     ])
                     ->columns(2),
                 
+                Forms\Components\Section::make('Recurring Order Settings')
+                    ->schema([
+                        Forms\Components\Group::make([
+                            Forms\Components\Select::make('recurring_frequency')
+                                ->label('Frequency')
+                                ->options([
+                                    'weekly' => 'Weekly',
+                                    'biweekly' => 'Bi-weekly',
+                                    'monthly' => 'Monthly',
+                                ])
+                                ->reactive()
+                                ->required()
+                                ->visible(fn ($get) => $get('is_recurring')),
+                            
+                            Forms\Components\TextInput::make('recurring_interval')
+                                ->label('Interval (weeks)')
+                                ->helperText('For bi-weekly: enter 2 for every 2 weeks')
+                                ->numeric()
+                                ->default(2)
+                                ->minValue(1)
+                                ->maxValue(12)
+                                ->visible(fn ($get) => $get('is_recurring') && $get('recurring_frequency') === 'biweekly'),
+                        ])->columns(2),
+                        
+                        Forms\Components\Toggle::make('is_recurring_active')
+                            ->label('Active')
+                            ->helperText('Uncheck to pause recurring order generation')
+                            ->default(true)
+                            ->visible(fn ($get) => $get('is_recurring')),
+                    ])
+                    ->visible(fn ($get) => $get('is_recurring'))
+                    ->collapsible()
+                    ->collapsed(fn ($livewire) => $livewire instanceof \Filament\Resources\Pages\EditRecord),
+                
                 Forms\Components\Section::make('Order Items')
                     ->schema([
-                        Forms\Components\Repeater::make('orderItems')
-                            ->schema([
-                                Forms\Components\Select::make('item_id')
-                                    ->label('Product')
-                                    ->options(Product::query()->pluck('name', 'id'))
-                                    ->searchable()
-                                    ->reactive()
-                                    ->afterStateUpdated(function ($state, callable $set, $get) {
-                                        if ($state) {
-                                            $product = Product::find($state);
-                                            $customer_type = $get('../../customer_type') ?? 'retail';
-                                            $price = $product ? $product->getPriceForCustomerType($customer_type) : 0;
-                                            $set('price', $price);
-                                        }
-                                    })
-                                    ->required(),
-                                Forms\Components\TextInput::make('quantity')
-                                    ->numeric()
-                                    ->default(1)
-                                    ->minValue(1)
-                                    ->required(),
-                                Forms\Components\TextInput::make('price')
-                                    ->label('Unit Price ($)')
-                                    ->numeric()
-                                    ->prefix('$')
-                                    ->required(),
-                                Forms\Components\Textarea::make('notes')
-                                    ->rows(2)
-                                    ->columnSpanFull(),
-                            ])
-                            ->columns(3)
-                            ->defaultItems(1)
-                            ->reorderable(false)
-                            ->collapsible(),
+                        \App\Forms\Components\InvoiceOrderItems::make('orderItems')
+                            ->label('Items')
+                            ->productOptions(fn () => Product::query()->pluck('name', 'id')->toArray())
+                            ->required(),
                     ]),
                 
                 Forms\Components\Section::make('Additional Information')
@@ -121,9 +160,10 @@ class OrderResource extends Resource
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Customer')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('customer_type')
+                Tables\Columns\TextColumn::make('customer_type_display')
+                    ->label('Type')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
+                    ->color(fn (Order $record): string => match ($record->customer_type) {
                         'retail' => 'success',
                         'wholesale' => 'info',
                         default => 'gray',
@@ -138,8 +178,22 @@ class OrderResource extends Resource
                         'delivered' => 'success',
                         'cancelled' => 'danger',
                         'completed' => 'success',
+                        'template' => 'primary',
                         default => 'gray',
                     }),
+                Tables\Columns\IconColumn::make('is_recurring')
+                    ->label('Recurring')
+                    ->boolean()
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('recurring_frequency_display')
+                    ->label('Frequency')
+                    ->toggleable()
+                    ->visible(fn () => request()->get('tableFilters.is_recurring.value') === true),
+                Tables\Columns\TextColumn::make('generated_orders_count')
+                    ->label('Generated')
+                    ->numeric()
+                    ->toggleable()
+                    ->visible(fn () => request()->get('tableFilters.is_recurring.value') === true),
                 Tables\Columns\TextColumn::make('totalAmount')
                     ->label('Total')
                     ->money('USD')
@@ -170,7 +224,28 @@ class OrderResource extends Resource
                         'delivered' => 'Delivered',
                         'cancelled' => 'Cancelled',
                         'completed' => 'Completed',
+                        'template' => 'Template (Recurring)',
                     ]),
+                Tables\Filters\TernaryFilter::make('is_recurring')
+                    ->label('Recurring Orders')
+                    ->nullable()
+                    ->placeholder('All orders')
+                    ->trueLabel('Recurring only')
+                    ->falseLabel('Non-recurring only'),
+                Tables\Filters\SelectFilter::make('recurring_frequency')
+                    ->label('Frequency')
+                    ->options([
+                        'weekly' => 'Weekly',
+                        'biweekly' => 'Bi-weekly',
+                        'monthly' => 'Monthly',
+                    ])
+                    ->query(function (Builder $query, $data) {
+                        if ($data['value']) {
+                            return $query->where('is_recurring', true)
+                                        ->where('recurring_frequency', $data['value']);
+                        }
+                        return $query;
+                    }),
                 Tables\Filters\SelectFilter::make('customer_type')
                     ->options([
                         'retail' => 'Retail',
@@ -207,7 +282,7 @@ class OrderResource extends Resource
                     ->action(function (Order $record): void {
                         $record->update(['status' => 'processing']);
                     })
-                    ->visible(fn (Order $record): bool => $record->status === 'pending'),
+                    ->visible(fn (Order $record): bool => $record->status === 'pending' && !$record->is_recurring),
                 Tables\Actions\Action::make('mark_planted')
                     ->label('Mark as Planted')
                     ->icon('heroicon-o-arrow-path')
@@ -249,6 +324,56 @@ class OrderResource extends Resource
                     })
                     ->requiresConfirmation()
                     ->visible(fn (Order $record): bool => !in_array($record->status, ['completed', 'cancelled'])),
+                
+                // Recurring Order Actions
+                Tables\Actions\Action::make('generate_next')
+                    ->label('Generate Next Order')
+                    ->icon('heroicon-o-plus-circle')
+                    ->color('primary')
+                    ->action(function (Order $record): void {
+                        $newOrder = $record->generateNextRecurringOrder();
+                        if ($newOrder) {
+                            Notification::make()
+                                ->title('Recurring order generated')
+                                ->body("Order #{$newOrder->id} created for {$newOrder->harvest_date->format('M d, Y')}")
+                                ->success()
+                                ->send();
+                        } else {
+                            Notification::make()
+                                ->title('Unable to generate order')
+                                ->body('Check recurring order settings and end date')
+                                ->warning()
+                                ->send();
+                        }
+                    })
+                    ->visible(fn (Order $record): bool => $record->isRecurringTemplate() && $record->is_recurring_active),
+                
+                Tables\Actions\Action::make('pause_recurring')
+                    ->label('Pause Recurring')
+                    ->icon('heroicon-o-pause')
+                    ->color('warning')
+                    ->action(function (Order $record): void {
+                        $record->update(['is_recurring_active' => false]);
+                        Notification::make()
+                            ->title('Recurring order paused')
+                            ->success()
+                            ->send();
+                    })
+                    ->requiresConfirmation()
+                    ->visible(fn (Order $record): bool => $record->isRecurringTemplate() && $record->is_recurring_active),
+                
+                Tables\Actions\Action::make('resume_recurring')
+                    ->label('Resume Recurring')
+                    ->icon('heroicon-o-play')
+                    ->color('success')
+                    ->action(function (Order $record): void {
+                        app(\App\Services\RecurringOrderService::class)->resumeRecurringOrder($record);
+                        Notification::make()
+                            ->title('Recurring order resumed')
+                            ->success()
+                            ->send();
+                    })
+                    ->visible(fn (Order $record): bool => $record->isRecurringTemplate() && !$record->is_recurring_active),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
