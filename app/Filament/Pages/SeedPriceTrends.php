@@ -70,7 +70,9 @@ class SeedPriceTrends extends Page implements HasForms
                         
                         Select::make('selectedCultivars')
                             ->label('Select Cultivars')
-                            ->options(function () {
+                            ->options(function (callable $get) {
+                                // This will re-evaluate when selectedCommonName changes
+                                $this->selectedCommonName = $get('selectedCommonName');
                                 return $this->getCultivarOptions();
                             })
                             ->multiple()
