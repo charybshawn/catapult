@@ -193,25 +193,58 @@
     @apply border-0 rounded-lg shadow-sm bg-white dark:bg-gray-900;
 }
 
-/* Wide screen layout improvements - surgical approach */
+/* Responsive wide screen layout - scales with viewport */
 
-/* Step 1: Target Filament's main content container specifically */
+/* Make layout truly responsive to viewport width */
 @media (min-width: 1440px) {
-    /* Only target the main page content container, not headers/nav */
+    /* Use viewport-relative width with minimum and maximum bounds */
     .fi-page-content {
-        max-width: 1400px !important; /* Increase from default ~1024px */
+        max-width: min(90vw, 1800px) !important; /* 90% of viewport, capped at 1800px */
+        width: 100% !important;
     }
     
-    /* Allow table containers to use the extra space */
+    /* Allow table containers to use the available space */
     .fi-ta-content {
+        max-width: none !important;
+        width: 100% !important;
+    }
+    
+    /* Make sure forms and sections can grow responsively */
+    .fi-section,
+    .fi-card,
+    .fi-widget {
         max-width: none !important;
     }
 }
 
-/* Step 2: Even more space on larger screens */
-@media (min-width: 1920px) {
+/* For ultra-wide displays, be more generous with space */
+@media (min-width: 2560px) {
     .fi-page-content {
-        max-width: 1600px !important;
+        max-width: min(85vw, 2400px) !important; /* Use more space on very wide screens */
+    }
+}
+
+/* Responsive sidebar adjustments */
+@media (min-width: 1920px) {
+    /* Slightly wider sidebar on large screens for better proportions */
+    .fi-sidebar {
+        width: 18rem !important;
+    }
+    
+    /* Adjust main content margin accordingly */
+    .fi-main {
+        margin-left: 18rem !important;
+    }
+}
+
+@media (min-width: 2560px) {
+    /* Even wider sidebar on ultra-wide displays */
+    .fi-sidebar {
+        width: 20rem !important;
+    }
+    
+    .fi-main {
+        margin-left: 20rem !important;
     }
 }
 
@@ -227,7 +260,7 @@
     }
 }
 
-/* Better form column distribution on wide screens */
+/* Responsive form and table improvements */
 @media (min-width: 1440px) {
     /* Make 2-column forms actually use the space well */
     .grid.grid-cols-2 {
@@ -242,5 +275,44 @@
     /* Ensure fieldsets expand properly */
     .fi-fo-fieldset {
         @apply w-full;
+    }
+    
+    /* Allow tables to be more responsive */
+    .fi-ta-table {
+        min-width: 100% !important;
+    }
+    
+    /* Better spacing for table actions */
+    .fi-ta-actions {
+        white-space: nowrap;
+        min-width: max-content;
+    }
+}
+
+/* Progressive form enhancements for larger screens */
+@media (min-width: 1920px) {
+    /* Convert some 2-column layouts to 3-column on very wide screens */
+    .fi-fo-section .grid.grid-cols-2:not(.fi-fo-builder-simple) {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: 1.5rem !important;
+    }
+    
+    /* Increase gaps for better breathing room */
+    .grid.grid-cols-3 {
+        @apply gap-8;
+    }
+}
+
+/* Ultra-wide screen optimizations */
+@media (min-width: 2560px) {
+    /* Even more generous spacing */
+    .fi-fo-section .grid.grid-cols-2:not(.fi-fo-builder-simple) {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 2rem !important;
+    }
+    
+    .grid.grid-cols-3 {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        @apply gap-10;
     }
 }
