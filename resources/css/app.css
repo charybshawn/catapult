@@ -193,18 +193,34 @@
     @apply border-0 rounded-lg shadow-sm bg-white dark:bg-gray-900;
 }
 
-/* Responsive wide screen layout - scales with viewport */
+/* Responsive wide screen layout - using correct Filament classes */
 
 /* Make layout truly responsive to viewport width */
 @media (min-width: 1440px) {
-    /* Use viewport-relative width with minimum and maximum bounds */
-    .fi-page-content {
+    /* CORRECT: Target the actual main content container with higher specificity */
+    .fi-layout .fi-main,
+    .fi-body .fi-main,
+    main.fi-main {
         max-width: min(90vw, 1800px) !important; /* 90% of viewport, capped at 1800px */
+        width: 100% !important;
+    }
+    
+    /* Also target any container classes within main */
+    .fi-main .container,
+    .fi-main .fi-container,
+    .fi-main [class*="max-w-"] {
+        max-width: none !important;
         width: 100% !important;
     }
     
     /* Allow table containers to use the available space */
     .fi-ta-content {
+        max-width: none !important;
+        width: 100% !important;
+    }
+    
+    /* Table container itself */
+    .fi-ta-ctn {
         max-width: none !important;
         width: 100% !important;
     }
@@ -219,34 +235,12 @@
 
 /* For ultra-wide displays, be more generous with space */
 @media (min-width: 2560px) {
-    .fi-page-content {
+    .fi-main {
         max-width: min(85vw, 2400px) !important; /* Use more space on very wide screens */
     }
 }
 
-/* Responsive sidebar adjustments */
-@media (min-width: 1920px) {
-    /* Slightly wider sidebar on large screens for better proportions */
-    .fi-sidebar {
-        width: 18rem !important;
-    }
-    
-    /* Adjust main content margin accordingly */
-    .fi-main {
-        margin-left: 18rem !important;
-    }
-}
-
-@media (min-width: 2560px) {
-    /* Even wider sidebar on ultra-wide displays */
-    .fi-sidebar {
-        width: 20rem !important;
-    }
-    
-    .fi-main {
-        margin-left: 20rem !important;
-    }
-}
+/* REMOVED: Incorrect sidebar positioning code - Filament uses flexbox layout, not margin-based positioning */
 
 /* Improve modal sizing on wide screens */
 @media (min-width: 1440px) {
@@ -292,13 +286,13 @@
 /* Progressive form enhancements for larger screens */
 @media (min-width: 1920px) {
     /* Convert some 2-column layouts to 3-column on very wide screens */
-    .fi-fo-section .grid.grid-cols-2:not(.fi-fo-builder-simple) {
+    .fi-main .grid.grid-cols-2:not(.fi-fo-builder-simple) {
         grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
         gap: 1.5rem !important;
     }
     
     /* Increase gaps for better breathing room */
-    .grid.grid-cols-3 {
+    .fi-main .grid.grid-cols-3 {
         @apply gap-8;
     }
 }
@@ -306,12 +300,12 @@
 /* Ultra-wide screen optimizations */
 @media (min-width: 2560px) {
     /* Even more generous spacing */
-    .fi-fo-section .grid.grid-cols-2:not(.fi-fo-builder-simple) {
+    .fi-main .grid.grid-cols-2:not(.fi-fo-builder-simple) {
         grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
         gap: 2rem !important;
     }
     
-    .grid.grid-cols-3 {
+    .fi-main .grid.grid-cols-3 {
         grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
         @apply gap-10;
     }
