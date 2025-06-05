@@ -197,17 +197,16 @@
 
 /* Make the main content area use more horizontal space on wide screens */
 @media (min-width: 1440px) {
-    /* Target the actual content containers that limit width */
+    /* Use viewport-based calculations for sensible widths */
     .fi-main-ctn,
     .fi-page-content,
     .fi-simple-page,
-    .fi-resource-page-content,
-    .fi-main > div,
-    [class*="max-w-"] {
-        max-width: none !important;
+    .fi-resource-page-content {
+        max-width: calc(100vw - 18rem) !important; /* Account for sidebar width */
+        width: 100% !important;
     }
     
-    /* Specifically target common container classes */
+    /* Override restrictive container classes with viewport-aware widths */
     .max-w-7xl,
     .max-w-6xl,
     .max-w-5xl,
@@ -216,7 +215,7 @@
     .max-w-2xl,
     .max-w-xl,
     .max-w-lg {
-        max-width: none !important;
+        max-width: calc(100vw - 20rem) !important; /* Sidebar + margins */
     }
     
     /* Target Filament's specific layout containers */
@@ -224,15 +223,15 @@
     .fi-body,
     .fi-main,
     .fi-page {
-        max-width: none !important;
+        max-width: calc(100vw - 16rem) !important; /* Slight buffer for sidebar */
         width: 100% !important;
     }
     
-    /* Make sure content wrapper uses full width */
+    /* Content wrappers should respect viewport bounds */
     .fi-page > div,
     .fi-simple-page > div,
     .fi-resource-page > div {
-        max-width: none !important;
+        max-width: calc(100vw - 20rem) !important;
         width: 100% !important;
     }
 }
@@ -272,21 +271,21 @@
         @apply max-w-none;
     }
     
-    /* Target all potential container classes that might limit width */
+    /* Target container classes with viewport-aware sizing */
     .mx-auto,
     .container,
     .fi-container {
         margin-left: 1rem !important;
         margin-right: 1rem !important;
-        max-width: none !important;
+        max-width: calc(100vw - 22rem) !important; /* Sidebar + margins */
         width: calc(100% - 2rem) !important;
     }
     
-    /* Remove centering from main content areas */
+    /* Main content areas should use available space */
     .fi-page-content {
         margin-left: 1rem !important;
         margin-right: 1rem !important;
-        max-width: none !important;
+        max-width: calc(100vw - 20rem) !important;
         width: calc(100% - 2rem) !important;
     }
 }

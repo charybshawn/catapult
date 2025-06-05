@@ -130,67 +130,89 @@ class AppServiceProvider extends ServiceProvider
             PanelsRenderHook::HEAD_END,
             fn (): string => '
                 <style>
-                    /* AGGRESSIVE: Remove ALL max-width constraints on wide screens */
+                    /* BALANCED: Better width utilization without overflow */
                     @media (min-width: 1440px) {
-                        /* Target every possible container class */
-                        .max-w-xs, .max-w-sm, .max-w-md, .max-w-lg, .max-w-xl, 
-                        .max-w-2xl, .max-w-3xl, .max-w-4xl, .max-w-5xl, 
-                        .max-w-6xl, .max-w-7xl, .max-w-full, .max-w-screen-sm,
-                        .max-w-screen-md, .max-w-screen-lg, .max-w-screen-xl,
-                        .max-w-screen-2xl, .max-w-none, .max-w-prose,
-                        .max-w-min, .max-w-max, .max-w-fit {
-                            max-width: none !important;
-                        }
-                        
-                        /* Target all potential Filament containers */
-                        .fi-layout, .fi-body, .fi-main, .fi-page,
-                        .fi-main-ctn, .fi-page-content, .fi-simple-page,
-                        .fi-resource-page-content, .fi-container,
-                        .container, main, [role="main"] {
-                            max-width: none !important;
+                        /* Set reasonable max-widths for different screen sizes */
+                        .fi-main, .fi-page, .fi-page-content {
+                            max-width: calc(100vw - 18rem) !important; /* Account for sidebar + some margin */
                             width: 100% !important;
+                            margin: 0 !important;
+                            padding-left: 1rem !important;
+                            padding-right: 1rem !important;
                         }
                         
-                        /* Remove auto margins that center content */
+                        /* Content containers should use available width with padding */
+                        .fi-simple-page, .fi-resource-page-content,
+                        .fi-main-ctn, .container {
+                            max-width: calc(100vw - 20rem) !important; /* Sidebar + margins */
+                            width: 100% !important;
+                            margin: 0 !important;
+                            padding-left: 1rem !important;
+                            padding-right: 1rem !important;
+                        }
+                        
+                        /* Override restrictive Tailwind classes with reasonable limits */
+                        .max-w-xs, .max-w-sm, .max-w-md, .max-w-lg, .max-w-xl, 
+                        .max-w-2xl, .max-w-3xl, .max-w-4xl {
+                            max-width: calc(100vw - 20rem) !important;
+                        }
+                        
+                        /* Remove centering but keep content within viewport */
                         .mx-auto {
                             margin-left: 1rem !important;
                             margin-right: 1rem !important;
+                            max-width: calc(100vw - 20rem) !important;
                         }
                         
-                        /* Ensure all nested divs expand */
-                        .fi-main > *, .fi-page > *, .fi-simple-page > *,
-                        .fi-resource-page > *, .fi-page-content > * {
-                            max-width: none !important;
+                        /* Tables should use available space without overflow */
+                        .fi-ta-content, .fi-ta-table {
                             width: 100% !important;
+                            max-width: calc(100vw - 22rem) !important;
+                            overflow-x: auto !important;
                         }
                         
-                        /* Tables should use all available space */
-                        .fi-ta-content, .fi-ta-table, table {
-                            width: 100% !important;
-                            max-width: none !important;
-                        }
-                        
-                        /* Forms should expand */
+                        /* Forms should expand but stay within bounds */
                         .fi-fo, .fi-form, form {
                             width: 100% !important;
-                            max-width: none !important;
+                            max-width: calc(100vw - 20rem) !important;
                         }
                         
-                        /* Cards and sections */
+                        /* Cards and sections with reasonable bounds */
                         .fi-section, .fi-card, .fi-widget {
                             width: 100% !important;
-                            max-width: none !important;
+                            max-width: calc(100vw - 20rem) !important;
                         }
                     }
                     
-                    /* Ultra-wide screen optimizations */
-                    @media (min-width: 2560px) {
+                    /* Larger screens get more space */
+                    @media (min-width: 1920px) {
+                        .fi-main, .fi-page, .fi-page-content,
+                        .fi-simple-page, .fi-resource-page-content {
+                            max-width: calc(100vw - 22rem) !important; /* Wider sidebar accounted for */
+                        }
+                        
                         .fi-sidebar {
                             width: 20rem !important;
                         }
                         
                         .fi-main {
                             margin-left: 20rem !important;
+                        }
+                    }
+                    
+                    /* Ultra-wide screens */
+                    @media (min-width: 2560px) {
+                        .fi-main, .fi-page, .fi-page-content,
+                        .fi-simple-page, .fi-resource-page-content {
+                            max-width: calc(100vw - 24rem) !important; /* Even wider sidebar */
+                        }
+                        
+                        .fi-sidebar {
+                            width: 22rem !important;
+                        }
+                        
+                        .fi-main {
+                            margin-left: 22rem !important;
                         }
                     }
                 </style>
