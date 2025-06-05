@@ -91,11 +91,12 @@ class CreateProduct extends BaseCreateRecord
         
         // Show notification if variations were created
         if ($createdCount > 0) {
-            Notification::make()
-                ->title("Created {$createdCount} price variations")
-                ->body("Price variations were created from the selected templates.")
-                ->success()
-                ->send();
+            $this->sendCustomNotification(
+                Notification::make()
+                    ->title("Product created successfully!")
+                    ->body("Created {$product->name} with {$createdCount} price variations from templates.")
+                    ->success()
+            );
         }
         
         // Clear session data

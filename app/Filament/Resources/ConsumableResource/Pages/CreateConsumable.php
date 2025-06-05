@@ -344,11 +344,12 @@ class CreateConsumable extends BaseCreateRecord
     {
         try {
             if ($data['type'] === 'seed' && empty($data['seed_variety_id'])) {
-                Notification::make()
-                    ->title('Missing Seed Variety')
-                    ->body('You must select a seed variety when creating a seed consumable.')
-                    ->danger()
-                    ->send();
+                $this->sendCustomNotification(
+                    Notification::make()
+                        ->title('Missing Seed Variety')
+                        ->body('You must select a seed variety when creating a seed consumable.')
+                        ->danger()
+                );
                 
                 return null;
             }
@@ -357,11 +358,12 @@ class CreateConsumable extends BaseCreateRecord
         } catch (\Exception $e) {
             Log::error('Error creating consumable:', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             
-            Notification::make()
-                ->title('Error Creating Consumable')
-                ->body($e->getMessage())
-                ->danger()
-                ->send();
+            $this->sendCustomNotification(
+                Notification::make()
+                    ->title('Error Creating Consumable')
+                    ->body($e->getMessage())
+                    ->danger()
+            );
             
             return null;
         }
@@ -404,11 +406,12 @@ class CreateConsumable extends BaseCreateRecord
                         'name' => $defaultVariety->name
                     ]);
                     
-                    Notification::make()
-                        ->title('Default Seed Variety Used')
-                        ->body('A default seed variety was automatically assigned. You can update this later.')
-                        ->warning()
-                        ->send();
+                    $this->sendCustomNotification(
+                        Notification::make()
+                            ->title('Default Seed Variety Used')
+                            ->body('A default seed variety was automatically assigned. You can update this later.')
+                            ->warning()
+                    );
                 } else {
                     // Verify the seed variety exists
                     $seedVariety = SeedVariety::find($data['seed_variety_id']);
@@ -427,11 +430,12 @@ class CreateConsumable extends BaseCreateRecord
                         $data['seed_variety_id'] = $defaultVariety->id;
                         $data['name'] = $defaultVariety->name;
                         
-                        Notification::make()
-                            ->title('Invalid Seed Variety')
-                            ->body('The selected seed variety could not be found. A default variety was used instead.')
-                            ->warning()
-                            ->send();
+                        $this->sendCustomNotification(
+                            Notification::make()
+                                ->title('Invalid Seed Variety')
+                                ->body('The selected seed variety could not be found. A default variety was used instead.')
+                                ->warning()
+                        );
                     } else {
                         // Set the name from the seed variety
                         $data['name'] = $seedVariety->name;
@@ -471,6 +475,18 @@ class CreateConsumable extends BaseCreateRecord
                 'seed_variety_id' => $model->seed_variety_id,
             ]);
             
+            // Send success notification if not already sent
+            if (!$this->customNotificationSent) {
+                $typeLabel = ucfirst($model->type);
+                
+                $this->sendCustomNotification(
+                    Notification::make()
+                        ->title("{$typeLabel} Created Successfully")
+                        ->body("'{$model->name}' has been created and added to your inventory.")
+                        ->success()
+                );
+            }
+            
             return $model;
         } catch (\Exception $e) {
             Log::error('Error creating consumable', [
@@ -479,12 +495,13 @@ class CreateConsumable extends BaseCreateRecord
                 'data' => $data
             ]);
             
-            Notification::make()
-                ->title('Error Creating Consumable')
-                ->body('An error occurred: ' . $e->getMessage())
-                ->danger()
-                ->persistent()
-                ->send();
+            $this->sendCustomNotification(
+                Notification::make()
+                    ->title('Error Creating Consumable')
+                    ->body('An error occurred: ' . $e->getMessage())
+                    ->danger()
+                    ->persistent()
+            );
             
             throw $e;
         }
