@@ -242,7 +242,26 @@ class ConsumableResource extends BaseResource
                                                 'lb' => 'Pounds',
                                             ])
                                             ->required()
-                                            ->default('g'),
+                                            ->default('g')
+                                            ->reactive()
+                                            ->afterStateUpdated(function (Forms\Set $set, $state) {
+                                                // Update restock defaults when unit changes
+                                                $set('restock_threshold', match($state) {
+                                                    'kg' => 0.5,  // 0.5 kg
+                                                    'g' => 500,   // 500 g
+                                                    'lb' => 1,    // 1 pound
+                                                    'oz' => 16,   // 16 ounces
+                                                    default => 500
+                                                });
+                                                
+                                                $set('restock_quantity', match($state) {
+                                                    'kg' => 1,     // 1 kg
+                                                    'g' => 1000,   // 1000 g
+                                                    'lb' => 2.2,   // 2.2 pounds (1 kg)
+                                                    'oz' => 35.3,  // 35.3 ounces (1 kg)
+                                                    default => 1000
+                                                });
+                                            }),
                                             
                                         // Lot/batch number for seeds
                                         Forms\Components\TextInput::make('lot_no')
@@ -370,30 +389,145 @@ class ConsumableResource extends BaseResource
                         
                         Forms\Components\Fieldset::make('Restock Settings')
                             ->schema([
+                                // Info placeholder for seeds showing conversion
+                                Forms\Components\Placeholder::make('restock_info')
+                                    ->label('')
+                                    ->content(function (Forms\Get $get) {
+                                        if ($get('type') !== 'seed') {
+                                            return '';
+                                        }
+                                        
+                                        $threshold = (float)($get('restock_threshold') ?: 0);
+                                        $quantity = (float)($get('restock_quantity') ?: 0);
+                                        $unit = $get('quantity_unit') ?: 'g';
+                                        
+                                        // Convert to show in multiple units for clarity
+                                        $conversions = [];
+                                        
+                                        if ($unit === 'kg' && $threshold > 0 && $quantity > 0) {
+                                            $conversions[] = "Threshold: {$threshold} kg = " . number_format($threshold * 1000, 0) . " g";
+                                            $conversions[] = "Reorder: {$quantity} kg = " . number_format($quantity * 1000, 0) . " g";
+                                        } elseif ($unit === 'g' && $threshold > 0 && $quantity > 0) {
+                                            $conversions[] = "Threshold: {$threshold} g = " . number_format($threshold / 1000, 3) . " kg";
+                                            $conversions[] = "Reorder: {$quantity} g = " . number_format($quantity / 1000, 3) . " kg";
+                                        } elseif ($unit === 'lb' && $threshold > 0 && $quantity > 0) {
+                                            $conversions[] = "Threshold: {$threshold} lb = " . number_format($threshold * 453.592, 0) . " g";
+                                            $conversions[] = "Reorder: {$quantity} lb = " . number_format($quantity * 453.592, 0) . " g";
+                                        }
+                                        
+                                        if (!empty($conversions)) {
+                                            return new \Illuminate\Support\HtmlString(
+                                                '<div class="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg p-3">' . 
+                                                '<p class="font-medium mb-1">Current Settings:</p>' .
+                                                implode('<br>', array_map(fn($c) => "• {$c}", $conversions)) . 
+                                                '</div>'
+                                            );
+                                        }
+                                        
+                                        return '';
+                                    })
+                                    ->visible(fn (Forms\Get $get) => $get('type') === 'seed' && 
+                                        ((float)($get('restock_threshold') ?: 0) > 0 || (float)($get('restock_quantity') ?: 0) > 0)
+                                    )
+                                    ->reactive()
+                                    ->columnSpanFull(),
+                                    
                                 Forms\Components\TextInput::make('restock_threshold')
-                                    ->label('Restock Threshold')
+                                    ->label(fn (Forms\Get $get) => 
+                                        $get('type') === 'seed' 
+                                            ? 'Restock Threshold (' . ($get('quantity_unit') ?: 'g') . ')' 
+                                            : 'Restock Threshold'
+                                    )
                                     ->helperText(function (Forms\Get $get) {
-                                        return $get('type') === 'seed' 
-                                            ? 'When total quantity falls below this amount, reorder' 
-                                            : 'When stock falls below this number, reorder';
+                                        if ($get('type') === 'seed') {
+                                            $unit = $get('quantity_unit') ?: 'g';
+                                            $unitLabel = match($unit) {
+                                                'kg' => 'kilograms',
+                                                'g' => 'grams',
+                                                'oz' => 'ounces',
+                                                'lb' => 'pounds',
+                                                default => $unit
+                                            };
+                                            
+                                            // Provide example values
+                                            $example = match($unit) {
+                                                'kg' => 'e.g., 0.5 for 500g or 2 for 2kg',
+                                                'g' => 'e.g., 500 for 500g or 2000 for 2kg',
+                                                'lb' => 'e.g., 1 for 1 pound',
+                                                default => ''
+                                            };
+                                            
+                                            return "When total weight falls below this amount in {$unitLabel}, reorder. {$example}";
+                                        }
+                                        return 'When stock falls below this number, reorder';
                                     })
                                     ->numeric()
                                     ->required()
                                     ->default(function (Forms\Get $get) {
-                                        return $get('type') === 'seed' ? 500 : 5;
-                                    }),
+                                        if ($get('type') === 'seed') {
+                                            // Default based on unit
+                                            return match($get('quantity_unit')) {
+                                                'kg' => 0.5,  // 0.5 kg
+                                                'g' => 500,   // 500 g
+                                                'lb' => 1,    // 1 pound
+                                                'oz' => 16,   // 16 ounces
+                                                default => 500
+                                            };
+                                        }
+                                        return 5;
+                                    })
+                                    ->step(fn (Forms\Get $get) => 
+                                        $get('quantity_unit') === 'kg' ? 0.001 : 1
+                                    )
+                                    ->reactive(),
                                 Forms\Components\TextInput::make('restock_quantity')
-                                    ->label('Restock Quantity')
+                                    ->label(fn (Forms\Get $get) => 
+                                        $get('type') === 'seed' 
+                                            ? 'Restock Quantity (' . ($get('quantity_unit') ?: 'g') . ')' 
+                                            : 'Restock Quantity'
+                                    )
                                     ->helperText(function (Forms\Get $get) {
-                                        return $get('type') === 'seed'
-                                            ? 'How much to order when restocking'
-                                            : 'How many to order when restocking';
+                                        if ($get('type') === 'seed') {
+                                            $unit = $get('quantity_unit') ?: 'g';
+                                            $unitLabel = match($unit) {
+                                                'kg' => 'kilograms',
+                                                'g' => 'grams',
+                                                'oz' => 'ounces',
+                                                'lb' => 'pounds',
+                                                default => $unit
+                                            };
+                                            
+                                            // Provide example values
+                                            $example = match($unit) {
+                                                'kg' => 'e.g., 1 for 1kg or 5 for 5kg',
+                                                'g' => 'e.g., 1000 for 1kg or 5000 for 5kg',
+                                                'lb' => 'e.g., 2.2 for 1kg',
+                                                default => ''
+                                            };
+                                            
+                                            return "Amount to order when restocking in {$unitLabel}. {$example}";
+                                        }
+                                        return 'How many to order when restocking';
                                     })
                                     ->numeric()
                                     ->required()
                                     ->default(function (Forms\Get $get) {
-                                        return $get('type') === 'seed' ? 1000 : 10;
-                                    }),
+                                        if ($get('type') === 'seed') {
+                                            // Default based on unit
+                                            return match($get('quantity_unit')) {
+                                                'kg' => 1,     // 1 kg
+                                                'g' => 1000,   // 1000 g
+                                                'lb' => 2.2,   // 2.2 pounds (1 kg)
+                                                'oz' => 35.3,  // 35.3 ounces (1 kg)
+                                                default => 1000
+                                            };
+                                        }
+                                        return 10;
+                                    })
+                                    ->step(fn (Forms\Get $get) => 
+                                        $get('quantity_unit') === 'kg' ? 0.001 : 1
+                                    )
+                                    ->reactive(),
                             ])->columns(2),
                     ]),
                 
