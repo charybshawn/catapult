@@ -92,9 +92,9 @@ class SeedScrapeImporter
      */
     protected function processProduct(array $productData, Supplier $supplier, string $timestamp, string $defaultCurrency = 'USD'): void
     {
-        // Extract cultivar name - try different field combinations to support different formats
+        // Extract cultivar name and common name - try different field combinations to support different formats
         $cultivarName = $this->extractCultivarName($productData);
-        $commonName = $this->extractCommonName($cultivarName);
+        $commonName = $this->extractCommonNameFromProductData($productData);
         
         // Find or create the seed entry with cultivar and common name populated directly
         $seedEntry = SeedEntry::firstOrCreate(
@@ -351,14 +351,16 @@ class SeedScrapeImporter
         }
         
         if (isset($productData['cultivar']) && !empty($productData['cultivar'])) {
-            // Combine with plant_variety if available (Sprouting.com format)
-            $cultivar = trim($productData['cultivar']);
+            // For Sprouting.com format: cultivar field is the common name, plant_variety is the actual cultivar
+            $commonName = trim($productData['cultivar']);
             if (isset($productData['plant_variety']) && 
                 $productData['plant_variety'] !== 'N/A' && 
                 !empty($productData['plant_variety'])) {
-                return $cultivar . ' - ' . trim($productData['plant_variety']);
+                // The plant_variety is the actual cultivar name
+                return trim($productData['plant_variety']);
             }
-            return $cultivar;
+            // If no specific variety, use the common name as cultivar
+            return $commonName;
         }
         
         if (isset($productData['common_name']) && !empty($productData['common_name'])) {
@@ -512,5 +514,47 @@ class SeedScrapeImporter
         
         // Return the whole name if no separators found
         return $cleaned;
+    }
+    
+    /**
+     * Extract common name directly from product data
+     *
+     * @param array $productData
+     * @return string
+     */
+    protected function extractCommonNameFromProductData(array $productData): string
+    {
+        // Method 1: Check for dedicated common_name field
+        if (isset($productData['common_name']) && !empty($productData['common_name']) && $productData['common_name'] !== 'N/A') {
+            return trim($productData['common_name']);
+        }
+        
+        // Method 2: For Sprouting.com format, the 'cultivar' field is actually the common name
+        if (isset($productData['cultivar']) && !empty($productData['cultivar'])) {
+            return trim($productData['cultivar']);
+        }
+        
+        // Method 3: Parse from title for other formats
+        if (isset($productData['title']) && !empty($productData['title'])) {
+            $title = trim($productData['title']);
+            
+            // If title contains comma, take the part before it as base name
+            if (strpos($title, ',') !== false) {
+                $parts = explode(',', $title, 2);
+                $baseName = trim($parts[0]);
+                
+                // Clean up common prefixes/suffixes
+                $baseName = preg_replace('/\s*-\s*(Organic|Non-GMO|Heirloom|Certified).*$/i', '', $baseName);
+                $baseName = preg_replace('/^(Greencrops,\s*)?(\d+\s*)?/i', '', $baseName);
+                
+                return $baseName;
+            }
+            
+            // For patterns like "Green Forage Pea", "Brussels Winter Vertissimo", etc.
+            // Try to extract the main vegetable name using the same logic as before
+            return $this->extractCommonName($title);
+        }
+        
+        return 'Unknown';
     }
 } 
