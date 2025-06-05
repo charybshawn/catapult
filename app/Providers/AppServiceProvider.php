@@ -19,7 +19,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Register CropTaskService with its dependencies
+        $this->app->bind(\App\Services\CropTaskService::class, function ($app) {
+            return new \App\Services\CropTaskService(
+                $app->make(\App\Services\TaskFactoryService::class)
+            );
+        });
     }
 
     /**

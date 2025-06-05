@@ -4,7 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ProductMixResource\Pages;
 use App\Models\ProductMix;
-use App\Models\SeedVariety;
+use App\Models\SeedCultivar;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -48,21 +48,24 @@ class ProductMixResource extends Resource
                         Forms\Components\Repeater::make('components')
                             ->label('Varieties')
                             ->schema([
-                                Forms\Components\Select::make('seed_variety_id')
-                                    ->label('Variety')
-                                    ->options(SeedVariety::all()->pluck('name', 'id'))
+                                Forms\Components\Select::make('seed_cultivar_id')
+                                    ->label('Cultivar')
+                                    ->options(SeedCultivar::all()->pluck('name', 'id'))
                                     ->createOptionForm([
                                         Forms\Components\TextInput::make('name')
                                             ->required()
                                             ->maxLength(255),
+                                        Forms\Components\Textarea::make('description')
+                                            ->maxLength(500),
                                         Forms\Components\TextInput::make('crop_type')
                                             ->maxLength(255),
                                         Forms\Components\Toggle::make('is_active')
                                             ->default(true),
                                     ])
                                     ->createOptionUsing(function (array $data) {
-                                        return SeedVariety::create([
+                                        return SeedCultivar::create([
                                             'name' => $data['name'],
+                                            'description' => $data['description'] ?? null,
                                             'crop_type' => $data['crop_type'] ?? null,
                                             'is_active' => $data['is_active'] ?? true,
                                         ])->id;
@@ -101,7 +104,7 @@ class ProductMixResource extends Resource
                     ->label('Mix Components')
                     ->html()
                     ->getStateUsing(function (ProductMix $record): string {
-                        $components = $record->seedVarieties()
+                        $components = $record->seedCultivars()
                             ->withPivot('percentage')
                             ->get()
                             ->map(fn ($variety) => 
@@ -151,7 +154,7 @@ class ProductMixResource extends Resource
                     ->query(fn (Builder $query) => $query->whereDoesntHave('products')),
                 Tables\Filters\Filter::make('incomplete')
                     ->label('Incomplete Mixes')
-                    ->query(fn (Builder $query) => $query->whereDoesntHave('seedVarieties')),
+                    ->query(fn (Builder $query) => $query->whereDoesntHave('seedCultivars')),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()
@@ -169,8 +172,8 @@ class ProductMixResource extends Resource
                         $newMix->save();
                         
                         // Copy the seed varieties
-                        foreach ($record->seedVarieties as $variety) {
-                            $newMix->seedVarieties()->attach($variety->id, [
+                        foreach ($record->seedCultivars as $variety) {
+                            $newMix->seedCultivars()->attach($variety->id, [
                                 'percentage' => $variety->pivot->percentage,
                             ]);
                         }

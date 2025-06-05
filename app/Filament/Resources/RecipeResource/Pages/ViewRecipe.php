@@ -40,9 +40,9 @@ class ViewRecipe extends ViewRecord
                                             }
                                             return $info;
                                         }
-                                        return $record->seedVariety ? "Legacy: {$record->seedVariety->name}" : null;
+                                        return $record->seedCultivar ? $record->seedCultivar->name : null;
                                     })
-                                    ->visible(fn ($record) => $record->seedConsumable || $record->seedVariety),
+                                    ->visible(fn ($record) => $record->seedConsumable || $record->seedCultivar),
                             ])
                             ->columns(1),
                             

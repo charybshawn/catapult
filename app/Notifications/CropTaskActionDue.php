@@ -54,7 +54,7 @@ class CropTaskActionDue extends Notification implements ShouldQueue // Implement
      */
     public function toArray(object $notifiable): array
     {
-        $variety = $this->crop->recipe?->seedVariety?->name ?? ($this->crop->recipe?->name ?? 'Unknown Variety');
+        $variety = $this->crop->recipe?->seedCultivar?->name ?? ($this->crop->recipe?->name ?? 'Unknown Variety');
         $tray = $this->crop->tray_number;
         $icon = 'heroicon-o-bell-alert'; // Default icon
         $title = "Action Due: {$variety} (Tray {$tray})"; // Default title

@@ -18,12 +18,15 @@ class GroupedCropAlertsWidget extends Widget
     
     // Refresh interval in seconds (1 hour)
     protected static ?string $pollingInterval = '3600s';
+    
+    // Make widget span full width
+    protected int | string | array $columnSpan = 'full';
 
     public function getCropsNeedingAction(): array
     {
         $stages = [
-            'seeded' => [
-                'title' => 'Seeded Crops',
+            'germination' => [
+                'title' => 'Germination Stage',
                 'icon' => 'sparkles',
                 'color' => 'primary',
                 'crops' => [],
@@ -34,8 +37,8 @@ class GroupedCropAlertsWidget extends Widget
                 'color' => 'warning',
                 'crops' => [],
             ],
-            'growing' => [
-                'title' => 'Growing Crops',
+            'light' => [
+                'title' => 'Light Stage',
                 'icon' => 'sun',
                 'color' => 'success',
                 'crops' => [],
@@ -44,15 +47,15 @@ class GroupedCropAlertsWidget extends Widget
 
         // Get all active crops (not harvested) with their relationships
         $crops = Crop::whereNotIn('current_stage', ['harvested'])
-            ->with(['recipe.seedVariety', 'recipe'])
+            ->with(['recipe.seedCultivar', 'recipe'])
             ->get();
 
         foreach ($crops as $crop) {
             // Get the variety name, falling back to recipe name if variety is not available
             $variety = 'Unknown';
             if ($crop->recipe) {
-                if ($crop->recipe->seedVariety) {
-                    $variety = $crop->recipe->seedVariety->name;
+                if ($crop->recipe->seedCultivar) {
+                    $variety = $crop->recipe->seedCultivar->name;
                 } else if ($crop->recipe->name) {
                     $variety = $crop->recipe->name;
                 }
@@ -93,53 +96,20 @@ class GroupedCropAlertsWidget extends Widget
             // Calculate if overdue
             $overdue = $now->diffInHours($stageStartTime) > ($recommendedDays * 24);
             
-            // Add to appropriate stage
-            if ($crop->current_stage === 'germination' && $now->diffInHours($stageStartTime) >= ($recommendedDays * 24)) {
-                $stages['seeded']['crops'][] = [
-                    'id' => $crop->id,
-                    'variety' => $variety,
-                    'tray' => $trayName,
-                    'time_in_stage' => $timeInStage,
-                    'recommended_days' => $recommendedDays,
-                    'overdue' => $overdue,
-                    'target_stage' => $targetStage,
-                ];
-            } elseif ($crop->current_stage === 'light' && $now->diffInHours($stageStartTime) >= ($recommendedDays * 24)) {
-                $stages['growing']['crops'][] = [
-                    'id' => $crop->id,
-                    'variety' => $variety,
-                    'tray' => $trayName,
-                    'time_in_stage' => $timeInStage,
-                    'recommended_days' => $recommendedDays,
-                    'overdue' => $overdue,
-                    'target_stage' => $targetStage,
-                ];
-            } elseif ($crop->current_stage === 'blackout') {
-                $recommendedHours = $recommendedDays * 24;
-                $hoursInStage = $now->diffInHours($stageStartTime);
-                $hoursDifference = $recommendedHours - $hoursInStage;
-                
-                if ($hoursDifference <= 24 && $hoursDifference >= 0) {
-                    $stages['blackout']['crops'][] = [
-                        'id' => $crop->id,
-                        'variety' => $variety,
-                        'tray' => $trayName,
-                        'time_in_stage' => $timeInStage,
-                        'recommended_days' => $recommendedDays,
-                        'overdue' => false,
-                        'target_stage' => $targetStage,
-                    ];
-                }
-            } elseif ($crop->current_stage === 'planting') {
-                $stages['seeded']['crops'][] = [
-                    'id' => $crop->id,
-                    'variety' => $variety,
-                    'tray' => $trayName,
-                    'time_in_stage' => $timeInStage,
-                    'recommended_days' => $recommendedDays,
-                    'overdue' => $overdue,
-                    'target_stage' => $targetStage,
-                ];
+            // Add crop to its current stage group
+            $cropData = [
+                'id' => $crop->id,
+                'variety' => $variety,
+                'tray' => $trayName,
+                'time_in_stage' => $timeInStage,
+                'recommended_days' => $recommendedDays,
+                'overdue' => $overdue,
+                'target_stage' => $targetStage,
+            ];
+            
+            // Group by current stage
+            if (isset($stages[$crop->current_stage])) {
+                $stages[$crop->current_stage]['crops'][] = $cropData;
             }
         }
 

@@ -21,7 +21,9 @@ class Recipe extends Model
      */
     protected $fillable = [
         'name',
-        'seed_variety_id',
+        'seed_cultivar_id', // Keep for backward compatibility during transition
+        'common_name',
+        'cultivar_name',
         'seed_consumable_id',
         'supplier_soil_id',
         'soil_consumable_id',
@@ -62,11 +64,11 @@ class Recipe extends Model
     }
     
     /**
-     * Get the seed variety for this recipe.
+     * Get the seed cultivar for this recipe.
      */
-    public function seedVariety(): BelongsTo
+    public function seedCultivar(): BelongsTo
     {
-        return $this->belongsTo(SeedVariety::class);
+        return $this->belongsTo(SeedCultivar::class);
     }
     
     /**
@@ -139,7 +141,7 @@ class Recipe extends Model
         return LogOptions::defaults()
             ->logOnly([
                 'name', 
-                'seed_variety_id', 
+                'seed_cultivar_id', 
                 'supplier_soil_id', 
                 'germination_days', 
                 'blackout_days', 

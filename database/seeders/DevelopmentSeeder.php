@@ -8,7 +8,7 @@ use App\Models\Item;
 use App\Models\Recipe;
 use App\Models\RecipeMix;
 use App\Models\RecipeStage;
-use App\Models\SeedVariety;
+use App\Models\SeedCultivar;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Role;
@@ -34,12 +34,12 @@ class DevelopmentSeeder extends Seeder
             $user->assignRole($employeeRole);
         });
         
-        // Get existing seed varieties
-        $seedVarieties = SeedVariety::all();
+        // Get existing seed cultivars
+        $seedCultivars = SeedCultivar::all();
             
         // Create 5 recipes
         $recipes = Recipe::factory(5)
-            ->recycle($seedVarieties)
+            ->recycle($seedCultivars)
             ->create();
             
         // Create recipe stages for each recipe (4 stages per recipe: planting, germination, blackout, light)

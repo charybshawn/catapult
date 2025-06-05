@@ -180,15 +180,13 @@ class CropResource extends BaseResource
                     })
                     ->searchable(false)
                     ->sortable(false),
-                Tables\Columns\TextColumn::make('tray_count')
-                    ->label('# of Trays')
-                    ->sortable()
-                    ->alignCenter()
+                Tables\Columns\ViewColumn::make('tray_numbers')
+                    ->label('Trays')
+                    ->view('components.tray-badges')
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderBy('tray_count', $direction);
+                    })
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('tray_numbers')
-                    ->label('Tray Numbers')
-                    ->toggleable(isToggledHiddenByDefault: true)
-                    ->wrap(),
                 Tables\Columns\TextColumn::make('planted_at')
                     ->label('Planted')
                     ->date()
@@ -305,7 +303,7 @@ class CropResource extends BaseResource
                             $recipeData = [
                                 'ID' => $recipe->id,
                                 'Name' => $recipe->name,
-                                'Seed Variety' => $recipe->seedVariety ? $recipe->seedVariety->name : 'N/A',
+                                'Seed Cultivar' => $recipe->seedCultivar ? $recipe->seedCultivar->name : 'N/A',
                                 'Germination Days' => $recipe->germination_days,
                                 'Blackout Days' => $recipe->blackout_days,
                                 'Light Days' => $recipe->light_days,

@@ -3,7 +3,7 @@
         <div class="flex items-center justify-between">
             <h2 class="text-xl font-semibold tracking-tight">Crop Alerts Dashboard</h2>
             <x-filament::button
-                :href="route('filament.admin.pages.manage-crop-tasks')"
+                :href="route('filament.admin.resources.crop-alerts.index')"
                 color="primary"
             >
                 Manage Tasks

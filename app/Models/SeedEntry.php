@@ -12,7 +12,8 @@ class SeedEntry extends Model
     use HasFactory;
 
     protected $fillable = [
-        'seed_cultivar_id', 
+        'cultivar_name',
+        'common_name',
         'supplier_id', 
         'supplier_product_title', 
         'supplier_product_url', 
@@ -25,13 +26,6 @@ class SeedEntry extends Model
         'tags' => 'array',
     ];
     
-    /**
-     * Get the cultivar that this seed entry belongs to
-     */
-    public function seedCultivar(): BelongsTo
-    {
-        return $this->belongsTo(SeedCultivar::class);
-    }
     
     /**
      * Get the supplier that this seed entry belongs to

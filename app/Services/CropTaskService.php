@@ -71,7 +71,8 @@ class CropTaskService
             }
         }
         
-        if (in_array($currentStage, ['germination', 'blackout']) && $lightTime->gt($now)) {
+        // Only create light transition if we're going through blackout stage
+        if ($currentStage === 'blackout' && $lightTime->gt($now)) {
             $this->createStageTransitionTask($crop, 'light', $lightTime);
         }
         
@@ -86,8 +87,8 @@ class CropTaskService
                 // Get variety name (reuse logic from createStageTransitionTask)
                 $varietyName = 'Unknown';
                 if ($crop->recipe) {
-                    if ($crop->recipe->seedVariety) {
-                        $varietyName = $crop->recipe->seedVariety->name;
+                    if ($crop->recipe->seedCultivar) {
+                        $varietyName = $crop->recipe->seedCultivar->name;
                     } else if ($crop->recipe->name) {
                         $varietyName = $crop->recipe->name;
                     }
@@ -127,8 +128,8 @@ class CropTaskService
         // Get variety name with proper fallbacks
         $varietyName = 'Unknown';
         if ($crop->recipe) {
-            if ($crop->recipe->seedVariety) {
-                $varietyName = $crop->recipe->seedVariety->name;
+            if ($crop->recipe->seedCultivar) {
+                $varietyName = $crop->recipe->seedCultivar->name;
             } else if ($crop->recipe->name) {
                 $varietyName = $crop->recipe->name;
             }
@@ -408,7 +409,7 @@ class CropTaskService
         $data = [
             'crop_id' => $crop->id,
             'tray_number' => $crop->tray_number,
-            'variety' => $crop->recipe->seedVariety->name ?? 'Unknown',
+            'variety' => $crop->recipe->seedCultivar->name ?? 'Unknown',
             'stage' => ucfirst($targetStage),
             'days_in_previous_stage' => $crop->daysInCurrentStage(),
         ];

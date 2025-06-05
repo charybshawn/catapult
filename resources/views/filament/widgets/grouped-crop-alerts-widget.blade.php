@@ -10,7 +10,7 @@
             </x-filament::link>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             @php
                 $stages = $this->getCropsNeedingAction();
                 $totalAlerts = collect($stages)->sum(fn ($stage) => count($stage['crops']));
@@ -29,38 +29,49 @@
 
             @foreach($stages as $stageKey => $stage)
                 @if(count($stage['crops']) > 0)
-                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                        <div class="flex items-center gap-2 font-medium text-lg mb-3">
-                            <span>{{ $stage['title'] }}</span>
-                            <span class="ml-auto bg-{{ $stage['color'] }}-100 text-{{ $stage['color'] }}-800 dark:bg-{{ $stage['color'] }}-900 dark:text-{{ $stage['color'] }}-300 rounded-full px-2 py-0.5 text-xs">
-                                {{ count($stage['crops']) }}
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold">{{ $stage['title'] }}</h3>
+                            <span class="bg-{{ $stage['color'] }}-100 text-{{ $stage['color'] }}-800 dark:bg-{{ $stage['color'] }}-900 dark:text-{{ $stage['color'] }}-300 rounded-full px-3 py-1 text-sm font-medium">
+                                {{ count($stage['crops']) }} {{ count($stage['crops']) === 1 ? 'crop' : 'crops' }}
                             </span>
                         </div>
 
-                        <div class="space-y-3">
+                        <div class="space-y-4">
                             @foreach($stage['crops'] as $crop)
-                                <div class="p-2 rounded-lg {{ $crop['overdue'] ? 'bg-danger-50 dark:bg-danger-950' : 'bg-gray-50 dark:bg-gray-900' }}">
-                                    <div class="flex items-center justify-between">
-                                        <div>
-                                            <div class="font-medium">Variety: {{ $crop['variety'] }}</div>
-                                            <div class="text-sm text-gray-500 dark:text-gray-400">Tray: {{ $crop['tray'] }}</div>
-                                            <div class="text-sm text-gray-500 dark:text-gray-400">Target: {{ $crop['target_stage'] }}</div>
+                                <div class="p-4 rounded-lg border {{ $crop['overdue'] ? 'bg-danger-50 border-danger-200 dark:bg-danger-950 dark:border-danger-800' : 'bg-gray-50 border-gray-200 dark:bg-gray-900 dark:border-gray-700' }}">
+                                    <div class="flex items-start justify-between gap-4">
+                                        <div class="flex-1">
+                                            <div class="font-semibold text-base">{{ $crop['variety'] }}</div>
+                                            <div class="mt-1 space-y-1">
+                                                <div class="text-sm text-gray-600 dark:text-gray-400">
+                                                    <span class="font-medium">Tray:</span> {{ $crop['tray'] }}
+                                                </div>
+                                                <div class="text-sm text-gray-600 dark:text-gray-400">
+                                                    <span class="font-medium">Next Stage:</span> {{ $crop['target_stage'] }}
+                                                </div>
+                                            </div>
                                         </div>
                                         <div class="text-right">
-                                            <div class="font-medium {{ $crop['overdue'] ? 'text-danger-600 dark:text-danger-400' : '' }}">
+                                            <div class="text-lg font-semibold {{ $crop['overdue'] ? 'text-danger-600 dark:text-danger-400' : 'text-gray-900 dark:text-gray-100' }}">
                                                 {{ $crop['time_in_stage'] }}
                                             </div>
-                                            <div class="text-xs text-gray-500 dark:text-gray-400">
-                                                (Rec: {{ $crop['recommended_days'] }} days)
+                                            <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                                Recommended: {{ $crop['recommended_days'] }}d
                                             </div>
+                                            @if($crop['overdue'])
+                                                <div class="text-xs text-danger-600 dark:text-danger-400 font-medium mt-1">
+                                                    Overdue
+                                                </div>
+                                            @endif
                                         </div>
                                     </div>
-                                    <div class="mt-2 flex justify-end">
+                                    <div class="mt-3 flex justify-end">
                                         <x-filament::button
-                                            size="xs"
+                                            size="sm"
                                             href="{{ route('filament.admin.resources.crops.edit', ['record' => $crop['id']]) }}"
                                         >
-                                            Manage
+                                            View Details
                                         </x-filament::button>
                                     </div>
                                 </div>

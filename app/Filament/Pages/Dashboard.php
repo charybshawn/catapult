@@ -8,7 +8,7 @@ use App\Models\Consumable;
 use App\Models\TaskSchedule;
 use App\Models\Order;
 use App\Models\Recipe;
-use App\Models\SeedVariety;
+use App\Models\SeedCultivar;
 use App\Services\InventoryService;
 use Filament\Pages\Dashboard as BaseDashboard;
 use Filament\Panel;
@@ -36,10 +36,15 @@ class Dashboard extends BaseDashboard
         ];
     }
     
-    // Override the default view
-    public function getHeader(): ?View
+    // Use custom view instead of header
+    protected static string $view = 'filament.custom-dashboard-header';
+    
+    /**
+     * Get view data for the custom template
+     */
+    protected function getViewData(): array
     {
-        return view('filament.custom-dashboard-header', $this->getDashboardData());
+        return $this->getDashboardData();
     }
     
     /**
@@ -64,6 +69,12 @@ class Dashboard extends BaseDashboard
             'cropsNeedingHarvest' => $this->getCropsNeedingHarvest(),
             'recentlySowedCrops' => $this->getRecentlySowedCrops(),
             'cropsByStage' => $this->getCropsByStage(),
+            
+            // Alerts Data
+            'todaysAlerts' => $this->getTodaysAlerts(),
+            'upcomingAlerts' => $this->getUpcomingAlerts(),
+            'overdueAlerts' => $this->getOverdueAlerts(),
+            'alertsSummary' => $this->getAlertsSummary(),
             
             // Inventory & Alerts Data
             'lowStockCount' => $this->getLowStockCount(),
@@ -114,7 +125,7 @@ class Dashboard extends BaseDashboard
     {
         return Crop::where('current_stage', 'light')
             ->where('light_at', '<', now()->subDays(7)) // Example logic
-            ->with(['recipe.seedVariety'])
+            ->with(['recipe.seedCultivar'])
             ->take(5)
             ->get();
     }
@@ -123,7 +134,7 @@ class Dashboard extends BaseDashboard
     {
         return Crop::where('current_stage', 'planting')
             ->orderBy('planted_at', 'desc')
-            ->with(['recipe.seedVariety'])
+            ->with(['recipe.seedCultivar'])
             ->take(5)
             ->get();
     }
@@ -141,12 +152,252 @@ class Dashboard extends BaseDashboard
         $today = now()->startOfDay();
         $tomorrow = now()->addDay()->startOfDay();
         
-        return TaskSchedule::where('resource_type', 'crops')
+        $alerts = TaskSchedule::where('resource_type', 'crops')
             ->where('is_active', true)
             ->where('next_run_at', '>=', $today)
             ->where('next_run_at', '<', $tomorrow)
             ->orderBy('next_run_at', 'asc')
             ->get();
+            
+        return $this->groupAlertsByBatch($alerts);
+    }
+    
+    /**
+     * Get upcoming alerts for the next 7 days
+     */
+    protected function getUpcomingAlerts()
+    {
+        $now = now();
+        $nextWeek = now()->addDays(7);
+        
+        $alerts = TaskSchedule::where('resource_type', 'crops')
+            ->where('is_active', true)
+            ->where('next_run_at', '>=', $now)
+            ->where('next_run_at', '<=', $nextWeek)
+            ->orderBy('next_run_at', 'asc')
+            ->get();
+            
+        return $this->groupAlertsByBatch($alerts);
+    }
+    
+    /**
+     * Get overdue alerts
+     */
+    protected function getOverdueAlerts()
+    {
+        $now = now();
+        
+        $alerts = TaskSchedule::where('resource_type', 'crops')
+            ->where('is_active', true)
+            ->where('next_run_at', '<', $now)
+            ->orderBy('next_run_at', 'asc')
+            ->get();
+            
+        return $this->groupAlertsByBatch($alerts, true);
+    }
+    
+    /**
+     * Get readable alert type from task name
+     */
+    protected function getAlertType(string $taskName): string
+    {
+        if (str_starts_with($taskName, 'advance_to_')) {
+            $stage = str_replace('advance_to_', '', $taskName);
+            return 'Advance to ' . ucfirst($stage);
+        }
+        
+        if ($taskName === 'suspend_watering') {
+            return 'Suspend Watering';
+        }
+        
+        return ucfirst(str_replace('_', ' ', $taskName));
+    }
+    
+    /**
+     * Get time until alert in human readable format
+     */
+    protected function getTimeUntil(Carbon $nextRunAt): string
+    {
+        $now = Carbon::now();
+        
+        if ($nextRunAt->isPast()) {
+            $diff = $now->diff($nextRunAt);
+            $days = $diff->d;
+            $hours = $diff->h;
+            $minutes = $diff->i;
+            
+            $overdue = '';
+            if ($days > 0) {
+                $overdue .= $days . 'd ';
+            }
+            if ($hours > 0 || $days > 0) {
+                $overdue .= $hours . 'h ';
+            }
+            $overdue .= $minutes . 'm';
+            
+            return 'Overdue by ' . trim($overdue);
+        }
+        
+        $diff = $now->diff($nextRunAt);
+        $days = $diff->d;
+        $hours = $diff->h;
+        $minutes = $diff->i;
+        
+        $timeUntil = '';
+        if ($days > 0) {
+            $timeUntil .= $days . 'd ';
+        }
+        if ($hours > 0 || $days > 0) {
+            $timeUntil .= $hours . 'h ';
+        }
+        $timeUntil .= $minutes . 'm';
+        
+        return trim($timeUntil);
+    }
+    
+    /**
+     * Get alert priority based on timing and type
+     */
+    protected function getAlertPriority($alert): string
+    {
+        if ($alert->next_run_at->isPast()) {
+            return 'critical';
+        }
+        
+        if ($alert->next_run_at->isToday()) {
+            return 'high';
+        }
+        
+        if ($alert->next_run_at->isTomorrow()) {
+            return 'medium';
+        }
+        
+        return 'low';
+    }
+    
+    /**
+     * Get tray information from alert conditions
+     */
+    protected function getTrayInfo($alert): string
+    {
+        if (isset($alert->conditions['tray_numbers']) && is_array($alert->conditions['tray_numbers'])) {
+            $count = count($alert->conditions['tray_numbers']);
+            return "{$count} trays";
+        }
+        
+        if (isset($alert->conditions['crop_id'])) {
+            $cropId = $alert->conditions['crop_id'];
+            $crop = Crop::find($cropId);
+            
+            if ($crop) {
+                $batchCount = Crop::where('recipe_id', $crop->recipe_id)
+                    ->where('planted_at', $crop->planted_at)
+                    ->where('current_stage', $crop->current_stage)
+                    ->count();
+                    
+                return "{$batchCount} trays";
+            }
+        }
+        
+        return $alert->conditions['tray_number'] ? 'Single tray' : 'Unknown';
+    }
+    
+    /**
+     * Group alerts by batch (variety + planted_at + current_stage + target_stage)
+     */
+    protected function groupAlertsByBatch($alerts, $isOverdue = false)
+    {
+        $groupedAlerts = [];
+        
+        foreach ($alerts as $alert) {
+            $cropId = $alert->conditions['crop_id'] ?? null;
+            $crop = $cropId ? Crop::with(['recipe.seedCultivar'])->find($cropId) : null;
+            
+            if (!$crop) continue;
+            
+            // Create batch key: variety + planted date + current stage + target stage + task
+            $crop->load(['recipe.seedCultivar']); // Ensure relationships are loaded
+            
+            // Try to get variety name from multiple sources in order of preference
+            $variety = $crop->recipe?->seedCultivar?->name 
+                ?? $alert->conditions['variety'] 
+                ?? $crop->recipe?->name 
+                ?? 'Unknown';
+            $plantedAt = $crop->planted_at ? $crop->planted_at->format('Y-m-d') : 'unknown';
+            $currentStage = $crop->current_stage;
+            $targetStage = $alert->conditions['target_stage'] ?? 'unknown';
+            $taskName = $alert->task_name;
+            
+            $batchKey = "{$variety}|{$plantedAt}|{$currentStage}|{$targetStage}|{$taskName}";
+            
+            if (!isset($groupedAlerts[$batchKey])) {
+                // Get all crops in this batch  
+                $batchCrops = Crop::where('recipe_id', $crop->recipe_id)
+                    ->whereDate('planted_at', $crop->planted_at)
+                    ->where('current_stage', $crop->current_stage)
+                    ->with(['recipe.seedCultivar'])
+                    ->get();
+                
+                // Get all tray numbers for this batch
+                $trayNumbers = $batchCrops->pluck('tray_number')->sort()->values()->toArray();
+                
+                // Use the current alert as the representative for this batch
+                $earliestAlert = $alert;
+                
+                $groupedAlerts[$batchKey] = (object) [
+                    'id' => $earliestAlert->id, // Use earliest alert ID for actions
+                    'alert_ids' => [], // Will collect all alert IDs in this batch
+                    'task_name' => $earliestAlert->task_name,
+                    'alert_type' => $this->getAlertType($earliestAlert->task_name),
+                    'next_run_at' => $earliestAlert->next_run_at,
+                    'time_until' => $this->getTimeUntil($earliestAlert->next_run_at),
+                    'is_overdue' => $isOverdue,
+                    'is_today' => $earliestAlert->next_run_at->isToday(),
+                    'priority' => $isOverdue ? 'critical' : $this->getAlertPriority($earliestAlert),
+                    'variety' => $variety,
+                    'target_stage' => $targetStage,
+                    'current_stage' => $currentStage,
+                    'planted_at' => $crop->planted_at,
+                    'recipe_name' => $crop->recipe->name ?? 'Unknown Recipe',
+                    'tray_count' => count($trayNumbers),
+                    'tray_numbers' => $trayNumbers,
+                    'tray_info' => count($trayNumbers) . ' trays',
+                    'batch_key' => $batchKey,
+                    'conditions' => $earliestAlert->conditions,
+                ];
+            }
+            
+            // Add this alert ID to the batch
+            $groupedAlerts[$batchKey]->alert_ids[] = $alert->id;
+        }
+        
+        return collect(array_values($groupedAlerts));
+    }
+    
+    /**
+     * Get alerts summary statistics
+     */
+    protected function getAlertsSummary(): array
+    {
+        $now = now();
+        $overdueAlerts = $this->getOverdueAlerts();
+        $todaysAlerts = $this->getTodaysAlerts();
+        $upcomingAlerts = $this->getUpcomingAlerts();
+        
+        return [
+            'total' => $upcomingAlerts->count(),
+            'overdue' => $overdueAlerts->count(),
+            'today' => $todaysAlerts->count(),
+            'this_week' => $upcomingAlerts->filter(function ($alert) {
+                return $alert->next_run_at->isCurrentWeek();
+            })->count(),
+            'critical' => $upcomingAlerts->filter(function ($alert) {
+                return $alert->priority === 'critical';
+            })->count(),
+            'high' => $upcomingAlerts->filter(function ($alert) {
+                return $alert->priority === 'high';
+            })->count(),
+        ];
     }
     
     /**
@@ -155,16 +406,16 @@ class Dashboard extends BaseDashboard
     protected function getCropsByStage(): array
     {
         $crops = Crop::whereNotIn('current_stage', ['harvested'])
-            ->with(['recipe.seedVariety'])
+            ->with(['recipe.seedCultivar'])
             ->get()
             ->groupBy('current_stage');
             
         $stageData = [];
-        foreach (['germination', 'blackout', 'light'] as $stage) {
+        foreach (['planting', 'germination', 'blackout', 'light'] as $stage) {
             $stageCrops = $crops->get($stage, collect());
             $stageData[$stage] = [
                 'count' => $stageCrops->count(),
-                'crops' => $stageCrops->take(5),
+                'crops' => $stageCrops,
                 'overdue_count' => $stageCrops->filter(function ($crop) {
                     return str_contains($crop->timeToNextStage() ?? '', 'Ready to advance');
                 })->count()
@@ -184,7 +435,7 @@ class Dashboard extends BaseDashboard
                 $query->whereRaw('total_quantity <= restock_threshold')
                       ->orWhereRaw('(initial_stock - consumed_quantity) <= restock_threshold');
             })
-            ->with(['seedVariety'])
+            ->with(['seedCultivar'])
             ->orderBy('total_quantity', 'asc')
             ->take(8)
             ->get();
@@ -211,7 +462,7 @@ class Dashboard extends BaseDashboard
         $nextWeek = now()->addDays(7);
         
         return Crop::where('current_stage', 'light')
-            ->with(['recipe.seedVariety', 'order'])
+            ->with(['recipe.seedCultivar', 'order'])
             ->get()
             ->filter(function ($crop) use ($nextWeek) {
                 $expectedHarvest = $crop->expectedHarvestDate();
@@ -232,10 +483,10 @@ class Dashboard extends BaseDashboard
         
         // Get active crops grouped by variety
         $cropsByVariety = Crop::whereNotIn('current_stage', ['harvested'])
-            ->with(['recipe.seedVariety'])
+            ->with(['recipe.seedCultivar'])
             ->get()
             ->groupBy(function ($crop) {
-                return $crop->recipe->seedVariety->name ?? 'Unknown';
+                return $crop->recipe->seedCultivar->name ?? 'Unknown';
             });
             
         foreach ($cropsByVariety as $varietyName => $crops) {
@@ -280,10 +531,10 @@ class Dashboard extends BaseDashboard
         $harvestedCrops = Crop::where('current_stage', 'harvested')
             ->whereNotNull('harvest_weight_grams')
             ->where('harvest_weight_grams', '>', 0)
-            ->whereHas('recipe.seedVariety', function ($query) use ($varietyName) {
+            ->whereHas('recipe.seedCultivar', function ($query) use ($varietyName) {
                 $query->where('name', $varietyName);
             })
-            ->with(['recipe.seedVariety'])
+            ->with(['recipe.seedCultivar'])
             ->get();
             
         if ($harvestedCrops->isEmpty()) {
@@ -367,7 +618,7 @@ class Dashboard extends BaseDashboard
         for ($i = 0; $i < 7; $i++) {
             $date = now()->addDays($i);
             $harvests = Crop::where('current_stage', 'light')
-                ->with(['recipe.seedVariety'])
+                ->with(['recipe.seedCultivar'])
                 ->get()
                 ->filter(function ($crop) use ($date) {
                     $expectedHarvest = $crop->expectedHarvestDate();
@@ -379,7 +630,7 @@ class Dashboard extends BaseDashboard
                 'day_name' => $date->format('l'),
                 'harvest_count' => $harvests->count(),
                 'varieties' => $harvests->groupBy(function ($crop) {
-                    return $crop->recipe->seedVariety->name ?? 'Unknown';
+                    return $crop->recipe->seedCultivar->name ?? 'Unknown';
                 })->map->count()
             ];
         }

@@ -8,8 +8,8 @@ use Filament\Pages\Page;
 class CropDashboard extends Page
 {
     protected static ?string $navigationIcon = null;
-    protected static ?string $navigationLabel = 'Crop Alerts';
-    protected static ?string $navigationGroup = 'Production Management';
+    protected static ?string $navigationLabel = 'Alerts Dashboard';
+    protected static ?string $navigationGroup = 'Dashboard & Overview';
     
     protected static ?int $navigationSort = 4;
     protected static ?string $title = 'Crop Alerts Dashboard';
@@ -18,7 +18,7 @@ class CropDashboard extends Page
     
     public static function shouldRegisterNavigation(): bool
     {
-        return true;
+        return false;
     }
     
     protected function getHeaderWidgets(): array

@@ -40,21 +40,25 @@ class RecipeResource extends Resource
                         ->required()
                         ->maxLength(255),
 
-                    Forms\Components\Select::make('seed_variety_id')
-                        ->relationship('seedVariety', 'name')
+                    Forms\Components\Select::make('seed_cultivar_id')
+                        ->relationship('seedCultivar', 'name')
                         ->searchable()
                         ->preload()
                         ->required()
                         ->createOptionAction(function (Forms\Components\Actions\Action $action) {
                             return $action
-                                ->modalHeading('Create Seed Variety')
-                                ->modalSubmitActionLabel('Create Seed Variety')
+                                ->modalHeading('Create Seed Cultivar')
+                                ->modalSubmitActionLabel('Create Seed Cultivar')
                                 ->modalWidth('lg')
                                 ->form([
                                     Forms\Components\TextInput::make('name')
-                                        ->label('Variety Name')
+                                        ->label('Cultivar Name')
                                         ->required()
                                         ->maxLength(255),
+                                    Forms\Components\Textarea::make('description')
+                                        ->label('Description')
+                                        ->maxLength(500)
+                                        ->rows(3),
                                     Forms\Components\TextInput::make('crop_type')
                                         ->label('Crop Type')
                                         ->default('microgreens')
@@ -273,9 +277,9 @@ class RecipeResource extends Resource
                         '0' => 'Inactive',
                     ]),
                     
-                Tables\Filters\SelectFilter::make('seed_variety_id')
-                    ->label('Seed Variety')
-                    ->relationship('seedVariety', 'name')
+                Tables\Filters\SelectFilter::make('seed_cultivar_id')
+                    ->label('Seed Cultivar')
+                    ->relationship('seedCultivar', 'name')
                     ->searchable()
                     ->preload(),
             ])

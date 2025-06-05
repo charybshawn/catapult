@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\Consumable;
-use App\Models\SeedCultivar;
 use App\Models\SeedEntry;
 use App\Models\SeedPriceHistory;
 use App\Models\SeedScrapeUpload;
@@ -46,8 +45,8 @@ class SeedScrapeImporter
             $supplierName = $jsonData['source_site'] ?? 'Unknown Supplier';
             $supplier = Supplier::firstOrCreate(['name' => $supplierName]);
             
-            // Get currency code from top level if available
-            $currencyCode = $jsonData['currency_code'] ?? 'USD';
+            // Get currency code from top level if available, or detect from supplier
+            $currencyCode = $this->detectCurrency($jsonData, $supplierName);
             
             // Process each product
             foreach ($jsonData['data'] as $productData) {
@@ -94,31 +93,18 @@ class SeedScrapeImporter
     protected function processProduct(array $productData, Supplier $supplier, string $timestamp, string $defaultCurrency = 'USD'): void
     {
         // Extract cultivar name - try different field combinations to support different formats
-        $cultivarName = 'Unknown Cultivar';
+        $cultivarName = $this->extractCultivarName($productData);
+        $commonName = $this->extractCommonName($cultivarName);
         
-        // First, check if we have a dedicated cultivar_name field
-        if (isset($productData['cultivar_name']) && $productData['cultivar_name'] !== 'N/A') {
-            $cultivarName = $productData['cultivar_name'];
-        } 
-        // If not, check if we have a cultivar field (older format)
-        elseif (isset($productData['cultivar']) && !empty($productData['cultivar'])) {
-            $cultivarName = $productData['cultivar'];
-        }
-        // As a fallback, try to extract from common_name
-        elseif (isset($productData['common_name']) && !empty($productData['common_name'])) {
-            $cultivarName = $productData['common_name'];
-        }
-        
-        $seedCultivar = SeedCultivar::firstOrCreate(['name' => $cultivarName]);
-        
-        // Find or create the seed entry
+        // Find or create the seed entry with cultivar and common name populated directly
         $seedEntry = SeedEntry::firstOrCreate(
             [
                 'supplier_id' => $supplier->id,
                 'supplier_product_url' => $productData['url'] ?? '',
             ],
             [
-                'seed_cultivar_id' => $seedCultivar->id,
+                'cultivar_name' => $cultivarName,
+                'common_name' => $commonName,
                 'supplier_product_title' => $productData['title'] ?? 'Unknown Product',
                 'image_url' => $productData['image_url'] ?? null,
                 'description' => $productData['description'] ?? null,
@@ -126,8 +112,17 @@ class SeedScrapeImporter
             ]
         );
         
+        // Update existing entries if cultivar or common name fields are empty
+        if (empty($seedEntry->cultivar_name) || empty($seedEntry->common_name)) {
+            $seedEntry->update([
+                'cultivar_name' => $cultivarName,
+                'common_name' => $commonName,
+            ]);
+        }
+        
         Log::debug('Processing seed entry', [
-            'cultivar' => $seedCultivar->name,
+            'cultivar' => $cultivarName,
+            'common_name' => $commonName,
             'supplier' => $supplier->name,
             'title' => $seedEntry->supplier_product_title,
             'product_stock_status' => $productData['is_in_stock'] ?? 'Unknown'
@@ -288,15 +283,12 @@ class SeedScrapeImporter
             ]);
         }
         
-        // Disabled consumable integration to prevent SQL errors
-        // $this->syncWithConsumableInventory($variation, $seedEntry);
+        // Sync with consumable inventory if enabled
+        $this->syncWithConsumableInventory($variation, $seedEntry);
     }
     
     /**
      * Sync the seed variation with the consumable inventory system
-     * 
-     * DISABLED: This method is currently disabled to prevent SQL errors
-     * with the consumables table. Will be implemented in a future update.
      *
      * @param SeedVariation $variation
      * @param SeedEntry $seedEntry
@@ -304,12 +296,221 @@ class SeedScrapeImporter
      */
     protected function syncWithConsumableInventory(SeedVariation $variation, SeedEntry $seedEntry): void
     {
-        // Method disabled to prevent SQL errors
-        Log::info('Consumable integration disabled for seed variation', [
-            'variation_id' => $variation->id,
-            'cultivar' => $seedEntry->seedCultivar->name
-        ]);
+        try {
+            // Check if a consumable already exists for this variation
+            if (!$variation->consumable_id) {
+                // Create or find a matching consumable based on seed cultivar
+                $cultivarName = $seedEntry->cultivar_name ?: 'Unknown Cultivar';
+                $consumable = Consumable::firstOrCreate(
+                    [
+                        'name' => $cultivarName . ' - ' . $variation->size_description,
+                        'type' => 'seed',
+                    ],
+                    [
+                        'description' => "Seed: {$cultivarName} ({$variation->size_description})",
+                        'unit_type' => 'kg',
+                        'unit_weight_grams' => $variation->weight_kg ? $variation->weight_kg * 1000 : null,
+                        'total_quantity' => 0,
+                        'consumed_quantity' => 0,
+                        'restock_threshold' => $variation->weight_kg ? max(1, $variation->weight_kg * 0.5) : 1,
+                        'supplier_id' => $seedEntry->supplier_id,
+                        'lot_number' => $variation->sku ?? 'SCRAPED-' . $variation->id,
+                        'expiry_date' => now()->addYear(), // Default 1 year expiry for seeds
+                    ]
+                );
+                
+                // Link the variation to the consumable
+                $variation->update(['consumable_id' => $consumable->id]);
+                
+                Log::info('Created consumable for seed variation', [
+                    'variation_id' => $variation->id,
+                    'consumable_id' => $consumable->id,
+                    'cultivar' => $cultivarName
+                ]);
+            }
+        } catch (Exception $e) {
+            Log::error('Error syncing seed variation with consumable inventory', [
+                'variation_id' => $variation->id,
+                'error' => $e->getMessage()
+            ]);
+            // Don't throw the exception to prevent import failure
+        }
+    }
+    
+    /**
+     * Extract cultivar name from product data using intelligent parsing
+     *
+     * @param array $productData
+     * @return string
+     */
+    protected function extractCultivarName(array $productData): string
+    {
+        // Method 1: Check for dedicated cultivar fields
+        if (isset($productData['cultivar_name']) && $productData['cultivar_name'] !== 'N/A') {
+            return trim($productData['cultivar_name']);
+        }
         
-        return;
+        if (isset($productData['cultivar']) && !empty($productData['cultivar'])) {
+            // Combine with plant_variety if available (Sprouting.com format)
+            $cultivar = trim($productData['cultivar']);
+            if (isset($productData['plant_variety']) && 
+                $productData['plant_variety'] !== 'N/A' && 
+                !empty($productData['plant_variety'])) {
+                return $cultivar . ' - ' . trim($productData['plant_variety']);
+            }
+            return $cultivar;
+        }
+        
+        if (isset($productData['common_name']) && !empty($productData['common_name'])) {
+            return trim($productData['common_name']);
+        }
+        
+        // Method 2: Parse from title (DamSeeds format)
+        if (isset($productData['title']) && !empty($productData['title'])) {
+            $title = trim($productData['title']);
+            
+            // Remove common prefixes/suffixes
+            $cleanTitle = preg_replace('/\s*-\s*(Organic|Non-GMO|Heirloom)\s*$/i', '', $title);
+            $cleanTitle = preg_replace('/^(Greencrops,\s*)?(\d+\s*)?/i', '', $cleanTitle);
+            
+            // If title contains comma, take the part before it as base name
+            if (strpos($cleanTitle, ',') !== false) {
+                $parts = explode(',', $cleanTitle, 2);
+                $baseName = trim($parts[0]);
+                $variety = isset($parts[1]) ? trim($parts[1]) : '';
+                
+                // Clean up variety part
+                $variety = preg_replace('/^\d+\s*/', '', $variety); // Remove leading numbers
+                
+                if (!empty($variety)) {
+                    return $baseName . ' - ' . $variety;
+                }
+                return $baseName;
+            }
+            
+            return $cleanTitle;
+        }
+        
+        return 'Unknown Cultivar';
+    }
+    
+    /**
+     * Detect currency based on supplier location and data
+     *
+     * @param array $jsonData
+     * @param string $supplierName
+     * @return string
+     */
+    protected function detectCurrency(array $jsonData, string $supplierName): string
+    {
+        // Check if currency is explicitly provided
+        if (isset($jsonData['currency_code']) && !empty($jsonData['currency_code'])) {
+            return strtoupper($jsonData['currency_code']);
+        }
+        
+        // Detect based on supplier domain/location
+        $supplierLower = strtolower($supplierName);
+        
+        if (strpos($supplierLower, '.ca') !== false || strpos($supplierLower, 'canada') !== false) {
+            return 'CAD';
+        }
+        
+        if (strpos($supplierLower, '.co.uk') !== false || strpos($supplierLower, '.uk') !== false) {
+            return 'GBP';
+        }
+        
+        if (strpos($supplierLower, '.eu') !== false || strpos($supplierLower, 'europe') !== false) {
+            return 'EUR';
+        }
+        
+        if (strpos($supplierLower, '.au') !== false || strpos($supplierLower, 'australia') !== false) {
+            return 'AUD';
+        }
+        
+        // Default to USD for US sites and unknown
+        return 'USD';
+    }
+    
+    /**
+     * Extract common name from full cultivar name
+     *
+     * @param string $cultivarName
+     * @return string
+     */
+    protected function extractCommonName(string $cultivarName): string
+    {
+        if (empty($cultivarName) || $cultivarName === 'Unknown Cultivar') {
+            return 'Unknown';
+        }
+        
+        // Remove common suffixes and prefixes
+        $cleaned = trim($cultivarName);
+        
+        // Remove organic/non-gmo/heirloom suffixes
+        $cleaned = preg_replace('/\s*-\s*(Organic|Non-GMO|Heirloom|Certified).*$/i', '', $cleaned);
+        
+        // If there's a dash, take everything before the first dash as the common name
+        if (strpos($cleaned, ' - ') !== false) {
+            $parts = explode(' - ', $cleaned, 2);
+            return trim($parts[0]);
+        }
+        
+        // If there's a comma, take everything before the first comma
+        if (strpos($cleaned, ',') !== false) {
+            $parts = explode(',', $cleaned, 2);
+            return trim($parts[0]);
+        }
+        
+        // For patterns like "Green Forage Pea", "Brussels Winter Vertissimo", etc.
+        // Try to extract the main vegetable name
+        $words = explode(' ', $cleaned);
+        
+        // Simple heuristics for common vegetables
+        $commonVegetables = [
+            'pea' => 'Pea',
+            'peas' => 'Pea',
+            'beet' => 'Beet',
+            'beets' => 'Beet',
+            'basil' => 'Basil',
+            'brussels' => 'Brussels Sprouts',
+            'broccoli' => 'Broccoli',
+            'cabbage' => 'Cabbage',
+            'carrot' => 'Carrot',
+            'carrots' => 'Carrot',
+            'lettuce' => 'Lettuce',
+            'spinach' => 'Spinach',
+            'arugula' => 'Arugula',
+            'kale' => 'Kale',
+            'chard' => 'Chard',
+            'fennel' => 'Fennel',
+            'onion' => 'Onion',
+            'onions' => 'Onion',
+            'leek' => 'Leek',
+            'leeks' => 'Leek',
+            'radish' => 'Radish',
+            'turnip' => 'Turnip',
+            'mustard' => 'Mustard',
+            'cilantro' => 'Cilantro',
+            'parsley' => 'Parsley',
+            'dill' => 'Dill',
+            'thyme' => 'Thyme',
+            'oregano' => 'Oregano',
+        ];
+        
+        // Check each word against common vegetables
+        foreach ($words as $word) {
+            $lowerWord = strtolower($word);
+            if (isset($commonVegetables[$lowerWord])) {
+                return $commonVegetables[$lowerWord];
+            }
+        }
+        
+        // If no match found, take the first 1-2 words as likely common name
+        if (count($words) >= 2) {
+            return trim($words[0] . ' ' . $words[1]);
+        }
+        
+        // Return the whole name if no separators found
+        return $cleaned;
     }
 } 

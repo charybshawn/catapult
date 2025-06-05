@@ -63,7 +63,7 @@ class ViewConsumable extends ViewRecord
         ];
     }
     
-    // Show seed variety information if available
+    // Show seed cultivar information if available
     protected function getHeaderWidgets(): array
     {
         return [];
@@ -73,9 +73,9 @@ class ViewConsumable extends ViewRecord
     {
         $record = $this->getRecord();
         
-        if ($record->type === 'seed' && $record->seedVariety) {
+        if ($record->type === 'seed' && $record->seedCultivar) {
             return [
-                'seedVariety' => $record->seedVariety,
+                'seedCultivar' => $record->seedCultivar,
             ];
         }
         
@@ -87,10 +87,10 @@ class ViewConsumable extends ViewRecord
     {
         $record = $this->getRecord();
         
-        // Only show seed variety info for seed type consumables with a variety
-        if ($record->type === 'seed' && $record->seedVariety) {
-            return view('filament.widgets.seed-variety-overview', [
-                'seedVariety' => $record->seedVariety,
+        // Only show seed cultivar info for seed type consumables with a cultivar
+        if ($record->type === 'seed' && $record->seedCultivar) {
+            return view('filament.widgets.seed-cultivar-overview', [
+                'seedCultivar' => $record->seedCultivar,
             ]);
         }
         

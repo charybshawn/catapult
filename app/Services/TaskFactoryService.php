@@ -18,11 +18,12 @@ class TaskFactoryService
         string $description
     ): TaskSchedule {
         return TaskSchedule::create([
-            'crop_id' => $crop->id,
-            'task_type' => $taskType,
-            'scheduled_at' => $scheduledAt,
-            'description' => $description,
-            'status' => 'pending',
+            'resource_type' => 'crops',
+            'task_name' => $taskType,
+            'frequency' => 'once',
+            'conditions' => ['crop_id' => $crop->id],
+            'is_active' => true,
+            'next_run_at' => $scheduledAt,
         ]);
     }
 
@@ -115,11 +116,9 @@ class TaskFactoryService
      */
     public function deleteTasksForCrop(Crop $crop): int
     {
-        // Handle both new and legacy task structures
-        return TaskSchedule::where(function($query) use ($crop) {
-            $query->where('crop_id', $crop->id)
-                  ->orWhere('resource_type', 'crops')
-                  ->where('conditions->crop_id', $crop->id);
-        })->delete();
+        // Delete tasks that have this crop_id in their conditions JSON
+        return TaskSchedule::where('resource_type', 'crops')
+                          ->where('conditions->crop_id', $crop->id)
+                          ->delete();
     }
 }

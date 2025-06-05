@@ -3,7 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Recipe;
-use App\Models\SeedVariety;
+use App\Models\SeedCultivar;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -25,12 +25,12 @@ class RecipeFactory extends Factory
      */
     public function definition(): array
     {
-        $seedVariety = SeedVariety::factory()->create();
-        $name = $seedVariety->name . ' Recipe';
+        $seedCultivar = SeedCultivar::factory()->create();
+        $name = $seedCultivar->name . ' Recipe';
         
         return [
             'name' => $name,
-            'seed_variety_id' => $seedVariety->id,
+            'seed_cultivar_id' => $seedCultivar->id,
             'seed_density' => fake()->randomFloat(2, 1, 10),
             'blackout_days' => fake()->numberBetween(0, 5),
             'harvest_days' => fake()->numberBetween(7, 21),

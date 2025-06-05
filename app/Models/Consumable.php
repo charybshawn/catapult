@@ -29,7 +29,6 @@ class Consumable extends Model
         'type', // packaging, soil, seed, label, other
         'supplier_id',
         'packaging_type_id', // For packaging consumables only
-        'seed_variety_id', // For seed consumables only
         'initial_stock',
         'consumed_quantity',
         'unit', // pieces, rolls, bags, etc.
@@ -118,19 +117,11 @@ class Consumable extends Model
         return $this->belongsTo(PackagingType::class);
     }
     
-    /**
-     * Get the seed variety for this consumable.
-     * Only applicable for seed consumables.
-     */
-    public function seedVariety(): BelongsTo
-    {
-        return $this->belongsTo(SeedVariety::class);
-    }
     
     /**
      * Get the display name for this consumable.
      * For packaging type consumables, the name is the packaging type name.
-     * For seed type consumables, use the seed variety name.
+     * For seed type consumables, use the consumable name directly.
      */
     public function getDisplayNameAttribute(): string
     {
@@ -231,7 +222,6 @@ class Consumable extends Model
                 'type', 
                 'supplier_id',
                 'packaging_type_id',
-                'seed_variety_id',
                 'initial_stock',
                 'consumed_quantity',
                 'unit',

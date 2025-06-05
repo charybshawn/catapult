@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Recipe;
-use App\Models\SeedVariety;
+use App\Models\SeedCultivar;
 use App\Models\Supplier;
 use App\Models\Consumable;
 use App\Models\RecipeWateringSchedule;
@@ -23,8 +23,8 @@ class RealWorldRecipesSeeder extends Seeder
         $this->command->info('Creating soil consumables...');
         $this->createSoils();
         
-        $this->command->info('Creating seed varieties and consumables...');
-        $this->createSeedsAndVarieties();
+        $this->command->info('Creating seed cultivars and consumables...');
+        $this->createSeedsAndCultivars();
         
         $this->command->info('Creating recipes...');
         $this->createRecipes();
@@ -147,9 +147,9 @@ class RealWorldRecipesSeeder extends Seeder
     }
     
     /**
-     * Create realistic seed varieties and seed consumables.
+     * Create realistic seed cultivars and seed consumables.
      */
-    private function createSeedsAndVarieties(): void
+    private function createSeedsAndCultivars(): void
     {
         $seedSuppliers = Supplier::where('type', 'seed')->get();
         
@@ -325,16 +325,17 @@ class RealWorldRecipesSeeder extends Seeder
         ];
         
         foreach ($seeds as $seedData) {
-            // Create seed variety
-            $seedVariety = SeedVariety::firstOrCreate(
+            // Create seed cultivar
+            $seedCultivar = SeedCultivar::firstOrCreate(
                 ['name' => $seedData['variety_data']['name']],
                 $seedData['variety_data']
             );
             
-            // Create seed consumable linked to variety
+            // Create seed consumable (no longer linked to cultivar directly)
             $consumableData = $seedData['consumable_data'];
             $consumableData['name'] = $seedData['name'];
-            $consumableData['seed_variety_id'] = $seedVariety->id;
+            // Remove the seed_variety_id reference
+            unset($consumableData['seed_variety_id']);
             
             Consumable::firstOrCreate(
                 ['name' => $consumableData['name'], 'type' => 'seed'],
@@ -344,7 +345,7 @@ class RealWorldRecipesSeeder extends Seeder
     }
     
     /**
-     * Create realistic recipes for different seed varieties.
+     * Create realistic recipes for different seed cultivars.
      */
     private function createRecipes(): void
     {
@@ -447,7 +448,7 @@ class RealWorldRecipesSeeder extends Seeder
                 $recipe = Recipe::firstOrCreate(
                     ['name' => "{$seedName} Recipe"],
                     [
-                        'seed_variety_id' => $seedConsumable->seed_variety_id,
+                        'seed_cultivar_id' => SeedCultivar::where('name', 'like', '%' . explode(' ', $seedName)[0] . '%')->first()?->id,
                         'seed_consumable_id' => $seedConsumable->id,
                         'soil_consumable_id' => $soilConsumables->random()->id,
                         'seed_soak_hours' => $data['seed_soak_hours'],

@@ -37,7 +37,7 @@ class ListCropAlerts extends ListRecords
                         
                         // Regenerate alerts for all active crops
                         $crops = Crop::whereNotIn('current_stage', ['harvested'])->get();
-                        $cropTaskService = new CropTaskService();
+                        $cropTaskService = app(CropTaskService::class);
                         
                         foreach ($crops as $crop) {
                             $cropTaskService->scheduleAllStageTasks($crop);

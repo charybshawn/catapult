@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Supplier;
-use App\Models\SeedVariety;
+use App\Models\SeedCultivar;
 use Illuminate\Database\Seeder;
 
 class MicrogreenSeeder extends Seeder
@@ -65,52 +65,62 @@ class MicrogreenSeeder extends Seeder
         foreach ($suppliers as $supplierData) {
             $supplier = Supplier::create($supplierData);
 
-            // Common microgreen varieties
-            $varieties = [
+            // Common microgreen cultivars
+            $cultivars = [
                 [
                     'name' => 'Sunflower (Black Oil)',
+                    'crop_type' => 'microgreens',
                     'is_active' => true,
                 ],
                 [
                     'name' => 'Pea - Speckled',
+                    'crop_type' => 'microgreens',
                     'is_active' => true,
                 ],
                 [
                     'name' => 'Radish - Daikon',
+                    'crop_type' => 'microgreens',
                     'is_active' => true,
                 ],
                 [
                     'name' => 'Broccoli - Calabrese',
+                    'crop_type' => 'microgreens',
                     'is_active' => true,
                 ],
                 [
                     'name' => 'Kale - Red Russian',
+                    'crop_type' => 'microgreens',
                     'is_active' => true,
                 ],
                 [
                     'name' => 'Arugula - Wild',
+                    'crop_type' => 'microgreens',
                     'is_active' => true,
                 ],
                 [
                     'name' => 'Mustard - Red Giant',
+                    'crop_type' => 'microgreens',
                     'is_active' => true,
                 ],
                 [
                     'name' => 'Amaranth - Red Garnet',
+                    'crop_type' => 'microgreens',
                     'is_active' => true,
                 ],
                 [
                     'name' => 'Basil - Genovese',
+                    'crop_type' => 'herbs',
                     'is_active' => true,
                 ],
                 [
                     'name' => 'Beet - Detroit Dark Red',
+                    'crop_type' => 'microgreens',
                     'is_active' => true,
                 ],
             ];
 
-            foreach ($varieties as $varietyData) {
-                SeedVariety::create($varietyData);
+            foreach ($cultivars as $cultivarData) {
+                SeedCultivar::create($cultivarData);
             }
         }
     }

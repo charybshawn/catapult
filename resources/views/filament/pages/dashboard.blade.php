@@ -113,7 +113,7 @@
                                 @foreach($cropsNeedingHarvest as $crop)
                                     <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
                                         <div>
-                                            <p class="font-medium text-gray-900 dark:text-white">{{ $crop->recipe->seedVariety->name }}</p>
+                                            <p class="font-medium text-gray-900 dark:text-white">{{ $crop->recipe->seedCultivar->name }}</p>
                                             <p class="text-sm text-gray-500 dark:text-gray-400">
                                                 Tray #{{ $crop->tray_number }} • Planted: {{ $crop->planted_at->format('M d') }} • Days: {{ $crop->planted_at->diffInDays(now()) }}
                                             </p>
@@ -148,7 +148,7 @@
                                 @foreach($recentlySowedCrops as $crop)
                                     <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
                                         <div>
-                                            <p class="font-medium text-gray-900 dark:text-white">{{ $crop->recipe->seedVariety->name }}</p>
+                                            <p class="font-medium text-gray-900 dark:text-white">{{ $crop->recipe->seedCultivar->name }}</p>
                                             <p class="text-sm text-gray-500 dark:text-gray-400">
                                                 Tray #{{ $crop->tray_number }} • Planted: {{ $crop->planted_at->format('M d') }} • Stage: {{ ucfirst($crop->current_stage) }}
                                             </p>

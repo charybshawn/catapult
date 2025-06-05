@@ -5,7 +5,7 @@ namespace App\Filament\Resources\ConsumableResource\Pages;
 use App\Filament\Resources\ConsumableResource;
 use App\Filament\Pages\BaseCreateRecord;
 use App\Models\Consumable;
-use App\Models\SeedVariety;
+use App\Models\SeedCultivar;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Hidden;
@@ -40,9 +40,9 @@ class CreateConsumable extends BaseCreateRecord
     {
         $rules = parent::getFormValidationRules();
         
-        // For seed types, ensure seed_variety_id is required
+        // For seed types, ensure seed_cultivar_id is required
         if (isset($this->data['type']) && $this->data['type'] === 'seed') {
-            $rules['seed_variety_id'] = ['required', 'exists:seed_varieties,id'];
+            $rules['seed_cultivar_id'] = ['required', 'exists:seed_cultivars,id'];
         }
         
         return $rules;

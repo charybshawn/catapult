@@ -61,11 +61,11 @@ class AdjustStock extends Page
                         Forms\Components\Hidden::make('record_id')
                             ->default($record->id),
                             
-                        Forms\Components\Placeholder::make('seed_variety_info')
-                            ->label('Seed Variety Information')
+                        Forms\Components\Placeholder::make('seed_cultivar_info')
+                            ->label('Seed Cultivar Information')
                             ->content(function () use ($record) {
-                                if ($record->type === 'seed' && $record->seedVariety) {
-                                    $variety = $record->seedVariety;
+                                if ($record->type === 'seed' && $record->seedCultivar) {
+                                    $variety = $record->seedCultivar;
                                     $info = [];
                                     
                                     if ($variety->crop_type) {
@@ -89,7 +89,7 @@ class AdjustStock extends Page
                                 
                                 return null;
                             })
-                            ->visible(fn () => $record->type === 'seed' && $record->seedVariety),
+                            ->visible(fn () => $record->type === 'seed' && $record->seedCultivar),
                     ])
                     ->columns(2),
                     

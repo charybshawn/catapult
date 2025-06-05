@@ -10,7 +10,7 @@ use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 use App\Services\CropLifecycleService;
 use App\Services\CropTimeCalculator;
-use App\Models\SeedVariety;
+use App\Models\SeedCultivar;
 
 class Crop extends Model
 {
@@ -89,12 +89,12 @@ class Crop extends Model
     }
     
     /**
-     * Get the seed variety for this crop through the recipe.
+     * Get the seed cultivar for this crop through the recipe.
      */
-    public function seedVariety(): ?SeedVariety
+    public function seedCultivar(): ?SeedCultivar
     {
         if ($this->recipe) {
-            return $this->recipe->seedVariety;
+            return $this->recipe->seedCultivar;
         }
         return null;
     }
@@ -120,16 +120,16 @@ class Crop extends Model
      */
     public function getVarietyNameAttribute(): ?string
     {
-        if ($this->recipe && $this->recipe->seedVariety) {
-            return $this->recipe->seedVariety->name;
+        if ($this->recipe && $this->recipe->seedCultivar) {
+            return $this->recipe->seedCultivar->name;
         }
         
         // If the recipe is not eager loaded, fetch it directly
         if ($this->recipe_id) {
             $recipe = Recipe::find($this->recipe_id);
             
-            if ($recipe && $recipe->seedVariety) {
-                return $recipe->seedVariety->name;
+            if ($recipe && $recipe->seedCultivar) {
+                return $recipe->seedCultivar->name;
             }
         }
         return null;
@@ -299,6 +299,57 @@ class Crop extends Model
         });
         
         static::created(function ($crop) {
+            // Automatically deduct seed from inventory when crop is created
+            if (!self::$bulkOperation && $crop->recipe && $crop->recipe->seedConsumable && $crop->recipe->seed_density_grams_per_tray) {
+                try {
+                    $seedConsumable = $crop->recipe->seedConsumable;
+                    $requiredAmount = $crop->recipe->seed_density_grams_per_tray;
+                    
+                    // Convert required amount to the same unit as the seed consumable for comparison
+                    $inventoryService = app(\App\Services\InventoryService::class);
+                    $currentStock = $inventoryService->getCurrentStock($seedConsumable);
+                    
+                    // Check if we have enough seed (convert units if needed for comparison)
+                    $requiredInSeedUnits = match($seedConsumable->quantity_unit) {
+                        'kg' => $requiredAmount / 1000, // Convert grams to kg
+                        'g' => $requiredAmount, // Already in grams
+                        default => $requiredAmount // For other units, assume direct comparison
+                    };
+                    
+                    if ($currentStock >= $requiredInSeedUnits) {
+                        // Deduct the seed amount specified in the recipe for this tray
+                        $seedConsumable->deduct(
+                            $requiredAmount,
+                            'g' // Recipe seed density is always in grams
+                        );
+                        
+                        \Illuminate\Support\Facades\Log::info('Seed automatically deducted for new crop', [
+                            'crop_id' => $crop->id,
+                            'recipe_id' => $crop->recipe_id,
+                            'seed_consumable_id' => $seedConsumable->id,
+                            'amount_deducted' => $requiredAmount,
+                            'unit' => 'g',
+                            'remaining_stock' => $currentStock - $requiredInSeedUnits
+                        ]);
+                    } else {
+                        \Illuminate\Support\Facades\Log::warning('Insufficient seed stock for crop creation', [
+                            'crop_id' => $crop->id,
+                            'recipe_id' => $crop->recipe_id,
+                            'seed_consumable_id' => $seedConsumable->id,
+                            'required_amount' => $requiredAmount,
+                            'current_stock' => $currentStock,
+                            'seed_unit' => $seedConsumable->quantity_unit
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::warning('Error deducting seed inventory for new crop', [
+                        'crop_id' => $crop->id,
+                        'recipe_id' => $crop->recipe_id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+            
             // Schedule stage transition tasks (skip during testing to avoid memory issues)
             if (config('app.env') !== 'testing' && !self::$bulkOperation) {
                 try {

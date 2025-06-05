@@ -4,7 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Consumable;
 use App\Models\Supplier;
-use App\Models\SeedVariety;
+use App\Models\SeedCultivar;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**

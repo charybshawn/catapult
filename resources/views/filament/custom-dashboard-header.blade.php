@@ -3,10 +3,27 @@
     session(['dashboard_tab' => $activeTab]);
 @endphp
 
-<div class="w-full px-4 sm:px-6 lg:px-8 py-4" 
-     x-data="dashboardData" 
-     x-init="initDashboard()">
-    <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+<x-filament-panels::page>
+<div class="space-y-8" 
+     x-data="{
+        activeTab: '{{ $activeTab }}',
+        autoRefresh: false,
+        isRefreshing: false,
+        lastUpdated: new Date().toLocaleTimeString(),
+        refreshData() {
+            this.isRefreshing = true;
+            // Simulate refresh
+            setTimeout(() => {
+                this.isRefreshing = false;
+                this.lastUpdated = new Date().toLocaleTimeString();
+                window.location.reload();
+            }, 1000);
+        },
+        toggleAutoRefresh() {
+            this.autoRefresh = !this.autoRefresh;
+        }
+     }">
+    <div class="flex flex-col sm:flex-row justify-between items-center gap-4 pb-4">
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Farm Operations Dashboard</h1>
         <div class="flex items-center gap-4">
             <div class="flex items-center gap-2">
@@ -53,11 +70,21 @@
         </x-filament::tabs.item>
 
         <x-filament::tabs.item
+            :active="$activeTab === 'alerts'"
+            x-on:click="activeTab = 'alerts'; history.replaceState(null, null, '?tab=alerts');"
+            icon="heroicon-m-bell-alert"
+            :badge="($alertsSummary['overdue'] ?? 0) > 0 ? ($alertsSummary['overdue'] ?? 0) : (($alertsSummary['today'] ?? 0) > 0 ? ($alertsSummary['today'] ?? 0) : null)"
+            :badge-color="($alertsSummary['overdue'] ?? 0) > 0 ? 'danger' : 'warning'"
+        >
+            Alerts
+        </x-filament::tabs.item>
+
+        <x-filament::tabs.item
             :active="$activeTab === 'inventory'"
             x-on:click="activeTab = 'inventory'; history.replaceState(null, null, '?tab=inventory');"
             icon="heroicon-m-archive-box-arrow-down"
         >
-            Inventory & Alerts
+            Inventory
         </x-filament::tabs.item>
 
         <x-filament::tabs.item
@@ -85,854 +112,812 @@
         </x-filament::tabs.item>
     </x-filament::tabs>
 
-    <div class="mt-6">
+    <div class="pt-6">
         <!-- Operations Dashboard Tab -->
         <div x-show="activeTab === 'operations'" x-cloak>
-            <!-- Quick Stats Bar -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-                <x-filament::section class="col-span-1">
-                    <div class="flex items-center justify-between mb-2">
-                        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">Active Crops</h3>
-                    </div>
-                    <p class="text-2xl font-bold text-primary-600 dark:text-primary-400" data-stat="active-crops">{{ $activeCropsCount }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">crops in production</p>
-                </x-filament::section>
-
-                <x-filament::section class="col-span-1">
-                    <div class="flex items-center justify-between mb-2">
-                        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">Active Trays</h3>
-                    </div>
-                    <p class="text-2xl font-bold text-primary-600 dark:text-primary-400" data-stat="active-trays">{{ $activeTraysCount }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">trays in use</p>
-                </x-filament::section>
-
-                <x-filament::section class="col-span-1">
-                    <div class="flex items-center justify-between mb-2">
-                        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">Alerts</h3>
-                    </div>
-                    <p class="text-2xl font-bold {{ $overdueTasksCount > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-success-600 dark:text-success-400' }}" data-stat="overdue-tasks">
-                        {{ $overdueTasksCount }}
-                    </p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">overdue tasks</p>
-                </x-filament::section>
-
-                <x-filament::section class="col-span-1">
-                    <div class="flex items-center justify-between mb-2">
-                        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">Low Stock</h3>
-                    </div>
-                    <p class="text-2xl font-bold {{ $lowStockCount > 0 ? 'text-warning-600 dark:text-warning-400' : 'text-success-600 dark:text-success-400' }}" data-stat="low-stock">
-                        {{ $lowStockCount }}
-                    </p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">items need restock</p>
-                </x-filament::section>
-
-                <x-filament::section class="col-span-1">
-                    <div class="flex items-center justify-between mb-2">
-                        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">Tray Utilization</h3>
-                    </div>
-                    <p class="text-2xl font-bold 
-                        @if($trayUtilization['status'] === 'critical') text-danger-600 dark:text-danger-400
-                        @elseif($trayUtilization['status'] === 'warning') text-warning-600 dark:text-warning-400
-                        @else text-success-600 dark:text-success-400 @endif" data-stat="tray-utilization">
-                        {{ $trayUtilization['utilization_percent'] }}%
-                    </p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400" data-stat="available-trays">{{ $trayUtilization['available_trays'] }} available</p>
-                </x-filament::section>
-            </div>
-
-            <!-- Stage Flow Overview -->
-            <div class="mb-6">
-                <x-filament::section>
-                    <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Production Pipeline</h2>
-                        <span class="text-sm text-gray-500 dark:text-gray-400">{{ array_sum(array_column($cropsByStage, 'count')) }} total active crops</span>
-                    </div>
-                    
-                    <div class="flex items-center justify-between space-x-4">
+            <!-- Production Pipeline - 4 Column Layout with Better Spacing -->
+            <div class="space-y-8">
+                <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Production Pipeline</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            
+                    <!-- Seeded Card -->
+                    <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow space-y-4">
+                        <!-- Header -->
+                        <div class="flex items-center space-x-3">
+                            <div class="w-3 h-3 rounded-full bg-blue-500"></div>
+                            <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Seeded</h3>
+                        </div>
+                        
+                        <!-- Stats -->
+                        <div class="space-y-2">
+                            <div class="flex items-baseline space-x-1">
+                                <span class="text-3xl font-bold text-gray-900 dark:text-white">{{ $cropsByStage['planting']['count'] ?? 0 }}</span>
+                                <span class="text-gray-500 dark:text-gray-400">crops</span>
+                            </div>
+                            @if(($cropsByStage['planting']['overdue_count'] ?? 0) > 0)
+                                <p class="text-sm text-orange-600 dark:text-orange-400">{{ $cropsByStage['planting']['overdue_count'] ?? 0 }} need attention</p>
+                            @else
+                                <p class="text-sm text-gray-500 dark:text-gray-400">All on schedule</p>
+                            @endif
+                        </div>
+                        
+                        <!-- Varieties & Trays -->
                         @php
-                            $stages = [
-                                'germination' => ['name' => 'Germination', 'icon' => 'seedling', 'color' => 'emerald'],
-                                'blackout' => ['name' => 'Blackout', 'icon' => 'moon', 'color' => 'slate'],
-                                'light' => ['name' => 'Under Light', 'icon' => 'sun', 'color' => 'amber']
-                            ];
-                            $totalCrops = array_sum(array_column($cropsByStage, 'count'));
+                            $plantingCrops = ($cropsByStage['planting']['crops'] ?? collect())->groupBy(function($crop) {
+                                return $crop->recipe->seedCultivar->name ?? $crop->recipe->name ?? 'Unknown';
+                            });
                         @endphp
-                        
-                        @foreach($stages as $stageKey => $stageData)
-                            @php
-                                $stageCount = $cropsByStage[$stageKey]['count'];
-                                $overdueCount = $cropsByStage[$stageKey]['overdue_count'];
-                                $percentage = $totalCrops > 0 ? round(($stageCount / $totalCrops) * 100, 1) : 0;
-                            @endphp
-                            
-                            <div class="flex-1 text-center">
-                                <div class="relative">
-                                    <!-- Stage Icon -->
-                                    <div class="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-3 {{ $stageCount > 0 ? 'bg-'.$stageData['color'].'-100 border-2 border-'.$stageData['color'].'-200' : 'bg-gray-100 border-2 border-gray-200' }} dark:{{ $stageCount > 0 ? 'bg-'.$stageData['color'].'-900 border-'.$stageData['color'].'-800' : 'bg-gray-800 border-gray-700' }}">
-                                        @if($stageData['icon'] === 'seedling')
-                                            <svg class="w-8 h-8 {{ $stageCount > 0 ? 'text-'.$stageData['color'].'-600' : 'text-gray-400' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 3v1m0 3v1m0 3v1M9 21h6m-9-6h12a1 1 0 001-1V9a1 1 0 00-1-1H6a1 1 0 00-1 1v5a1 1 0 001 1z"></path>
-                                            </svg>
-                                        @elseif($stageData['icon'] === 'moon')
-                                            <svg class="w-8 h-8 {{ $stageCount > 0 ? 'text-'.$stageData['color'].'-600' : 'text-gray-400' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
-                                            </svg>
-                                        @else
-                                            <svg class="w-8 h-8 {{ $stageCount > 0 ? 'text-'.$stageData['color'].'-600' : 'text-gray-400' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 3v1m0 3v1m0 3v1M9 21h6m-9-6h12a1 1 0 001-1V9a1 1 0 00-1-1H6a1 1 0 00-1 1v5a1 1 0 001 1z"></path>
-                                            </svg>
-                                        @endif
-                                    </div>
-                                    
-                                    <!-- Overdue Badge -->
-                                    @if($overdueCount > 0)
-                                        <div class="absolute -top-1 -right-1 w-6 h-6 bg-danger-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                                            {{ $overdueCount }}
+                        @if($plantingCrops->count() > 0)
+                            <div class="space-y-3 border-t border-gray-200 dark:border-gray-700 pt-4">
+                                @foreach($plantingCrops->take(3) as $variety => $crops)
+                                    <div class="space-y-1">
+                                        <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $variety }}</div>
+                                        <div class="flex flex-wrap gap-1">
+                                            @foreach($crops->take(10) as $crop)
+                                                <x-filament::badge color="primary" size="sm">
+                                                    {{ $crop->tray_number }}
+                                                </x-filament::badge>
+                                            @endforeach
+                                            @if($crops->count() > 10)
+                                                <span class="text-xs text-gray-500 dark:text-gray-400">+{{ $crops->count() - 10 }} more</span>
+                                            @endif
                                         </div>
-                                    @endif
-                                </div>
-                                
-                                <!-- Stage Info -->
-                                <h3 class="font-medium text-gray-900 dark:text-white">{{ $stageData['name'] }}</h3>
-                                <p class="text-2xl font-bold {{ $stageCount > 0 ? 'text-'.$stageData['color'].'-600' : 'text-gray-400' }}">{{ $stageCount }}</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ $percentage }}% of total</p>
-                                
-                                @if($overdueCount > 0)
-                                    <p class="text-xs text-danger-600 dark:text-danger-400 mt-1">{{ $overdueCount }} overdue</p>
-                                @endif
-                            </div>
-                            
-                            <!-- Arrow between stages (except after last stage) -->
-                            @if($stageKey !== 'light')
-                                <div class="flex-shrink-0">
-                                    <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
-                                    </svg>
-                                </div>
-                            @endif
-                        @endforeach
-                        
-                        <!-- Harvest Stage -->
-                        <div class="flex-1 text-center">
-                            @php $harvestCount = is_countable($cropsNeedingHarvest) ? count($cropsNeedingHarvest) : $cropsNeedingHarvest->count(); @endphp
-                            <div class="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-3 {{ $harvestCount > 0 ? 'bg-success-100 border-2 border-success-200' : 'bg-gray-100 border-2 border-gray-200' }} dark:{{ $harvestCount > 0 ? 'bg-success-900 border-success-800' : 'bg-gray-800 border-gray-700' }}">
-                                <svg class="w-8 h-8 {{ $harvestCount > 0 ? 'text-success-600' : 'text-gray-400' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1M9 16h6m-7 4h8a2 2 0 002-2V6a2 2 0 00-2-2H8a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                                </svg>
-                            </div>
-                            <h3 class="font-medium text-gray-900 dark:text-white">Ready to Harvest</h3>
-                            <p class="text-2xl font-bold {{ $harvestCount > 0 ? 'text-success-600' : 'text-gray-400' }}">{{ $harvestCount }}</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">crops ready</p>
-                        </div>
-                    </div>
-                </x-filament::section>
-            </div>
-
-            <!-- Active Crops by Stage -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                @foreach(['germination' => 'Germination', 'blackout' => 'Blackout', 'light' => 'Under Light'] as $stage => $title)
-                    <x-filament::section>
-                        <div class="flex items-center justify-between mb-4">
-                            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ $title }}</h2>
-                            @if($cropsByStage[$stage]['overdue_count'] > 0)
-                                <span class="px-2 py-1 bg-danger-100 text-danger-800 text-xs font-medium rounded-full dark:bg-danger-900 dark:text-danger-200">
-                                    {{ $cropsByStage[$stage]['overdue_count'] }} overdue
-                                </span>
-                            @endif
-                        </div>
-                        
-                        <div class="mb-4">
-                            <p class="text-3xl font-bold text-primary-600 dark:text-primary-400">{{ $cropsByStage[$stage]['count'] }}</p>
-                            <p class="text-sm text-gray-500 dark:text-gray-400">crops in {{ strtolower($title) }}</p>
-                        </div>
-                        
-                        @if($cropsByStage[$stage]['crops']->count() > 0)
-                            <div class="space-y-3">
-                                @foreach($cropsByStage[$stage]['crops'] as $crop)
-                                    @php
-                                        // Calculate stage progress
-                                        $stageStartTime = $crop->{$stage . '_at'};
-                                        $stageDuration = match($stage) {
-                                            'germination' => $crop->recipe->germination_days ?? 0,
-                                            'blackout' => $crop->recipe->blackout_days ?? 0,
-                                            'light' => $crop->recipe->light_days ?? 0,
-                                            default => 0
-                                        };
-                                        
-                                        $progress = 0;
-                                        $isOverdue = false;
-                                        $statusColor = 'bg-blue-500';
-                                        
-                                        if ($stageStartTime && $stageDuration > 0) {
-                                            $hoursInStage = $stageStartTime->diffInHours(now());
-                                            $totalHours = $stageDuration * 24;
-                                            $progress = min(100, ($hoursInStage / $totalHours) * 100);
-                                            
-                                            if ($progress >= 100) {
-                                                $isOverdue = true;
-                                                $statusColor = 'bg-danger-500';
-                                            } elseif ($progress >= 80) {
-                                                $statusColor = 'bg-warning-500';
-                                            } else {
-                                                $statusColor = 'bg-success-500';
-                                            }
-                                        }
-                                    @endphp
-                                    
-                                    <div class="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border {{ $isOverdue ? 'border-danger-200 dark:border-danger-800' : 'border-gray-200 dark:border-gray-700' }}">
-                                        <div class="flex items-center justify-between mb-2">
-                                            <div class="flex-1">
-                                                <div class="flex items-center gap-2">
-                                                    <p class="text-sm font-medium text-gray-900 dark:text-white">
-                                                        {{ $crop->recipe->seedVariety->name ?? 'Unknown' }}
-                                                    </p>
-                                                    @if($isOverdue)
-                                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-danger-100 text-danger-800 dark:bg-danger-900 dark:text-danger-200">
-                                                            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
-                                                            </svg>
-                                                            Ready
-                                                        </span>
-                                                    @endif
-                                                </div>
-                                                <p class="text-xs text-gray-500 dark:text-gray-400">
-                                                    Tray #{{ $crop->tray_number }} • {{ $crop->getStageAgeStatus() }}
-                                                </p>
-                                            </div>
-                                            <div class="flex gap-1">
-                                                @if($isOverdue)
-                                                    <x-filament::icon-button
-                                                        icon="heroicon-o-arrow-right-circle"
-                                                        color="warning"
-                                                        tag="a"
-                                                        :href="route('filament.admin.resources.crops.edit', $crop)"
-                                                        tooltip="Advance Stage"
-                                                        size="sm"
-                                                    />
-                                                @endif
-                                                <x-filament::icon-button
-                                                    icon="heroicon-o-eye"
-                                                    tag="a"
-                                                    :href="route('filament.admin.resources.crops.edit', $crop)"
-                                                    tooltip="View Crop"
-                                                    size="sm"
-                                                />
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Stage Progress Bar -->
-                                        @if($stageDuration > 0)
-                                            <div class="mb-2">
-                                                <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
-                                                    <span>Stage Progress</span>
-                                                    <span>{{ number_format($progress, 1) }}%</span>
-                                                </div>
-                                                <div class="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
-                                                    <div class="h-2 rounded-full transition-all duration-300 {{ $statusColor }}" 
-                                                         style="width: {{ min(100, $progress) }}%">
-                                                    </div>
-                                                </div>
-                                                @if($progress > 100)
-                                                    <p class="text-xs text-danger-600 dark:text-danger-400 mt-1">
-                                                        {{ number_format($progress - 100, 1) }}% overdue
-                                                    </p>
-                                                @endif
-                                            </div>
-                                        @endif
-                                        
-                                        <!-- Expected Next Action -->
-                                        @if(!$isOverdue && $stageDuration > 0)
-                                            @php
-                                                $timeToAdvance = $crop->timeToNextStage();
-                                                if ($timeToAdvance && !str_contains($timeToAdvance, 'Ready to advance')) {
-                                                    $nextAction = match($stage) {
-                                                        'germination' => $crop->recipe->blackout_days > 0 ? 'Move to blackout' : 'Move to light',
-                                                        'blackout' => 'Move to light',
-                                                        'light' => 'Ready to harvest',
-                                                        default => 'Next stage'
-                                                    };
-                                                    echo '<p class="text-xs text-blue-600 dark:text-blue-400">' . $nextAction . ' in ' . $timeToAdvance . '</p>';
-                                                }
-                                            @endphp
-                                        @endif
                                     </div>
                                 @endforeach
-                                @if($cropsByStage[$stage]['count'] > 5)
-                                    <div class="text-center pt-2">
-                                        <x-filament::link
-                                            :href="route('filament.admin.resources.crops.index', ['stage' => $stage])"
-                                            size="sm"
-                                        >
-                                            View all {{ $cropsByStage[$stage]['count'] }} crops
-                                        </x-filament::link>
-                                    </div>
+                                @if($plantingCrops->count() > 3)
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">+{{ $plantingCrops->count() - 3 }} more varieties</div>
                                 @endif
                             </div>
-                        @else
-                            <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No crops in {{ strtolower($title) }}</p>
                         @endif
-                    </x-filament::section>
-                @endforeach
-            </div>
-
-            <!-- Ready to Harvest -->
-            @php $harvestReadyCount = is_countable($cropsNeedingHarvest) ? count($cropsNeedingHarvest) : $cropsNeedingHarvest->count(); @endphp
-            @if($harvestReadyCount > 0)
-                <x-filament::section>
-                    <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Ready to Harvest</h2>
-                        <span class="px-3 py-1 bg-success-100 text-success-800 text-sm font-medium rounded-full dark:bg-success-900 dark:text-success-200">
-                            {{ $harvestReadyCount }} crops ready
-                        </span>
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        @foreach($cropsNeedingHarvest as $crop)
-                            <div class="flex items-center justify-between p-3 bg-success-50 dark:bg-success-900/20 rounded-lg border border-success-200 dark:border-success-800">
-                                <div>
-                                    <p class="font-medium text-gray-900 dark:text-white">{{ $crop->recipe->seedVariety->name ?? 'Unknown' }}</p>
-                                    <p class="text-sm text-gray-500 dark:text-gray-400">
-                                        Tray #{{ $crop->tray_number }} • {{ $crop->planted_at->diffInDays(now()) }} days old
-                                    </p>
+
+                    <!-- Germination Card -->
+                    <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow">
+                        <div class="flex gap-6">
+                            <!-- Left Column: Stats -->
+                            <div class="flex-shrink-0 min-w-[120px] space-y-4">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                                    <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Germination</h3>
                                 </div>
-                                <div class="flex gap-1">
-                                    <x-filament::icon-button
-                                        icon="heroicon-o-eye"
-                                        tag="a"
-                                        :href="route('filament.admin.resources.crops.edit', $crop)"
-                                        tooltip="View Crop"
-                                        size="sm"
-                                    />
-                                    <x-filament::icon-button
-                                        icon="heroicon-o-scissors"
-                                        color="success"
-                                        tag="a"
-                                        :href="route('filament.admin.resources.crops.edit', ['record' => $crop, 'action' => 'harvest'])"
-                                        tooltip="Harvest Crop"
-                                        size="sm"
-                                    />
+                                <div class="space-y-2">
+                                    <div class="flex items-baseline space-x-1">
+                                        <span class="text-3xl font-bold text-gray-900 dark:text-white">{{ $cropsByStage['germination']['count'] }}</span>
+                                        <span class="text-gray-500 dark:text-gray-400">crops</span>
+                                    </div>
+                                    @if($cropsByStage['germination']['overdue_count'] > 0)
+                                        <p class="text-sm text-orange-600 dark:text-orange-400">{{ $cropsByStage['germination']['overdue_count'] }} ready for blackout</p>
+                                    @else
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">All germinating well</p>
+                                    @endif
                                 </div>
                             </div>
-                        @endforeach
+                            
+                            <!-- Right Column: Varieties & Trays -->
+                            <div class="flex-1 min-w-0 border-l border-gray-200 dark:border-gray-700 pl-4">
+                                @php
+                                    $germinationCrops = ($cropsByStage['germination']['crops'] ?? collect())->groupBy(function($crop) {
+                                        return $crop->recipe->seedCultivar->name ?? $crop->recipe->name ?? 'Unknown';
+                                    });
+                                @endphp
+                                @if($germinationCrops->count() > 0)
+                                    <div class="space-y-3 text-left">
+                                        @foreach($germinationCrops->take(3) as $variety => $crops)
+                                            <div class="space-y-1">
+                                                <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $variety }}</div>
+                                                <div class="flex flex-wrap gap-1">
+                                                    @foreach($crops->take(10) as $crop)
+                                                        <x-filament::badge color="success" size="sm">
+                                                            {{ $crop->tray_number }}
+                                                        </x-filament::badge>
+                                                    @endforeach
+                                                    @if($crops->count() > 10)
+                                                        <span class="text-xs text-gray-500 dark:text-gray-400">+{{ $crops->count() - 10 }} more</span>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                        @if($germinationCrops->count() > 3)
+                                            <div class="text-xs text-gray-500 dark:text-gray-400 text-left">+{{ $germinationCrops->count() - 3 }} more varieties</div>
+                                        @endif
+                                    </div>
+                                @else
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">No crops in this stage</p>
+                                @endif
+                            </div>
+                        </div>
                     </div>
-                </x-filament::section>
+
+                    <!-- Blackout Card -->
+                    <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow">
+                        <div class="flex gap-6">
+                            <!-- Left Column: Stats -->
+                            <div class="flex-shrink-0 min-w-[120px] space-y-4">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-3 h-3 rounded-full bg-gray-500"></div>
+                                    <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Blackout</h3>
+                                </div>
+                                <div class="space-y-2">
+                                    <div class="flex items-baseline space-x-1">
+                                        <span class="text-3xl font-bold text-gray-900 dark:text-white">{{ $cropsByStage['blackout']['count'] }}</span>
+                                        <span class="text-gray-500 dark:text-gray-400">crops</span>
+                                    </div>
+                                    @if($cropsByStage['blackout']['overdue_count'] > 0)
+                                        <p class="text-sm text-orange-600 dark:text-orange-400">{{ $cropsByStage['blackout']['overdue_count'] }} ready for light</p>
+                                    @else
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">Developing properly</p>
+                                    @endif
+                                </div>
+                            </div>
+                            
+                            <!-- Right Column: Varieties & Trays -->
+                            <div class="flex-1 min-w-0 border-l border-gray-200 dark:border-gray-700 pl-4">
+                                @php
+                                    $blackoutCrops = ($cropsByStage['blackout']['crops'] ?? collect())->groupBy(function($crop) {
+                                        return $crop->recipe->seedCultivar->name ?? $crop->recipe->name ?? 'Unknown';
+                                    });
+                                @endphp
+                                @if($blackoutCrops->count() > 0)
+                                    <div class="space-y-3 text-left">
+                                        @foreach($blackoutCrops->take(3) as $variety => $crops)
+                                            <div class="space-y-1">
+                                                <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $variety }}</div>
+                                                <div class="flex flex-wrap gap-1">
+                                                    @foreach($crops->take(10) as $crop)
+                                                        <x-filament::badge color="gray" size="sm">
+                                                            {{ $crop->tray_number }}
+                                                        </x-filament::badge>
+                                                    @endforeach
+                                                    @if($crops->count() > 10)
+                                                        <span class="text-xs text-gray-500 dark:text-gray-400">+{{ $crops->count() - 10 }} more</span>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                        @if($blackoutCrops->count() > 3)
+                                            <div class="text-xs text-gray-500 dark:text-gray-400 text-left">+{{ $blackoutCrops->count() - 3 }} more varieties</div>
+                                        @endif
+                                    </div>
+                                @else
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">No crops in this stage</p>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Light Card -->
+                    <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow">
+                        <div class="flex gap-6">
+                            <!-- Left Column: Stats -->
+                            <div class="flex-shrink-0 min-w-[120px] space-y-4">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                    <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Light</h3>
+                                </div>
+                                <div class="space-y-2">
+                                    <div class="flex items-baseline space-x-1">
+                                        <span class="text-3xl font-bold text-gray-900 dark:text-white">{{ $cropsByStage['light']['count'] }}</span>
+                                        <span class="text-gray-500 dark:text-gray-400">crops</span>
+                                    </div>
+                                    @if($cropsByStage['light']['overdue_count'] > 0)
+                                        <p class="text-sm text-green-600 dark:text-green-400">{{ $cropsByStage['light']['overdue_count'] }} ready to harvest</p>
+                                    @else
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">Growing under lights</p>
+                                    @endif
+                                </div>
+                            </div>
+                            
+                            <!-- Right Column: Varieties & Trays -->
+                            <div class="flex-1 min-w-0 border-l border-gray-200 dark:border-gray-700 pl-4">
+                                @php
+                                    $lightCrops = ($cropsByStage['light']['crops'] ?? collect())->groupBy(function($crop) {
+                                        return $crop->recipe->seedCultivar->name ?? $crop->recipe->name ?? 'Unknown';
+                                    });
+                                @endphp
+                                @if($lightCrops->count() > 0)
+                                    <div class="space-y-3 text-left">
+                                        @foreach($lightCrops->take(3) as $variety => $crops)
+                                            <div class="space-y-1">
+                                                <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $variety }}</div>
+                                                <div class="flex flex-wrap gap-1">
+                                                    @foreach($crops->take(10) as $crop)
+                                                        <x-filament::badge color="warning" size="sm">
+                                                            {{ $crop->tray_number }}
+                                                        </x-filament::badge>
+                                                    @endforeach
+                                                    @if($crops->count() > 10)
+                                                        <span class="text-xs text-gray-500 dark:text-gray-400">+{{ $crops->count() - 10 }} more</span>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                        @if($lightCrops->count() > 3)
+                                            <div class="text-xs text-gray-500 dark:text-gray-400 text-left">+{{ $lightCrops->count() - 3 }} more varieties</div>
+                                        @endif
+                                    </div>
+                                @else
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">No crops in this stage</p>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alerts Tab -->
+        <div x-show="activeTab === 'alerts'" x-cloak>
+            <!-- Header Section -->
+            <div class="flex justify-between items-center py-8">
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Alerts Overview</h2>
+                <a href="{{ route('filament.admin.resources.crop-alerts.index') }}" 
+                   class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    Manage All Alerts
+                </a>
+            </div>
+
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 py-12">
+                <!-- Overdue Alerts -->
+                <div class="bg-white dark:bg-gray-900 rounded-xl border border-red-200 dark:border-red-700 p-6 shadow-sm hover:shadow-md transition-all">
+                    <div class="flex items-center mb-3">
+                        <div class="w-2 h-2 rounded-full bg-red-500 mr-3"></div>
+                        <h3 class="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">Overdue</h3>
+                    </div>
+                    <div class="mb-1">
+                        <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ $alertsSummary['overdue'] ?? 0 }}</span>
+                    </div>
+                    @if(($alertsSummary['overdue'] ?? 0) > 0)
+                        <p class="text-xs text-red-600 dark:text-red-400">Require immediate attention</p>
+                    @else
+                        <p class="text-xs text-gray-500 dark:text-gray-400">All up to date</p>
+                    @endif
+                </div>
+
+                <!-- Today's Alerts -->
+                <div class="bg-white dark:bg-gray-900 rounded-xl border border-orange-200 dark:border-orange-700 p-6 shadow-sm hover:shadow-md transition-all">
+                    <div class="flex items-center mb-3">
+                        <div class="w-2 h-2 rounded-full bg-orange-500 mr-3"></div>
+                        <h3 class="text-xs font-semibold text-orange-600 dark:text-orange-400 uppercase tracking-wider">Today</h3>
+                    </div>
+                    <div class="mb-1">
+                        <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ $alertsSummary['today'] ?? 0 }}</span>
+                    </div>
+                    @if(($alertsSummary['today'] ?? 0) > 0)
+                        <p class="text-xs text-orange-600 dark:text-orange-400">Scheduled for today</p>
+                    @else
+                        <p class="text-xs text-gray-500 dark:text-gray-400">No alerts today</p>
+                    @endif
+                </div>
+
+                <!-- This Week -->
+                <div class="bg-white dark:bg-gray-900 rounded-xl border border-blue-200 dark:border-blue-700 p-6 shadow-sm hover:shadow-md transition-all">
+                    <div class="flex items-center mb-3">
+                        <div class="w-2 h-2 rounded-full bg-blue-500 mr-3"></div>
+                        <h3 class="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">This Week</h3>
+                    </div>
+                    <div class="mb-1">
+                        <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ $alertsSummary['this_week'] ?? 0 }}</span>
+                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Coming up this week</p>
+                </div>
+
+                <!-- Total Upcoming -->
+                <div class="bg-white dark:bg-gray-900 rounded-xl border border-green-200 dark:border-green-700 p-6 shadow-sm hover:shadow-md transition-all">
+                    <div class="flex items-center mb-3">
+                        <div class="w-2 h-2 rounded-full bg-green-500 mr-3"></div>
+                        <h3 class="text-xs font-semibold text-green-600 dark:text-green-400 uppercase tracking-wider">Total Upcoming</h3>
+                    </div>
+                    <div class="mb-1">
+                        <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ $alertsSummary['total'] ?? 0 }}</span>
+                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Next 7 days</p>
+                </div>
+            </div>
+
+            <!-- Overdue Alerts Section -->
+            @if(!empty($overdueAlerts) && count($overdueAlerts) > 0)
+            <div class="py-10">
+                <h3 class="text-lg font-semibold text-red-600 dark:text-red-400 pb-6 flex items-center">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z"></path>
+                    </svg>
+                    Overdue Alerts ({{ count($overdueAlerts) }})
+                </h3>
+                <div class="space-y-4">
+                    @foreach($overdueAlerts as $alert)
+                    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-xl p-6 cursor-pointer hover:shadow-md transition-all"
+                         x-data="{ showDetails: false }"
+                         @click="showDetails = true">
+                        <div class="flex justify-between items-center">
+                            <!-- Left Side: Main Info -->
+                            <div class="flex-1">
+                                <div class="flex items-center gap-3 mb-2">
+                                    <h4 class="text-xl font-bold text-gray-900 dark:text-white">{{ $alert->variety }}</h4>
+                                    <x-filament::badge color="danger" size="sm">
+                                        OVERDUE
+                                    </x-filament::badge>
+                                </div>
+                                <div class="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                                    <x-filament::badge color="info" size="sm">
+                                        {{ $alert->alert_type }}
+                                    </x-filament::badge>
+                                    <span>{{ $alert->tray_count }} trays</span>
+                                    @foreach(array_slice($alert->tray_numbers, 0, 8) as $trayNumber)
+                                        <x-filament::badge color="gray" size="xs">
+                                            {{ $trayNumber }}
+                                        </x-filament::badge>
+                                    @endforeach
+                                    @if(count($alert->tray_numbers) > 8)
+                                        <span class="text-xs text-gray-500">+{{ count($alert->tray_numbers) - 8 }}</span>
+                                    @endif
+                                </div>
+                            </div>
+                            
+                            <!-- Right Side: Timing & Planted Date -->
+                            <div class="text-right space-y-1">
+                                <div class="text-red-600 dark:text-red-400 font-semibold text-lg">{{ $alert->time_until }}</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">Planted: {{ $alert->planted_at ? $alert->planted_at->format('M j') : 'Unknown' }}</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Slideout Modal -->
+                        <div x-show="showDetails" 
+                             class="fixed inset-0 z-50"
+                             x-transition.opacity
+                             style="display: none;">
+                            <!-- Backdrop -->
+                            <div class="absolute inset-0 bg-black bg-opacity-50" 
+                                 @click="showDetails = false"></div>
+                            
+                            <!-- Slideout Panel -->
+                            <div class="fixed top-0 right-0 h-full w-96 bg-white dark:bg-gray-900 shadow-xl overflow-hidden z-60"
+                                 style="transform: translateX(0);"
+                                 x-transition:enter="transition-transform ease-in-out duration-300"
+                                 x-transition:enter-start="transform translate-x-full"
+                                 x-transition:enter-end="transform translate-x-0"
+                                 x-transition:leave="transition-transform ease-in-out duration-300"
+                                 x-transition:leave-start="transform translate-x-0"
+                                 x-transition:leave-end="transform translate-x-full"
+                                 @click.stop>
+                                <div class="p-6 h-full overflow-y-auto">
+                                    <div class="flex justify-between items-center mb-6">
+                                        <h3 class="text-lg font-semibold">Alert Details</h3>
+                                        <button @click="showDetails = false" class="text-gray-400 hover:text-gray-600">
+                                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    
+                                    <div class="space-y-6">
+                                        <div>
+                                            <h4 class="font-semibold text-xl text-gray-900 dark:text-white mb-2">{{ $alert->variety }}</h4>
+                                            <p class="text-gray-600 dark:text-gray-400">{{ $alert->alert_type }}</p>
+                                        </div>
+                                        
+                                        <div class="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Status</div>
+                                                <x-filament::badge color="danger">OVERDUE</x-filament::badge>
+                                            </div>
+                                            <div>
+                                                <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Tray Count</div>
+                                                <div class="text-gray-900 dark:text-white font-medium">{{ $alert->tray_count }}</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div>
+                                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Due Date</div>
+                                            <div class="text-gray-900 dark:text-white">{{ $alert->next_run_at->format('M j, Y g:i A') }}</div>
+                                            <div class="text-red-600 font-medium">{{ $alert->time_until }}</div>
+                                        </div>
+                                        
+                                        <div>
+                                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Planted Date</div>
+                                            <div class="text-gray-900 dark:text-white">{{ $alert->planted_at ? $alert->planted_at->format('M j, Y') : 'Unknown' }}</div>
+                                        </div>
+                                        
+                                        <div>
+                                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Stage Progress</div>
+                                            <div class="flex items-center gap-2">
+                                                <x-filament::badge color="info" size="sm">{{ ucfirst($alert->current_stage) }}</x-filament::badge>
+                                                <span class="text-gray-500">→</span>
+                                                <x-filament::badge :color="match($alert->target_stage) {
+                                                    'germination' => 'info',
+                                                    'blackout' => 'warning', 
+                                                    'light' => 'success',
+                                                    'harvested' => 'danger',
+                                                    default => 'gray'
+                                                }" size="sm">{{ ucfirst($alert->target_stage) }}</x-filament::badge>
+                                            </div>
+                                        </div>
+                                        
+                                        <div>
+                                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Tray Numbers</div>
+                                            <div class="flex flex-wrap gap-1">
+                                                @foreach($alert->tray_numbers as $trayNumber)
+                                                    <x-filament::badge color="gray" size="xs">{{ $trayNumber }}</x-filament::badge>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="pt-4 border-t">
+                                            <div class="flex gap-3">
+                                                <a href="{{ route('filament.admin.resources.crop-alerts.edit', ['record' => $alert->id]) }}" 
+                                                   class="flex-1 text-center py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                                                    Edit Alert
+                                                </a>
+                                                <a href="{{ route('filament.admin.resources.crops.index') }}" 
+                                                   class="flex-1 text-center py-2 px-4 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                                                    View Batch
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
             @endif
+
+            <!-- Today's Alerts Section -->
+            @if(!empty($todaysAlerts) && count($todaysAlerts) > 0)
+            <div class="py-10">
+                <h3 class="text-lg font-semibold text-orange-600 dark:text-orange-400 pb-6 flex items-center">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Today's Alerts ({{ count($todaysAlerts) }})
+                </h3>
+                <div class="space-y-4">
+                    @foreach($todaysAlerts as $alert)
+                    <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-xl p-6 cursor-pointer hover:shadow-md transition-all"
+                         x-data="{ showDetails: false }"
+                         @click="showDetails = true">
+                        <div class="flex justify-between items-center">
+                            <!-- Left Side: Main Info -->
+                            <div class="flex-1">
+                                <div class="flex items-center gap-3 mb-2">
+                                    <h4 class="text-xl font-bold text-gray-900 dark:text-white">{{ $alert->variety }}</h4>
+                                    <x-filament::badge color="warning" size="sm">
+                                        TODAY
+                                    </x-filament::badge>
+                                </div>
+                                <div class="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                                    <x-filament::badge color="info" size="sm">
+                                        {{ $alert->alert_type }}
+                                    </x-filament::badge>
+                                    <span>{{ $alert->tray_count }} trays</span>
+                                    @foreach(array_slice($alert->tray_numbers, 0, 8) as $trayNumber)
+                                        <x-filament::badge color="gray" size="xs">
+                                            {{ $trayNumber }}
+                                        </x-filament::badge>
+                                    @endforeach
+                                    @if(count($alert->tray_numbers) > 8)
+                                        <span class="text-xs text-gray-500">+{{ count($alert->tray_numbers) - 8 }}</span>
+                                    @endif
+                                </div>
+                            </div>
+                            
+                            <!-- Right Side: Timing & Planted Date -->
+                            <div class="text-right space-y-1">
+                                <div class="text-orange-600 dark:text-orange-400 font-semibold text-lg">{{ $alert->time_until }}</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">Planted: {{ $alert->planted_at ? $alert->planted_at->format('M j') : 'Unknown' }}</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Slideout Modal -->
+                        <div x-show="showDetails" 
+                             class="fixed inset-0 z-50"
+                             x-transition.opacity
+                             style="display: none;">
+                            <!-- Backdrop -->
+                            <div class="absolute inset-0 bg-black bg-opacity-50" 
+                                 @click="showDetails = false"></div>
+                            
+                            <!-- Slideout Panel -->
+                            <div class="fixed top-0 right-0 h-full w-96 bg-white dark:bg-gray-900 shadow-xl overflow-hidden z-60"
+                                 style="transform: translateX(0);"
+                                 x-transition:enter="transition-transform ease-in-out duration-300"
+                                 x-transition:enter-start="transform translate-x-full"
+                                 x-transition:enter-end="transform translate-x-0"
+                                 x-transition:leave="transition-transform ease-in-out duration-300"
+                                 x-transition:leave-start="transform translate-x-0"
+                                 x-transition:leave-end="transform translate-x-full"
+                                 @click.stop>
+                                <div class="p-6 h-full overflow-y-auto">
+                                    <div class="flex justify-between items-center mb-6">
+                                        <h3 class="text-lg font-semibold">Alert Details</h3>
+                                        <button @click="showDetails = false" class="text-gray-400 hover:text-gray-600">
+                                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    
+                                    <div class="space-y-6">
+                                        <div>
+                                            <h4 class="font-semibold text-xl text-gray-900 dark:text-white mb-2">{{ $alert->variety }}</h4>
+                                            <p class="text-gray-600 dark:text-gray-400">{{ $alert->alert_type }}</p>
+                                        </div>
+                                        
+                                        <div class="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Status</div>
+                                                <x-filament::badge color="warning">TODAY</x-filament::badge>
+                                            </div>
+                                            <div>
+                                                <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Tray Count</div>
+                                                <div class="text-gray-900 dark:text-white font-medium">{{ $alert->tray_count }}</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div>
+                                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Due Time</div>
+                                            <div class="text-gray-900 dark:text-white">{{ $alert->next_run_at->format('g:i A') }}</div>
+                                            <div class="text-orange-600 font-medium">{{ $alert->time_until }}</div>
+                                        </div>
+                                        
+                                        <div>
+                                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Planted Date</div>
+                                            <div class="text-gray-900 dark:text-white">{{ $alert->planted_at ? $alert->planted_at->format('M j, Y') : 'Unknown' }}</div>
+                                        </div>
+                                        
+                                        <div>
+                                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Stage Progress</div>
+                                            <div class="flex items-center gap-2">
+                                                <x-filament::badge color="info" size="sm">{{ ucfirst($alert->current_stage) }}</x-filament::badge>
+                                                <span class="text-gray-500">→</span>
+                                                <x-filament::badge :color="match($alert->target_stage) {
+                                                    'germination' => 'info',
+                                                    'blackout' => 'warning', 
+                                                    'light' => 'success',
+                                                    'harvested' => 'danger',
+                                                    default => 'gray'
+                                                }" size="sm">{{ ucfirst($alert->target_stage) }}</x-filament::badge>
+                                            </div>
+                                        </div>
+                                        
+                                        <div>
+                                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Tray Numbers</div>
+                                            <div class="flex flex-wrap gap-1">
+                                                @foreach($alert->tray_numbers as $trayNumber)
+                                                    <x-filament::badge color="gray" size="xs">{{ $trayNumber }}</x-filament::badge>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="pt-4 border-t">
+                                            <div class="flex gap-3">
+                                                <a href="{{ route('filament.admin.resources.crop-alerts.edit', ['record' => $alert->id]) }}" 
+                                                   class="flex-1 text-center py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                                                    Edit Alert
+                                                </a>
+                                                <a href="{{ route('filament.admin.resources.crops.index') }}" 
+                                                   class="flex-1 text-center py-2 px-4 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                                                    View Batch
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+
+            <!-- Upcoming Alerts Section -->
+            <div class="py-10">
+                <h3 class="text-lg font-semibold text-blue-600 dark:text-blue-400 pb-6 flex items-center">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    Upcoming Alerts (Next 7 Days)
+                </h3>
+                @if(!empty($upcomingAlerts) && count($upcomingAlerts) > 0)
+                <div class="space-y-4">
+                    @foreach($upcomingAlerts->take(15) as $alert)
+                    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6 cursor-pointer hover:shadow-md transition-all"
+                         x-data="{ showDetails: false }"
+                         @click="showDetails = true">
+                        <div class="flex justify-between items-center">
+                            <!-- Left Side: Main Info -->
+                            <div class="flex-1">
+                                <div class="flex items-center gap-3 mb-2">
+                                    <h4 class="text-xl font-bold text-gray-900 dark:text-white">{{ $alert->variety }}</h4>
+                                    <x-filament::badge :color="match($alert->priority) {
+                                        'critical' => 'danger',
+                                        'high' => 'warning',
+                                        'medium' => 'info',
+                                        'low' => 'gray',
+                                        default => 'gray'
+                                    }" size="sm">
+                                        {{ strtoupper($alert->priority) }}
+                                    </x-filament::badge>
+                                </div>
+                                <div class="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                                    <x-filament::badge color="info" size="sm">
+                                        {{ $alert->alert_type }}
+                                    </x-filament::badge>
+                                    <span>{{ $alert->tray_count }} trays</span>
+                                    @foreach(array_slice($alert->tray_numbers, 0, 8) as $trayNumber)
+                                        <x-filament::badge color="gray" size="xs">
+                                            {{ $trayNumber }}
+                                        </x-filament::badge>
+                                    @endforeach
+                                    @if(count($alert->tray_numbers) > 8)
+                                        <span class="text-xs text-gray-500">+{{ count($alert->tray_numbers) - 8 }}</span>
+                                    @endif
+                                </div>
+                            </div>
+                            
+                            <!-- Right Side: Timing & Planted Date -->
+                            <div class="text-right space-y-1">
+                                <div class="text-blue-600 dark:text-blue-400 font-semibold text-lg">{{ $alert->time_until }}</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">Planted: {{ $alert->planted_at ? $alert->planted_at->format('M j') : 'Unknown' }}</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Slideout Modal -->
+                        <div x-show="showDetails" 
+                             class="fixed inset-0 z-50"
+                             x-transition.opacity
+                             style="display: none;">
+                            <!-- Backdrop -->
+                            <div class="absolute inset-0 bg-black bg-opacity-50" 
+                                 @click="showDetails = false"></div>
+                            
+                            <!-- Slideout Panel -->
+                            <div class="fixed top-0 right-0 h-full w-96 bg-white dark:bg-gray-900 shadow-xl overflow-hidden z-60"
+                                 style="transform: translateX(0);"
+                                 x-transition:enter="transition-transform ease-in-out duration-300"
+                                 x-transition:enter-start="transform translate-x-full"
+                                 x-transition:enter-end="transform translate-x-0"
+                                 x-transition:leave="transition-transform ease-in-out duration-300"
+                                 x-transition:leave-start="transform translate-x-0"
+                                 x-transition:leave-end="transform translate-x-full"
+                                 @click.stop>
+                                <div class="p-6 h-full overflow-y-auto">
+                                    <div class="flex justify-between items-center mb-6">
+                                        <h3 class="text-lg font-semibold">Alert Details</h3>
+                                        <button @click="showDetails = false" class="text-gray-400 hover:text-gray-600">
+                                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    
+                                    <div class="space-y-6">
+                                        <div>
+                                            <h4 class="font-semibold text-xl text-gray-900 dark:text-white mb-2">{{ $alert->variety }}</h4>
+                                            <p class="text-gray-600 dark:text-gray-400">{{ $alert->alert_type }}</p>
+                                        </div>
+                                        
+                                        <div class="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Priority</div>
+                                                <x-filament::badge :color="match($alert->priority) {
+                                                    'critical' => 'danger',
+                                                    'high' => 'warning',
+                                                    'medium' => 'info',
+                                                    'low' => 'gray',
+                                                    default => 'gray'
+                                                }">{{ strtoupper($alert->priority) }}</x-filament::badge>
+                                            </div>
+                                            <div>
+                                                <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Tray Count</div>
+                                                <div class="text-gray-900 dark:text-white font-medium">{{ $alert->tray_count }}</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div>
+                                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Due Date</div>
+                                            <div class="text-gray-900 dark:text-white">{{ $alert->next_run_at->format('M j, Y g:i A') }}</div>
+                                            <div class="text-blue-600 font-medium">{{ $alert->time_until }}</div>
+                                        </div>
+                                        
+                                        <div>
+                                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Planted Date</div>
+                                            <div class="text-gray-900 dark:text-white">{{ $alert->planted_at ? $alert->planted_at->format('M j, Y') : 'Unknown' }}</div>
+                                        </div>
+                                        
+                                        <div>
+                                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Stage Progress</div>
+                                            <div class="flex items-center gap-2">
+                                                <x-filament::badge color="info" size="sm">{{ ucfirst($alert->current_stage) }}</x-filament::badge>
+                                                <span class="text-gray-500">→</span>
+                                                <x-filament::badge :color="match($alert->target_stage) {
+                                                    'germination' => 'info',
+                                                    'blackout' => 'warning', 
+                                                    'light' => 'success',
+                                                    'harvested' => 'danger',
+                                                    default => 'gray'
+                                                }" size="sm">{{ ucfirst($alert->target_stage) }}</x-filament::badge>
+                                            </div>
+                                        </div>
+                                        
+                                        <div>
+                                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Tray Numbers</div>
+                                            <div class="flex flex-wrap gap-1">
+                                                @foreach($alert->tray_numbers as $trayNumber)
+                                                    <x-filament::badge color="gray" size="xs">{{ $trayNumber }}</x-filament::badge>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="pt-4 border-t">
+                                            <div class="flex gap-3">
+                                                <a href="{{ route('filament.admin.resources.crop-alerts.edit', ['record' => $alert->id]) }}" 
+                                                   class="flex-1 text-center py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                                                    Edit Alert
+                                                </a>
+                                                <a href="{{ route('filament.admin.resources.crops.index') }}" 
+                                                   class="flex-1 text-center py-2 px-4 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                                                    View Batch
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    @endforeach
+                    @if(count($upcomingAlerts) > 15)
+                    <div class="text-center py-6">
+                        <a href="{{ route('filament.admin.resources.crop-alerts.index') }}" 
+                           class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+                            View all {{ count($upcomingAlerts) }} upcoming alerts
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                        </a>
+                    </div>
+                    @endif
+                </div>
+                @else
+                <div class="text-center py-12">
+                    <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <h4 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No upcoming alerts</h4>
+                    <p class="text-gray-500 dark:text-gray-400">No alerts scheduled for the next 7 days</p>
+                    <p class="text-sm text-gray-400 dark:text-gray-500 mt-1">All your crops are on schedule!</p>
+                </div>
+                @endif
+            </div>
         </div>
 
         <!-- Inventory & Alerts Tab -->
         <div x-show="activeTab === 'inventory'" x-cloak>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- Seed Inventory Alerts -->
-                <x-filament::section>
-                    <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Seed Inventory Alerts</h2>
-                        <x-filament::link
-                            :href="route('filament.admin.resources.consumables.index', ['type' => 'seed'])"
-                            size="sm"
-                        >
-                            View All Seeds
-                        </x-filament::link>
-                    </div>
-                    @if($seedInventoryAlerts->count() > 0)
-                        <div class="space-y-3">
-                            @foreach($seedInventoryAlerts as $seed)
-                                <div class="flex items-center justify-between p-3 bg-warning-50 dark:bg-warning-900/20 rounded-lg border border-warning-200 dark:border-warning-800">
-                                    <div>
-                                        <p class="font-medium text-gray-900 dark:text-white">{{ $seed->name }}</p>
-                                        <p class="text-sm text-warning-600 dark:text-warning-400">
-                                            {{ $seed->total_quantity }}{{ $seed->quantity_unit }} remaining (threshold: {{ $seed->restock_threshold }}{{ $seed->quantity_unit }})
-                                        </p>
-                                    </div>
-                                    <div class="flex gap-1">
-                                        <x-filament::icon-button
-                                            icon="heroicon-o-shopping-cart"
-                                            color="warning"
-                                            tag="a"
-                                            :href="route('filament.admin.resources.consumables.edit', $seed)"
-                                            tooltip="Reorder"
-                                            size="sm"
-                                        />
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    @else
-                        <p class="text-center text-gray-500 dark:text-gray-400 py-8">All seed inventory levels are adequate.</p>
-                    @endif
-                </x-filament::section>
-
-                <!-- Packaging Alerts -->
-                <x-filament::section>
-                    <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Packaging Alerts</h2>
-                        <x-filament::link
-                            :href="route('filament.admin.resources.consumables.index', ['type' => 'packaging'])"
-                            size="sm"
-                        >
-                            View All Packaging
-                        </x-filament::link>
-                    </div>
-                    @if($packagingAlerts->count() > 0)
-                        <div class="space-y-3">
-                            @foreach($packagingAlerts as $packaging)
-                                <div class="flex items-center justify-between p-3 bg-danger-50 dark:bg-danger-900/20 rounded-lg border border-danger-200 dark:border-danger-800">
-                                    <div>
-                                        <p class="font-medium text-gray-900 dark:text-white">{{ $packaging->name }}</p>
-                                        <p class="text-sm text-danger-600 dark:text-danger-400">
-                                            {{ $packaging->current_stock }} remaining (threshold: {{ $packaging->restock_threshold }})
-                                        </p>
-                                    </div>
-                                    <div class="flex gap-1">
-                                        <x-filament::icon-button
-                                            icon="heroicon-o-shopping-cart"
-                                            color="danger"
-                                            tag="a"
-                                            :href="route('filament.admin.resources.consumables.edit', $packaging)"
-                                            tooltip="Reorder"
-                                            size="sm"
-                                        />
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    @else
-                        <p class="text-center text-gray-500 dark:text-gray-400 py-8">All packaging inventory levels are adequate.</p>
-                    @endif
-                </x-filament::section>
-            </div>
-
-            <!-- General Low Stock Items -->
-            @if($lowStockItems->count() > 0)
-                <div class="mt-6">
-                    <x-filament::section>
-                        <div class="flex items-center justify-between mb-4">
-                            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Other Low Stock Items</h2>
-                            <x-filament::link
-                                :href="route('filament.admin.resources.consumables.index')"
-                                size="sm"
-                            >
-                                View All Inventory
-                            </x-filament::link>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            @foreach($lowStockItems as $item)
-                                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                                    <div>
-                                        <p class="font-medium text-gray-900 dark:text-white">{{ $item->name }}</p>
-                                        <p class="text-sm text-gray-500 dark:text-gray-400">
-                                            {{ $item->current_stock }} {{ $item->unit }} (threshold: {{ $item->restock_threshold }})
-                                        </p>
-                                    </div>
-                                    <x-filament::icon-button
-                                        icon="heroicon-o-eye"
-                                        tag="a"
-                                        :href="route('filament.admin.resources.consumables.edit', $item)"
-                                        tooltip="View Item"
-                                        size="sm"
-                                    />
-                                </div>
-                            @endforeach
-                        </div>
-                    </x-filament::section>
-                </div>
-            @endif
+            <p class="text-gray-500 text-center py-8">Inventory & Alerts content will go here</p>
         </div>
 
         <!-- Harvest & Yield Tab -->
         <div x-show="activeTab === 'harvest'" x-cloak>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- Upcoming Harvests -->
-                <x-filament::section>
-                    <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Upcoming Harvests (7 days)</h2>
-                    </div>
-                    @if($upcomingHarvests->count() > 0)
-                        <div class="space-y-3">
-                            @foreach($upcomingHarvests as $crop)
-                                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                                    <div>
-                                        <p class="font-medium text-gray-900 dark:text-white">{{ $crop->recipe->seedVariety->name ?? 'Unknown' }}</p>
-                                        <p class="text-sm text-gray-500 dark:text-gray-400">
-                                            Tray #{{ $crop->tray_number }} • Expected: {{ $crop->expectedHarvestDate()?->format('M d') }}
-                                        </p>
-                                    </div>
-                                    <div class="text-right">
-                                        <p class="text-sm font-medium text-gray-900 dark:text-white">{{ $crop->recipe->expected_yield_grams }}g</p>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400">estimated</p>
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    @else
-                        <p class="text-center text-gray-500 dark:text-gray-400 py-8">No harvests scheduled for the next week.</p>
-                    @endif
-                </x-filament::section>
-
-                <!-- Yield Estimates by Variety -->
-                <x-filament::section>
-                    <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Yield Estimates by Variety</h2>
-                    </div>
-                    @if(count($yieldEstimates) > 0)
-                        <div class="space-y-3">
-                            @foreach($yieldEstimates as $estimate)
-                                <div class="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                                    <div class="flex items-center justify-between mb-2">
-                                        <div class="flex items-center gap-2">
-                                            <p class="font-medium text-gray-900 dark:text-white">{{ $estimate['variety'] }}</p>
-                                            @php
-                                                $confidenceColors = [
-                                                    'high' => 'bg-success-100 text-success-800 dark:bg-success-900 dark:text-success-200',
-                                                    'medium' => 'bg-warning-100 text-warning-800 dark:bg-warning-900 dark:text-warning-200',
-                                                    'low' => 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-                                                ];
-                                            @endphp
-                                            <span class="px-2 py-0.5 text-xs font-medium rounded-full {{ $confidenceColors[$estimate['confidence_level']] }}">
-                                                {{ ucfirst($estimate['confidence_level']) }} confidence
-                                            </span>
-                                            @if($estimate['historical_data_available'])
-                                                <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                                    Historical
-                                                </span>
-                                            @endif
-                                        </div>
-                                        <div class="text-right">
-                                            <p class="text-sm font-bold text-primary-600 dark:text-primary-400">{{ $estimate['estimated_yield_kg'] }} kg</p>
-                                            @if($estimate['ready_to_harvest'] > 0)
-                                                <p class="text-xs text-success-600 dark:text-success-400">{{ $estimate['ready_to_harvest'] }} ready</p>
-                                            @endif
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
-                                        <div>
-                                            <span>{{ $estimate['trays'] }} trays growing</span>
-                                            @if($estimate['historical_data_available'] && $estimate['last_30_days_avg'])
-                                                <span class="ml-2">• Recent avg: {{ $estimate['last_30_days_avg'] }}g/tray</span>
-                                            @endif
-                                        </div>
-                                        
-                                        @if($estimate['historical_data_available'])
-                                            <div class="text-xs">
-                                                @if($estimate['last_30_days_avg'] && $estimate['recipe_estimate'])
-                                                    @php
-                                                        $variance = (($estimate['last_30_days_avg'] - $estimate['recipe_estimate']) / $estimate['recipe_estimate']) * 100;
-                                                        $isPositive = $variance > 0;
-                                                    @endphp
-                                                    <span class="{{ $isPositive ? 'text-success-600 dark:text-success-400' : 'text-danger-600 dark:text-danger-400' }}">
-                                                        {{ $isPositive ? '+' : '' }}{{ number_format($variance, 1) }}% vs recipe
-                                                    </span>
-                                                @endif
-                                            </div>
-                                        @else
-                                            <div class="text-xs">
-                                                <span class="text-gray-400">Recipe estimate only</span>
-                                            </div>
-                                        @endif
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    @else
-                        <p class="text-center text-gray-500 dark:text-gray-400 py-8">No active crops for yield estimation.</p>
-                    @endif
-                </x-filament::section>
-            </div>
-
-            <!-- Weekly Harvest Schedule -->
-            <div class="mt-6">
-                <x-filament::section>
-                    <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Weekly Harvest Schedule</h2>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-7 gap-3">
-                        @foreach($weeklyHarvestSchedule as $day)
-                            <div class="text-center p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                                <p class="text-sm font-medium text-gray-900 dark:text-white">{{ $day['day_name'] }}</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ $day['date']->format('M d') }}</p>
-                                <p class="text-lg font-bold {{ $day['harvest_count'] > 0 ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400' }}">
-                                    {{ $day['harvest_count'] }}
-                                </p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">harvests</p>
-                            </div>
-                        @endforeach
-                    </div>
-                </x-filament::section>
-            </div>
+            <p class="text-gray-500 text-center py-8">Harvest & Yield content will go here</p>
         </div>
 
         <!-- Planning & Predictions Tab -->
         <div x-show="activeTab === 'planning'" x-cloak>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- Planting Recommendations -->
-                <x-filament::section>
-                    <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Planting Recommendations</h2>
-                    </div>
-                    @if(count($plantingRecommendations) > 0)
-                        <div class="space-y-3">
-                            @foreach($plantingRecommendations as $rec)
-                                <div class="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                                    <div class="flex items-center justify-between">
-                                        <div>
-                                            <p class="font-medium text-gray-900 dark:text-white">{{ $rec['variety'] }}</p>
-                                            <p class="text-sm text-blue-600 dark:text-blue-400">
-                                                Plant by: {{ $rec['plant_by_date']->format('M d') }}
-                                            </p>
-                                        </div>
-                                        <div class="text-right">
-                                            <p class="text-lg font-bold text-blue-600 dark:text-blue-400">{{ $rec['estimated_trays'] }}</p>
-                                            <p class="text-xs text-gray-500 dark:text-gray-400">trays needed</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    @else
-                        <p class="text-center text-gray-500 dark:text-gray-400 py-8">No upcoming orders requiring planting recommendations.</p>
-                    @endif
-                </x-filament::section>
-
-                <!-- Tray Utilization Details -->
-                <x-filament::section>
-                    <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Tray Utilization</h2>
-                    </div>
-                    
-                    <div class="space-y-4">
-                        <!-- Utilization Bar -->
-                        <div>
-                            <div class="flex justify-between text-sm mb-2">
-                                <span class="text-gray-600 dark:text-gray-400">Capacity</span>
-                                <span class="font-medium">{{ $trayUtilization['active_trays'] }}/{{ $trayUtilization['total_trays'] }}</span>
-                            </div>
-                            <div class="w-full bg-gray-200 rounded-full h-3 dark:bg-gray-700">
-                                <div class="h-3 rounded-full 
-                                    @if($trayUtilization['status'] === 'critical') bg-danger-500
-                                    @elseif($trayUtilization['status'] === 'warning') bg-warning-500
-                                    @else bg-success-500 @endif"
-                                    style="width: {{ $trayUtilization['utilization_percent'] }}%">
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Stats -->
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="text-center p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                                <p class="text-2xl font-bold text-primary-600 dark:text-primary-400">{{ $trayUtilization['active_trays'] }}</p>
-                                <p class="text-sm text-gray-500 dark:text-gray-400">In Use</p>
-                            </div>
-                            <div class="text-center p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                                <p class="text-2xl font-bold text-gray-600 dark:text-gray-400">{{ $trayUtilization['available_trays'] }}</p>
-                                <p class="text-sm text-gray-500 dark:text-gray-400">Available</p>
-                            </div>
-                        </div>
-                        
-                        <!-- Status Message -->
-                        <div class="p-3 rounded-lg 
-                            @if($trayUtilization['status'] === 'critical') bg-danger-50 dark:bg-danger-900/20 border border-danger-200 dark:border-danger-800
-                            @elseif($trayUtilization['status'] === 'warning') bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800
-                            @else bg-success-50 dark:bg-success-900/20 border border-success-200 dark:border-success-800 @endif">
-                            <p class="text-sm 
-                                @if($trayUtilization['status'] === 'critical') text-danger-800 dark:text-danger-200
-                                @elseif($trayUtilization['status'] === 'warning') text-warning-800 dark:text-warning-200
-                                @else text-success-800 dark:text-success-200 @endif">
-                                @if($trayUtilization['status'] === 'critical')
-                                    Critical: Consider expanding capacity or harvesting crops earlier.
-                                @elseif($trayUtilization['status'] === 'warning')
-                                    Warning: Tray capacity is getting high. Plan harvests carefully.
-                                @else
-                                    Good: Healthy tray utilization with room for growth.
-                                @endif
-                            </p>
-                        </div>
-                    </div>
-                </x-filament::section>
-            </div>
+            <p class="text-gray-500 text-center py-8">Planning & Predictions content will go here</p>
         </div>
 
         <!-- Analytics & Reports Tab -->
         <div x-show="activeTab === 'analytics'" x-cloak>
-            <div class="text-center py-16">
-                <div class="mx-auto max-w-md">
-                    <x-filament::icon
-                        icon="heroicon-o-chart-bar"
-                        class="mx-auto h-12 w-12 text-gray-400"
-                    />
-                    <h3 class="mt-4 text-lg font-medium text-gray-900 dark:text-white">Analytics Coming Soon</h3>
-                    <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                        Advanced analytics, custom reports, and business intelligence features will be available in the next update.
-                    </p>
-                    <div class="mt-6">
-                        <x-filament::button
-                            tag="a"
-                            :href="route('filament.admin.pages.weekly-planning')"
-                            color="primary"
-                        >
-                            View Weekly Planning
-                        </x-filament::button>
-                    </div>
-                </div>
-            </div>
+            <p class="text-gray-500 text-center py-8">Analytics & Reports content will go here</p>
         </div>
     </div>
 </div>
-
-<script>
-document.addEventListener('alpine:init', () => {
-    Alpine.data('dashboardData', () => ({
-        activeTab: '{{ $activeTab }}',
-        lastUpdated: '{{ now()->format('M d, H:i') }}',
-        isRefreshing: false,
-        autoRefresh: true,
-        refreshInterval: null,
-        
-        initDashboard() {
-            this.startAutoRefresh();
-        },
-        
-        startAutoRefresh() {
-            if (this.autoRefresh) {
-                this.refreshInterval = setInterval(() => {
-                    this.refreshData();
-                }, 30000);
-            }
-        },
-        
-        stopAutoRefresh() {
-            if (this.refreshInterval) {
-                clearInterval(this.refreshInterval);
-                this.refreshInterval = null;
-            }
-        },
-        
-        toggleAutoRefresh() {
-            this.autoRefresh = !this.autoRefresh;
-            if (this.autoRefresh) {
-                this.startAutoRefresh();
-            } else {
-                this.stopAutoRefresh();
-            }
-        },
-        
-        async refreshData() {
-            if (this.isRefreshing) return;
-            
-            this.isRefreshing = true;
-            try {
-                const response = await fetch('{{ route('dashboard.data') }}', {
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                    }
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    this.updateDashboardData(data);
-                    this.lastUpdated = new Date().toLocaleString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: false
-                    });
-                    
-                    this.showUpdateFlash('success');
-                } else {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-            } catch (error) {
-                console.error('Dashboard refresh failed:', error);
-                this.showUpdateFlash('error');
-                
-                if (this.autoRefresh) {
-                    clearInterval(this.refreshInterval);
-                    this.refreshInterval = setInterval(() => {
-                        this.refreshData();
-                    }, 60000);
-                }
-            } finally {
-                this.isRefreshing = false;
-            }
-        },
-        
-        showUpdateFlash(type) {
-            let flashEl = document.querySelector('.dashboard-update-flash');
-            if (!flashEl) {
-                flashEl = document.createElement('div');
-                flashEl.className = 'dashboard-update-flash fixed top-4 right-4 px-3 py-1 rounded-md text-sm font-medium z-50 transition-all duration-300';
-                document.body.appendChild(flashEl);
-            }
-            
-            if (type === 'success') {
-                flashEl.className = 'dashboard-update-flash fixed top-4 right-4 px-3 py-1 rounded-md text-sm font-medium z-50 transition-all duration-300 bg-green-100 text-green-800 border border-green-200';
-                flashEl.textContent = 'Dashboard updated';
-            } else {
-                flashEl.className = 'dashboard-update-flash fixed top-4 right-4 px-3 py-1 rounded-md text-sm font-medium z-50 transition-all duration-300 bg-red-100 text-red-800 border border-red-200';
-                flashEl.textContent = 'Update failed';
-            }
-            
-            flashEl.style.opacity = '1';
-            flashEl.style.transform = 'translateY(0)';
-            
-            setTimeout(() => {
-                flashEl.style.opacity = '0';
-                flashEl.style.transform = 'translateY(-10px)';
-            }, 2000);
-        },
-        
-        updateDashboardData(data) {
-            const elements = {
-                'active-crops': data.activeCropsCount || '0',
-                'active-trays': data.activeTraysCount || '0',
-                'overdue-tasks': data.overdueTasksCount || '0',
-                'low-stock': data.lowStockCount || '0',
-                'tray-utilization': (data.trayUtilization?.utilization_percent || '0') + '%'
-            };
-            
-            Object.entries(elements).forEach(([stat, value]) => {
-                const element = document.querySelector(`[data-stat="${stat}"]`);
-                if (element) {
-                    element.textContent = value;
-                }
-            });
-            
-            const overdueElement = document.querySelector('[data-stat="overdue-tasks"]');
-            const lowStockElement = document.querySelector('[data-stat="low-stock"]');
-            const trayUtilizationElement = document.querySelector('[data-stat="tray-utilization"]');
-            
-            if (overdueElement) {
-                overdueElement.className = data.overdueTasksCount > 0 
-                    ? 'text-2xl font-bold text-red-600 dark:text-red-400'
-                    : 'text-2xl font-bold text-green-600 dark:text-green-400';
-            }
-                
-            if (lowStockElement) {
-                lowStockElement.className = data.lowStockCount > 0 
-                    ? 'text-2xl font-bold text-yellow-600 dark:text-yellow-400'
-                    : 'text-2xl font-bold text-green-600 dark:text-green-400';
-            }
-            
-            if (trayUtilizationElement && data.trayUtilization) {
-                let colorClass = 'text-green-600 dark:text-green-400';
-                if (data.trayUtilization.status === 'critical') {
-                    colorClass = 'text-red-600 dark:text-red-400';
-                } else if (data.trayUtilization.status === 'warning') {
-                    colorClass = 'text-yellow-600 dark:text-yellow-400';
-                }
-                trayUtilizationElement.className = `text-2xl font-bold ${colorClass}`;
-            }
-            
-            const availableTraysElement = document.querySelector('[data-stat="available-trays"]');
-            if (availableTraysElement && data.trayUtilization) {
-                availableTraysElement.textContent = `${data.trayUtilization.available_trays} available`;
-            }
-        }
-    }))
-});
-</script>
-
-<style>
-    [x-cloak] { display: none !important; }
-</style>
+</x-filament-panels::page>

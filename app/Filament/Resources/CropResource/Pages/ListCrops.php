@@ -49,12 +49,12 @@ class ListCrops extends ListRecords
         
         // Add additional logging for debugging
         Log::info('Recipe and Variety Data:', [
-            'recipes' => \App\Models\Recipe::with('seedVariety')->get()->map(function($recipe) {
+            'recipes' => \App\Models\Recipe::with('seedCultivar')->get()->map(function($recipe) {
                 return [
                     'id' => $recipe->id,
                     'name' => $recipe->name,
                     'seed_variety_id' => $recipe->seed_variety_id,
-                    'variety_name' => $recipe->seedVariety ? $recipe->seedVariety->name : null,
+                    'variety_name' => $recipe->seedCultivar ? $recipe->seedCultivar->name : null,
                 ];
             })
         ]);
@@ -67,7 +67,7 @@ class ListCrops extends ListRecords
             $query->reorder('planted_at', 'desc');
         }
         
-        return $query->with(['recipe.seedVariety']);
+        return $query->with(['recipe.seedCultivar']);
     }
     
     public function getTableRecords(): Collection|Paginator|CursorPaginator

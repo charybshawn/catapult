@@ -4,7 +4,6 @@ namespace App\Filament\Resources\RecipeResource\Pages;
 
 use App\Filament\Resources\RecipeResource;
 use App\Models\Supplier;
-use App\Models\SeedVariety;
 use App\Models\RecipeStage;
 use App\Models\RecipeWateringSchedule;
 use App\Models\Consumable;

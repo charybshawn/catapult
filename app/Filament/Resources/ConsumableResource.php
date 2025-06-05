@@ -97,32 +97,23 @@ class ConsumableResource extends BaseResource
                                         Forms\Components\Hidden::make('name')
                                     ];
                                 } else if ($get('type') === 'seed') {
-                                    // Simple, explicit seed variety selection
+                                    // Simple, explicit seed cultivar selection
                                     return [
-                                        Forms\Components\Select::make('seed_variety_id')
-                                            ->label('Seed Variety')
-                                            ->helperText('Required: Please select a seed variety')
+                                        Forms\Components\Select::make('seed_cultivar_id')
+                                            ->label('Seed Cultivar')
+                                            ->helperText('Required: Please select a seed cultivar')
                                             ->options(function () {
-                                                // Get unique seed varieties by name, preferring older IDs
-                                                $options = \App\Models\SeedVariety::where('is_active', true)
-                                                    ->orderBy('id', 'asc')
-                                                    ->get()
-                                                    ->groupBy('name')
-                                                    ->map(function ($group) {
-                                                        // Use the first (oldest) record for each name
-                                                        return $group->first();
-                                                    })
+                                                return \App\Models\SeedCultivar::where('is_active', true)
+                                                    ->orderBy('name', 'asc')
                                                     ->pluck('name', 'id')
                                                     ->toArray();
-                                                    
-                                                return $options;
                                             })
                                             ->searchable()
                                             ->required()
                                             ->live() // Make the field live to update instantly
                                             ->createOptionForm([
                                                 Forms\Components\TextInput::make('name')
-                                                    ->label('Variety Name')
+                                                    ->label('Cultivar Name')
                                                     ->required()
                                                     ->maxLength(255),
                                                 Forms\Components\TextInput::make('crop_type')
@@ -134,24 +125,24 @@ class ConsumableResource extends BaseResource
                                                     ->default(true),
                                             ])
                                             ->createOptionUsing(function (array $data) {
-                                                return \App\Models\SeedVariety::create($data)->id;
+                                                return \App\Models\SeedCultivar::create($data)->id;
                                             })
                                             ->createOptionAction(function (Forms\Components\Actions\Action $action) {
                                                 return $action
-                                                    ->modalHeading('Create Seed Variety')
-                                                    ->modalSubmitActionLabel('Create Seed Variety')
+                                                    ->modalHeading('Create Seed Cultivar')
+                                                    ->modalSubmitActionLabel('Create Seed Cultivar')
                                                     ->modalWidth('lg');
                                             })
                                             ->afterStateUpdated(function ($state, Forms\Set $set) {
                                                 if ($state) {
-                                                    $seedVariety = \App\Models\SeedVariety::find($state);
-                                                    if ($seedVariety) {
-                                                        $set('name', $seedVariety->name);
+                                                    $cultivar = \App\Models\SeedCultivar::find($state);
+                                                    if ($cultivar) {
+                                                        $set('name', $cultivar->name);
                                                     }
                                                 }
                                             }),
                                             
-                                        // Hidden name field - will be set from the seed variety
+                                        // Hidden name field - will be set from the seed cultivar
                                         Forms\Components\Hidden::make('name'),
                                     ];
                                 } else if ($get('type') === 'mix') {
@@ -610,6 +601,58 @@ class ConsumableResource extends BaseResource
                     })
                     ->size('sm')
                     ->toggleable(),
+                Tables\Columns\TextColumn::make('remaining_seed')
+                    ->label('Remaining Seed')
+                    ->getStateUsing(function ($record) {
+                        if (!$record || $record->type !== 'seed') return null;
+                        
+                        // Calculate remaining from total_quantity minus consumed_quantity in same units
+                        $remaining = max(0, $record->total_quantity - $record->consumed_quantity);
+                        return $remaining;
+                    })
+                    ->formatStateUsing(function ($state, $record) {
+                        if (!$record || $record->type !== 'seed' || $state === null) return '-';
+                        
+                        return "{$state} {$record->quantity_unit}";
+                    })
+                    ->numeric()
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => 
+                        $query->where('type', 'seed')
+                              ->orderByRaw("(total_quantity - consumed_quantity) {$direction}")
+                    )
+                    ->size('sm')
+                    ->visible(fn ($livewire): bool => $livewire->activeTab === null || $livewire->activeTab === 'seed')
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('percentage_remaining')
+                    ->label('% Remaining')
+                    ->getStateUsing(function ($record) {
+                        if (!$record || $record->type !== 'seed' || !$record->total_quantity) return null;
+                        
+                        $remaining = max(0, $record->total_quantity - $record->consumed_quantity);
+                        $percentage = ($remaining / $record->total_quantity) * 100;
+                        return round($percentage, 1);
+                    })
+                    ->formatStateUsing(function ($state) {
+                        if ($state === null) return '-';
+                        return "{$state}%";
+                    })
+                    ->badge()
+                    ->color(fn ($state): string => match (true) {
+                        $state === null => 'gray',
+                        $state <= 10 => 'danger',
+                        $state <= 25 => 'warning',
+                        $state <= 50 => 'info',
+                        default => 'success',
+                    })
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => 
+                        $query->where('type', 'seed')
+                              ->whereNotNull('total_quantity')
+                              ->where('total_quantity', '>', 0)
+                              ->orderByRaw("((total_quantity - consumed_quantity) / total_quantity * 100) {$direction}")
+                    )
+                    ->size('sm')
+                    ->visible(fn ($livewire): bool => $livewire->activeTab === null || $livewire->activeTab === 'seed')
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
                     ->badge()
@@ -626,15 +669,7 @@ class ConsumableResource extends BaseResource
                     ->toggleable(),
                 static::getActiveBadgeColumn(),
                 ...static::getTimestampColumns(),
-                Tables\Columns\TextColumn::make('seedVariety.name')
-                    ->label('Variety')
-                    ->description(fn (Model $record): ?string => 
-                        $record->seedVariety ? "({$record->seedVariety->crop_type})" : null
-                    )
-                    ->searchable()
-                    ->sortable()
-                    ->toggleable()
-                    ->visible(fn ($livewire): bool => $livewire->activeTab === null || $livewire->activeTab === 'seed'),
+                // Seed cultivar column removed - seed consumables now linked through SeedVariation
             ])
             ->defaultSort(function (Builder $query) {
                 return $query->orderByRaw('(initial_stock - consumed_quantity) ASC');
@@ -657,13 +692,7 @@ class ConsumableResource extends BaseResource
                 Tables\Filters\Filter::make('inactive')
                     ->label('Inactive')
                     ->query(fn (Builder $query) => $query->where('is_active', false)),
-                // Add seed variety filter
-                Tables\Filters\SelectFilter::make('seed_variety_id')
-                    ->label('Seed Variety')
-                    ->relationship('seedVariety', 'name')
-                    ->searchable()
-                    ->preload()
-                    ->visible(fn ($livewire): bool => $livewire->activeTab === null || $livewire->activeTab === 'seed'),
+                // Seed cultivar filter removed - seed consumables now linked through SeedVariation
             ])
             ->actions(static::getDefaultTableActions())
             ->bulkActions([

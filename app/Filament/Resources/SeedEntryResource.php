@@ -29,18 +29,13 @@ class SeedEntryResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\Select::make('seed_cultivar_id')
-                    ->relationship('seedCultivar', 'name')
+                Forms\Components\TextInput::make('cultivar_name')
                     ->required()
-                    ->searchable()
-                    ->preload()
-                    ->createOptionForm([
-                        Forms\Components\TextInput::make('name')
-                            ->required()
-                            ->maxLength(255),
-                        Forms\Components\Textarea::make('description')
-                            ->maxLength(65535),
-                    ]),
+                    ->maxLength(255)
+                    ->label('Cultivar Name'),
+                Forms\Components\TextInput::make('common_name')
+                    ->maxLength(255)
+                    ->label('Common Name'),
                 Forms\Components\Select::make('supplier_id')
                     ->relationship('supplier', 'name')
                     ->required()
@@ -68,11 +63,15 @@ class SeedEntryResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('seedCultivar.name')
+                Tables\Columns\TextColumn::make('cultivar_name')
                     ->label('Cultivar')
                     ->searchable()
                     ->sortable()
                     ->weight(FontWeight::Bold),
+                Tables\Columns\TextColumn::make('common_name')
+                    ->label('Common Name')
+                    ->searchable()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('supplier.name')
                     ->searchable()
                     ->sortable(),
@@ -98,11 +97,26 @@ class SeedEntryResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('cultivar')
-                    ->relationship('seedCultivar', 'name')
+                Tables\Filters\SelectFilter::make('cultivar_name')
+                    ->options(function () {
+                        return \App\Models\SeedEntry::whereNotNull('cultivar_name')
+                            ->distinct()
+                            ->pluck('cultivar_name', 'cultivar_name')
+                            ->filter()
+                            ->toArray();
+                    })
                     ->searchable()
-                    ->preload()
                     ->label('Cultivar'),
+                Tables\Filters\SelectFilter::make('common_name')
+                    ->options(function () {
+                        return \App\Models\SeedEntry::whereNotNull('common_name')
+                            ->distinct()
+                            ->pluck('common_name', 'common_name')
+                            ->filter()
+                            ->toArray();
+                    })
+                    ->searchable()
+                    ->label('Common Name'),
                 Tables\Filters\SelectFilter::make('supplier')
                     ->relationship('supplier', 'name')
                     ->searchable()

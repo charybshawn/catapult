@@ -70,8 +70,8 @@ class CreateCrop extends BaseCreateRecord
             $recipe = Recipe::find($data['recipe_id']);
             if ($recipe) {
                 $recipeName = $recipe->name;
-                if ($recipe->seedVariety) {
-                    $varietyName = $recipe->seedVariety->name;
+                if ($recipe->seedCultivar) {
+                    $varietyName = $recipe->seedCultivar->name;
                 }
             } else {
                 // Handle case where recipe not found, maybe throw error or default
@@ -131,6 +131,65 @@ class CreateCrop extends BaseCreateRecord
             } finally {
                 // Always disable bulk operation mode
                 Crop::disableBulkOperation();
+            }
+            
+            // Manually handle seed deduction since we disabled bulk operation mode
+            if ($recipe && $recipe->seedConsumable && $recipe->seed_density_grams_per_tray) {
+                try {
+                    $totalSeedRequired = $recipe->seed_density_grams_per_tray * count($createdRecords);
+                    $seedConsumable = $recipe->seedConsumable;
+                    
+                    // Convert required amount to the same unit as the seed consumable for comparison
+                    $inventoryService = app(\App\Services\InventoryService::class);
+                    $currentStock = $inventoryService->getCurrentStock($seedConsumable);
+                    
+                    // Check if we have enough seed (convert units if needed for comparison)
+                    $requiredInSeedUnits = match($seedConsumable->quantity_unit) {
+                        'kg' => $totalSeedRequired / 1000, // Convert grams to kg
+                        'g' => $totalSeedRequired, // Already in grams
+                        default => $totalSeedRequired // For other units, assume direct comparison
+                    };
+                    
+                    if ($currentStock >= $requiredInSeedUnits) {
+                        // Deduct the total seed amount for all trays
+                        $seedConsumable->deduct(
+                            $totalSeedRequired,
+                            'g' // Recipe seed density is always in grams
+                        );
+                        
+                        Log::info('Seed automatically deducted for crop batch', [
+                            'recipe_id' => $recipe->id,
+                            'seed_consumable_id' => $seedConsumable->id,
+                            'total_amount_deducted' => $totalSeedRequired,
+                            'trays_created' => count($createdRecords),
+                            'amount_per_tray' => $recipe->seed_density_grams_per_tray,
+                            'unit' => 'g',
+                            'remaining_stock' => $currentStock - $requiredInSeedUnits
+                        ]);
+                    } else {
+                        Log::warning('Insufficient seed stock for crop batch creation', [
+                            'recipe_id' => $recipe->id,
+                            'seed_consumable_id' => $seedConsumable->id,
+                            'required_amount' => $totalSeedRequired,
+                            'current_stock' => $currentStock,
+                            'seed_unit' => $seedConsumable->quantity_unit,
+                            'trays_requested' => count($createdRecords)
+                        ]);
+                        
+                        // Optionally add a warning to the notification
+                        Notification::make()
+                            ->title('Low Seed Stock Warning')
+                            ->body("Crops created but insufficient seed stock. Required: {$totalSeedRequired}g, Available: {$currentStock} {$seedConsumable->quantity_unit}")
+                            ->warning()
+                            ->send();
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('Error deducting seed inventory for crop batch', [
+                        'recipe_id' => $recipe->id,
+                        'error' => $e->getMessage(),
+                        'trays_created' => count($createdRecords)
+                    ]);
+                }
             }
             
             // Now manually schedule tasks for the first crop (representing the batch)

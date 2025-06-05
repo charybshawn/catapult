@@ -2,7 +2,7 @@
 
 namespace App\Filament\Pages;
 
-use App\Models\SeedCultivar;
+use App\Models\SeedEntry;
 use App\Models\SeedPriceHistory;
 use Carbon\Carbon;
 use Filament\Forms\Components\Select;
@@ -32,6 +32,7 @@ class SeedPriceTrends extends Page implements HasForms
     protected static ?int $navigationSort = 2;
     
     public $selectedCultivars = [];
+    public $selectedCommonName = null;
     public $startDate;
     public $endDate;
     public $chartData = [];
@@ -47,8 +48,29 @@ class SeedPriceTrends extends Page implements HasForms
     {
         return $form
             ->schema([
-                Grid::make(3)
+                Grid::make(2)
                     ->schema([
+                        Select::make('selectedCommonName')
+                            ->label('Filter by Common Name')
+                            ->options(function () {
+                                return $this->getCommonNameOptions();
+                            })
+                            ->searchable()
+                            ->placeholder('All common names')
+                            ->live()
+                            ->afterStateUpdated(function () {
+                                $this->selectedCultivars = [];
+                            })
+                            ->suffixAction(
+                                \Filament\Forms\Components\Actions\Action::make('clear')
+                                    ->icon('heroicon-m-x-mark')
+                                    ->action(function () {
+                                        $this->selectedCommonName = null;
+                                        $this->selectedCultivars = [];
+                                    })
+                                    ->visible(fn () => !empty($this->selectedCommonName))
+                            ),
+                        
                         Select::make('selectedCultivars')
                             ->label('Select Cultivars')
                             ->options(function () {
@@ -56,20 +78,20 @@ class SeedPriceTrends extends Page implements HasForms
                             })
                             ->multiple()
                             ->searchable()
-                            ->placeholder('Select cultivars to compare')
-                            ->columnSpan(1),
-                        
+                            ->placeholder('Select cultivars to compare'),
+                    ]),
+                    
+                Grid::make(2)
+                    ->schema([
                         DatePicker::make('startDate')
                             ->label('Start Date')
                             ->required()
-                            ->default(now()->subMonths(12))
-                            ->columnSpan(1),
+                            ->default(now()->subMonths(12)),
                             
                         DatePicker::make('endDate')
                             ->label('End Date')
                             ->required()
-                            ->default(now())
-                            ->columnSpan(1),
+                            ->default(now()),
                     ]),
                     
                 Section::make('Chart Data')
@@ -96,12 +118,34 @@ class SeedPriceTrends extends Page implements HasForms
             ->statePath('data');
     }
     
-    protected function getCultivarOptions(): array
+    public function getCultivarOptions(): array
     {
-        return SeedCultivar::orderBy('name')
-            ->pluck('name', 'id')
+        $query = SeedEntry::select('cultivar_name', 'id')
+            ->whereHas('variations.priceHistory')
+            ->distinct();
+        
+        // Filter by common name if selected
+        if ($this->selectedCommonName) {
+            $query->where('common_name', $this->selectedCommonName);
+        }
+        
+        return $query->orderBy('cultivar_name')
+            ->pluck('cultivar_name', 'id')
             ->toArray();
     }
+    
+    public function getCommonNameOptions(): array
+    {
+        // Get unique common names that have price data
+        return SeedEntry::whereHas('variations.priceHistory')
+            ->whereNotNull('common_name')
+            ->where('common_name', '!=', '')
+            ->distinct()
+            ->orderBy('common_name')
+            ->pluck('common_name', 'common_name')
+            ->toArray();
+    }
+    
     
     protected function loadChartData(): void
     {
@@ -117,16 +161,15 @@ class SeedPriceTrends extends Page implements HasForms
             ->select(
                 DB::raw('DATE_FORMAT(scraped_at, "%Y-%m") as month'),
                 DB::raw('AVG(price / NULLIF(seed_variations.weight_kg, 0)) as avg_price_per_kg'),
-                'seed_entries.seed_cultivar_id',
-                'seed_cultivars.name as cultivar_name'
+                'seed_entries.id as seed_entry_id',
+                'seed_entries.cultivar_name'
             )
             ->join('seed_variations', 'seed_price_history.seed_variation_id', '=', 'seed_variations.id')
             ->join('seed_entries', 'seed_variations.seed_entry_id', '=', 'seed_entries.id')
-            ->join('seed_cultivars', 'seed_entries.seed_cultivar_id', '=', 'seed_cultivars.id')
-            ->whereIn('seed_entries.seed_cultivar_id', $this->selectedCultivars)
+            ->whereIn('seed_entries.id', $this->selectedCultivars)
             ->where('scraped_at', '>=', $startDate)
             ->where('scraped_at', '<=', $endDate)
-            ->groupBy('month', 'seed_entries.seed_cultivar_id', 'seed_cultivars.name')
+            ->groupBy('month', 'seed_entries.id', 'seed_entries.cultivar_name')
             ->orderBy('month')
             ->get();
         

@@ -201,8 +201,10 @@
     .fi-layout .fi-main,
     .fi-body .fi-main,
     main.fi-main {
-        max-width: min(90vw, 1800px) !important; /* 90% of viewport, capped at 1800px */
+        max-width: min(85vw, 1600px) !important; /* More conservative 85% of viewport, capped at 1600px */
         width: 100% !important;
+        margin: 0 auto !important; /* Center the content */
+        padding: 2rem !important; /* Add generous padding for breathing room */
     }
     
     /* Also target any container classes within main */
@@ -236,7 +238,8 @@
 /* For ultra-wide displays, be more generous with space */
 @media (min-width: 2560px) {
     .fi-main {
-        max-width: min(85vw, 2400px) !important; /* Use more space on very wide screens */
+        max-width: min(80vw, 2200px) !important; /* Use more space on very wide screens but keep good margins */
+        padding: 3rem !important; /* Even more padding on ultra-wide screens */
     }
 }
 
@@ -258,12 +261,12 @@
 @media (min-width: 1440px) {
     /* Make 2-column forms actually use the space well */
     .grid.grid-cols-2 {
-        @apply gap-8; /* Increase gap for better spacing */
+        @apply gap-10; /* More generous gap for better spacing */
     }
     
     /* Make 3-column forms work better */
     .grid.grid-cols-3 {
-        @apply gap-6;
+        @apply gap-8; /* Increased gap for better spacing */
     }
     
     /* Ensure fieldsets expand properly */
@@ -293,7 +296,7 @@
     
     /* Increase gaps for better breathing room */
     .fi-main .grid.grid-cols-3 {
-        @apply gap-8;
+        @apply gap-10; /* More breathing room */
     }
 }
 

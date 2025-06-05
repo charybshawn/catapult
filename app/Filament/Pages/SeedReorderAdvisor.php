@@ -33,7 +33,7 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
     
     protected static ?int $navigationSort = 3;
     
-    public $selectedCultivar = null;
+    public $selectedCommonName = null;
     
     public function mount(): void
     {
@@ -44,13 +44,13 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
     {
         return $form
             ->schema([
-                Select::make('selectedCultivar')
-                    ->label('Filter by Cultivar')
+                Select::make('selectedCommonName')
+                    ->label('Filter by Common Name')
                     ->options(function () {
-                        return $this->getCultivarOptions();
+                        return $this->getCommonNameOptions();
                     })
                     ->searchable()
-                    ->placeholder('All Cultivars')
+                    ->placeholder('All Common Names')
                     ->live()
                     ->afterStateUpdated(function () {
                         $this->resetTable();
@@ -63,9 +63,25 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
         return $table
             ->query($this->getTableQuery())
             ->columns([
-                Tables\Columns\TextColumn::make('seedEntry.seedCultivar.name')
-                    ->label('Cultivar')
+                Tables\Columns\TextColumn::make('common_name')
+                    ->label('Common Name')
                     ->weight(FontWeight::Bold)
+                    ->getStateUsing(function ($record) {
+                        return $this->extractCommonName($record->seedEntry->seedCultivar->name);
+                    })
+                    ->searchable(query: function ($query, $search) {
+                        return $query->whereHas('seedEntry.seedCultivar', function ($q) use ($search) {
+                            $q->where('name', 'like', "%{$search}%");
+                        });
+                    })
+                    ->sortable(query: function ($query, $direction) {
+                        return $query->join('seed_entries', 'seed_variations.seed_entry_id', '=', 'seed_entries.id')
+                                   ->join('seed_cultivars', 'seed_entries.seed_cultivar_id', '=', 'seed_cultivars.id')
+                                   ->orderBy('seed_cultivars.name', $direction);
+                    }),
+                Tables\Columns\TextColumn::make('seedEntry.seedCultivar.name')
+                    ->label('Full Cultivar')
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('seedEntry.supplier.name')
@@ -122,19 +138,71 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
             ->with(['seedEntry.supplier', 'seedEntry.seedCultivar', 'consumable'])
             ->where('is_in_stock', true);
             
-        if ($this->selectedCultivar) {
-            $query->whereHas('seedEntry', function ($q) {
-                $q->where('seed_cultivar_id', $this->selectedCultivar);
+        if ($this->selectedCommonName) {
+            $query->whereHas('seedEntry.seedCultivar', function ($q) {
+                // Filter by common name using multiple patterns
+                $q->where(function ($subQuery) {
+                    $commonName = $this->selectedCommonName;
+                    $subQuery->where('name', 'LIKE', $commonName . ' - %')  // "Basil - Genovese"
+                            ->orWhere('name', 'LIKE', $commonName . ',%')    // "Basil, Sweet"
+                            ->orWhere('name', '=', $commonName)              // Exact match "Basil"
+                            ->orWhere('name', 'LIKE', $commonName . ' %');   // "Basil Sweet" (space)
+                });
             });
         }
         
         return $query;
     }
     
-    protected function getCultivarOptions(): array
+    protected function getCommonNameOptions(): array
     {
-        return SeedCultivar::orderBy('name')
-            ->pluck('name', 'id')
-            ->toArray();
+        // Extract unique common names from all cultivars
+        $cultivars = SeedCultivar::orderBy('name')->pluck('name');
+        $commonNames = [];
+        
+        foreach ($cultivars as $cultivarName) {
+            $commonName = $this->extractCommonName($cultivarName);
+            if (!empty($commonName) && $commonName !== 'Unknown') {
+                $commonNames[$commonName] = $commonName;
+            }
+        }
+        
+        // Sort alphabetically and return
+        ksort($commonNames);
+        return $commonNames;
+    }
+    
+    /**
+     * Extract common name from full cultivar name
+     * 
+     * @param string $cultivarName
+     * @return string
+     */
+    protected function extractCommonName(string $cultivarName): string
+    {
+        if (empty($cultivarName) || $cultivarName === 'Unknown Cultivar') {
+            return 'Unknown';
+        }
+        
+        // Remove common suffixes and prefixes
+        $cleaned = trim($cultivarName);
+        
+        // Remove organic/non-gmo/heirloom suffixes
+        $cleaned = preg_replace('/\s*-\s*(Organic|Non-GMO|Heirloom|Certified).*$/i', '', $cleaned);
+        
+        // If there's a dash, take everything before the first dash as the common name
+        if (strpos($cleaned, ' - ') !== false) {
+            $parts = explode(' - ', $cleaned, 2);
+            return trim($parts[0]);
+        }
+        
+        // If there's a comma, take everything before the first comma
+        if (strpos($cleaned, ',') !== false) {
+            $parts = explode(',', $cleaned, 2);
+            return trim($parts[0]);
+        }
+        
+        // Return the whole name if no separators found
+        return $cleaned;
     }
 } 
