@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Section;
+use Filament\Forms\Components\ViewComponent;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Pages\Page;
@@ -32,7 +33,7 @@ class SeedPriceTrends extends Page implements HasForms
     
     public $selectedCultivars = [];
     public $selectedCommonName = null;
-    public $dateRange = '1_year';
+    public $dateRangeMonths = 12;
     public $chartData = [];
     
     public function mount(): void
@@ -77,16 +78,16 @@ class SeedPriceTrends extends Page implements HasForms
                             ->placeholder('Select cultivars to compare'),
                     ]),
                     
-                Select::make('dateRange')
-                    ->label('Time Period')
-                    ->options([
-                        '1_year' => '1 Year',
-                        '3_years' => '3 Years', 
-                        '5_years' => '5 Years',
-                        'all_time' => 'All Time',
+                ViewComponent::make('filament.forms.components.date-range-slider')
+                    ->view('filament.forms.components.date-range-slider')
+                    ->viewData([
+                        'statePath' => 'dateRangeMonths',
+                        'value' => $this->dateRangeMonths,
+                        'min' => 1,
+                        'max' => $this->getMaxMonthsAvailable(),
+                        'step' => 1,
+                        'labels' => $this->getSliderLabels(),
                     ])
-                    ->default('1_year')
-                    ->required()
                     ->live(),
                     
                 Section::make('Chart Data')
@@ -145,26 +146,43 @@ class SeedPriceTrends extends Page implements HasForms
     {
         $endDate = now();
         
-        switch ($this->dateRange) {
-            case '1_year':
-                $startDate = $endDate->copy()->subYear();
-                break;
-            case '3_years':
-                $startDate = $endDate->copy()->subYears(3);
-                break;
-            case '5_years':
-                $startDate = $endDate->copy()->subYears(5);
-                break;
-            case 'all_time':
-                // Get the earliest date from price history
-                $earliestDate = SeedPriceHistory::min('scraped_at');
-                $startDate = $earliestDate ? Carbon::parse($earliestDate) : $endDate->copy()->subYears(10);
-                break;
-            default:
-                $startDate = $endDate->copy()->subYear();
+        if ($this->dateRangeMonths >= $this->getMaxMonthsAvailable()) {
+            // "All time" - get the earliest available date
+            $earliestDate = SeedPriceHistory::min('scraped_at');
+            $startDate = $earliestDate ? Carbon::parse($earliestDate) : $endDate->copy()->subYears(10);
+        } else {
+            // Calculate start date based on selected months
+            $startDate = $endDate->copy()->subMonths($this->dateRangeMonths);
         }
         
         return [$startDate, $endDate];
+    }
+    
+    protected function getMaxMonthsAvailable(): int
+    {
+        $earliestDate = SeedPriceHistory::min('scraped_at');
+        if (!$earliestDate) {
+            return 60; // Default to 5 years if no data
+        }
+        
+        $months = Carbon::parse($earliestDate)->diffInMonths(now());
+        return max($months, 60); // Minimum 5 years for the slider
+    }
+    
+    protected function getSliderLabels(): array
+    {
+        $maxMonths = $this->getMaxMonthsAvailable();
+        
+        return [
+            1 => '1 Month',
+            3 => '3 Months',
+            6 => '6 Months',
+            12 => '1 Year',
+            24 => '2 Years',
+            36 => '3 Years',
+            60 => '5 Years',
+            $maxMonths => 'All Time',
+        ];
     }
     
     protected function loadChartData(): void
