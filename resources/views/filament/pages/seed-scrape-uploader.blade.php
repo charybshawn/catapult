@@ -112,8 +112,8 @@
                 {{ $this->table }}
                 
                 <div class="flex justify-end mt-4 gap-4">
-                    <a href="{{ route('filament.admin.resources.seed-cultivars.index') }}" class="filament-button filament-button-size-md inline-flex items-center justify-center py-1 gap-1 font-medium rounded-lg border transition-colors outline-none focus:ring-offset-2 focus:ring-2 focus:ring-inset min-h-[2.25rem] px-4 text-sm text-gray-800 bg-white border-gray-300 hover:bg-gray-50 focus:ring-primary-500 focus:ring-offset-white dark:bg-gray-800 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-200 dark:focus:ring-primary-500 dark:focus:ring-offset-gray-800">
-                        <span>View Cultivars</span>
+                    <a href="{{ route('filament.admin.resources.seed-entries.index') }}" class="filament-button filament-button-size-md inline-flex items-center justify-center py-1 gap-1 font-medium rounded-lg border transition-colors outline-none focus:ring-offset-2 focus:ring-2 focus:ring-inset min-h-[2.25rem] px-4 text-sm text-gray-800 bg-white border-gray-300 hover:bg-gray-50 focus:ring-primary-500 focus:ring-offset-white dark:bg-gray-800 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-200 dark:focus:ring-primary-500 dark:focus:ring-offset-gray-800">
+                        <span>View Seed Entries</span>
                     </a>
                     <a href="{{ route('filament.admin.resources.seed-variations.index') }}" class="filament-button filament-button-size-md inline-flex items-center justify-center py-1 gap-1 font-medium rounded-lg border transition-colors outline-none focus:ring-offset-2 focus:ring-2 focus:ring-inset min-h-[2.25rem] px-4 text-sm text-white bg-primary-600 border-primary-600 hover:bg-primary-500 hover:border-primary-500 focus:ring-primary-500 focus:ring-offset-white dark:bg-primary-500 dark:hover:bg-primary-400 dark:border-primary-500 dark:hover:border-primary-400 dark:focus:ring-primary-400 dark:focus:ring-offset-gray-800">
                         <span>View Seed Variations</span>
