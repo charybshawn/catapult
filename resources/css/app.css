@@ -192,3 +192,94 @@
 .fi-dashboard-widget {
     @apply border-0 rounded-lg shadow-sm bg-white dark:bg-gray-900;
 }
+
+/* Layout improvements for wide screens */
+
+/* Make the main content area use more horizontal space on wide screens */
+@media (min-width: 1440px) {
+    /* Increase max-width for main content container */
+    .fi-main {
+        @apply max-w-none;
+    }
+    
+    /* Allow the main content to expand more */
+    .fi-main-content {
+        @apply max-w-none;
+    }
+    
+    /* Optimize page content width */
+    .fi-page {
+        @apply max-w-none;
+    }
+    
+    /* Make tables and forms use more space */
+    .fi-simple-page,
+    .fi-resource-page-content {
+        @apply max-w-none;
+    }
+}
+
+/* For ultra-wide screens (1920px+) */
+@media (min-width: 1920px) {
+    /* Make sidebar slightly wider on very wide screens */
+    .fi-sidebar {
+        @apply w-72; /* Increase from default ~16rem to 18rem */
+    }
+    
+    /* Adjust main content margin to account for wider sidebar */
+    .fi-main {
+        @apply ml-72;
+    }
+    
+    /* Allow content to breathe with reasonable max-width */
+    .fi-page-content {
+        @apply max-w-7xl mx-auto; /* Use 7xl instead of smaller default */
+    }
+}
+
+/* Improve table column spacing on wide screens */
+@media (min-width: 1440px) {
+    .fi-ta-table {
+        @apply table-auto w-full;
+    }
+    
+    /* Make form sections use available width better */
+    .fi-section {
+        @apply w-full;
+    }
+    
+    /* Optimize form layouts for wide screens */
+    .fi-fo-component-ctn {
+        @apply max-w-none;
+    }
+}
+
+/* Improve modal sizing on wide screens */
+@media (min-width: 1440px) {
+    .fi-modal-window {
+        @apply max-w-4xl; /* Increase from default max-w-lg or max-w-xl */
+    }
+    
+    /* For large forms or tables in modals */
+    .fi-modal-window.fi-modal-window-size-lg {
+        @apply max-w-6xl;
+    }
+}
+
+/* Better form column distribution on wide screens */
+@media (min-width: 1440px) {
+    /* Make 2-column forms actually use the space well */
+    .grid.grid-cols-2 {
+        @apply gap-8; /* Increase gap for better spacing */
+    }
+    
+    /* Make 3-column forms work better */
+    .grid.grid-cols-3 {
+        @apply gap-6;
+    }
+    
+    /* Ensure fieldsets expand properly */
+    .fi-fo-fieldset {
+        @apply w-full;
+    }
+}

@@ -9,6 +9,8 @@ use Livewire\Livewire;
 use App\Models\Crop;
 use App\Observers\CropObserver;
 use Illuminate\Support\Facades\DB;
+use Filament\Support\Facades\FilamentView;
+use Filament\View\PanelsRenderHook;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -31,6 +33,9 @@ class AppServiceProvider extends ServiceProvider
 
         // Add debug logging for isContained method
         $this->debugIsContainedMethod();
+        
+        // Optimize Filament layout for wide screens
+        $this->optimizeFilamentLayout();
         
         // Prevent migrations in production unless explicitly allowed
         if ($this->app->environment('production') && !$this->app->runningInConsole()) {
@@ -113,5 +118,52 @@ class AppServiceProvider extends ServiceProvider
         }
         
         return $formattedTrace;
+    }
+    
+    /**
+     * Optimize Filament layout for wide screens
+     */
+    private function optimizeFilamentLayout(): void
+    {
+        // Add custom CSS for wide screen optimization to the head
+        FilamentView::registerRenderHook(
+            PanelsRenderHook::HEAD_END,
+            fn (): string => '
+                <style>
+                    /* Additional layout optimizations for very wide screens */
+                    @media (min-width: 2560px) {
+                        .fi-sidebar {
+                            width: 20rem !important; /* Even wider sidebar on ultra-wide screens */
+                        }
+                        
+                        .fi-main {
+                            margin-left: 20rem !important;
+                        }
+                        
+                        .fi-page-content {
+                            max-width: 100rem !important; /* Allow very wide content on huge screens */
+                        }
+                    }
+                    
+                    /* Optimize table responsiveness */
+                    @media (min-width: 1440px) {
+                        .fi-ta-content {
+                            overflow-x: visible !important;
+                        }
+                        
+                        /* Better spacing for action buttons */
+                        .fi-ta-actions {
+                            white-space: nowrap;
+                        }
+                        
+                        /* Improve form section layouts */
+                        .fi-section-content-ctn {
+                            padding-left: 1.5rem !important;
+                            padding-right: 1.5rem !important;
+                        }
+                    }
+                </style>
+            '
+        );
     }
 }
