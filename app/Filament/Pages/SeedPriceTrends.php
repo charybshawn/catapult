@@ -71,9 +71,22 @@ class SeedPriceTrends extends Page implements HasForms
                         Select::make('selectedCultivars')
                             ->label('Select Cultivars')
                             ->options(function (callable $get) {
-                                // This will re-evaluate when selectedCommonName changes
-                                $this->selectedCommonName = $get('selectedCommonName');
-                                return $this->getCultivarOptions();
+                                // Get the current common name from form state
+                                $commonName = $get('selectedCommonName');
+                                
+                                // Get cultivars filtered by this common name
+                                $query = \App\Models\SeedEntry::whereHas('variations.priceHistory')
+                                    ->whereNotNull('cultivar_name')
+                                    ->where('cultivar_name', '!=', '');
+                                
+                                if ($commonName) {
+                                    $query->where('common_name', $commonName);
+                                }
+                                
+                                return $query->distinct()
+                                    ->orderBy('cultivar_name')
+                                    ->pluck('cultivar_name', 'cultivar_name')
+                                    ->toArray();
                             })
                             ->multiple()
                             ->searchable()
@@ -129,20 +142,9 @@ class SeedPriceTrends extends Page implements HasForms
     
     public function getCultivarOptions(): array
     {
-        $query = SeedEntry::whereHas('variations.priceHistory')
-            ->whereNotNull('cultivar_name')
-            ->where('cultivar_name', '!=', '');
-        
-        // Filter by common name if selected
-        if ($this->selectedCommonName) {
-            $query->where('common_name', $this->selectedCommonName);
-        }
-        
-        // Get unique cultivar names (not IDs) to avoid duplicates
-        return $query->distinct()
-            ->orderBy('cultivar_name')
-            ->pluck('cultivar_name', 'cultivar_name')
-            ->toArray();
+        // This method is now handled inline in the form
+        // Keeping it for backward compatibility but not used
+        return [];
     }
     
     public function getCommonNameOptions(): array
