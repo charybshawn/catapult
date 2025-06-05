@@ -129,17 +129,19 @@ class SeedPriceTrends extends Page implements HasForms
     
     public function getCultivarOptions(): array
     {
-        $query = SeedEntry::select('cultivar_name', 'id')
-            ->whereHas('variations.priceHistory')
-            ->distinct();
+        $query = SeedEntry::whereHas('variations.priceHistory')
+            ->whereNotNull('cultivar_name')
+            ->where('cultivar_name', '!=', '');
         
         // Filter by common name if selected
         if ($this->selectedCommonName) {
             $query->where('common_name', $this->selectedCommonName);
         }
         
-        return $query->orderBy('cultivar_name')
-            ->pluck('cultivar_name', 'id')
+        // Get unique cultivar names (not IDs) to avoid duplicates
+        return $query->distinct()
+            ->orderBy('cultivar_name')
+            ->pluck('cultivar_name', 'cultivar_name')
             ->toArray();
     }
     
@@ -223,15 +225,14 @@ class SeedPriceTrends extends Page implements HasForms
             ->select(
                 DB::raw('DATE_FORMAT(scraped_at, "%Y-%m") as month'),
                 DB::raw('AVG(price / NULLIF(seed_variations.weight_kg, 0)) as avg_price_per_kg'),
-                'seed_entries.id as seed_entry_id',
                 'seed_entries.cultivar_name'
             )
             ->join('seed_variations', 'seed_price_history.seed_variation_id', '=', 'seed_variations.id')
             ->join('seed_entries', 'seed_variations.seed_entry_id', '=', 'seed_entries.id')
-            ->whereIn('seed_entries.id', $this->selectedCultivars)
+            ->whereIn('seed_entries.cultivar_name', $this->selectedCultivars)
             ->where('scraped_at', '>=', $startDate)
             ->where('scraped_at', '<=', $endDate)
-            ->groupBy('month', 'seed_entries.id', 'seed_entries.cultivar_name')
+            ->groupBy('month', 'seed_entries.cultivar_name')
             ->orderBy('month')
             ->get();
             
