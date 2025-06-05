@@ -193,7 +193,27 @@
     @apply border-0 rounded-lg shadow-sm bg-white dark:bg-gray-900;
 }
 
-/* Wide screen layout improvements - minimal and targeted approach */
+/* Wide screen layout improvements - surgical approach */
+
+/* Step 1: Target Filament's main content container specifically */
+@media (min-width: 1440px) {
+    /* Only target the main page content container, not headers/nav */
+    .fi-page-content {
+        max-width: 1400px !important; /* Increase from default ~1024px */
+    }
+    
+    /* Allow table containers to use the extra space */
+    .fi-ta-content {
+        max-width: none !important;
+    }
+}
+
+/* Step 2: Even more space on larger screens */
+@media (min-width: 1920px) {
+    .fi-page-content {
+        max-width: 1600px !important;
+    }
+}
 
 /* Improve modal sizing on wide screens */
 @media (min-width: 1440px) {
