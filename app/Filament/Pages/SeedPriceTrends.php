@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Filament\Forms\Components\Placeholder;
 use Filament\Support\RawJs;
+use Illuminate\Support\HtmlString;
 
 class SeedPriceTrends extends Page implements HasForms
 {
@@ -80,14 +81,14 @@ class SeedPriceTrends extends Page implements HasForms
                 Placeholder::make('dateRangeSlider')
                     ->label('Time Period')
                     ->content(function () {
-                        return view('filament.forms.components.date-range-slider', [
+                        return new HtmlString(view('filament.forms.components.date-range-slider', [
                             'statePath' => 'dateRangeMonths',
                             'value' => $this->dateRangeMonths,
                             'min' => 1,
                             'max' => $this->getMaxMonthsAvailable(),
                             'step' => 1,
                             'labels' => $this->getSliderLabels(),
-                        ])->render();
+                        ])->render());
                     }),
                     
                 Section::make('Chart Data')
