@@ -197,16 +197,17 @@
 
 /* Make the main content area use more horizontal space on wide screens */
 @media (min-width: 1440px) {
-    /* Use viewport-based calculations for sensible widths */
+    /* Use conservative fixed widths that are safe but wider than default */
     .fi-main-ctn,
     .fi-page-content,
     .fi-simple-page,
     .fi-resource-page-content {
-        max-width: calc(100vw - 18rem) !important; /* Account for sidebar width */
+        max-width: 1200px !important; /* Much wider than Filament's default */
         width: 100% !important;
+        margin: 0 auto !important;
     }
     
-    /* Override restrictive container classes with viewport-aware widths */
+    /* Override restrictive container classes with larger fixed widths */
     .max-w-7xl,
     .max-w-6xl,
     .max-w-5xl,
@@ -215,7 +216,7 @@
     .max-w-2xl,
     .max-w-xl,
     .max-w-lg {
-        max-width: calc(100vw - 20rem) !important; /* Sidebar + margins */
+        max-width: 1200px !important;
     }
     
     /* Target Filament's specific layout containers */
@@ -223,21 +224,38 @@
     .fi-body,
     .fi-main,
     .fi-page {
-        max-width: calc(100vw - 16rem) !important; /* Slight buffer for sidebar */
+        max-width: 1200px !important;
         width: 100% !important;
+        margin: 0 auto !important;
     }
     
-    /* Content wrappers should respect viewport bounds */
+    /* Content wrappers use expanded but safe widths */
     .fi-page > div,
     .fi-simple-page > div,
     .fi-resource-page > div {
-        max-width: calc(100vw - 20rem) !important;
+        max-width: 1200px !important;
         width: 100% !important;
+        margin: 0 auto !important;
     }
 }
 
 /* For ultra-wide screens (1920px+) */
 @media (min-width: 1920px) {
+    /* Increase content width for larger screens */
+    .fi-main-ctn,
+    .fi-page-content,
+    .fi-simple-page,
+    .fi-resource-page-content,
+    .fi-layout,
+    .fi-body,
+    .fi-main,
+    .fi-page,
+    .mx-auto,
+    .container,
+    .fi-container {
+        max-width: 1600px !important; /* Larger but still safe */
+    }
+    
     /* Make sidebar slightly wider on very wide screens */
     .fi-sidebar {
         @apply w-72; /* Increase from default ~16rem to 18rem */
@@ -246,11 +264,6 @@
     /* Adjust main content margin to account for wider sidebar */
     .fi-main {
         @apply ml-72;
-    }
-    
-    /* Allow content to breathe with reasonable max-width */
-    .fi-page-content {
-        @apply max-w-7xl mx-auto; /* Use 7xl instead of smaller default */
     }
 }
 
@@ -271,22 +284,26 @@
         @apply max-w-none;
     }
     
-    /* Target container classes with viewport-aware sizing */
+    /* Target container classes with safe fixed widths */
     .mx-auto,
     .container,
     .fi-container {
-        margin-left: 1rem !important;
-        margin-right: 1rem !important;
-        max-width: calc(100vw - 22rem) !important; /* Sidebar + margins */
-        width: calc(100% - 2rem) !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        max-width: 1200px !important;
+        width: 100% !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
     }
     
-    /* Main content areas should use available space */
+    /* Main content areas use expanded width */
     .fi-page-content {
-        margin-left: 1rem !important;
-        margin-right: 1rem !important;
-        max-width: calc(100vw - 20rem) !important;
-        width: calc(100% - 2rem) !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        max-width: 1200px !important;
+        width: 100% !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
     }
 }
 
