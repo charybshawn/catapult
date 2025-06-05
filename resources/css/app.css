@@ -197,25 +197,43 @@
 
 /* Make the main content area use more horizontal space on wide screens */
 @media (min-width: 1440px) {
-    /* Increase max-width for main content container */
-    .fi-main {
-        @apply max-w-none;
-    }
-    
-    /* Allow the main content to expand more */
-    .fi-main-content {
-        @apply max-w-none;
-    }
-    
-    /* Optimize page content width */
-    .fi-page {
-        @apply max-w-none;
-    }
-    
-    /* Make tables and forms use more space */
+    /* Target the actual content containers that limit width */
+    .fi-main-ctn,
+    .fi-page-content,
     .fi-simple-page,
-    .fi-resource-page-content {
-        @apply max-w-none;
+    .fi-resource-page-content,
+    .fi-main > div,
+    [class*="max-w-"] {
+        max-width: none !important;
+    }
+    
+    /* Specifically target common container classes */
+    .max-w-7xl,
+    .max-w-6xl,
+    .max-w-5xl,
+    .max-w-4xl,
+    .max-w-3xl,
+    .max-w-2xl,
+    .max-w-xl,
+    .max-w-lg {
+        max-width: none !important;
+    }
+    
+    /* Target Filament's specific layout containers */
+    .fi-layout,
+    .fi-body,
+    .fi-main,
+    .fi-page {
+        max-width: none !important;
+        width: 100% !important;
+    }
+    
+    /* Make sure content wrapper uses full width */
+    .fi-page > div,
+    .fi-simple-page > div,
+    .fi-resource-page > div {
+        max-width: none !important;
+        width: 100% !important;
     }
 }
 
@@ -239,6 +257,7 @@
 
 /* Improve table column spacing on wide screens */
 @media (min-width: 1440px) {
+    /* Aggressively remove all container width constraints */
     .fi-ta-table {
         @apply table-auto w-full;
     }
@@ -251,6 +270,24 @@
     /* Optimize form layouts for wide screens */
     .fi-fo-component-ctn {
         @apply max-w-none;
+    }
+    
+    /* Target all potential container classes that might limit width */
+    .mx-auto,
+    .container,
+    .fi-container {
+        margin-left: 1rem !important;
+        margin-right: 1rem !important;
+        max-width: none !important;
+        width: calc(100% - 2rem) !important;
+    }
+    
+    /* Remove centering from main content areas */
+    .fi-page-content {
+        margin-left: 1rem !important;
+        margin-right: 1rem !important;
+        max-width: none !important;
+        width: calc(100% - 2rem) !important;
     }
 }
 

@@ -130,36 +130,67 @@ class AppServiceProvider extends ServiceProvider
             PanelsRenderHook::HEAD_END,
             fn (): string => '
                 <style>
-                    /* Additional layout optimizations for very wide screens */
+                    /* AGGRESSIVE: Remove ALL max-width constraints on wide screens */
+                    @media (min-width: 1440px) {
+                        /* Target every possible container class */
+                        .max-w-xs, .max-w-sm, .max-w-md, .max-w-lg, .max-w-xl, 
+                        .max-w-2xl, .max-w-3xl, .max-w-4xl, .max-w-5xl, 
+                        .max-w-6xl, .max-w-7xl, .max-w-full, .max-w-screen-sm,
+                        .max-w-screen-md, .max-w-screen-lg, .max-w-screen-xl,
+                        .max-w-screen-2xl, .max-w-none, .max-w-prose,
+                        .max-w-min, .max-w-max, .max-w-fit {
+                            max-width: none !important;
+                        }
+                        
+                        /* Target all potential Filament containers */
+                        .fi-layout, .fi-body, .fi-main, .fi-page,
+                        .fi-main-ctn, .fi-page-content, .fi-simple-page,
+                        .fi-resource-page-content, .fi-container,
+                        .container, main, [role="main"] {
+                            max-width: none !important;
+                            width: 100% !important;
+                        }
+                        
+                        /* Remove auto margins that center content */
+                        .mx-auto {
+                            margin-left: 1rem !important;
+                            margin-right: 1rem !important;
+                        }
+                        
+                        /* Ensure all nested divs expand */
+                        .fi-main > *, .fi-page > *, .fi-simple-page > *,
+                        .fi-resource-page > *, .fi-page-content > * {
+                            max-width: none !important;
+                            width: 100% !important;
+                        }
+                        
+                        /* Tables should use all available space */
+                        .fi-ta-content, .fi-ta-table, table {
+                            width: 100% !important;
+                            max-width: none !important;
+                        }
+                        
+                        /* Forms should expand */
+                        .fi-fo, .fi-form, form {
+                            width: 100% !important;
+                            max-width: none !important;
+                        }
+                        
+                        /* Cards and sections */
+                        .fi-section, .fi-card, .fi-widget {
+                            width: 100% !important;
+                            max-width: none !important;
+                        }
+                    }
+                    
+                    /* Ultra-wide screen optimizations */
                     @media (min-width: 2560px) {
                         .fi-sidebar {
-                            width: 20rem !important; /* Even wider sidebar on ultra-wide screens */
+                            width: 20rem !important;
                         }
                         
                         .fi-main {
                             margin-left: 20rem !important;
-                        }
-                        
-                        .fi-page-content {
-                            max-width: 100rem !important; /* Allow very wide content on huge screens */
-                        }
-                    }
-                    
-                    /* Optimize table responsiveness */
-                    @media (min-width: 1440px) {
-                        .fi-ta-content {
-                            overflow-x: visible !important;
-                        }
-                        
-                        /* Better spacing for action buttons */
-                        .fi-ta-actions {
-                            white-space: nowrap;
-                        }
-                        
-                        /* Improve form section layouts */
-                        .fi-section-content-ctn {
-                            padding-left: 1.5rem !important;
-                            padding-right: 1.5rem !important;
                         }
                     }
                 </style>
