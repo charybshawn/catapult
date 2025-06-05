@@ -55,8 +55,10 @@ class SeedPriceTrends extends Page implements HasForms
                             ->searchable()
                             ->placeholder('All common names')
                             ->live()
-                            ->afterStateUpdated(function () {
+                            ->afterStateUpdated(function ($state) {
                                 $this->selectedCultivars = [];
+                                // Force refresh of the form
+                                $this->dispatch('$refresh');
                             })
                             ->suffixAction(
                                 \Filament\Forms\Components\Actions\Action::make('clear')
@@ -74,6 +76,10 @@ class SeedPriceTrends extends Page implements HasForms
                                 // Get the current common name from form state
                                 $commonName = $get('selectedCommonName');
                                 
+                                \Log::info('Cultivar options called', [
+                                    'common_name' => $commonName
+                                ]);
+                                
                                 // Get cultivars filtered by this common name
                                 $query = \App\Models\SeedEntry::whereHas('variations.priceHistory')
                                     ->whereNotNull('cultivar_name')
@@ -83,10 +89,17 @@ class SeedPriceTrends extends Page implements HasForms
                                     $query->where('common_name', $commonName);
                                 }
                                 
-                                return $query->distinct()
+                                $result = $query->distinct()
                                     ->orderBy('cultivar_name')
                                     ->pluck('cultivar_name', 'cultivar_name')
                                     ->toArray();
+                                    
+                                \Log::info('Cultivar options result', [
+                                    'count' => count($result),
+                                    'first_few' => array_slice($result, 0, 3, true)
+                                ]);
+                                
+                                return $result;
                             })
                             ->multiple()
                             ->searchable()
