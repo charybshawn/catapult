@@ -75,7 +75,8 @@ class SeedPriceTrends extends Page implements HasForms
                             })
                             ->multiple()
                             ->searchable()
-                            ->placeholder('Select cultivars to compare'),
+                            ->placeholder('Select cultivars to compare')
+                            ->live(),
                     ]),
                     
                 Placeholder::make('dateRangeSlider')
@@ -95,6 +96,7 @@ class SeedPriceTrends extends Page implements HasForms
                     ->schema([
                         Placeholder::make('chart')
                             ->label('')
+                            ->live()
                             ->content(function () {
                                 if (empty($this->selectedCultivars)) {
                                     return 'Select at least one cultivar to display price trends.';
@@ -103,7 +105,15 @@ class SeedPriceTrends extends Page implements HasForms
                                 $this->loadChartData();
                                 
                                 if (empty($this->chartData)) {
-                                    return 'No data available for the selected cultivars and date range.';
+                                    // Add debug information
+                                    $debugInfo = [
+                                        'Selected cultivars: ' . count($this->selectedCultivars),
+                                        'Date range: ' . $this->dateRangeMonths . ' months',
+                                        'Common name filter: ' . ($this->selectedCommonName ?: 'None'),
+                                    ];
+                                    
+                                    return 'No data available for the selected cultivars and date range.<br><br>' .
+                                           'Debug info:<br>' . implode('<br>', $debugInfo);
                                 }
                                 
                                 return view('filament.pages.components.price-trend-chart', [
@@ -195,6 +205,18 @@ class SeedPriceTrends extends Page implements HasForms
         
         [$startDate, $endDate] = $this->getDateRangeFromSelection();
         
+        // Debug: Check if we have any price history at all
+        $totalPriceHistory = SeedPriceHistory::count();
+        $entriesWithHistory = SeedEntry::whereHas('variations.priceHistory')->count();
+        
+        \Log::info('Price trends debug', [
+            'total_price_history_records' => $totalPriceHistory,
+            'entries_with_history' => $entriesWithHistory,
+            'selected_cultivars' => $this->selectedCultivars,
+            'start_date' => $startDate->format('Y-m-d'),
+            'end_date' => $endDate->format('Y-m-d'),
+        ]);
+        
         $data = SeedPriceHistory::query()
             ->select(
                 DB::raw('DATE_FORMAT(scraped_at, "%Y-%m") as month'),
@@ -210,6 +232,11 @@ class SeedPriceTrends extends Page implements HasForms
             ->groupBy('month', 'seed_entries.id', 'seed_entries.cultivar_name')
             ->orderBy('month')
             ->get();
+            
+        \Log::info('Query result', [
+            'data_count' => $data->count(),
+            'first_few_records' => $data->take(3)->toArray(),
+        ]);
         
         // Prepare data for Chart.js
         $months = $data->pluck('month')->unique()->sort()->values()->toArray();

@@ -62,7 +62,9 @@
         slider.value = value;
         
         // Trigger Livewire update
-        @this.set('dateRangeMonths', value);
+        if (window.Livewire) {
+            @this.set('dateRangeMonths', value);
+        }
         
         // Update visual feedback
         updateSliderBackground(slider);
