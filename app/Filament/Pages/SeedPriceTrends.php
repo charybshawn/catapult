@@ -13,7 +13,6 @@ use Filament\Forms\Contracts\HasForms;
 use Filament\Pages\Page;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
-use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Placeholder;
 use Filament\Support\RawJs;
 
@@ -33,14 +32,11 @@ class SeedPriceTrends extends Page implements HasForms
     
     public $selectedCultivars = [];
     public $selectedCommonName = null;
-    public $startDate;
-    public $endDate;
+    public $dateRange = '1_year';
     public $chartData = [];
     
     public function mount(): void
     {
-        $this->startDate = now()->subMonths(12)->format('Y-m-d');
-        $this->endDate = now()->format('Y-m-d');
         $this->form->fill();
     }
     
@@ -81,18 +77,17 @@ class SeedPriceTrends extends Page implements HasForms
                             ->placeholder('Select cultivars to compare'),
                     ]),
                     
-                Grid::make(2)
-                    ->schema([
-                        DatePicker::make('startDate')
-                            ->label('Start Date')
-                            ->required()
-                            ->default(now()->subMonths(12)),
-                            
-                        DatePicker::make('endDate')
-                            ->label('End Date')
-                            ->required()
-                            ->default(now()),
-                    ]),
+                Select::make('dateRange')
+                    ->label('Time Period')
+                    ->options([
+                        '1_year' => '1 Year',
+                        '3_years' => '3 Years', 
+                        '5_years' => '5 Years',
+                        'all_time' => 'All Time',
+                    ])
+                    ->default('1_year')
+                    ->required()
+                    ->live(),
                     
                 Section::make('Chart Data')
                     ->schema([
@@ -146,6 +141,31 @@ class SeedPriceTrends extends Page implements HasForms
             ->toArray();
     }
     
+    protected function getDateRangeFromSelection(): array
+    {
+        $endDate = now();
+        
+        switch ($this->dateRange) {
+            case '1_year':
+                $startDate = $endDate->copy()->subYear();
+                break;
+            case '3_years':
+                $startDate = $endDate->copy()->subYears(3);
+                break;
+            case '5_years':
+                $startDate = $endDate->copy()->subYears(5);
+                break;
+            case 'all_time':
+                // Get the earliest date from price history
+                $earliestDate = SeedPriceHistory::min('scraped_at');
+                $startDate = $earliestDate ? Carbon::parse($earliestDate) : $endDate->copy()->subYears(10);
+                break;
+            default:
+                $startDate = $endDate->copy()->subYear();
+        }
+        
+        return [$startDate, $endDate];
+    }
     
     protected function loadChartData(): void
     {
@@ -154,8 +174,7 @@ class SeedPriceTrends extends Page implements HasForms
             return;
         }
         
-        $startDate = Carbon::parse($this->startDate);
-        $endDate = Carbon::parse($this->endDate);
+        [$startDate, $endDate] = $this->getDateRangeFromSelection();
         
         $data = SeedPriceHistory::query()
             ->select(
