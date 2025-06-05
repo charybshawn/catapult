@@ -63,25 +63,13 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
         return $table
             ->query($this->getTableQuery())
             ->columns([
-                Tables\Columns\TextColumn::make('common_name')
+                Tables\Columns\TextColumn::make('seedEntry.common_name')
                     ->label('Common Name')
                     ->weight(FontWeight::Bold)
-                    ->getStateUsing(function ($record) {
-                        return $this->extractCommonName($record->seedEntry->seedCultivar->name);
-                    })
-                    ->searchable(query: function ($query, $search) {
-                        return $query->whereHas('seedEntry.seedCultivar', function ($q) use ($search) {
-                            $q->where('name', 'like', "%{$search}%");
-                        });
-                    })
-                    ->sortable(query: function ($query, $direction) {
-                        return $query->join('seed_entries', 'seed_variations.seed_entry_id', '=', 'seed_entries.id')
-                                   ->join('seed_cultivars', 'seed_entries.seed_cultivar_id', '=', 'seed_cultivars.id')
-                                   ->orderBy('seed_cultivars.name', $direction);
-                    }),
-                Tables\Columns\TextColumn::make('seedEntry.seedCultivar.name')
-                    ->label('Full Cultivar')
-                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('seedEntry.cultivar_name')
+                    ->label('Cultivar')
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('seedEntry.supplier.name')
@@ -129,25 +117,18 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
                     ->icon('heroicon-o-eye'),
             ])
             ->defaultSort('price_per_kg', 'asc')
-            ->defaultGroup('seedEntry.seedCultivar.name');
+            ->defaultGroup('seedEntry.common_name');
     }
     
     protected function getTableQuery(): Builder
     {
         $query = SeedVariation::query()
-            ->with(['seedEntry.supplier', 'seedEntry.seedCultivar', 'consumable'])
+            ->with(['seedEntry.supplier', 'consumable'])
             ->where('is_in_stock', true);
             
         if ($this->selectedCommonName) {
-            $query->whereHas('seedEntry.seedCultivar', function ($q) {
-                // Filter by common name using multiple patterns
-                $q->where(function ($subQuery) {
-                    $commonName = $this->selectedCommonName;
-                    $subQuery->where('name', 'LIKE', $commonName . ' - %')  // "Basil - Genovese"
-                            ->orWhere('name', 'LIKE', $commonName . ',%')    // "Basil, Sweet"
-                            ->orWhere('name', '=', $commonName)              // Exact match "Basil"
-                            ->orWhere('name', 'LIKE', $commonName . ' %');   // "Basil Sweet" (space)
-                });
+            $query->whereHas('seedEntry', function ($q) {
+                $q->where('common_name', $this->selectedCommonName);
             });
         }
         
