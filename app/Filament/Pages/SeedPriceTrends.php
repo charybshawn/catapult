@@ -8,7 +8,6 @@ use Carbon\Carbon;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Section;
-use Filament\Forms\Components\ViewComponent;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Pages\Page;
@@ -78,17 +77,18 @@ class SeedPriceTrends extends Page implements HasForms
                             ->placeholder('Select cultivars to compare'),
                     ]),
                     
-                ViewComponent::make('filament.forms.components.date-range-slider')
-                    ->view('filament.forms.components.date-range-slider')
-                    ->viewData([
-                        'statePath' => 'dateRangeMonths',
-                        'value' => $this->dateRangeMonths,
-                        'min' => 1,
-                        'max' => $this->getMaxMonthsAvailable(),
-                        'step' => 1,
-                        'labels' => $this->getSliderLabels(),
-                    ])
-                    ->live(),
+                Placeholder::make('dateRangeSlider')
+                    ->label('Time Period')
+                    ->content(function () {
+                        return view('filament.forms.components.date-range-slider', [
+                            'statePath' => 'dateRangeMonths',
+                            'value' => $this->dateRangeMonths,
+                            'min' => 1,
+                            'max' => $this->getMaxMonthsAvailable(),
+                            'step' => 1,
+                            'labels' => $this->getSliderLabels(),
+                        ])->render();
+                    }),
                     
                 Section::make('Chart Data')
                     ->schema([
