@@ -2,7 +2,7 @@
 
 namespace App\Filament\Pages;
 
-use App\Models\SeedCultivar;
+use App\Models\SeedEntry;
 use App\Models\SeedVariation;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Component;
@@ -156,19 +156,14 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
     
     protected function getCommonNameOptions(): array
     {
-        // Extract unique common names from all cultivars
-        $cultivars = SeedCultivar::orderBy('name')->pluck('name');
-        $commonNames = [];
+        // Get unique common names directly from seed entries
+        $commonNames = SeedEntry::whereNotNull('common_name')
+            ->distinct()
+            ->orderBy('common_name')
+            ->pluck('common_name', 'common_name')
+            ->filter()
+            ->toArray();
         
-        foreach ($cultivars as $cultivarName) {
-            $commonName = $this->extractCommonName($cultivarName);
-            if (!empty($commonName) && $commonName !== 'Unknown') {
-                $commonNames[$commonName] = $commonName;
-            }
-        }
-        
-        // Sort alphabetically and return
-        ksort($commonNames);
         return $commonNames;
     }
     
