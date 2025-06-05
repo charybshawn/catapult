@@ -34,8 +34,7 @@ class AppServiceProvider extends ServiceProvider
         // Add debug logging for isContained method
         $this->debugIsContainedMethod();
         
-        // Optimize Filament layout for wide screens
-        $this->optimizeFilamentLayout();
+        // Note: Wide screen layout optimization removed to fix alignment issues
         
         // Prevent migrations in production unless explicitly allowed
         if ($this->app->environment('production') && !$this->app->runningInConsole()) {
@@ -120,99 +119,4 @@ class AppServiceProvider extends ServiceProvider
         return $formattedTrace;
     }
     
-    /**
-     * Optimize Filament layout for wide screens
-     */
-    private function optimizeFilamentLayout(): void
-    {
-        // Add custom CSS for wide screen optimization to the head
-        FilamentView::registerRenderHook(
-            PanelsRenderHook::HEAD_END,
-            fn (): string => '
-                <style>
-                    /* CONSERVATIVE: Expand content but ensure it stays within viewport */
-                    @media (min-width: 1440px) {
-                        /* Use fixed max-widths that are wider than default but safe */
-                        .fi-main, .fi-page, .fi-page-content {
-                            max-width: 1200px !important; /* Much wider than default ~1024px */
-                            width: 100% !important;
-                            margin: 0 auto !important;
-                            padding-left: 1rem !important;
-                            padding-right: 1rem !important;
-                        }
-                        
-                        /* Content containers get generous but safe widths */
-                        .fi-simple-page, .fi-resource-page-content,
-                        .fi-main-ctn, .container {
-                            max-width: 1200px !important;
-                            width: 100% !important;
-                            margin: 0 auto !important;
-                            padding-left: 1rem !important;
-                            padding-right: 1rem !important;
-                        }
-                        
-                        /* Override restrictive Tailwind classes */
-                        .max-w-xs, .max-w-sm, .max-w-md, .max-w-lg, .max-w-xl, 
-                        .max-w-2xl, .max-w-3xl, .max-w-4xl {
-                            max-width: 1200px !important;
-                        }
-                        
-                        /* Tables can be wider but contained */
-                        .fi-ta-content, .fi-ta-table {
-                            width: 100% !important;
-                            max-width: 1200px !important;
-                            overflow-x: auto !important;
-                        }
-                        
-                        /* Forms, cards, sections use expanded width */
-                        .fi-fo, .fi-form, form,
-                        .fi-section, .fi-card, .fi-widget {
-                            width: 100% !important;
-                            max-width: 1200px !important;
-                        }
-                    }
-                    
-                    /* Even larger on bigger screens */
-                    @media (min-width: 1920px) {
-                        .fi-main, .fi-page, .fi-page-content,
-                        .fi-simple-page, .fi-resource-page-content,
-                        .fi-main-ctn, .container,
-                        .fi-ta-content, .fi-ta-table,
-                        .fi-fo, .fi-form, form,
-                        .fi-section, .fi-card, .fi-widget {
-                            max-width: 1600px !important; /* Much more space on large screens */
-                        }
-                        
-                        .fi-sidebar {
-                            width: 18rem !important; /* Slightly wider sidebar */
-                        }
-                        
-                        .fi-main {
-                            margin-left: 18rem !important;
-                        }
-                    }
-                    
-                    /* Ultra-wide screens get maximum space */
-                    @media (min-width: 2560px) {
-                        .fi-main, .fi-page, .fi-page-content,
-                        .fi-simple-page, .fi-resource-page-content,
-                        .fi-main-ctn, .container,
-                        .fi-ta-content, .fi-ta-table,
-                        .fi-fo, .fi-form, form,
-                        .fi-section, .fi-card, .fi-widget {
-                            max-width: 2000px !important; /* Generous width for ultra-wide */
-                        }
-                        
-                        .fi-sidebar {
-                            width: 20rem !important;
-                        }
-                        
-                        .fi-main {
-                            margin-left: 20rem !important;
-                        }
-                    }
-                </style>
-            '
-        );
-    }
 }
