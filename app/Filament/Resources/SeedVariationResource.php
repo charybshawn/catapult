@@ -87,7 +87,7 @@ class SeedVariationResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('seedEntry.seedCultivar.name')
+                Tables\Columns\TextColumn::make('seedEntry.cultivar_name')
                     ->label('Cultivar')
                     ->searchable()
                     ->sortable()
@@ -124,12 +124,24 @@ class SeedVariationResource extends Resource
                     ->sortable()
                     ->toggleable(),
             ])
-            ->defaultSort('seedEntry.seedCultivar.name')
+            ->defaultSort('seedEntry.cultivar_name')
             ->filters([
                 Tables\Filters\SelectFilter::make('cultivar')
-                    ->relationship('seedEntry.seedCultivar', 'name')
+                    ->options(function () {
+                        return \App\Models\SeedEntry::whereNotNull('cultivar_name')
+                            ->distinct()
+                            ->pluck('cultivar_name', 'cultivar_name')
+                            ->filter()
+                            ->toArray();
+                    })
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query->when($data['value'], function (Builder $query, $value) {
+                            return $query->whereHas('seedEntry', function (Builder $query) use ($value) {
+                                $query->where('cultivar_name', $value);
+                            });
+                        });
+                    })
                     ->searchable()
-                    ->preload()
                     ->label('Cultivar'),
                 Tables\Filters\SelectFilter::make('supplier')
                     ->relationship('seedEntry.supplier', 'name')
