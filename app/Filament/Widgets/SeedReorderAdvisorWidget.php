@@ -127,19 +127,23 @@ class SeedReorderAdvisorWidget extends BaseWidget
     
     protected function getCommonNameOptions(): array
     {
-        // Extract unique common names from all cultivars
-        $cultivars = SeedCultivar::orderBy('name')->pluck('name');
-        $commonNames = [];
+        // Get common names from seed entries that have in-stock variations
+        // This ensures we only show options that are actually available for reorder
+        $seedEntries = \App\Models\SeedEntry::whereHas('variations', function($q) {
+                $q->where('is_in_stock', true);
+            })
+            ->whereNotNull('common_name')
+            ->distinct()
+            ->orderBy('common_name')
+            ->pluck('common_name');
         
-        foreach ($cultivars as $cultivarName) {
-            $commonName = $this->extractCommonName($cultivarName);
-            if (!empty($commonName) && $commonName !== 'Unknown') {
+        $commonNames = [];
+        foreach ($seedEntries as $commonName) {
+            if (!empty($commonName)) {
                 $commonNames[$commonName] = $commonName;
             }
         }
         
-        // Sort alphabetically and return
-        ksort($commonNames);
         return $commonNames;
     }
     

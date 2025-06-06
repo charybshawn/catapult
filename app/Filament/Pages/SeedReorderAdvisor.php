@@ -137,8 +137,11 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
     
     protected function getCommonNameOptions(): array
     {
-        // Get unique common names directly from seed entries
+        // Get unique common names from seed entries that have in-stock variations
         $commonNames = SeedEntry::whereNotNull('common_name')
+            ->whereHas('variations', function($q) {
+                $q->where('is_in_stock', true);
+            })
             ->distinct()
             ->orderBy('common_name')
             ->pluck('common_name', 'common_name')

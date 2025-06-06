@@ -57,7 +57,7 @@ class SeedPriceTrendsWidget extends ChartWidget
             default => 'kg'
         };
         
-        return "Selected cultivars: {$cultivarList} (Count: {$count}){$commonNameInfo} | Showing average price per {$unitLabel} trends";
+        return "Selected cultivars: {$cultivarList} (Count: {$count}){$commonNameInfo} | Showing average price per {$unitLabel} trends (in-stock only)";
     }
     
     public function mount(array $cultivarNames = [], ?string $commonNameFilter = null, bool $separateBySupplier = false, bool $mergeSimilarCultivars = false, string $priceUnit = 'kg', ?float $customGramAmount = null): void
@@ -131,6 +131,7 @@ class SeedPriceTrendsWidget extends ChartWidget
                     ->join('seed_entries', 'seed_variations.seed_entry_id', '=', 'seed_entries.id')
                     ->join('suppliers', 'seed_entries.supplier_id', '=', 'suppliers.id')
                     ->whereIn('seed_entries.cultivar_name', $cultivarNames)
+                    ->where('seed_variations.is_in_stock', true)
                     ->when($this->commonNameFilter, function($query) {
                         $query->where('seed_entries.common_name', $this->commonNameFilter);
                     })
@@ -157,6 +158,7 @@ class SeedPriceTrendsWidget extends ChartWidget
                     ->join('seed_variations', 'seed_price_history.seed_variation_id', '=', 'seed_variations.id')
                     ->join('seed_entries', 'seed_variations.seed_entry_id', '=', 'seed_entries.id')
                     ->whereIn('seed_entries.cultivar_name', $cultivarNames)
+                    ->where('seed_variations.is_in_stock', true)
                     ->when($this->commonNameFilter, function($query) {
                         $query->where('seed_entries.common_name', $this->commonNameFilter);
                     })

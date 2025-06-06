@@ -70,7 +70,10 @@ class SeedPriceTrends extends Page implements HasForms
                             ->options(function (callable $get) {
                                 $commonName = $get('selectedCommonName');
                                 
-                                $query = SeedEntry::whereHas('variations.priceHistory')
+                                $query = SeedEntry::whereHas('variations', function($q) {
+                                        $q->where('is_in_stock', true)
+                                          ->whereHas('priceHistory');
+                                    })
                                     ->whereNotNull('cultivar_name')
                                     ->where('cultivar_name', '<>', '');
                                 
@@ -218,7 +221,10 @@ class SeedPriceTrends extends Page implements HasForms
     
     public function getCommonNameOptions(): array
     {
-        return SeedEntry::whereHas('variations.priceHistory')
+        return SeedEntry::whereHas('variations', function($q) {
+                $q->where('is_in_stock', true)
+                  ->whereHas('priceHistory');
+            })
             ->whereNotNull('common_name')
             ->where('common_name', '<>', '')
             ->distinct()
