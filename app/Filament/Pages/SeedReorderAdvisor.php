@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Models\SeedEntry;
 use App\Models\SeedVariation;
+use App\Filament\Widgets\SmartSeedRecommendationsWidget;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Component;
 use Filament\Forms\Components\Grid;
@@ -34,6 +35,8 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
     protected static ?int $navigationSort = 3;
     
     public $selectedCommonName = null;
+    public $selectedCultivars = [];
+    public $selectedSeedSize = null;
     
     public function mount(): void
     {
@@ -44,17 +47,62 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
     {
         return $form
             ->schema([
-                Select::make('selectedCommonName')
-                    ->label('Filter by Common Name')
-                    ->options(function () {
-                        return $this->getCommonNameOptions();
-                    })
-                    ->searchable()
-                    ->placeholder('All Common Names')
-                    ->live()
-                    ->afterStateUpdated(function () {
-                        $this->resetTable();
-                    }),
+                Grid::make(3)->schema([
+                    Select::make('selectedCommonName')
+                        ->label('Filter by Common Name')
+                        ->options(function () {
+                            return $this->getCommonNameOptions();
+                        })
+                        ->searchable()
+                        ->placeholder('Select Common Name')
+                        ->live()
+                        ->afterStateUpdated(function ($state) {
+                            $this->selectedCultivars = []; // Reset cultivars when common name changes
+                            $this->resetTable();
+                            $this->dispatch('filtersUpdated', 
+                                selectedCommonName: $state, 
+                                selectedCultivars: [], 
+                                selectedSeedSize: $this->selectedSeedSize
+                            );
+                        }),
+                    Select::make('selectedCultivars')
+                        ->label('Filter by Cultivars')
+                        ->options(function () {
+                            return $this->getCultivarOptions();
+                        })
+                        ->multiple()
+                        ->searchable()
+                        ->placeholder('Select Cultivars')
+                        ->visible(fn() => !empty($this->selectedCommonName))
+                        ->live()
+                        ->afterStateUpdated(function ($state) {
+                            $this->resetTable();
+                            $this->dispatch('filtersUpdated', 
+                                selectedCommonName: $this->selectedCommonName, 
+                                selectedCultivars: $state ?? [], 
+                                selectedSeedSize: $this->selectedSeedSize
+                            );
+                        }),
+                    Select::make('selectedSeedSize')
+                        ->label('Seed Size Category')
+                        ->options([
+                            'x-small' => 'X-Small Seeds (0-500g)',
+                            'small' => 'Small Seeds (1-5kg)',
+                            'medium' => 'Medium Seeds (5-10kg)', 
+                            'large' => 'Large Seeds (25kg)',
+                        ])
+                        ->placeholder('Select Seed Size')
+                        ->required()
+                        ->live()
+                        ->afterStateUpdated(function ($state) {
+                            $this->resetTable();
+                            $this->dispatch('filtersUpdated', 
+                                selectedCommonName: $this->selectedCommonName, 
+                                selectedCultivars: $this->selectedCultivars, 
+                                selectedSeedSize: $state
+                            );
+                        }),
+                ]),
             ]);
     }
     
@@ -129,6 +177,10 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
         if ($this->selectedCommonName) {
             $query->whereHas('seedEntry', function ($q) {
                 $q->where('common_name', $this->selectedCommonName);
+                
+                if (!empty($this->selectedCultivars)) {
+                    $q->whereIn('cultivar_name', $this->selectedCultivars);
+                }
             });
         }
         
@@ -149,6 +201,37 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
             ->toArray();
         
         return $commonNames;
+    }
+    
+    protected function getCultivarOptions(): array
+    {
+        if (!$this->selectedCommonName) {
+            return [];
+        }
+        
+        // Get unique cultivars for the selected common name
+        $cultivars = SeedEntry::where('common_name', $this->selectedCommonName)
+            ->whereNotNull('cultivar_name')
+            ->whereHas('variations', function($q) {
+                $q->where('is_in_stock', true);
+            })
+            ->distinct()
+            ->orderBy('cultivar_name')
+            ->pluck('cultivar_name', 'cultivar_name')
+            ->filter()
+            ->toArray();
+        
+        return $cultivars;
+    }
+    
+    protected function getHeaderWidgets(): array
+    {
+        return [];
+    }
+    
+    public function getFormActions(): array
+    {
+        return []; // Remove default form actions since this is just a filter form
     }
     
     /**

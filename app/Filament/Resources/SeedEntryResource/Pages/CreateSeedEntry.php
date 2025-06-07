@@ -20,6 +20,12 @@ class CreateSeedEntry extends BaseCreateRecord
         // Create the seed entry
         $record = static::getModel()::create($data);
         
+        // Set default cataloged_at if not provided
+        if (empty($data['cataloged_at'])) {
+            $record->cataloged_at = now();
+            $record->save();
+        }
+        
         // Create variations with default values
         foreach ($variations as $variationData) {
             // Set default values for required fields

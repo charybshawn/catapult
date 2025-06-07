@@ -8,6 +8,7 @@ use App\Models\SeedPriceHistory;
 use App\Models\SeedScrapeUpload;
 use App\Models\SeedVariation;
 use App\Models\Supplier;
+use App\Models\SupplierSourceMapping;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\Log;
@@ -42,11 +43,39 @@ class SeedScrapeImporter
             ]);
             
             // Extract supplier information from the data
-            $supplierName = $jsonData['source_site'] ?? 'Unknown Supplier';
-            $supplier = Supplier::firstOrCreate(['name' => $supplierName]);
+            $sourceUrl = $jsonData['source_site'] ?? 'Unknown Supplier';
+            
+            // Check for existing mapping first
+            $existingMapping = SupplierSourceMapping::findMappingForSource($sourceUrl);
+            
+            if ($existingMapping) {
+                $supplier = $existingMapping->supplier;
+                Log::info('Using existing supplier mapping', [
+                    'source_url' => $sourceUrl,
+                    'supplier' => $supplier->name,
+                    'mapping_id' => $existingMapping->id
+                ]);
+            } else {
+                // Fallback to old behavior for backward compatibility
+                $supplier = Supplier::firstOrCreate(['name' => $sourceUrl]);
+                
+                // Create mapping for future use
+                if ($sourceUrl !== 'Unknown Supplier') {
+                    SupplierSourceMapping::createMapping(
+                        $sourceUrl,
+                        $supplier->id,
+                        ['import_method' => 'legacy_auto_created']
+                    );
+                    
+                    Log::info('Created new supplier and mapping (legacy mode)', [
+                        'source_url' => $sourceUrl,
+                        'supplier' => $supplier->name
+                    ]);
+                }
+            }
             
             // Get currency code from top level if available, or detect from supplier
-            $currencyCode = $this->detectCurrency($jsonData, $supplierName);
+            $currencyCode = $this->detectCurrency($jsonData, $supplier->name);
             
             // Process each product
             foreach ($jsonData['data'] as $productData) {
@@ -75,6 +104,93 @@ class SeedScrapeImporter
                 'status' => SeedScrapeUpload::STATUS_ERROR,
                 'processed_at' => now(),
                 'notes' => 'Error: ' . $e->getMessage()
+            ]);
+            
+            throw $e;
+        }
+    }
+    
+    /**
+     * Import seed data from a JSON file with a pre-selected supplier
+     * This method bypasses supplier detection and uses the provided supplier
+     *
+     * @param string $jsonFilePath Path to the JSON file
+     * @param SeedScrapeUpload $scrapeUpload The upload record
+     * @param Supplier $supplier The pre-selected supplier
+     * @return void
+     * @throws Exception
+     */
+    public function importWithSupplier(string $jsonFilePath, SeedScrapeUpload $scrapeUpload, Supplier $supplier): void
+    {
+        try {
+            $jsonData = json_decode(file_get_contents($jsonFilePath), true);
+            
+            if (!isset($jsonData['data']) || !is_array($jsonData['data'])) {
+                throw new Exception("Invalid JSON format: 'data' array not found");
+            }
+            
+            Log::info('Beginning seed data import with pre-selected supplier', [
+                'file' => $scrapeUpload->original_filename,
+                'supplier' => $supplier->name,
+                'supplier_id' => $supplier->id,
+                'product_count' => count($jsonData['data'])
+            ]);
+            
+            // Update status to processing
+            $scrapeUpload->update([
+                'status' => SeedScrapeUpload::STATUS_PROCESSING
+            ]);
+            
+            // Create/update supplier mapping if source_site is present
+            if (isset($jsonData['source_site'])) {
+                SupplierSourceMapping::createMapping(
+                    $jsonData['source_site'],
+                    $supplier->id,
+                    [
+                        'import_method' => 'pre_selected',
+                        'import_file' => $scrapeUpload->original_filename,
+                        'created_at' => now()->toISOString()
+                    ]
+                );
+                
+                Log::info('Created/updated supplier mapping', [
+                    'source_url' => $jsonData['source_site'],
+                    'supplier' => $supplier->name
+                ]);
+            }
+            
+            // Get currency code from top level if available, or detect from supplier
+            $currencyCode = $this->detectCurrency($jsonData, $supplier->name);
+            
+            // Process each product
+            foreach ($jsonData['data'] as $productData) {
+                $this->processProduct($productData, $supplier, $jsonData['timestamp'] ?? now()->toIso8601String(), $currencyCode);
+            }
+            
+            // Update the scrape upload record
+            $scrapeUpload->update([
+                'status' => SeedScrapeUpload::STATUS_COMPLETED,
+                'processed_at' => now(),
+                'notes' => 'Successfully processed ' . count($jsonData['data']) . ' products with supplier: ' . $supplier->name
+            ]);
+            
+            Log::info('Seed data import completed successfully with pre-selected supplier', [
+                'file' => $scrapeUpload->original_filename,
+                'supplier' => $supplier->name
+            ]);
+            
+        } catch (Exception $e) {
+            Log::error('Error importing seed data with pre-selected supplier', [
+                'file' => $scrapeUpload->original_filename,
+                'supplier' => $supplier->name ?? 'Unknown',
+                'error' => $e->getMessage()
+            ]);
+            
+            // Handle any exceptions
+            $scrapeUpload->update([
+                'status' => SeedScrapeUpload::STATUS_ERROR,
+                'processed_at' => now(),
+                'notes' => 'Error with supplier ' . $supplier->name . ': ' . $e->getMessage()
             ]);
             
             throw $e;

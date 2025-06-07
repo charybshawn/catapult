@@ -20,11 +20,13 @@ class SeedEntry extends Model
         'supplier_product_url', 
         'image_url', 
         'description', 
-        'tags'
+        'tags',
+        'cataloged_at'
     ];
     
     protected $casts = [
         'tags' => 'array',
+        'cataloged_at' => 'datetime',
     ];
     
     

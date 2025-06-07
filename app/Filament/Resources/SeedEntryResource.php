@@ -34,13 +34,67 @@ class SeedEntryResource extends Resource
                     ->schema([
                         Forms\Components\Grid::make(2)
                             ->schema([
-                                Forms\Components\TextInput::make('cultivar_name')
+                                Forms\Components\Select::make('common_name')
+                                    ->label('Common Name')
+                                    ->options(function () {
+                                        return \App\Models\SeedEntry::whereNotNull('common_name')
+                                            ->where('common_name', '<>', '')
+                                            ->distinct()
+                                            ->orderBy('common_name')
+                                            ->pluck('common_name', 'common_name')
+                                            ->toArray();
+                                    })
+                                    ->searchable()
+                                    ->allowHtml()
+                                    ->createOptionForm([
+                                        Forms\Components\TextInput::make('common_name')
+                                            ->label('New Common Name')
+                                            ->required()
+                                            ->maxLength(255),
+                                    ])
+                                    ->createOptionUsing(function (array $data): string {
+                                        return $data['common_name'];
+                                    })
+                                    ->live()
+                                    ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                        // When common name changes, filter cultivar options
+                                        $set('cultivar_name', null); // Reset cultivar selection
+                                    }),
+                                Forms\Components\Select::make('cultivar_name')
                                     ->required()
-                                    ->maxLength(255)
-                                    ->label('Cultivar Name'),
-                                Forms\Components\TextInput::make('common_name')
-                                    ->maxLength(255)
-                                    ->label('Common Name'),
+                                    ->label('Cultivar Name')
+                                    ->options(function (Forms\Get $get) {
+                                        $commonName = $get('common_name');
+                                        
+                                        $query = \App\Models\SeedEntry::whereNotNull('cultivar_name')
+                                            ->where('cultivar_name', '<>', '');
+                                            
+                                        if ($commonName) {
+                                            $query->where('common_name', $commonName);
+                                        }
+                                        
+                                        return $query->distinct()
+                                            ->orderBy('cultivar_name')
+                                            ->pluck('cultivar_name', 'cultivar_name')
+                                            ->toArray();
+                                    })
+                                    ->searchable()
+                                    ->allowHtml()
+                                    ->createOptionForm([
+                                        Forms\Components\TextInput::make('cultivar_name')
+                                            ->label('New Cultivar Name')
+                                            ->required()
+                                            ->maxLength(255),
+                                    ])
+                                    ->createOptionUsing(function (array $data): string {
+                                        return $data['cultivar_name'];
+                                    })
+                                    ->placeholder(function (Forms\Get $get) {
+                                        $commonName = $get('common_name');
+                                        return $commonName ? "Select or create cultivar for {$commonName}" : 'Select common name first';
+                                    })
+                                    ->disabled(fn (Forms\Get $get): bool => empty($get('common_name')))
+                                    ->helperText('Cultivar options will filter based on your common name selection'),
                             ]),
                         Forms\Components\Select::make('supplier_id')
                             ->relationship('supplier', 'name')
@@ -60,19 +114,25 @@ class SeedEntryResource extends Resource
                         Forms\Components\Grid::make(2)
                             ->schema([
                                 Forms\Components\TextInput::make('supplier_product_title')
-                                    ->required()
                                     ->maxLength(255)
                                     ->label('Product Title'),
                                 Forms\Components\TextInput::make('supplier_product_url')
-                                    ->required()
                                     ->url()
                                     ->maxLength(255)
                                     ->label('Product URL'),
                             ]),
-                        Forms\Components\TextInput::make('image_url')
-                            ->url()
-                            ->maxLength(255)
-                            ->label('Image URL'),
+                        Forms\Components\Grid::make(2)
+                            ->schema([
+                                Forms\Components\TextInput::make('image_url')
+                                    ->url()
+                                    ->maxLength(255)
+                                    ->label('Image URL'),
+                                Forms\Components\DateTimePicker::make('cataloged_at')
+                                    ->label('Cataloged Date')
+                                    ->default(now())
+                                    ->required()
+                                    ->helperText('When this seed was first cataloged or listed'),
+                            ]),
                         Forms\Components\Textarea::make('description')
                             ->maxLength(65535)
                             ->rows(3)
@@ -171,13 +231,13 @@ class SeedEntryResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('cultivar_name')
-                    ->label('Cultivar')
+                Tables\Columns\TextColumn::make('common_name')
+                    ->label('Common Name')
                     ->searchable()
                     ->sortable()
                     ->weight(FontWeight::Bold),
-                Tables\Columns\TextColumn::make('common_name')
-                    ->label('Common Name')
+                Tables\Columns\TextColumn::make('cultivar_name')
+                    ->label('Cultivar')
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('supplier.name')
@@ -195,6 +255,11 @@ class SeedEntryResource extends Resource
                     ->counts('variations')
                     ->label('Variations')
                     ->sortable(),
+                Tables\Columns\TextColumn::make('cataloged_at')
+                    ->label('Cataloged')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -205,31 +270,52 @@ class SeedEntryResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('cultivar_name')
-                    ->options(function () {
-                        return \App\Models\SeedEntry::whereNotNull('cultivar_name')
-                            ->distinct()
-                            ->pluck('cultivar_name', 'cultivar_name')
-                            ->filter()
-                            ->toArray();
-                    })
-                    ->searchable()
-                    ->label('Cultivar'),
                 Tables\Filters\SelectFilter::make('common_name')
                     ->options(function () {
                         return \App\Models\SeedEntry::whereNotNull('common_name')
+                            ->where('common_name', '<>', '')
                             ->distinct()
+                            ->orderBy('common_name')
                             ->pluck('common_name', 'common_name')
-                            ->filter()
                             ->toArray();
                     })
                     ->searchable()
                     ->label('Common Name'),
+                Tables\Filters\SelectFilter::make('cultivar_name')
+                    ->options(function () {
+                        return \App\Models\SeedEntry::whereNotNull('cultivar_name')
+                            ->where('cultivar_name', '<>', '')
+                            ->distinct()
+                            ->orderBy('cultivar_name')
+                            ->pluck('cultivar_name', 'cultivar_name')
+                            ->toArray();
+                    })
+                    ->searchable()
+                    ->label('Cultivar'),
                 Tables\Filters\SelectFilter::make('supplier')
                     ->relationship('supplier', 'name')
                     ->searchable()
                     ->preload()
                     ->label('Supplier'),
+                Tables\Filters\Filter::make('cataloged_at')
+                    ->form([
+                        Forms\Components\DatePicker::make('cataloged_from')
+                            ->label('Cataloged From'),
+                        Forms\Components\DatePicker::make('cataloged_until')
+                            ->label('Cataloged Until'),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when(
+                                $data['cataloged_from'],
+                                fn (Builder $query, $date): Builder => $query->whereDate('cataloged_at', '>=', $date),
+                            )
+                            ->when(
+                                $data['cataloged_until'],
+                                fn (Builder $query, $date): Builder => $query->whereDate('cataloged_at', '<=', $date),
+                            );
+                    })
+                    ->label('Cataloged Date Range'),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),

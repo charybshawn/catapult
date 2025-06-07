@@ -1,10 +1,16 @@
 <x-filament-panels::page>
+    {{-- Filters Section --}}
     <div class="mb-6">
-        <h2 class="text-xl font-bold mb-2">Seed Reorder Advisor</h2>
-        <p class="text-gray-500 dark:text-gray-400">Compare prices across suppliers to make informed reordering decisions. Only in-stock items are shown.</p>
+        {{ $this->form }}
     </div>
     
-    {{ $this->form }}
+    {{-- Smart Recommendations Widget --}}
+    <div class="mb-6">
+        @livewire(\App\Filament\Widgets\SmartSeedRecommendationsWidget::class)
+    </div>
     
-    {{ $this->table }}
+    {{-- Table Section --}}
+    <div>
+        {{ $this->table }}
+    </div>
 </x-filament-panels::page> 
