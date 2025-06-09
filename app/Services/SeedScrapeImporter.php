@@ -528,7 +528,7 @@ class SeedScrapeImporter
     {
         // Method 1: Check for dedicated cultivar fields
         if (isset($productData['cultivar_name']) && $productData['cultivar_name'] !== 'N/A') {
-            return trim($productData['cultivar_name']);
+            return $this->cleanSeedName(trim($productData['cultivar_name']));
         }
         
         if (isset($productData['cultivar']) && !empty($productData['cultivar'])) {
@@ -538,14 +538,14 @@ class SeedScrapeImporter
                 $productData['plant_variety'] !== 'N/A' && 
                 !empty($productData['plant_variety'])) {
                 // The plant_variety is the actual cultivar name
-                return trim($productData['plant_variety']);
+                return $this->cleanSeedName(trim($productData['plant_variety']));
             }
             // If no specific variety, use the common name as cultivar
-            return $commonName;
+            return $this->cleanSeedName($commonName);
         }
         
         if (isset($productData['common_name']) && !empty($productData['common_name'])) {
-            return trim($productData['common_name']);
+            return $this->cleanSeedName(trim($productData['common_name']));
         }
         
         // Method 2: Parse from title (DamSeeds format)
@@ -566,12 +566,12 @@ class SeedScrapeImporter
                 $variety = preg_replace('/^\d+\s*/', '', $variety); // Remove leading numbers
                 
                 if (!empty($variety)) {
-                    return $baseName . ' - ' . $variety;
+                    return $this->cleanSeedName($baseName . ' - ' . $variety);
                 }
-                return $baseName;
+                return $this->cleanSeedName($baseName);
             }
             
-            return $cleanTitle;
+            return $this->cleanSeedName($cleanTitle);
         }
         
         return 'Unknown Cultivar';
@@ -707,12 +707,12 @@ class SeedScrapeImporter
     {
         // Method 1: Check for dedicated common_name field
         if (isset($productData['common_name']) && !empty($productData['common_name']) && $productData['common_name'] !== 'N/A') {
-            return trim($productData['common_name']);
+            return $this->cleanSeedName(trim($productData['common_name']));
         }
         
         // Method 2: For Sprouting.com format, the 'cultivar' field is actually the common name
         if (isset($productData['cultivar']) && !empty($productData['cultivar'])) {
-            return trim($productData['cultivar']);
+            return $this->cleanSeedName(trim($productData['cultivar']));
         }
         
         // Method 3: Parse from title for other formats
@@ -728,7 +728,7 @@ class SeedScrapeImporter
                 $baseName = preg_replace('/\s*-\s*(Organic|Non-GMO|Heirloom|Certified).*$/i', '', $baseName);
                 $baseName = preg_replace('/^(Greencrops,\s*)?(\d+\s*)?/i', '', $baseName);
                 
-                return $baseName;
+                return $this->cleanSeedName($baseName);
             }
             
             // For patterns like "Green Forage Pea", "Brussels Winter Vertissimo", etc.
@@ -843,5 +843,52 @@ class SeedScrapeImporter
                 Log::warning("Unknown weight unit: {$unit}, treating as kg");
                 return $value;
         }
+    }
+    
+    /**
+     * Clean and normalize seed names to fix common data quality issues
+     *
+     * @param string $name
+     * @return string
+     */
+    protected function cleanSeedName(string $name): string
+    {
+        if (empty($name)) {
+            return $name;
+        }
+        
+        $cleaned = trim($name);
+        
+        // Handle complex patterns first (more specific to less specific)
+        // Handle patterns like "() - Microgreens" first (most specific)
+        $cleaned = preg_replace('/^\s*\(\s*\)\s*-\s*Microgreens\s*$/', 'Microgreens', $cleaned); // "() - Microgreens" -> "Microgreens"
+        // Then handle patterns like "Basic Salad Mix () - Microgreens"
+        $cleaned = preg_replace('/\s*\(\s*\)\s*-\s*Microgreens\s*$/', '', $cleaned);
+        $cleaned = preg_replace('/^\s*\(\s*\)\s*-\s*/', '', $cleaned); // Handle leading "() - " patterns
+        
+        // Clean up common suffixes that often get malformed
+        $cleaned = preg_replace('/\s*-\s*Microgreens\s*$/', '', $cleaned); // Remove "- Microgreens" suffix
+        $cleaned = preg_replace('/\s*Microgreens\s*$/', '', $cleaned); // Remove standalone "Microgreens" suffix
+        
+        // Remove empty brackets and clean up common patterns
+        $cleaned = preg_replace('/\s*\(\s*\)\s*/', '', $cleaned); // Remove "()" empty brackets
+        $cleaned = preg_replace('/\s*\(\s+\)\s*/', '', $cleaned); // Remove "( )" brackets with just spaces
+        
+        // Clean up parentheses that only contain organic/certification info that got lost
+        $cleaned = preg_replace('/\s*\(\s*(Organic|Non-GMO|Heirloom|Certified)\s*\)/', ' (\1)', $cleaned);
+        
+        // Remove leading/trailing dashes and extra spaces
+        $cleaned = preg_replace('/^\s*-\s*|\s*-\s*$/', '', $cleaned);
+        $cleaned = preg_replace('/\s+/', ' ', $cleaned); // Collapse multiple spaces
+        
+        // Trim again after all cleaning
+        $cleaned = trim($cleaned);
+        
+        // If we accidentally cleaned everything away, return original
+        if (empty($cleaned)) {
+            return trim($name);
+        }
+        
+        return $cleaned;
     }
 } 
