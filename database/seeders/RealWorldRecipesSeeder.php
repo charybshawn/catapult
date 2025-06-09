@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Recipe;
-use App\Models\SeedCultivar;
+use App\Models\SeedEntry;
 use App\Models\Supplier;
 use App\Models\Consumable;
 use App\Models\RecipeWateringSchedule;
@@ -448,7 +448,7 @@ class RealWorldRecipesSeeder extends Seeder
                 $recipe = Recipe::firstOrCreate(
                     ['name' => "{$seedName} Recipe"],
                     [
-                        'seed_cultivar_id' => SeedCultivar::where('name', 'like', '%' . explode(' ', $seedName)[0] . '%')->first()?->id,
+                        'seed_entry_id' => SeedEntry::where('common_name', 'like', '%' . explode(' ', $seedName)[0] . '%')->first()?->id,
                         'seed_consumable_id' => $seedConsumable->id,
                         'soil_consumable_id' => $soilConsumables->random()->id,
                         'seed_soak_hours' => $data['seed_soak_hours'],

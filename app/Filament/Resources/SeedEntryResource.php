@@ -485,11 +485,11 @@ class SeedEntryResource extends Resource
         $issues = [];
         
         // Check for recipes using this seed entry
-        $recipesCount = \App\Models\Recipe::where('seed_cultivar_id', $seedEntry->id)->count();
+        $recipesCount = \App\Models\Recipe::where('seed_entry_id', $seedEntry->id)->count();
         if ($recipesCount > 0) {
             // Check if any of these recipes have active crops
             $activeCropsCount = \App\Models\Crop::whereHas('recipe', function($query) use ($seedEntry) {
-                $query->where('seed_cultivar_id', $seedEntry->id);
+                $query->where('seed_entry_id', $seedEntry->id);
             })->where('current_stage', '!=', 'harvested')->count();
             
             if ($activeCropsCount > 0) {

@@ -251,7 +251,7 @@ class CropAlertResource extends Resource
                                 'Harvested At' => $crop->harvested_at ? $crop->harvested_at->format('Y-m-d H:i:s') : 'N/A',
                                 'Recipe ID' => $crop->recipe_id,
                                 'Recipe Name' => $crop->recipe?->name ?? 'N/A',
-                                'Seed Entry ID' => $crop->recipe?->seed_cultivar_id ?? 'N/A',
+                                'Seed Entry ID' => $crop->recipe?->seed_entry_id ?? 'N/A',
                                 'Seed Cultivar Name' => $crop->recipe?->seedEntry 
                                     ? $crop->recipe->seedEntry->common_name . ' - ' . $crop->recipe->seedEntry->cultivar_name 
                                     : 'N/A',

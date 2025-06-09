@@ -17,9 +17,9 @@ class SeedVariation extends Model
         parent::boot();
         
         static::saving(function ($variation) {
-            // Validate price is reasonable
+            // Validate price is reasonable (allow null for out-of-stock items)
             if ($variation->current_price !== null && ($variation->current_price <= 0 || $variation->current_price > 50000)) {
-                throw new \InvalidArgumentException('Price must be between $0.01 and $50,000');
+                throw new \InvalidArgumentException('Price must be between $0.01 and $50,000, or null for out-of-stock items');
             }
             
             // Validate weight is positive if provided
@@ -32,8 +32,8 @@ class SeedVariation extends Model
                 throw new \InvalidArgumentException('Original weight value must be positive');
             }
             
-            // Log extreme price/kg ratios for review
-            if ($variation->weight_kg && $variation->weight_kg > 0) {
+            // Log extreme price/kg ratios for review (only if price is available)
+            if ($variation->weight_kg && $variation->weight_kg > 0 && $variation->current_price !== null) {
                 $pricePerKg = $variation->current_price / $variation->weight_kg;
                 if ($pricePerKg > 5000) {
                     \Illuminate\Support\Facades\Log::warning('Extremely high price per kg detected', [

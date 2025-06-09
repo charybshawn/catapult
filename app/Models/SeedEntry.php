@@ -103,7 +103,7 @@ class SeedEntry extends Model
      */
     public function recipes(): HasMany
     {
-        return $this->hasMany(Recipe::class, 'seed_cultivar_id');
+        return $this->hasMany(Recipe::class, 'seed_entry_id');
     }
     
     /**

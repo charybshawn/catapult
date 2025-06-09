@@ -20,11 +20,16 @@ class SeedScrapeUpload extends Model
         'status', 
         'uploaded_at', 
         'processed_at', 
-        'notes'
+        'notes',
+        'failed_entries',
+        'total_entries',
+        'successful_entries',
+        'failed_entries_count'
     ];
     
     protected $casts = [
         'uploaded_at' => 'datetime',
         'processed_at' => 'datetime',
+        'failed_entries' => 'array',
     ];
 }

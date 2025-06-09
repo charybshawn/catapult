@@ -417,6 +417,27 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                         SeedScrapeUpload::STATUS_ERROR => 'danger',
                         default => 'gray',
                     }),
+                Tables\Columns\TextColumn::make('progress')
+                    ->label('Progress')
+                    ->state(function (SeedScrapeUpload $record): string {
+                        if ($record->total_entries === 0) {
+                            return 'N/A';
+                        }
+                        
+                        $successful = $record->successful_entries;
+                        $failed = $record->failed_entries_count;
+                        $total = $record->total_entries;
+                        
+                        return "{$successful}/{$total} success" . ($failed > 0 ? ", {$failed} failed" : '');
+                    })
+                    ->color(function (SeedScrapeUpload $record): string {
+                        if ($record->failed_entries_count > 0) {
+                            return 'warning';
+                        } elseif ($record->successful_entries > 0) {
+                            return 'success';
+                        }
+                        return 'gray';
+                    }),
                 Tables\Columns\TextColumn::make('uploaded_at')
                     ->label('Uploaded')
                     ->dateTime()
@@ -440,6 +461,12 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                     ->url(route('filament.admin.resources.seed-variations.index'))
                     ->icon('heroicon-m-eye')
                     ->visible(fn (SeedScrapeUpload $record): bool => $record->status === SeedScrapeUpload::STATUS_COMPLETED),
+                Tables\Actions\Action::make('manage_failed')
+                    ->label('Manage Failed')
+                    ->url(route('filament.admin.pages.manage-failed-seed-entries'))
+                    ->icon('heroicon-m-exclamation-triangle')
+                    ->color('warning')
+                    ->visible(fn (SeedScrapeUpload $record): bool => $record->failed_entries_count > 0),
                 Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([

@@ -32,14 +32,19 @@ class SeedScrapeImporter
                 throw new Exception("Invalid JSON format: 'data' array not found");
             }
             
+            $totalEntries = count($jsonData['data']);
+            $successfulEntries = 0;
+            $failedEntries = [];
+            
             Log::info('Beginning seed data import', [
                 'file' => $scrapeUpload->original_filename,
-                'product_count' => count($jsonData['data'])
+                'product_count' => $totalEntries
             ]);
             
             // Update status to processing
             $scrapeUpload->update([
-                'status' => SeedScrapeUpload::STATUS_PROCESSING
+                'status' => SeedScrapeUpload::STATUS_PROCESSING,
+                'total_entries' => $totalEntries
             ]);
             
             // Extract supplier information from the data
@@ -78,19 +83,59 @@ class SeedScrapeImporter
             $currencyCode = $this->detectCurrency($jsonData, $supplier->name);
             
             // Process each product
-            foreach ($jsonData['data'] as $productData) {
-                $this->processProduct($productData, $supplier, $jsonData['timestamp'] ?? now()->toIso8601String(), $currencyCode);
+            foreach ($jsonData['data'] as $index => $productData) {
+                try {
+                    $this->processProduct($productData, $supplier, $jsonData['timestamp'] ?? now()->toIso8601String(), $currencyCode);
+                    $successfulEntries++;
+                } catch (Exception $e) {
+                    // Capture failed entry with context
+                    $failedEntry = [
+                        'index' => $index,
+                        'data' => $productData,
+                        'error' => $e->getMessage(),
+                        'error_type' => get_class($e),
+                        'timestamp' => now()->toIso8601String()
+                    ];
+                    
+                    $failedEntries[] = $failedEntry;
+                    
+                    Log::warning('Failed to process product entry', [
+                        'index' => $index,
+                        'title' => $productData['title'] ?? 'Unknown',
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+            
+            // Determine final status based on results
+            $finalStatus = SeedScrapeUpload::STATUS_COMPLETED;
+            $notes = "Processed {$successfulEntries}/{$totalEntries} products successfully.";
+            
+            if ($failedEntries) {
+                $failedCount = count($failedEntries);
+                if ($successfulEntries === 0) {
+                    $finalStatus = SeedScrapeUpload::STATUS_ERROR;
+                    $notes = "All entries failed to process. {$failedCount} errors encountered.";
+                } else {
+                    $notes .= " {$failedCount} entries failed to process.";
+                }
             }
             
             // Update the scrape upload record
             $scrapeUpload->update([
-                'status' => SeedScrapeUpload::STATUS_COMPLETED,
+                'status' => $finalStatus,
                 'processed_at' => now(),
-                'notes' => 'Successfully processed ' . count($jsonData['data']) . ' products.'
+                'notes' => $notes,
+                'successful_entries' => $successfulEntries,
+                'failed_entries_count' => count($failedEntries),
+                'failed_entries' => $failedEntries
             ]);
             
-            Log::info('Seed data import completed successfully', [
-                'file' => $scrapeUpload->original_filename
+            Log::info('Seed data import completed', [
+                'file' => $scrapeUpload->original_filename,
+                'successful' => $successfulEntries,
+                'failed' => count($failedEntries),
+                'status' => $finalStatus
             ]);
             
         } catch (Exception $e) {
@@ -103,7 +148,10 @@ class SeedScrapeImporter
             $scrapeUpload->update([
                 'status' => SeedScrapeUpload::STATUS_ERROR,
                 'processed_at' => now(),
-                'notes' => 'Error: ' . $e->getMessage()
+                'notes' => 'Error: ' . $e->getMessage(),
+                'total_entries' => $totalEntries ?? 0,
+                'successful_entries' => 0,
+                'failed_entries_count' => 0
             ]);
             
             throw $e;
@@ -129,16 +177,21 @@ class SeedScrapeImporter
                 throw new Exception("Invalid JSON format: 'data' array not found");
             }
             
+            $totalEntries = count($jsonData['data']);
+            $successfulEntries = 0;
+            $failedEntries = [];
+            
             Log::info('Beginning seed data import with pre-selected supplier', [
                 'file' => $scrapeUpload->original_filename,
                 'supplier' => $supplier->name,
                 'supplier_id' => $supplier->id,
-                'product_count' => count($jsonData['data'])
+                'product_count' => $totalEntries
             ]);
             
             // Update status to processing
             $scrapeUpload->update([
-                'status' => SeedScrapeUpload::STATUS_PROCESSING
+                'status' => SeedScrapeUpload::STATUS_PROCESSING,
+                'total_entries' => $totalEntries
             ]);
             
             // Create/update supplier mapping if source_site is present
@@ -163,20 +216,61 @@ class SeedScrapeImporter
             $currencyCode = $this->detectCurrency($jsonData, $supplier->name);
             
             // Process each product
-            foreach ($jsonData['data'] as $productData) {
-                $this->processProduct($productData, $supplier, $jsonData['timestamp'] ?? now()->toIso8601String(), $currencyCode);
+            foreach ($jsonData['data'] as $index => $productData) {
+                try {
+                    $this->processProduct($productData, $supplier, $jsonData['timestamp'] ?? now()->toIso8601String(), $currencyCode);
+                    $successfulEntries++;
+                } catch (Exception $e) {
+                    // Capture failed entry with context
+                    $failedEntry = [
+                        'index' => $index,
+                        'data' => $productData,
+                        'error' => $e->getMessage(),
+                        'error_type' => get_class($e),
+                        'timestamp' => now()->toIso8601String()
+                    ];
+                    
+                    $failedEntries[] = $failedEntry;
+                    
+                    Log::warning('Failed to process product entry', [
+                        'index' => $index,
+                        'title' => $productData['title'] ?? 'Unknown',
+                        'supplier' => $supplier->name,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+            
+            // Determine final status based on results
+            $finalStatus = SeedScrapeUpload::STATUS_COMPLETED;
+            $notes = "Processed {$successfulEntries}/{$totalEntries} products successfully with supplier: {$supplier->name}.";
+            
+            if ($failedEntries) {
+                $failedCount = count($failedEntries);
+                if ($successfulEntries === 0) {
+                    $finalStatus = SeedScrapeUpload::STATUS_ERROR;
+                    $notes = "All entries failed to process with supplier: {$supplier->name}. {$failedCount} errors encountered.";
+                } else {
+                    $notes .= " {$failedCount} entries failed to process.";
+                }
             }
             
             // Update the scrape upload record
             $scrapeUpload->update([
-                'status' => SeedScrapeUpload::STATUS_COMPLETED,
+                'status' => $finalStatus,
                 'processed_at' => now(),
-                'notes' => 'Successfully processed ' . count($jsonData['data']) . ' products with supplier: ' . $supplier->name
+                'notes' => $notes,
+                'successful_entries' => $successfulEntries,
+                'failed_entries_count' => count($failedEntries),
+                'failed_entries' => $failedEntries
             ]);
             
-            Log::info('Seed data import completed successfully with pre-selected supplier', [
+            Log::info('Seed data import completed with pre-selected supplier', [
                 'file' => $scrapeUpload->original_filename,
-                'supplier' => $supplier->name
+                'supplier' => $supplier->name,
+                'successful' => $successfulEntries,
+                'failed' => count($failedEntries),
+                'status' => $finalStatus
             ]);
             
         } catch (Exception $e) {
@@ -190,7 +284,10 @@ class SeedScrapeImporter
             $scrapeUpload->update([
                 'status' => SeedScrapeUpload::STATUS_ERROR,
                 'processed_at' => now(),
-                'notes' => 'Error with supplier ' . $supplier->name . ': ' . $e->getMessage()
+                'notes' => 'Error with supplier ' . $supplier->name . ': ' . $e->getMessage(),
+                'total_entries' => $totalEntries ?? 0,
+                'successful_entries' => 0,
+                'failed_entries_count' => 0
             ]);
             
             throw $e;
@@ -206,7 +303,7 @@ class SeedScrapeImporter
      * @param string $defaultCurrency
      * @return void
      */
-    protected function processProduct(array $productData, Supplier $supplier, string $timestamp, string $defaultCurrency = 'USD'): void
+    public function processProduct(array $productData, Supplier $supplier, string $timestamp, string $defaultCurrency = 'USD'): void
     {
         // Extract cultivar name and common name - try different field combinations to support different formats
         $cultivarName = $this->extractCultivarName($productData);
@@ -381,8 +478,8 @@ class SeedScrapeImporter
             $priceChanged = false;
             
             if ($price !== null) {
-                // Keep the better (lower) price
-                if ($price < $variation->current_price || $variation->current_price == 0) {
+                // Keep the better (lower) price, or set price if none exists
+                if ($variation->current_price === null || $variation->current_price == 0 || $price < $variation->current_price) {
                     $updateData['current_price'] = $price;
                     $priceChanged = true;
                 }
@@ -427,7 +524,7 @@ class SeedScrapeImporter
                 'weight_kg' => $weightData['weight_kg'],
                 'original_weight_value' => $weightData['original_weight_value'],
                 'original_weight_unit' => $weightData['original_weight_unit'],
-                'current_price' => $price ?? 0,
+                'current_price' => $price, // Allow null for out-of-stock items
                 'currency' => $currency,
                 'is_in_stock' => $isInStock,
                 'last_checked_at' => now(),

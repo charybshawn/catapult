@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Models\Order;
 use App\Models\ProductMix;
-use App\Models\SeedCultivar;
+use App\Models\SeedEntry;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
@@ -23,7 +23,7 @@ class WeeklyTrayCalculator
         // Get all orders for the week
         $orders = Order::whereBetween('delivery_date', [$weekStart, $weekEnd])
             ->where('status', '!=', 'cancelled')
-            ->with(['items.recipe.seedCultivar', 'items.productMix'])
+            ->with(['items.recipe.seedEntry', 'items.productMix'])
             ->get();
             
         $varietyTrays = [];
@@ -40,7 +40,7 @@ class WeeklyTrayCalculator
                     }
                 } else {
                     // Handle single variety items
-                    $varietyId = $item->recipe->seed_cultivar_id;
+                    $varietyId = $item->recipe->seed_entry_id;
                     $varietyTrays[$varietyId] = ($varietyTrays[$varietyId] ?? 0) + $item->quantity;
                 }
             }

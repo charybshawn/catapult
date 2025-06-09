@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Models\SeedCultivar;
 use App\Models\SeedEntry;
 use App\Models\SeedPriceHistory;
 use App\Models\SeedVariation;
@@ -23,9 +22,6 @@ class TestImporterDirect extends Command
         // Get or create a supplier
         $supplier = Supplier::firstOrCreate(['name' => 'Test Supplier']);
         
-        // Get or create a cultivar
-        $cultivar = SeedCultivar::firstOrCreate(['name' => 'Test Cultivar']);
-        
         // Create a seed entry
         $entry = SeedEntry::firstOrCreate(
             [
@@ -33,7 +29,8 @@ class TestImporterDirect extends Command
                 'supplier_product_url' => 'https://example.com/test',
             ],
             [
-                'seed_cultivar_id' => $cultivar->id,
+                'common_name' => 'Test Common Name',
+                'cultivar_name' => 'Test Cultivar',
                 'supplier_product_title' => 'Test Product',
                 'image_url' => null,
                 'description' => null,
