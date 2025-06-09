@@ -29,6 +29,7 @@ class Consumable extends Model
         'type', // packaging, soil, seed, label, other
         'supplier_id',
         'packaging_type_id', // For packaging consumables only
+        'seed_entry_id', // For seed consumables only
         'initial_stock',
         'consumed_quantity',
         'unit', // pieces, rolls, bags, etc.
@@ -115,6 +116,15 @@ class Consumable extends Model
     public function packagingType(): BelongsTo
     {
         return $this->belongsTo(PackagingType::class);
+    }
+    
+    /**
+     * Get the seed entry for this consumable.
+     * Only applicable for seed consumables.
+     */
+    public function seedEntry(): BelongsTo
+    {
+        return $this->belongsTo(SeedEntry::class);
     }
     
     
@@ -222,6 +232,7 @@ class Consumable extends Model
                 'type', 
                 'supplier_id',
                 'packaging_type_id',
+                'seed_entry_id',
                 'initial_stock',
                 'consumed_quantity',
                 'unit',

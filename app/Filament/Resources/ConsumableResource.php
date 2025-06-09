@@ -103,22 +103,36 @@ class ConsumableResource extends BaseResource
                                             ->label('Seed Entry')
                                             ->helperText('Required: Please select a seed entry')
                                             ->options(function () {
-                                                return \App\Models\SeedEntry::where('is_active', true)
+                                                return \App\Models\SeedEntry::with('supplier')
+                                                    ->orderBy('common_name', 'asc')
                                                     ->orderBy('cultivar_name', 'asc')
-                                                    ->pluck('cultivar_name', 'id')
+                                                    ->get()
+                                                    ->mapWithKeys(function ($entry) {
+                                                        $label = $entry->common_name . ' - ' . $entry->cultivar_name;
+                                                        if ($entry->supplier) {
+                                                            $label .= ' (' . $entry->supplier->name . ')';
+                                                        }
+                                                        return [$entry->id => $label];
+                                                    })
                                                     ->toArray();
                                             })
                                             ->searchable()
                                             ->required()
                                             ->live() // Make the field live to update instantly
                                             ->createOptionForm([
+                                                Forms\Components\TextInput::make('common_name')
+                                                    ->label('Common Name')
+                                                    ->required()
+                                                    ->maxLength(255),
                                                 Forms\Components\TextInput::make('cultivar_name')
                                                     ->label('Cultivar Name')
                                                     ->required()
                                                     ->maxLength(255),
-                                                Forms\Components\TextInput::make('common_name')
-                                                    ->label('Common Name')
-                                                    ->maxLength(255),
+                                                Forms\Components\Select::make('supplier_id')
+                                                    ->label('Supplier')
+                                                    ->options(\App\Models\Supplier::pluck('name', 'id'))
+                                                    ->searchable()
+                                                    ->required(),
                                                 Forms\Components\Textarea::make('description')
                                                     ->label('Description')
                                                     ->maxLength(1000),
@@ -139,7 +153,7 @@ class ConsumableResource extends BaseResource
                                                 if ($state) {
                                                     $entry = \App\Models\SeedEntry::find($state);
                                                     if ($entry) {
-                                                        $set('name', $entry->cultivar_name);
+                                                        $set('name', $entry->common_name . ' - ' . $entry->cultivar_name);
                                                     }
                                                 }
                                             }),
@@ -567,6 +581,18 @@ class ConsumableResource extends BaseResource
                     ->label('Supplier')
                     ->searchable()
                     ->sortable()
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('seedEntry.common_name')
+                    ->label('Seed Entry')
+                    ->getStateUsing(function ($record) {
+                        if ($record->type === 'seed' && $record->seedEntry) {
+                            return $record->seedEntry->common_name . ' - ' . $record->seedEntry->cultivar_name;
+                        }
+                        return null;
+                    })
+                    ->searchable()
+                    ->sortable()
+                    ->visible(fn ($livewire): bool => $livewire->activeTab === null || $livewire->activeTab === 'seed')
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('lot_no')
                     ->label('Lot/Batch#')
