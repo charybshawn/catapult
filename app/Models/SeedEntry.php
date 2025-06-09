@@ -73,11 +73,13 @@ class SeedEntry extends Model
         'supplier_product_url', 
         'image_url', 
         'description', 
-        'tags'
+        'tags',
+        'is_active'
     ];
     
     protected $casts = [
         'tags' => 'array',
+        'is_active' => 'boolean',
     ];
     
     
@@ -95,5 +97,21 @@ class SeedEntry extends Model
     public function variations(): HasMany
     {
         return $this->hasMany(SeedVariation::class);
+    }
+    
+    /**
+     * Get the recipes that use this seed entry
+     */
+    public function recipes(): HasMany
+    {
+        return $this->hasMany(Recipe::class, 'seed_cultivar_id');
+    }
+    
+    /**
+     * Get the consumables linked to this seed entry
+     */
+    public function consumables(): HasMany
+    {
+        return $this->hasMany(Consumable::class);
     }
 }

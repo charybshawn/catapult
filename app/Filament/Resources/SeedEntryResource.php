@@ -252,6 +252,34 @@ class SeedEntryResource extends Resource
                     ->counts('variations')
                     ->label('Variations')
                     ->sortable(),
+                Tables\Columns\IconColumn::make('is_active')
+                    ->label('Active')
+                    ->boolean()
+                    ->sortable()
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('usage_status')
+                    ->label('Usage Status')
+                    ->getStateUsing(function (SeedEntry $record): string {
+                        $issues = self::checkSeedEntryDeletionSafety($record);
+                        if (empty($issues)) {
+                            return 'Available';
+                        }
+                        return 'In Use (' . count($issues) . ' dependencies)';
+                    })
+                    ->badge()
+                    ->color(fn (string $state): string => match (true) {
+                        str_contains($state, 'Available') => 'success',
+                        str_contains($state, 'In Use') => 'warning',
+                        default => 'gray',
+                    })
+                    ->tooltip(function (SeedEntry $record): string {
+                        $issues = self::checkSeedEntryDeletionSafety($record);
+                        if (empty($issues)) {
+                            return 'This seed entry is not being used and can be safely deleted.';
+                        }
+                        return 'This seed entry is in use: ' . implode('; ', $issues);
+                    })
+                    ->sortable(false),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -289,20 +317,142 @@ class SeedEntryResource extends Resource
                     ->searchable()
                     ->preload()
                     ->label('Supplier'),
+                Tables\Filters\SelectFilter::make('is_active')
+                    ->label('Status')
+                    ->options([
+                        '1' => 'Active',
+                        '0' => 'Inactive',
+                    ]),
+                Tables\Filters\SelectFilter::make('usage_status')
+                    ->label('Usage Status')
+                    ->options([
+                        'available' => 'Available for Deletion',
+                        'in_use' => 'In Use (Cannot Delete)',
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        if (isset($data['value'])) {
+                            if ($data['value'] === 'available') {
+                                // Find seed entries that are not in use
+                                $query->whereDoesntHave('recipes')
+                                    ->whereDoesntHave('consumables')
+                                    ->whereDoesntHave('variations.priceHistory');
+                            } elseif ($data['value'] === 'in_use') {
+                                // Find seed entries that are in use
+                                $query->where(function ($query) {
+                                    $query->whereHas('recipes')
+                                        ->orWhereHas('consumables')
+                                        ->orWhereHas('variations.priceHistory');
+                                });
+                            }
+                        }
+                        return $query;
+                    }),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\DeleteAction::make()
+                    ->requiresConfirmation()
+                    ->modalHeading('Delete Seed Entry')
+                    ->modalDescription('Are you sure you want to delete this seed entry?')
+                    ->before(function (Tables\Actions\DeleteAction $action, SeedEntry $record) {
+                        // Check for active relationships that would prevent deletion
+                        $issues = self::checkSeedEntryDeletionSafety($record);
+                        
+                        if (!empty($issues)) {
+                            // Cancel the action and show the issues
+                            $action->cancel();
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('Cannot Delete Seed Entry')
+                                ->body(
+                                    'This seed entry cannot be deleted because it is actively being used:' . 
+                                    '<br><br><strong>' . implode('</strong><br><strong>', $issues) . '</strong>' .
+                                    '<br><br>Please remove these dependencies first, or consider deactivating the seed entry instead.'
+                                )
+                                ->danger()
+                                ->persistent()
+                                ->send();
+                        }
+                    }),
+                Tables\Actions\Action::make('deactivate')
+                    ->label('Deactivate')
+                    ->icon('heroicon-o-eye-slash')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Deactivate Seed Entry')
+                    ->modalDescription('This will deactivate the seed entry, making it unavailable for new uses while preserving existing data.')
+                    ->action(function (SeedEntry $record) {
+                        $record->update(['is_active' => false]);
+                        
+                        \Filament\Notifications\Notification::make()
+                            ->title('Seed Entry Deactivated')
+                            ->body("'{$record->common_name} - {$record->cultivar_name}' has been deactivated.")
+                            ->success()
+                            ->send();
+                    })
+                    ->visible(fn (SeedEntry $record) => $record->is_active ?? true),
+                Tables\Actions\Action::make('activate')
+                    ->label('Activate')
+                    ->icon('heroicon-o-eye')
+                    ->color('success')
+                    ->action(function (SeedEntry $record) {
+                        $record->update(['is_active' => true]);
+                        
+                        \Filament\Notifications\Notification::make()
+                            ->title('Seed Entry Activated')
+                            ->body("'{$record->common_name} - {$record->cultivar_name}' has been activated.")
+                            ->success()
+                            ->send();
+                    })
+                    ->visible(fn (SeedEntry $record) => !($record->is_active ?? true)),
                 Tables\Actions\Action::make('visit_url')
                     ->label('Visit URL')
                     ->icon('heroicon-o-arrow-top-right-on-square')
                     ->url(fn (SeedEntry $record) => $record->supplier_product_url)
-                    ->openUrlInNewTab(),
+                    ->openUrlInNewTab()
+                    ->visible(fn (SeedEntry $record) => !empty($record->supplier_product_url)),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->requiresConfirmation()
+                        ->modalHeading('Delete Selected Seed Entries')
+                        ->modalDescription('Are you sure you want to delete the selected seed entries?')
+                        ->before(function (Tables\Actions\DeleteBulkAction $action, \Illuminate\Database\Eloquent\Collection $records) {
+                            // Check each record for deletion safety
+                            $protectedEntries = [];
+                            $allIssues = [];
+                            
+                            foreach ($records as $record) {
+                                $issues = self::checkSeedEntryDeletionSafety($record);
+                                if (!empty($issues)) {
+                                    $protectedEntries[] = $record->common_name . ' - ' . $record->cultivar_name;
+                                    $allIssues = array_merge($allIssues, $issues);
+                                }
+                            }
+                            
+                            if (!empty($protectedEntries)) {
+                                // Cancel the action and show the issues
+                                $action->cancel();
+                                
+                                $entryList = implode(', ', $protectedEntries);
+                                $issueList = array_unique($allIssues);
+                                
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Cannot Delete Some Seed Entries')
+                                    ->body(
+                                        'The following seed entries cannot be deleted because they are actively being used:' . 
+                                        '<br><br><strong>' . $entryList . '</strong>' .
+                                        '<br><br>Issues found:' .
+                                        '<br><strong>' . implode('</strong><br><strong>', $issueList) . '</strong>' .
+                                        '<br><br>Please remove these dependencies first, or consider deactivating the seed entries instead.'
+                                    )
+                                    ->danger()
+                                    ->persistent()
+                                    ->send();
+                            }
+                        }),
                 ]),
             ]);
     }
@@ -322,5 +472,49 @@ class SeedEntryResource extends Resource
             'view' => Pages\ViewSeedEntry::route('/{record}'),
             'edit' => Pages\EditSeedEntry::route('/{record}/edit'),
         ];
+    }
+    
+    /**
+     * Check if a seed entry can be safely deleted
+     * 
+     * @param SeedEntry $seedEntry
+     * @return array Array of issues preventing deletion (empty if safe to delete)
+     */
+    protected static function checkSeedEntryDeletionSafety(SeedEntry $seedEntry): array
+    {
+        $issues = [];
+        
+        // Check for recipes using this seed entry
+        $recipesCount = \App\Models\Recipe::where('seed_cultivar_id', $seedEntry->id)->count();
+        if ($recipesCount > 0) {
+            // Check if any of these recipes have active crops
+            $activeCropsCount = \App\Models\Crop::whereHas('recipe', function($query) use ($seedEntry) {
+                $query->where('seed_cultivar_id', $seedEntry->id);
+            })->where('current_stage', '!=', 'harvested')->count();
+            
+            if ($activeCropsCount > 0) {
+                $issues[] = "{$activeCropsCount} active crops are using recipes with this seed entry";
+            }
+            
+            $issues[] = "{$recipesCount} recipe(s) are using this seed entry";
+        }
+        
+        // Check for consumables linked to this seed entry
+        $consumablesCount = \App\Models\Consumable::where('seed_entry_id', $seedEntry->id)
+            ->where('is_active', true)
+            ->count();
+        if ($consumablesCount > 0) {
+            $issues[] = "{$consumablesCount} active consumable(s) are linked to this seed entry";
+        }
+        
+        // Check for seed variations with price history
+        $variationsWithHistory = $seedEntry->variations()
+            ->whereHas('priceHistory')
+            ->count();
+        if ($variationsWithHistory > 0) {
+            $issues[] = "{$variationsWithHistory} seed variation(s) have price history data";
+        }
+        
+        return $issues;
     }
 } 
