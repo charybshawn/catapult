@@ -10,7 +10,7 @@ use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 use App\Services\CropLifecycleService;
 use App\Services\CropTimeCalculator;
-use App\Models\SeedCultivar;
+use App\Models\SeedEntry;
 
 class Crop extends Model
 {
@@ -91,10 +91,10 @@ class Crop extends Model
     /**
      * Get the seed cultivar for this crop through the recipe.
      */
-    public function seedCultivar(): ?SeedCultivar
+    public function seedEntry(): ?SeedEntry
     {
         if ($this->recipe) {
-            return $this->recipe->seedCultivar;
+            return $this->recipe->seedEntry;
         }
         return null;
     }
@@ -120,16 +120,16 @@ class Crop extends Model
      */
     public function getVarietyNameAttribute(): ?string
     {
-        if ($this->recipe && $this->recipe->seedCultivar) {
-            return $this->recipe->seedCultivar->name;
+        if ($this->recipe && $this->recipe->seedEntry) {
+            return $this->recipe->seedEntry->cultivar_name;
         }
         
         // If the recipe is not eager loaded, fetch it directly
         if ($this->recipe_id) {
             $recipe = Recipe::find($this->recipe_id);
             
-            if ($recipe && $recipe->seedCultivar) {
-                return $recipe->seedCultivar->name;
+            if ($recipe && $recipe->seedEntry) {
+                return $recipe->seedEntry->cultivar_name;
             }
         }
         return null;

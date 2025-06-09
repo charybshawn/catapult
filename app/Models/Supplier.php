@@ -46,11 +46,11 @@ class Supplier extends Model
     }
     
     /**
-     * Get the seed cultivars from this supplier.
+     * Get the seed entries from this supplier.
      */
-    public function seedCultivars(): HasMany
+    public function seedEntries(): HasMany
     {
-        return $this->hasMany(SeedCultivar::class);
+        return $this->hasMany(SeedEntry::class);
     }
     
     /**

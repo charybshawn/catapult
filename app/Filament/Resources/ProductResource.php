@@ -208,7 +208,7 @@ class ProductResource extends BaseResource
                                 Forms\Components\Placeholder::make('variety_count')
                                     ->label('Number of Varieties')
                                     ->content(function ($record) {
-                                        return $record->productMix ? $record->productMix->seedCultivars->count() : '0';
+                                        return $record->productMix ? $record->productMix->seedEntries->count() : '0';
                                     }),
                             ]),
                         Forms\Components\Placeholder::make('varieties')
@@ -218,7 +218,7 @@ class ProductResource extends BaseResource
                                     return 'No mix assigned';
                                 }
                                 
-                                $varieties = $record->productMix->seedCultivars;
+                                $varieties = $record->productMix->seedEntries;
                                 if ($varieties->isEmpty()) {
                                     return 'No varieties in this mix';
                                 }
@@ -226,7 +226,7 @@ class ProductResource extends BaseResource
                                 $content = '<ul class="list-disc list-inside space-y-1">';
                                 foreach ($varieties as $variety) {
                                     $percentage = $variety->pivot->percentage ?? 0;
-                                    $content .= "<li><strong>{$variety->name}</strong> ({$percentage}%)</li>";
+                                    $content .= "<li><strong>{$variety->cultivar_name}</strong> ({$percentage}%)</li>";
                                 }
                                 $content .= '</ul>';
                                 
@@ -412,9 +412,9 @@ class ProductResource extends BaseResource
                             Forms\Components\Repeater::make('components')
                                 ->label('Mix Components')
                                 ->schema([
-                                    Forms\Components\Select::make('seed_cultivar_id')
+                                    Forms\Components\Select::make('seed_entry_id')
                                         ->label('Variety')
-                                        ->options(\App\Models\SeedCultivar::where('is_active', true)->pluck('name', 'id'))
+                                        ->options(\App\Models\SeedEntry::where('is_active', true)->pluck('cultivar_name', 'id'))
                                         ->searchable()
                                         ->required(),
                                     Forms\Components\TextInput::make('percentage')
@@ -446,8 +446,8 @@ class ProductResource extends BaseResource
                             // Attach the components
                             if (isset($data['components']) && is_array($data['components'])) {
                                 foreach ($data['components'] as $component) {
-                                    if (isset($component['seed_cultivar_id']) && isset($component['percentage'])) {
-                                        $mix->seedCultivars()->attach($component['seed_cultivar_id'], [
+                                    if (isset($component['seed_entry_id']) && isset($component['percentage'])) {
+                                        $mix->seedEntries()->attach($component['seed_entry_id'], [
                                             'percentage' => $component['percentage'],
                                         ]);
                                     }

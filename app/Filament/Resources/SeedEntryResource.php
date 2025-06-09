@@ -121,18 +121,10 @@ class SeedEntryResource extends Resource
                                     ->maxLength(255)
                                     ->label('Product URL'),
                             ]),
-                        Forms\Components\Grid::make(2)
-                            ->schema([
-                                Forms\Components\TextInput::make('image_url')
-                                    ->url()
-                                    ->maxLength(255)
-                                    ->label('Image URL'),
-                                Forms\Components\DateTimePicker::make('cataloged_at')
-                                    ->label('Cataloged Date')
-                                    ->default(now())
-                                    ->required()
-                                    ->helperText('When this seed was first cataloged or listed'),
-                            ]),
+                        Forms\Components\TextInput::make('image_url')
+                            ->url()
+                            ->maxLength(255)
+                            ->label('Image URL'),
                         Forms\Components\Textarea::make('description')
                             ->maxLength(65535)
                             ->rows(3)
@@ -145,6 +137,12 @@ class SeedEntryResource extends Resource
                     ->schema([
                         Repeater::make('variations')
                             ->relationship()
+                            ->itemLabel(fn (array $state): ?string => 
+                                isset($state['size_description']) && isset($state['current_price']) 
+                                    ? ($state['size_description'] . ' - $' . number_format($state['current_price'], 2))
+                                    : (isset($state['size_description']) ? $state['size_description'] : 'New Variation')
+                            )
+                            ->collapsed()
                             ->schema([
                                 Forms\Components\Grid::make(3)
                                     ->schema([
@@ -214,7 +212,6 @@ class SeedEntryResource extends Resource
                                             ->placeholder('grams'),
                                     ]),
                             ])
-                            ->collapsible()
                             ->cloneable()
                             ->reorderableWithButtons()
                             ->addActionLabel('Add Another Variation')
@@ -255,11 +252,6 @@ class SeedEntryResource extends Resource
                     ->counts('variations')
                     ->label('Variations')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('cataloged_at')
-                    ->label('Cataloged')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -297,25 +289,6 @@ class SeedEntryResource extends Resource
                     ->searchable()
                     ->preload()
                     ->label('Supplier'),
-                Tables\Filters\Filter::make('cataloged_at')
-                    ->form([
-                        Forms\Components\DatePicker::make('cataloged_from')
-                            ->label('Cataloged From'),
-                        Forms\Components\DatePicker::make('cataloged_until')
-                            ->label('Cataloged Until'),
-                    ])
-                    ->query(function (Builder $query, array $data): Builder {
-                        return $query
-                            ->when(
-                                $data['cataloged_from'],
-                                fn (Builder $query, $date): Builder => $query->whereDate('cataloged_at', '>=', $date),
-                            )
-                            ->when(
-                                $data['cataloged_until'],
-                                fn (Builder $query, $date): Builder => $query->whereDate('cataloged_at', '<=', $date),
-                            );
-                    })
-                    ->label('Cataloged Date Range'),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),

@@ -4,7 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ProductMixResource\Pages;
 use App\Models\ProductMix;
-use App\Models\SeedCultivar;
+use App\Models\SeedEntry;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -50,24 +50,21 @@ class ProductMixResource extends Resource
                             ->schema([
                                 Forms\Components\Select::make('seed_cultivar_id')
                                     ->label('Cultivar')
-                                    ->options(SeedCultivar::all()->pluck('name', 'id'))
+                                    ->options(SeedEntry::all()->pluck('cultivar_name', 'id'))
                                     ->createOptionForm([
-                                        Forms\Components\TextInput::make('name')
+                                        Forms\Components\TextInput::make('cultivar_name')
                                             ->required()
+                                            ->maxLength(255),
+                                        Forms\Components\TextInput::make('common_name')
                                             ->maxLength(255),
                                         Forms\Components\Textarea::make('description')
                                             ->maxLength(500),
-                                        Forms\Components\TextInput::make('crop_type')
-                                            ->maxLength(255),
-                                        Forms\Components\Toggle::make('is_active')
-                                            ->default(true),
                                     ])
                                     ->createOptionUsing(function (array $data) {
-                                        return SeedCultivar::create([
-                                            'name' => $data['name'],
+                                        return SeedEntry::create([
+                                            'cultivar_name' => $data['cultivar_name'],
+                                            'common_name' => $data['common_name'] ?? null,
                                             'description' => $data['description'] ?? null,
-                                            'crop_type' => $data['crop_type'] ?? null,
-                                            'is_active' => $data['is_active'] ?? true,
                                         ])->id;
                                     })
                                     ->preload()

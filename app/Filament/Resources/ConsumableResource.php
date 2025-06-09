@@ -99,45 +99,47 @@ class ConsumableResource extends BaseResource
                                 } else if ($get('type') === 'seed') {
                                     // Simple, explicit seed cultivar selection
                                     return [
-                                        Forms\Components\Select::make('seed_cultivar_id')
-                                            ->label('Seed Cultivar')
-                                            ->helperText('Required: Please select a seed cultivar')
+                                        Forms\Components\Select::make('seed_entry_id')
+                                            ->label('Seed Entry')
+                                            ->helperText('Required: Please select a seed entry')
                                             ->options(function () {
-                                                return \App\Models\SeedCultivar::where('is_active', true)
-                                                    ->orderBy('name', 'asc')
-                                                    ->pluck('name', 'id')
+                                                return \App\Models\SeedEntry::where('is_active', true)
+                                                    ->orderBy('cultivar_name', 'asc')
+                                                    ->pluck('cultivar_name', 'id')
                                                     ->toArray();
                                             })
                                             ->searchable()
                                             ->required()
                                             ->live() // Make the field live to update instantly
                                             ->createOptionForm([
-                                                Forms\Components\TextInput::make('name')
+                                                Forms\Components\TextInput::make('cultivar_name')
                                                     ->label('Cultivar Name')
                                                     ->required()
                                                     ->maxLength(255),
-                                                Forms\Components\TextInput::make('crop_type')
-                                                    ->label('Crop Type')
-                                                    ->default('microgreens')
+                                                Forms\Components\TextInput::make('common_name')
+                                                    ->label('Common Name')
                                                     ->maxLength(255),
+                                                Forms\Components\Textarea::make('description')
+                                                    ->label('Description')
+                                                    ->maxLength(1000),
                                                 Forms\Components\Toggle::make('is_active')
                                                     ->label('Active')
                                                     ->default(true),
                                             ])
                                             ->createOptionUsing(function (array $data) {
-                                                return \App\Models\SeedCultivar::create($data)->id;
+                                                return \App\Models\SeedEntry::create($data)->id;
                                             })
                                             ->createOptionAction(function (Forms\Components\Actions\Action $action) {
                                                 return $action
-                                                    ->modalHeading('Create Seed Cultivar')
-                                                    ->modalSubmitActionLabel('Create Seed Cultivar')
+                                                    ->modalHeading('Create Seed Entry')
+                                                    ->modalSubmitActionLabel('Create Seed Entry')
                                                     ->modalWidth('lg');
                                             })
                                             ->afterStateUpdated(function ($state, Forms\Set $set) {
                                                 if ($state) {
-                                                    $cultivar = \App\Models\SeedCultivar::find($state);
-                                                    if ($cultivar) {
-                                                        $set('name', $cultivar->name);
+                                                    $entry = \App\Models\SeedEntry::find($state);
+                                                    if ($entry) {
+                                                        $set('name', $entry->cultivar_name);
                                                     }
                                                 }
                                             }),

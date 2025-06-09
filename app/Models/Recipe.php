@@ -64,11 +64,19 @@ class Recipe extends Model
     }
     
     /**
-     * Get the seed cultivar for this recipe.
+     * Get the seed entry for this recipe.
+     */
+    public function seedEntry(): BelongsTo
+    {
+        return $this->belongsTo(SeedEntry::class, 'seed_cultivar_id');
+    }
+    
+    /**
+     * Legacy relationship for backward compatibility during transition
      */
     public function seedCultivar(): BelongsTo
     {
-        return $this->belongsTo(SeedCultivar::class);
+        return $this->seedEntry();
     }
     
     /**

@@ -26,7 +26,7 @@ class CropsRelationManager extends RelationManager
                 Forms\Components\Select::make('recipe_id')
                     ->label('Recipe')
                     ->relationship('recipe', 'name')
-                    ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->seedCultivar->name} ({$record->name})")
+                    ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->seedEntry->cultivar_name} ({$record->name})")
                     ->required()
                     ->searchable()
                     ->preload(),
@@ -67,7 +67,7 @@ class CropsRelationManager extends RelationManager
                 Tables\Columns\TextColumn::make('tray_number')
                     ->label('Tray')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('recipe.seedCultivar.name')
+                Tables\Columns\TextColumn::make('recipe.seedEntry.cultivar_name')
                     ->label('Variety')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('recipe.name')

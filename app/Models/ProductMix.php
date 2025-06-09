@@ -24,11 +24,11 @@ class ProductMix extends Model
     ];
     
     /**
-     * Get the seed cultivars that make up this mix.
+     * Get the seed entries that make up this mix.
      */
-    public function seedCultivars(): BelongsToMany
+    public function seedEntries(): BelongsToMany
     {
-        return $this->belongsToMany(SeedCultivar::class, 'product_mix_components')
+        return $this->belongsToMany(SeedEntry::class, 'product_mix_components', 'product_mix_id', 'seed_cultivar_id')
             ->withPivot('percentage')
             ->withTimestamps();
     }
@@ -51,7 +51,7 @@ class ProductMix extends Model
     {
         $cultivarTrays = [];
         
-        foreach ($this->seedCultivars as $cultivar) {
+        foreach ($this->seedEntries as $cultivar) {
             $percentage = $cultivar->pivot->percentage;
             $trays = ceil(($percentage / 100) * $totalTrays);
             $cultivarTrays[$cultivar->id] = $trays;

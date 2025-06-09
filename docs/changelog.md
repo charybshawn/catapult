@@ -5,6 +5,34 @@ This document tracks all significant changes to the Catapult v2 project.
 ## [Unreleased]
 
 ### Added
+- Migrated from SeedCultivar to SeedEntry model system (2025-06-08)
+  - Replaced deprecated SeedCultivar model references with SeedEntry throughout the codebase
+  - Updated Recipe model relationship from seedCultivar() to seedEntry()
+  - Modified Crop model to use seedEntry relationship and cultivar_name field
+  - Updated ProductMix model to use seedEntries() relationship instead of seedCultivars()
+  - Changed Supplier model relationship from seedCultivars() to seedEntries()
+  - Updated all Filament resources to use SeedEntry model and field structure
+  - Fixed internal server error caused by missing SeedCultivar model
+  - Ensured backward compatibility with existing seed_cultivar_id foreign keys
+- Removed redundant cataloged_at field from seed entries (2025-06-08)
+  - Dropped cataloged_at column as it duplicated the functionality of created_at
+  - Removed cataloged_at from SeedEntry model fillable fields and casts
+  - Updated SeedEntryResource form to remove cataloged_at field
+  - Removed cataloged_at column and filter from seed entries table
+  - Simplified CreateSeedEntry logic by removing cataloged_at handling
+  - Users can now use created_at for all date filtering and sorting needs
+- Added comprehensive currency conversion and unit standardization (2025-06-08)
+  - Created CurrencyConversionService with live exchange rates and fallback rates
+  - Added USD/CAD conversion methods with caching for performance
+  - Enhanced SeedVariation model with price conversion attributes (price_in_cad, price_in_usd)
+  - Added price per kg conversion methods for both CAD and USD
+  - Implemented Imperial to Metric weight conversion (lbs/oz to kg)
+  - Updated SeedReorderAdvisor with currency toggle (CAD/USD display)
+  - Enhanced SeedScrapeImporter with automatic weight parsing and conversion
+  - Added regex patterns to extract weights from size descriptions
+  - Updated SeedVariationResource to show both original and converted prices
+  - Enabled fair comparison between Canadian and US seed products
+  - All price comparisons now use consistent currency and weight units
 - Enhanced Seed Scrape Uploader interface (2025-05-27)
   - Added auto-refresh functionality to display real-time upload status
   - Implemented visual indicator for page refreshes

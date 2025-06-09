@@ -26,6 +26,7 @@ class SmartSeedRecommendationsWidget extends Widget
     public $selectedCommonName = null;
     public $selectedCultivars = [];
     public $selectedSeedSize = null;
+    public $displayCurrency = 'CAD';
     
     public function getViewData(): array
     {
@@ -36,6 +37,7 @@ class SmartSeedRecommendationsWidget extends Widget
             'selectedCommonName' => $this->selectedCommonName,
             'selectedCultivars' => $this->selectedCultivars,
             'selectedSeedSize' => $this->selectedSeedSize,
+            'displayCurrency' => $this->displayCurrency,
         ];
     }
     
@@ -120,8 +122,9 @@ class SmartSeedRecommendationsWidget extends Widget
     
     protected function enrichVariationData($variation, ?string $selectedSeedSize = null)
     {
-        // Calculate all metrics
-        $pricePerKg = $variation->current_price / $variation->weight_kg;
+        // Calculate metrics using converted prices for consistent comparison
+        $displayPrice = $this->displayCurrency === 'CAD' ? $variation->price_in_cad : $variation->price_in_usd;
+        $pricePerKg = $displayPrice / $variation->weight_kg;
         $pricePerGram = $pricePerKg / 1000;
         
         // Add calculated fields
@@ -129,8 +132,11 @@ class SmartSeedRecommendationsWidget extends Widget
         $variation->cultivar_name = $variation->seedEntry->cultivar_name;
         $variation->supplier_name = $variation->seedEntry->supplier->name ?? 'Unknown';
         $variation->supplier_product_url = $variation->seedEntry->supplier_product_url;
+        $variation->display_price = $displayPrice;
         $variation->price_per_kg = $pricePerKg;
         $variation->price_per_gram = $pricePerGram;
+        $variation->display_currency = $this->displayCurrency;
+        $variation->currency_symbol = $this->displayCurrency === 'CAD' ? 'CDN$' : 'USD$';
         
         // Store the selected seed size for scoring
         $variation->selected_seed_size = $selectedSeedSize;

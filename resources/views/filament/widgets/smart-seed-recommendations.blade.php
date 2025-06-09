@@ -39,8 +39,8 @@
                             
                             <div class="space-y-1 text-xs">
                                 <div>Weight: <span class="font-medium">{{ number_format($topChoice->weight_kg, 1) }}kg</span></div>
-                                <div>Total: <span class="font-medium">${{ number_format($topChoice->current_price, 0) }}</span></div>
-                                <div>Per KG: <span class="font-medium">${{ number_format($topChoice->price_per_kg, 0) }}</span></div>
+                                <div>Total: <span class="font-medium">{{ $topChoice->currency_symbol }}{{ number_format($topChoice->display_price, 0) }} {{ $topChoice->display_currency }}</span></div>
+                                <div>Per KG: <span class="font-medium">{{ $topChoice->currency_symbol }}{{ number_format($topChoice->price_per_kg, 0) }} {{ $topChoice->display_currency }}</span></div>
                             </div>
                             
                             @if($topChoice->supplier_product_url)
@@ -89,8 +89,8 @@
                             
                             <div class="space-y-1 text-xs">
                                 <div>Weight: <span class="font-medium">{{ number_format($bestValue->weight_kg, 1) }}kg</span></div>
-                                <div>Total: <span class="font-medium">${{ number_format($bestValue->current_price, 0) }}</span></div>
-                                <div>Per KG: <span class="font-medium">${{ number_format($bestValue->price_per_kg, 0) }}</span></div>
+                                <div>Total: <span class="font-medium">{{ $bestValue->currency_symbol }}{{ number_format($bestValue->display_price, 0) }} {{ $bestValue->display_currency }}</span></div>
+                                <div>Per KG: <span class="font-medium">{{ $bestValue->currency_symbol }}{{ number_format($bestValue->price_per_kg, 0) }} {{ $bestValue->display_currency }}</span></div>
                             </div>
                             
                             @if($bestValue->supplier_product_url)
@@ -134,8 +134,8 @@
                             
                             <div class="space-y-1 text-xs">
                                 <div>Weight: <span class="font-medium">{{ number_format($alternative->weight_kg, 1) }}kg</span></div>
-                                <div>Total: <span class="font-medium">${{ number_format($alternative->current_price, 0) }}</span></div>
-                                <div>Per KG: <span class="font-medium">${{ number_format($alternative->price_per_kg, 0) }}</span></div>
+                                <div>Total: <span class="font-medium">{{ $alternative->currency_symbol }}{{ number_format($alternative->display_price, 0) }} {{ $alternative->display_currency }}</span></div>
+                                <div>Per KG: <span class="font-medium">{{ $alternative->currency_symbol }}{{ number_format($alternative->price_per_kg, 0) }} {{ $alternative->display_currency }}</span></div>
                             </div>
                             
                             @if($alternative->supplier_product_url)

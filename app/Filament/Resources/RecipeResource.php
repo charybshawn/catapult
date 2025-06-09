@@ -41,33 +41,12 @@ class RecipeResource extends Resource
                         ->maxLength(255),
 
                     Forms\Components\Select::make('seed_cultivar_id')
-                        ->relationship('seedCultivar', 'name')
-                        ->searchable()
+                        ->label('Seed Entry')
+                        ->relationship('seedEntry', 'common_name')
+                        ->getOptionLabelFromRecordUsing(fn ($record) => $record->common_name . ' - ' . $record->cultivar_name . ' (' . $record->supplier->name . ')')
+                        ->searchable(['common_name', 'cultivar_name'])
                         ->preload()
-                        ->required()
-                        ->createOptionAction(function (Forms\Components\Actions\Action $action) {
-                            return $action
-                                ->modalHeading('Create Seed Cultivar')
-                                ->modalSubmitActionLabel('Create Seed Cultivar')
-                                ->modalWidth('lg')
-                                ->form([
-                                    Forms\Components\TextInput::make('name')
-                                        ->label('Cultivar Name')
-                                        ->required()
-                                        ->maxLength(255),
-                                    Forms\Components\Textarea::make('description')
-                                        ->label('Description')
-                                        ->maxLength(500)
-                                        ->rows(3),
-                                    Forms\Components\TextInput::make('crop_type')
-                                        ->label('Crop Type')
-                                        ->default('microgreens')
-                                        ->maxLength(255),
-                                    Forms\Components\Toggle::make('is_active')
-                                        ->label('Active')
-                                        ->default(true),
-                                ]);
-                        }),
+                        ->nullable(),
 
                     Forms\Components\Select::make('supplier_soil_id')
                         ->label('Soil Supplier')
@@ -196,8 +175,14 @@ class RecipeResource extends Resource
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: false),
                     
-                Tables\Columns\TextColumn::make('seedConsumable.name')
-                    ->label('Seed')
+                Tables\Columns\TextColumn::make('seedEntry.common_name')
+                    ->label('Seed Type')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(),
+                    
+                Tables\Columns\TextColumn::make('seedEntry.cultivar_name')
+                    ->label('Cultivar')
                     ->searchable()
                     ->sortable()
                     ->toggleable(),
@@ -278,8 +263,9 @@ class RecipeResource extends Resource
                     ]),
                     
                 Tables\Filters\SelectFilter::make('seed_cultivar_id')
-                    ->label('Seed Cultivar')
-                    ->relationship('seedCultivar', 'name')
+                    ->label('Seed Entry')
+                    ->relationship('seedEntry', 'common_name')
+                    ->getOptionLabelFromRecordUsing(fn ($record) => $record->common_name . ' - ' . $record->cultivar_name)
                     ->searchable()
                     ->preload(),
             ])

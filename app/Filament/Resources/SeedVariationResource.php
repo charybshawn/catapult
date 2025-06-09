@@ -106,14 +106,30 @@ class SeedVariationResource extends Resource
                     ->label('Weight (kg)')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('current_price')
-                    ->money('USD')
+                    ->label('Price (Original)')
+                    ->getStateUsing(fn (SeedVariation $record): string => 
+                        ($record->currency === 'CAD' ? 'CDN$' : 'USD$') . number_format($record->current_price, 2) . ' ' . $record->currency
+                    )
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('price_cad')
+                    ->label('Price (CAD)')
+                    ->getStateUsing(fn (SeedVariation $record): string => 
+                        'CDN$' . number_format($record->price_in_cad, 2) . ' CAD'
+                    )
                     ->sortable(),
                 Tables\Columns\TextColumn::make('price_per_kg')
-                    ->label('Price per kg')
-                    ->money('USD')
-                    ->getStateUsing(fn (SeedVariation $record): ?float => $record->price_per_kg)
+                    ->label('Price per kg (CAD)')
+                    ->getStateUsing(fn (SeedVariation $record): string => 
+                        $record->price_per_kg_in_cad ? 'CDN$' . number_format($record->price_per_kg_in_cad, 2) . ' CAD' : 'N/A'
+                    )
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw('current_price / NULLIF(weight_kg, 0) ' . $direction);
+                        return $query->orderByRaw('
+                            CASE 
+                                WHEN currency = "CAD" THEN current_price / NULLIF(weight_kg, 0)
+                                WHEN currency = "USD" THEN (current_price * 1.35) / NULLIF(weight_kg, 0)
+                                ELSE current_price / NULLIF(weight_kg, 0)
+                            END ' . $direction
+                        );
                     }),
                 Tables\Columns\IconColumn::make('is_in_stock')
                     ->boolean()

@@ -5,7 +5,7 @@ namespace App\Filament\Resources\ConsumableResource\Pages;
 use App\Filament\Resources\ConsumableResource;
 use App\Filament\Pages\BaseCreateRecord;
 use App\Models\Consumable;
-use App\Models\SeedCultivar;
+use App\Models\SeedEntry;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Hidden;
@@ -40,9 +40,9 @@ class CreateConsumable extends BaseCreateRecord
     {
         $rules = parent::getFormValidationRules();
         
-        // For seed types, ensure seed_cultivar_id is required
+        // For seed types, ensure seed_entry_id is required
         if (isset($this->data['type']) && $this->data['type'] === 'seed') {
-            $rules['seed_cultivar_id'] = ['required', 'exists:seed_cultivars,id'];
+            $rules['seed_entry_id'] = ['required', 'exists:seed_entries,id'];
         }
         
         return $rules;
@@ -70,48 +70,50 @@ class CreateConsumable extends BaseCreateRecord
                             ->default('seed'),
                             
                         // For seed type - using a more direct approach
-                        Select::make('seed_variety_id')
-                            ->label('Seed Variety')
-                            ->helperText('Select a seed variety or create a new one')
+                        Select::make('seed_entry_id')
+                            ->label('Seed Entry')
+                            ->helperText('Select a seed entry or create a new one')
                             ->options(function () {
-                                return SeedVariety::where('is_active', true)
-                                    ->orderBy('name')
-                                    ->pluck('name', 'id');
+                                return SeedEntry::where('is_active', true)
+                                    ->orderBy('cultivar_name')
+                                    ->pluck('cultivar_name', 'id');
                             })
                             ->required(fn (Get $get): bool => $get('type') === 'seed')
                             ->hidden(fn (Get $get): bool => $get('type') !== 'seed')
                             ->searchable()
                             ->preload()
                             ->dehydrated() // Always include in form data
-                            ->validationAttribute('Seed Variety')
+                            ->validationAttribute('Seed Entry')
                             ->createOptionForm([
-                                TextInput::make('name')
-                                    ->label('Variety Name')
+                                TextInput::make('cultivar_name')
+                                    ->label('Cultivar Name')
                                     ->required()
                                     ->maxLength(255)
                                     ->placeholder('e.g., Sunflower - Black Oil'),
-                                TextInput::make('crop_type')
-                                    ->label('Crop Type')
-                                    ->default('microgreens')
+                                TextInput::make('common_name')
+                                    ->label('Common Name')
                                     ->maxLength(255)
                                     ->placeholder('e.g., Sunflower'),
+                                Forms\Components\Textarea::make('description')
+                                    ->label('Description')
+                                    ->maxLength(1000),
                                 Toggle::make('is_active')
                                     ->label('Active')
                                     ->default(true),
                             ])
                             ->createOptionUsing(function (array $data) {
-                                $variety = SeedVariety::create($data);
-                                Log::info('Created new seed variety', [
-                                    'id' => $variety->id, 
-                                    'name' => $variety->name
+                                $entry = SeedEntry::create($data);
+                                Log::info('Created new seed entry', [
+                                    'id' => $entry->id, 
+                                    'cultivar_name' => $entry->cultivar_name
                                 ]);
-                                return $variety->id;
+                                return $entry->id;
                             })
                             ->afterStateUpdated(function ($state, Set $set) {
                                 if ($state && $state !== '') {
-                                    $variety = SeedVariety::find($state);
-                                    if ($variety) {
-                                        $set('name', $variety->name);
+                                    $entry = SeedEntry::find($state);
+                                    if ($entry) {
+                                        $set('name', $entry->cultivar_name);
                                     }
                                 }
                             }),
@@ -236,8 +238,8 @@ class CreateConsumable extends BaseCreateRecord
         // Log the initial data
         Log::info('Mutating form data before create:', [
             'type' => $data['type'] ?? 'not set',
-            'has_seed_variety_id' => isset($data['seed_variety_id']),
-            'seed_variety_id' => $data['seed_variety_id'] ?? 'not set',
+            'has_seed_entry_id' => isset($data['seed_entry_id']),
+            'seed_entry_id' => $data['seed_entry_id'] ?? 'not set',
             'has_name' => isset($data['name']),
             'name' => $data['name'] ?? 'not set',
             'has_total_quantity' => isset($data['total_quantity']),
@@ -246,41 +248,41 @@ class CreateConsumable extends BaseCreateRecord
         try {
             // For seed consumables, ensure we have a seed variety and properly set related fields
             if (isset($data['type']) && $data['type'] === 'seed') {
-                // If no seed variety, don't proceed - should have been caught by beforeValidate
-                if (empty($data['seed_variety_id'])) {
-                    Log::error('Seed variety ID missing in mutation');
+                // If no seed entry, don't proceed - should have been caught by beforeValidate
+                if (empty($data['seed_entry_id'])) {
+                    Log::error('Seed entry ID missing in mutation');
                     
                     Notification::make()
-                        ->title('Seed Variety Required')
-                        ->body('A seed variety must be selected for seed consumables.')
+                        ->title('Seed Entry Required')
+                        ->body('A seed entry must be selected for seed consumables.')
                         ->danger()
                         ->persistent()
                         ->send();
                     
-                    throw new \Exception('Seed variety is required for seed consumables');
+                    throw new \Exception('Seed entry is required for seed consumables');
                 }
                 
-                // Get the seed variety and ensure it exists
-                $seedVariety = SeedVariety::find($data['seed_variety_id']);
-                if (!$seedVariety) {
-                    Log::error('Seed variety not found with ID: ' . $data['seed_variety_id']);
+                // Get the seed entry and ensure it exists
+                $seedEntry = SeedEntry::find($data['seed_entry_id']);
+                if (!$seedEntry) {
+                    Log::error('Seed entry not found with ID: ' . $data['seed_entry_id']);
                     
                     Notification::make()
-                        ->title('Seed Variety Not Found')
-                        ->body('The selected seed variety could not be found.')
+                        ->title('Seed Entry Not Found')
+                        ->body('The selected seed entry could not be found.')
                         ->danger()
                         ->persistent()
                         ->send();
                     
-                    throw new \Exception('Selected seed variety not found');
+                    throw new \Exception('Selected seed entry not found');
                 }
                 
-                // Always set name from the seed variety for seed consumables
-                $data['name'] = $seedVariety->name;
-                Log::info('Setting consumable name from seed variety', [
-                    'seed_variety_id' => $data['seed_variety_id'],
+                // Always set name from the seed entry for seed consumables
+                $data['name'] = $seedEntry->cultivar_name;
+                Log::info('Setting consumable name from seed entry', [
+                    'seed_entry_id' => $data['seed_entry_id'],
                     'name' => $data['name'],
-                    'crop_type' => $seedVariety->crop_type ?? 'none'
+                    'description' => $seedEntry->description ?? 'none'
                 ]);
                 
                 // For seed type: set initial_stock from total_quantity and default values for other fields
@@ -319,7 +321,7 @@ class CreateConsumable extends BaseCreateRecord
             Log::info('Final form data after mutation:', [
                 'type' => $data['type'] ?? 'not set',
                 'name' => $data['name'] ?? 'not set',
-                'seed_variety_id' => $data['seed_variety_id'] ?? 'not set',
+                'seed_entry_id' => $data['seed_entry_id'] ?? 'not set',
                 'initial_stock' => $data['initial_stock'] ?? 'not set',
                 'total_quantity' => $data['total_quantity'] ?? 'not set'
             ]);
@@ -343,11 +345,11 @@ class CreateConsumable extends BaseCreateRecord
     protected function onCreate(array $data): mixed
     {
         try {
-            if ($data['type'] === 'seed' && empty($data['seed_variety_id'])) {
+            if ($data['type'] === 'seed' && empty($data['seed_entry_id'])) {
                 $this->sendCustomNotification(
                     Notification::make()
-                        ->title('Missing Seed Variety')
-                        ->body('You must select a seed variety when creating a seed consumable.')
+                        ->title('Missing Seed Entry')
+                        ->body('You must select a seed entry when creating a seed consumable.')
                         ->danger()
                 );
                 
@@ -378,67 +380,69 @@ class CreateConsumable extends BaseCreateRecord
             // Log the data received by the record creation handler
             Log::info('Creating consumable with data:', [
                 'type' => $data['type'] ?? 'not set',
-                'has_seed_variety_id' => array_key_exists('seed_variety_id', $data), 
-                'seed_variety_id' => $data['seed_variety_id'] ?? 'not set',
+                'has_seed_entry_id' => array_key_exists('seed_entry_id', $data), 
+                'seed_entry_id' => $data['seed_entry_id'] ?? 'not set',
                 'all_data' => $data
             ]);
             
             // Special handling for seed consumables
             if (isset($data['type']) && $data['type'] === 'seed') {
-                // Attempt to find or create a default seed variety if not provided
-                if (empty($data['seed_variety_id'])) {
-                    Log::warning('Seed variety ID missing in record creation, using fallback');
+                // Attempt to find or create a default seed entry if not provided
+                if (empty($data['seed_entry_id'])) {
+                    Log::warning('Seed entry ID missing in record creation, using fallback');
                     
-                    // Try to find an existing default variety or create one
-                    $defaultVariety = SeedVariety::firstOrCreate(
-                        ['name' => 'Default Seed Variety'],
+                    // Try to find an existing default entry or create one
+                    $defaultEntry = SeedEntry::firstOrCreate(
+                        ['cultivar_name' => 'Default Seed Entry'],
                         [
-                            'crop_type' => 'microgreens',
+                            'common_name' => 'Default',
+                            'description' => 'Default seed entry',
                             'is_active' => true
                         ]
                     );
                     
-                    $data['seed_variety_id'] = $defaultVariety->id;
-                    $data['name'] = $defaultVariety->name;
+                    $data['seed_entry_id'] = $defaultEntry->id;
+                    $data['name'] = $defaultEntry->cultivar_name;
                     
-                    Log::info('Using default seed variety as fallback', [
-                        'id' => $defaultVariety->id,
-                        'name' => $defaultVariety->name
+                    Log::info('Using default seed entry as fallback', [
+                        'id' => $defaultEntry->id,
+                        'cultivar_name' => $defaultEntry->cultivar_name
                     ]);
                     
                     $this->sendCustomNotification(
                         Notification::make()
-                            ->title('Default Seed Variety Used')
-                            ->body('A default seed variety was automatically assigned. You can update this later.')
+                            ->title('Default Seed Entry Used')
+                            ->body('A default seed entry was automatically assigned. You can update this later.')
                             ->warning()
                     );
                 } else {
-                    // Verify the seed variety exists
-                    $seedVariety = SeedVariety::find($data['seed_variety_id']);
-                    if (!$seedVariety) {
-                        Log::error('Seed variety not found with ID: ' . $data['seed_variety_id']);
+                    // Verify the seed entry exists
+                    $seedEntry = SeedEntry::find($data['seed_entry_id']);
+                    if (!$seedEntry) {
+                        Log::error('Seed entry not found with ID: ' . $data['seed_entry_id']);
                         
                         // Create a default one instead of failing
-                        $defaultVariety = SeedVariety::firstOrCreate(
-                            ['name' => 'Default Seed Variety'],
+                        $defaultEntry = SeedEntry::firstOrCreate(
+                            ['cultivar_name' => 'Default Seed Entry'],
                             [
-                                'crop_type' => 'microgreens',
+                                'common_name' => 'Default',
+                                'description' => 'Default seed entry',
                                 'is_active' => true
                             ]
                         );
                         
-                        $data['seed_variety_id'] = $defaultVariety->id;
-                        $data['name'] = $defaultVariety->name;
+                        $data['seed_entry_id'] = $defaultEntry->id;
+                        $data['name'] = $defaultEntry->cultivar_name;
                         
                         $this->sendCustomNotification(
                             Notification::make()
-                                ->title('Invalid Seed Variety')
-                                ->body('The selected seed variety could not be found. A default variety was used instead.')
+                                ->title('Invalid Seed Entry')
+                                ->body('The selected seed entry could not be found. A default entry was used instead.')
                                 ->warning()
                         );
                     } else {
-                        // Set the name from the seed variety
-                        $data['name'] = $seedVariety->name;
+                        // Set the name from the seed entry
+                        $data['name'] = $seedEntry->cultivar_name;
                     }
                 }
                 
@@ -449,7 +453,7 @@ class CreateConsumable extends BaseCreateRecord
                 
                 Log::info('Prepared seed consumable data for creation', [
                     'name' => $data['name'],
-                    'seed_variety_id' => $data['seed_variety_id'],
+                    'seed_entry_id' => $data['seed_entry_id'],
                     'initial_stock' => $data['initial_stock'],
                     'total_quantity' => $data['total_quantity'] ?? 0
                 ]);
@@ -472,7 +476,7 @@ class CreateConsumable extends BaseCreateRecord
                 'id' => $model->id,
                 'name' => $model->name,
                 'type' => $model->type,
-                'seed_variety_id' => $model->seed_variety_id,
+                'seed_entry_id' => $model->seed_entry_id,
             ]);
             
             // Send success notification if not already sent
@@ -513,8 +517,8 @@ class CreateConsumable extends BaseCreateRecord
         // Log the complete form data at this stage of processing
         Log::info('Consumable form data (' . $stage . '):', [
             'data' => $data,
-            'has_seed_variety_id' => isset($data['seed_variety_id']),
-            'seed_variety_id_value' => $data['seed_variety_id'] ?? 'not set',
+            'has_seed_entry_id' => isset($data['seed_entry_id']),
+            'seed_entry_id_value' => $data['seed_entry_id'] ?? 'not set',
             'data_type' => isset($data['type']) ? $data['type'] : 'type not set',
         ]);
     }

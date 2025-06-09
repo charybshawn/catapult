@@ -37,6 +37,7 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
     public $selectedCommonName = null;
     public $selectedCultivars = [];
     public $selectedSeedSize = null;
+    public $displayCurrency = 'CAD';
     
     public function mount(): void
     {
@@ -47,7 +48,7 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
     {
         return $form
             ->schema([
-                Grid::make(3)->schema([
+                Grid::make(4)->schema([
                     Select::make('selectedCommonName')
                         ->label('Filter by Common Name')
                         ->options(function () {
@@ -102,6 +103,17 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
                                 selectedSeedSize: $state
                             );
                         }),
+                    Select::make('displayCurrency')
+                        ->label('Display Currency')
+                        ->options([
+                            'CAD' => '🇨🇦 CAD (Canadian Dollar)',
+                            'USD' => '🇺🇸 USD (US Dollar)',
+                        ])
+                        ->default('CAD')
+                        ->live()
+                        ->afterStateUpdated(function ($state) {
+                            $this->resetTable();
+                        }),
                 ]),
             ]);
     }
@@ -133,15 +145,41 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
                     ->numeric()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('current_price')
-                    ->label('Price')
-                    ->money(fn ($record) => $record->currency)
+                    ->label(fn() => 'Price (' . $this->displayCurrency . ')')
+                    ->getStateUsing(fn (SeedVariation $record): string => 
+                        $this->displayCurrency === 'CAD' 
+                            ? $record->getFormattedPriceWithConversion('CAD')
+                            : $record->getFormattedPriceWithConversion('USD')
+                    )
                     ->sortable(),
                 Tables\Columns\TextColumn::make('price_per_kg')
-                    ->label('Price per kg')
-                    ->money(fn ($record) => $record->currency)
-                    ->getStateUsing(fn (SeedVariation $record): ?float => $record->price_per_kg)
+                    ->label(fn() => 'Price per kg (' . $this->displayCurrency . ')')
+                    ->getStateUsing(function (SeedVariation $record): string {
+                        $pricePerKg = $this->displayCurrency === 'CAD' 
+                            ? $record->price_per_kg_in_cad 
+                            : $record->price_per_kg_in_usd;
+                        
+                        $symbol = $this->displayCurrency === 'CAD' ? 'CDN$' : 'USD$';
+                        return $pricePerKg ? $symbol . number_format($pricePerKg, 2) : 'N/A';
+                    })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw('current_price / NULLIF(weight_kg, 0) ' . $direction);
+                        if ($this->displayCurrency === 'CAD') {
+                            return $query->orderByRaw('
+                                CASE 
+                                    WHEN currency = "CAD" THEN current_price / NULLIF(weight_kg, 0)
+                                    WHEN currency = "USD" THEN (current_price * 1.35) / NULLIF(weight_kg, 0)
+                                    ELSE current_price / NULLIF(weight_kg, 0)
+                                END ' . $direction
+                            );
+                        } else {
+                            return $query->orderByRaw('
+                                CASE 
+                                    WHEN currency = "USD" THEN current_price / NULLIF(weight_kg, 0)
+                                    WHEN currency = "CAD" THEN (current_price * 0.74) / NULLIF(weight_kg, 0)
+                                    ELSE current_price / NULLIF(weight_kg, 0)
+                                END ' . $direction
+                            );
+                        }
                     }),
                 Tables\Columns\IconColumn::make('is_in_stock')
                     ->label('In Stock')
@@ -157,6 +195,62 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
                     ->searchable()
                     ->preload()
                     ->label('Supplier'),
+                Tables\Filters\SelectFilter::make('size_description')
+                    ->options(function () {
+                        return SeedVariation::query()
+                            ->whereNotNull('size_description')
+                            ->distinct()
+                            ->orderBy('size_description')
+                            ->pluck('size_description', 'size_description')
+                            ->toArray();
+                    })
+                    ->searchable()
+                    ->label('Size'),
+                Tables\Filters\Filter::make('weight_range')
+                    ->form([
+                        \Filament\Forms\Components\Grid::make(2)
+                            ->schema([
+                                \Filament\Forms\Components\TextInput::make('weight_from')
+                                    ->label('Weight From (kg)')
+                                    ->numeric()
+                                    ->placeholder('Min weight'),
+                                \Filament\Forms\Components\TextInput::make('weight_to')
+                                    ->label('Weight To (kg)')
+                                    ->numeric()
+                                    ->placeholder('Max weight'),
+                            ])
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when(
+                                $data['weight_from'],
+                                fn (Builder $query, $weight): Builder => $query->where('weight_kg', '>=', $weight),
+                            )
+                            ->when(
+                                $data['weight_to'],
+                                fn (Builder $query, $weight): Builder => $query->where('weight_kg', '<=', $weight),
+                            );
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $indicators = [];
+                        if ($data['weight_from'] ?? null) {
+                            $indicators[] = 'Weight from: ' . $data['weight_from'] . ' kg';
+                        }
+                        if ($data['weight_to'] ?? null) {
+                            $indicators[] = 'Weight to: ' . $data['weight_to'] . ' kg';
+                        }
+                        return $indicators;
+                    }),
+                Tables\Filters\TernaryFilter::make('is_in_stock')
+                    ->label('Stock Status')
+                    ->placeholder('All items')
+                    ->trueLabel('In Stock')
+                    ->falseLabel('Out of Stock')
+                    ->queries(
+                        true: fn (Builder $query) => $query->where('is_in_stock', true),
+                        false: fn (Builder $query) => $query->where('is_in_stock', false),
+                        blank: fn (Builder $query) => $query,
+                    ),
             ])
             ->actions([
                 Tables\Actions\Action::make('view_details')
@@ -165,14 +259,14 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
                     ->icon('heroicon-o-eye'),
             ])
             ->defaultSort('price_per_kg', 'asc')
-            ->defaultGroup('seedEntry.common_name');
+            ->defaultGroup('seedEntry.common_name')
+            ->filtersFormColumns(2); // Display filters in 2 columns for better layout
     }
     
     protected function getTableQuery(): Builder
     {
         $query = SeedVariation::query()
-            ->with(['seedEntry.supplier', 'consumable'])
-            ->where('is_in_stock', true);
+            ->with(['seedEntry.supplier', 'consumable']);
             
         if ($this->selectedCommonName) {
             $query->whereHas('seedEntry', function ($q) {
@@ -189,11 +283,9 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
     
     protected function getCommonNameOptions(): array
     {
-        // Get unique common names from seed entries that have in-stock variations
+        // Get unique common names from seed entries that have variations
         $commonNames = SeedEntry::whereNotNull('common_name')
-            ->whereHas('variations', function($q) {
-                $q->where('is_in_stock', true);
-            })
+            ->whereHas('variations')
             ->distinct()
             ->orderBy('common_name')
             ->pluck('common_name', 'common_name')
@@ -212,9 +304,7 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
         // Get unique cultivars for the selected common name
         $cultivars = SeedEntry::where('common_name', $this->selectedCommonName)
             ->whereNotNull('cultivar_name')
-            ->whereHas('variations', function($q) {
-                $q->where('is_in_stock', true);
-            })
+            ->whereHas('variations')
             ->distinct()
             ->orderBy('cultivar_name')
             ->pluck('cultivar_name', 'cultivar_name')

@@ -212,27 +212,65 @@ class SeedScrapeImporter
         $cultivarName = $this->extractCultivarName($productData);
         $commonName = $this->extractCommonNameFromProductData($productData);
         
-        // Find or create the seed entry with cultivar and common name populated directly
-        $seedEntry = SeedEntry::firstOrCreate(
-            [
+        // First check for existing seed entry with same common_name, cultivar_name, and supplier
+        // This prevents creating duplicates that would later need to be merged
+        $seedEntry = SeedEntry::where('supplier_id', $supplier->id)
+            ->where('common_name', $commonName)
+            ->where('cultivar_name', $cultivarName)
+            ->first();
+            
+        if ($seedEntry) {
+            // Update existing entry with best available data (only if current data is empty/missing)
+            $updateData = [];
+            
+            if (empty($seedEntry->supplier_product_title) && !empty($productData['title'])) {
+                $updateData['supplier_product_title'] = $productData['title'];
+            }
+            
+            if (empty($seedEntry->supplier_product_url) && !empty($productData['url'])) {
+                $updateData['supplier_product_url'] = $productData['url'];
+            }
+            
+            if (empty($seedEntry->image_url) && !empty($productData['image_url'])) {
+                $updateData['image_url'] = $productData['image_url'];
+            }
+            
+            if (empty($seedEntry->description) && !empty($productData['description'])) {
+                $updateData['description'] = $productData['description'];
+            }
+            
+            // Merge tags
+            if (!empty($productData['tags'])) {
+                $existingTags = $seedEntry->tags ?? [];
+                $newTags = array_unique(array_merge($existingTags, $productData['tags']));
+                $updateData['tags'] = $newTags;
+            }
+            
+            if (!empty($updateData)) {
+                $seedEntry->update($updateData);
+                Log::info('Updated existing seed entry with additional data', [
+                    'entry_id' => $seedEntry->id,
+                    'updated_fields' => array_keys($updateData)
+                ]);
+            }
+        } else {
+            // Create new entry if no duplicate found
+            $seedEntry = SeedEntry::create([
                 'supplier_id' => $supplier->id,
-                'supplier_product_url' => $productData['url'] ?? '',
-            ],
-            [
                 'cultivar_name' => $cultivarName,
                 'common_name' => $commonName,
                 'supplier_product_title' => $productData['title'] ?? 'Unknown Product',
+                'supplier_product_url' => $productData['url'] ?? '',
                 'image_url' => $productData['image_url'] ?? null,
                 'description' => $productData['description'] ?? null,
                 'tags' => $productData['tags'] ?? [],
-            ]
-        );
-        
-        // Update existing entries if cultivar or common name fields are empty
-        if (empty($seedEntry->cultivar_name) || empty($seedEntry->common_name)) {
-            $seedEntry->update([
-                'cultivar_name' => $cultivarName,
+            ]);
+            
+            Log::info('Created new seed entry', [
+                'entry_id' => $seedEntry->id,
                 'common_name' => $commonName,
+                'cultivar_name' => $cultivarName,
+                'supplier' => $supplier->name
             ]);
         }
         
@@ -329,52 +367,79 @@ class SeedScrapeImporter
             $isInStock = $productIsInStock;
         }
         
-        // Find or create the seed variation
-        $variation = SeedVariation::firstOrCreate(
-            [
-                'seed_entry_id' => $seedEntry->id,
-                'size_description' => $sizeDescription,
-            ],
-            [
-                'sku' => $variantData['sku'] ?? null,
-                'weight_kg' => $variantData['weight_kg'] ?? null,
-                'original_weight_value' => $variantData['original_weight_value'] ?? null,
-                'original_weight_unit' => $variantData['original_weight_unit'] ?? null,
-                'current_price' => $price ?? 0,
-                'currency' => $currency,
-                'is_in_stock' => $isInStock,
-                'last_checked_at' => now(),
-            ]
-        );
+        // Extract and convert weight information
+        $weightData = $this->extractWeightData($variantData, $sizeDescription);
         
-        // Check if price or stock has changed
-        $priceChanged = false;
-        if ($price !== null) {
-            $priceChanged = abs($variation->current_price - $price) > 0.001;
-        }
-        
-        $stockChanged = $variation->is_in_stock !== $isInStock;
-        
-        // Update the variation with the latest data
-        if ($price !== null || $stockChanged) {
+        // Find existing variation with same entry and size description
+        $variation = SeedVariation::where('seed_entry_id', $seedEntry->id)
+            ->where('size_description', $sizeDescription)
+            ->first();
+            
+        if ($variation) {
+            // Update existing variation with better price if available
             $updateData = [];
+            $priceChanged = false;
             
             if ($price !== null) {
-                $updateData['current_price'] = $price;
+                // Keep the better (lower) price
+                if ($price < $variation->current_price || $variation->current_price == 0) {
+                    $updateData['current_price'] = $price;
+                    $priceChanged = true;
+                }
             }
             
+            // Always update currency and stock status to latest
             $updateData['currency'] = $currency;
             $updateData['is_in_stock'] = $isInStock;
             $updateData['last_checked_at'] = now();
             
+            // Update weight data if missing
+            if (empty($variation->weight_kg) && !empty($weightData['weight_kg'])) {
+                $updateData['weight_kg'] = $weightData['weight_kg'];
+                $updateData['original_weight_value'] = $weightData['original_weight_value'];
+                $updateData['original_weight_unit'] = $weightData['original_weight_unit'];
+            }
+            
+            // Update SKU if missing
+            if (empty($variation->sku) && !empty($variantData['sku'])) {
+                $updateData['sku'] = $variantData['sku'];
+            }
+            
+            $stockChanged = $variation->is_in_stock !== $isInStock;
+            
             $variation->update($updateData);
             
-            Log::debug('Updated variation', [
+            Log::debug('Updated existing variation', [
                 'variation_id' => $variation->id,
                 'price' => $price,
+                'current_price' => $variation->current_price,
                 'is_in_stock' => $isInStock,
                 'price_changed' => $priceChanged,
-                'stock_changed' => $stockChanged
+                'stock_changed' => $stockChanged,
+                'kept_better_price' => $priceChanged
+            ]);
+        } else {
+            // Create new variation
+            $variation = SeedVariation::create([
+                'seed_entry_id' => $seedEntry->id,
+                'size_description' => $sizeDescription,
+                'sku' => $variantData['sku'] ?? null,
+                'weight_kg' => $weightData['weight_kg'],
+                'original_weight_value' => $weightData['original_weight_value'],
+                'original_weight_unit' => $weightData['original_weight_unit'],
+                'current_price' => $price ?? 0,
+                'currency' => $currency,
+                'is_in_stock' => $isInStock,
+                'last_checked_at' => now(),
+            ]);
+            
+            $priceChanged = true; // New variation counts as price change
+            $stockChanged = true; // New variation counts as stock change
+            
+            Log::debug('Created new variation', [
+                'variation_id' => $variation->id,
+                'price' => $price,
+                'is_in_stock' => $isInStock
             ]);
         }
         
@@ -672,5 +737,111 @@ class SeedScrapeImporter
         }
         
         return 'Unknown';
+    }
+    
+    /**
+     * Extract and convert weight data from variant information
+     *
+     * @param array $variantData
+     * @param string $sizeDescription
+     * @return array
+     */
+    protected function extractWeightData(array $variantData, string $sizeDescription): array
+    {
+        $weightKg = null;
+        $originalWeightValue = null;
+        $originalWeightUnit = null;
+        
+        // Check if weight_kg is already provided
+        if (isset($variantData['weight_kg']) && is_numeric($variantData['weight_kg'])) {
+            $weightKg = (float) $variantData['weight_kg'];
+            $originalWeightValue = $variantData['original_weight_value'] ?? $weightKg;
+            $originalWeightUnit = $variantData['original_weight_unit'] ?? 'kg';
+        } else {
+            // Try to extract weight from size description
+            $weightInfo = $this->parseWeightFromDescription($sizeDescription);
+            
+            if ($weightInfo) {
+                $originalWeightValue = $weightInfo['value'];
+                $originalWeightUnit = $weightInfo['unit'];
+                $weightKg = $this->convertToKg($weightInfo['value'], $weightInfo['unit']);
+            } else {
+                // Check original weight fields
+                if (isset($variantData['original_weight_value']) && isset($variantData['original_weight_unit'])) {
+                    $originalWeightValue = (float) $variantData['original_weight_value'];
+                    $originalWeightUnit = $variantData['original_weight_unit'];
+                    $weightKg = $this->convertToKg($originalWeightValue, $originalWeightUnit);
+                }
+            }
+        }
+        
+        return [
+            'weight_kg' => $weightKg,
+            'original_weight_value' => $originalWeightValue,
+            'original_weight_unit' => $originalWeightUnit,
+        ];
+    }
+    
+    /**
+     * Parse weight information from size description
+     *
+     * @param string $description
+     * @return array|null
+     */
+    protected function parseWeightFromDescription(string $description): ?array
+    {
+        // Common weight patterns
+        $patterns = [
+            '/(\d+(?:\.\d+)?)\s*(kg|kilogram|kilograms)/i' => 'kg',
+            '/(\d+(?:\.\d+)?)\s*(g|gram|grams)/i' => 'g',
+            '/(\d+(?:\.\d+)?)\s*(lb|lbs|pound|pounds)/i' => 'lbs',
+            '/(\d+(?:\.\d+)?)\s*(oz|ounce|ounces)/i' => 'oz',
+        ];
+        
+        foreach ($patterns as $pattern => $unit) {
+            if (preg_match($pattern, $description, $matches)) {
+                return [
+                    'value' => (float) $matches[1],
+                    'unit' => $unit,
+                ];
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Convert weight to kilograms
+     *
+     * @param float $value
+     * @param string $unit
+     * @return float
+     */
+    protected function convertToKg(float $value, string $unit): float
+    {
+        $unit = strtolower($unit);
+        
+        switch ($unit) {
+            case 'kg':
+            case 'kilogram':
+            case 'kilograms':
+                return $value;
+            case 'g':
+            case 'gram':
+            case 'grams':
+                return $value / 1000;
+            case 'lb':
+            case 'lbs':
+            case 'pound':
+            case 'pounds':
+                return $value * 0.453592;
+            case 'oz':
+            case 'ounce':
+            case 'ounces':
+                return $value * 0.0283495;
+            default:
+                Log::warning("Unknown weight unit: {$unit}, treating as kg");
+                return $value;
+        }
     }
 } 
