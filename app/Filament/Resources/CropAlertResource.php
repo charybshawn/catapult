@@ -146,7 +146,10 @@ class CropAlertResource extends Resource
                         $crop = Crop::find($cropId);
                         if (!$crop || !$crop->recipe) return 'Unknown';
                         
-                        return $crop->recipe->seedCultivar->name ?? 'Unknown';
+                        $seedEntry = $crop->recipe->seedEntry;
+                        if (!$seedEntry) return 'Unknown';
+                        
+                        return $seedEntry->common_name . ' - ' . $seedEntry->cultivar_name;
                     })
                     ->toggleable(),
                     
@@ -248,8 +251,10 @@ class CropAlertResource extends Resource
                                 'Harvested At' => $crop->harvested_at ? $crop->harvested_at->format('Y-m-d H:i:s') : 'N/A',
                                 'Recipe ID' => $crop->recipe_id,
                                 'Recipe Name' => $crop->recipe?->name ?? 'N/A',
-                                'Seed Variety ID' => $crop->recipe?->seed_variety_id ?? 'N/A',
-                                'Seed Cultivar Name' => $crop->recipe?->seedCultivar?->name ?? 'N/A',
+                                'Seed Entry ID' => $crop->recipe?->seed_cultivar_id ?? 'N/A',
+                                'Seed Cultivar Name' => $crop->recipe?->seedEntry 
+                                    ? $crop->recipe->seedEntry->common_name . ' - ' . $crop->recipe->seedEntry->cultivar_name 
+                                    : 'N/A',
                                 'Germination Days' => $crop->recipe?->germination_days ?? 'N/A',
                                 'Blackout Days' => $crop->recipe?->blackout_days ?? 'N/A',
                                 'Light Days' => $crop->recipe?->light_days ?? 'N/A',
