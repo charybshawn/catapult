@@ -65,7 +65,6 @@ class SeedEntry extends Model
     }
 
     protected $fillable = [
-        'seed_cultivar_id', // Optional during transition
         'cultivar_name',
         'common_name',
         'supplier_id', 

@@ -28,7 +28,7 @@ class ProductMix extends Model
      */
     public function seedEntries(): BelongsToMany
     {
-        return $this->belongsToMany(SeedEntry::class, 'product_mix_components', 'product_mix_id', 'seed_cultivar_id')
+        return $this->belongsToMany(SeedEntry::class, 'product_mix_components', 'product_mix_id', 'seed_entry_id')
             ->withPivot('percentage')
             ->withTimestamps();
     }

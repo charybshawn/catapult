@@ -3,7 +3,6 @@
 namespace App\Filament\Widgets;
 
 use App\Models\SeedVariation;
-use App\Models\SeedCultivar;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
@@ -18,7 +17,7 @@ class SeedReorderAdvisorWidget extends BaseWidget
     protected function getTableQuery(): Builder
     {
         return SeedVariation::query()
-            ->with(['seedEntry.seedCultivar', 'seedEntry.supplier', 'consumable'])
+            ->with(['seedEntry', 'seedEntry.supplier', 'consumable'])
             ->whereHas('consumable', function (Builder $query) {
                 $query->whereRaw('quantity <= restock_level');
             })
@@ -34,20 +33,12 @@ class SeedReorderAdvisorWidget extends BaseWidget
     protected function getTableColumns(): array
     {
         return [
-            Tables\Columns\TextColumn::make('common_name')
+            Tables\Columns\TextColumn::make('seedEntry.common_name')
                 ->label('Common Name')
-                ->getStateUsing(function ($record) {
-                    return $this->extractCommonName($record->seedEntry->seedCultivar->name);
-                })
-                ->searchable(query: function ($query, $search) {
-                    return $query->whereHas('seedEntry.seedCultivar', function ($q) use ($search) {
-                        $q->where('name', 'like', "%{$search}%");
-                    });
-                })
+                ->searchable()
                 ->sortable(),
-            Tables\Columns\TextColumn::make('seedEntry.seedCultivar.name')
-                ->label('Full Cultivar')
-                ->toggleable(isToggledHiddenByDefault: true)
+            Tables\Columns\TextColumn::make('seedEntry.cultivar_name')
+                ->label('Cultivar')
                 ->searchable()
                 ->sortable(),
             Tables\Columns\TextColumn::make('seedEntry.supplier.name')
@@ -104,14 +95,8 @@ class SeedReorderAdvisorWidget extends BaseWidget
                 ->query(function (Builder $query, array $data): Builder {
                     return $query->when(
                         $data['value'],
-                        fn (Builder $query, $value): Builder => $query->whereHas('seedEntry.seedCultivar', function ($q) use ($value) {
-                            // Filter by common name using multiple patterns
-                            $q->where(function ($subQuery) use ($value) {
-                                $subQuery->where('name', 'LIKE', $value . ' - %')  // "Basil - Genovese"
-                                        ->orWhere('name', 'LIKE', $value . ',%')    // "Basil, Sweet"
-                                        ->orWhere('name', '=', $value)              // Exact match "Basil"
-                                        ->orWhere('name', 'LIKE', $value . ' %');   // "Basil Sweet" (space)
-                            });
+                        fn (Builder $query, $value): Builder => $query->whereHas('seedEntry', function ($q) use ($value) {
+                            $q->where('common_name', $value);
                         })
                     );
                 })
@@ -147,37 +132,4 @@ class SeedReorderAdvisorWidget extends BaseWidget
         return $commonNames;
     }
     
-    /**
-     * Extract common name from full cultivar name
-     * 
-     * @param string $cultivarName
-     * @return string
-     */
-    protected function extractCommonName(string $cultivarName): string
-    {
-        if (empty($cultivarName) || $cultivarName === 'Unknown Cultivar') {
-            return 'Unknown';
-        }
-        
-        // Remove common suffixes and prefixes
-        $cleaned = trim($cultivarName);
-        
-        // Remove organic/non-gmo/heirloom suffixes
-        $cleaned = preg_replace('/\s*-\s*(Organic|Non-GMO|Heirloom|Certified).*$/i', '', $cleaned);
-        
-        // If there's a dash, take everything before the first dash as the common name
-        if (strpos($cleaned, ' - ') !== false) {
-            $parts = explode(' - ', $cleaned, 2);
-            return trim($parts[0]);
-        }
-        
-        // If there's a comma, take everything before the first comma
-        if (strpos($cleaned, ',') !== false) {
-            $parts = explode(',', $cleaned, 2);
-            return trim($parts[0]);
-        }
-        
-        // Return the whole name if no separators found
-        return $cleaned;
-    }
 } 

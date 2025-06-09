@@ -87,8 +87,8 @@ class CropTaskService
                 // Get variety name (reuse logic from createStageTransitionTask)
                 $varietyName = 'Unknown';
                 if ($crop->recipe) {
-                    if ($crop->recipe->seedCultivar) {
-                        $varietyName = $crop->recipe->seedCultivar->name;
+                    if ($crop->recipe->seedEntry) {
+                        $varietyName = $crop->recipe->seedEntry->common_name . ' - ' . $crop->recipe->seedEntry->cultivar_name;
                     } else if ($crop->recipe->name) {
                         $varietyName = $crop->recipe->name;
                     }
@@ -128,8 +128,8 @@ class CropTaskService
         // Get variety name with proper fallbacks
         $varietyName = 'Unknown';
         if ($crop->recipe) {
-            if ($crop->recipe->seedCultivar) {
-                $varietyName = $crop->recipe->seedCultivar->name;
+            if ($crop->recipe->seedEntry) {
+                $varietyName = $crop->recipe->seedEntry->common_name . ' - ' . $crop->recipe->seedEntry->cultivar_name;
             } else if ($crop->recipe->name) {
                 $varietyName = $crop->recipe->name;
             }
@@ -409,7 +409,7 @@ class CropTaskService
         $data = [
             'crop_id' => $crop->id,
             'tray_number' => $crop->tray_number,
-            'variety' => $crop->recipe->seedCultivar->name ?? 'Unknown',
+            'variety' => ($crop->recipe->seedEntry ? $crop->recipe->seedEntry->common_name . ' - ' . $crop->recipe->seedEntry->cultivar_name : 'Unknown'),
             'stage' => ucfirst($targetStage),
             'days_in_previous_stage' => $crop->daysInCurrentStage(),
         ];

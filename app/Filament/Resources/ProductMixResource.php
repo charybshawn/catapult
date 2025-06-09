@@ -48,7 +48,7 @@ class ProductMixResource extends Resource
                         Forms\Components\Repeater::make('components')
                             ->label('Varieties')
                             ->schema([
-                                Forms\Components\Select::make('seed_cultivar_id')
+                                Forms\Components\Select::make('seed_entry_id')
                                     ->label('Cultivar')
                                     ->options(SeedEntry::all()->pluck('cultivar_name', 'id'))
                                     ->createOptionForm([

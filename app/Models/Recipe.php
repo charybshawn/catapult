@@ -21,7 +21,7 @@ class Recipe extends Model
      */
     protected $fillable = [
         'name',
-        'seed_cultivar_id', // Keep for backward compatibility during transition
+        'seed_entry_id',
         'common_name',
         'cultivar_name',
         'seed_consumable_id',
@@ -68,16 +68,9 @@ class Recipe extends Model
      */
     public function seedEntry(): BelongsTo
     {
-        return $this->belongsTo(SeedEntry::class, 'seed_cultivar_id');
+        return $this->belongsTo(SeedEntry::class, 'seed_entry_id');
     }
     
-    /**
-     * Legacy relationship for backward compatibility during transition
-     */
-    public function seedCultivar(): BelongsTo
-    {
-        return $this->seedEntry();
-    }
     
     /**
      * Get the soil consumable for this recipe.
@@ -149,7 +142,7 @@ class Recipe extends Model
         return LogOptions::defaults()
             ->logOnly([
                 'name', 
-                'seed_cultivar_id', 
+                'seed_entry_id', 
                 'supplier_soil_id', 
                 'germination_days', 
                 'blackout_days', 

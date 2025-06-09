@@ -303,7 +303,7 @@ class CropResource extends BaseResource
                             $recipeData = [
                                 'ID' => $recipe->id,
                                 'Name' => $recipe->name,
-                                'Seed Cultivar' => $recipe->seedCultivar ? $recipe->seedCultivar->name : 'N/A',
+                                'Seed Cultivar' => $recipe->seedEntry ? $recipe->seedEntry->common_name . ' - ' . $recipe->seedEntry->cultivar_name : 'N/A',
                                 'Germination Days' => $recipe->germination_days,
                                 'Blackout Days' => $recipe->blackout_days,
                                 'Light Days' => $recipe->light_days,

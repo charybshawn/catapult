@@ -40,7 +40,7 @@ class RecipeResource extends Resource
                         ->required()
                         ->maxLength(255),
 
-                    Forms\Components\Select::make('seed_cultivar_id')
+                    Forms\Components\Select::make('seed_entry_id')
                         ->label('Seed Entry')
                         ->relationship('seedEntry', 'common_name')
                         ->getOptionLabelFromRecordUsing(fn ($record) => $record->common_name . ' - ' . $record->cultivar_name . ' (' . $record->supplier->name . ')')
@@ -262,7 +262,7 @@ class RecipeResource extends Resource
                         '0' => 'Inactive',
                     ]),
                     
-                Tables\Filters\SelectFilter::make('seed_cultivar_id')
+                Tables\Filters\SelectFilter::make('seed_entry_id')
                     ->label('Seed Entry')
                     ->relationship('seedEntry', 'common_name')
                     ->getOptionLabelFromRecordUsing(fn ($record) => $record->common_name . ' - ' . $record->cultivar_name)
@@ -661,7 +661,7 @@ class RecipeResource extends Resource
         return LogOptions::defaults()
             ->logOnly([
                 'name', 
-                'seed_variety_id', 
+                'seed_entry_id', 
                 'supplier_soil_id', 
                 'germination_days', 
                 'blackout_days', 
