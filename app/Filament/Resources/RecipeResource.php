@@ -495,112 +495,82 @@ class RecipeResource extends Resource
                 Tables\Actions\DeleteAction::make()
                     ->tooltip('Delete recipe')
                     ->requiresConfirmation()
+                    ->modalHeading('Delete Recipe')
                     ->modalDescription('Are you sure you want to delete this recipe?')
-                    ->modalSubmitActionLabel('Delete')
                     ->before(function (Tables\Actions\DeleteAction $action, Recipe $record) {
                         // Check if recipe has ACTIVE crops specifically
                         $activeCropsCount = $record->crops()->where('current_stage', '!=', 'harvested')->count();
                         $totalCropsCount = $record->crops()->count();
                         
                         if ($activeCropsCount > 0) {
-                            // There are ACTIVE crops for this recipe, let's confirm with the user
-                            $action->requiresConfirmation(false); // Disable the default confirmation
+                            // PREVENT deletion when there are active crops
+                            $action->cancel();
                             
-                            $action->modalContent(view(
-                                'filament.resources.recipe-resource.pages.recipe-crop-delete-warning',
-                                [
-                                    'activeCropsCount' => $activeCropsCount,
-                                    'totalCropsCount' => $totalCropsCount,
-                                    'recipeName' => $record->name,
-                                    'hasActiveCrops' => true,
-                                ]
-                            ));
-                            
-                            $action->modalSubmitAction(
-                                fn (Tables\Actions\DeleteAction $action) => $action
-                                    ->label('Delete recipe and all ' . $totalCropsCount . ' crops')
-                                    ->color('danger')
-                            );
-                            
-                            // Override the delete action
-                            $action->action(function () use ($record) {
-                                try {
-                                    Log::info('Starting deletion of recipe ID: ' . $record->id);
-                                    
-                                    // Delete the recipe - related crops will be cascaded automatically
-                                    $record->delete();
-                                    
-                                    Log::info('Successfully deleted recipe ID: ' . $record->id);
-                                    
-                                    Notification::make()
-                                        ->success()
-                                        ->title('Recipe and associated crops deleted')
-                                        ->send();
-                                } catch (\Exception $e) {
-                                    Log::error('Error deleting recipe: ' . $e->getMessage());
-                                    
-                                    Notification::make()
-                                        ->danger()
-                                        ->title('Error deleting recipe')
-                                        ->body('An error occurred while deleting: ' . $e->getMessage())
-                                        ->send();
-                                }
-                            });
+                            \Filament\Notifications\Notification::make()
+                                ->title('Cannot Delete Recipe')
+                                ->body(
+                                    "This recipe cannot be deleted because it has {$activeCropsCount} active crops in progress." .
+                                    '<br><br>Please harvest or remove the active crops first, or consider deactivating the recipe instead.'
+                                )
+                                ->danger()
+                                ->persistent()
+                                ->send();
                         } else if ($totalCropsCount > 0) {
-                            // There are only inactive/completed crops for this recipe
-                            $action->requiresConfirmation(false); // Disable the default confirmation
+                            // PREVENT deletion when there are completed crops (to preserve history)
+                            $action->cancel();
                             
-                            $action->modalContent(view(
-                                'filament.resources.recipe-resource.pages.recipe-crop-delete-warning',
-                                [
-                                    'activeCropsCount' => 0,
-                                    'totalCropsCount' => $totalCropsCount,
-                                    'recipeName' => $record->name,
-                                    'hasActiveCrops' => false,
-                                ]
-                            ));
-                            
-                            $action->modalSubmitAction(
-                                fn (Tables\Actions\DeleteAction $action) => $action
-                                    ->label('Delete recipe and associated crops')
-                                    ->color('danger')
-                            );
-                            
-                            // Use the same simplified action
-                            $action->action(function () use ($record) {
-                                try {
-                                    Log::info('Starting deletion of recipe ID: ' . $record->id);
-                                    
-                                    // Delete the recipe - related crops will be cascaded automatically
-                                    $record->delete();
-                                    
-                                    Log::info('Successfully deleted recipe ID: ' . $record->id);
-                                    
-                                    Notification::make()
-                                        ->success()
-                                        ->title('Recipe and associated crops deleted')
-                                        ->send();
-                                } catch (\Exception $e) {
-                                    Log::error('Error deleting recipe: ' . $e->getMessage());
-                                    
-                                    Notification::make()
-                                        ->danger()
-                                        ->title('Error deleting recipe')
-                                        ->body('An error occurred while deleting: ' . $e->getMessage())
-                                        ->send();
-                                }
-                            });
+                            \Filament\Notifications\Notification::make()
+                                ->title('Cannot Delete Recipe')
+                                ->body(
+                                    "This recipe cannot be deleted because it has {$totalCropsCount} completed crops in the system." .
+                                    '<br><br>Deleting this recipe would remove valuable historical crop data. Consider deactivating the recipe instead.'
+                                )
+                                ->danger()
+                                ->persistent()
+                                ->send();
                         }
+                        // If no crops exist, allow normal deletion to proceed
                     }),
+                Tables\Actions\Action::make('deactivate')
+                    ->label('Deactivate')
+                    ->icon('heroicon-o-eye-slash')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Deactivate Recipe')
+                    ->modalDescription('This will deactivate the recipe, making it unavailable for new crops while preserving existing data.')
+                    ->action(function (Recipe $record) {
+                        $record->update(['is_active' => false]);
+                        
+                        \Filament\Notifications\Notification::make()
+                            ->title('Recipe Deactivated')
+                            ->body("'{$record->name}' has been deactivated.")
+                            ->success()
+                            ->send();
+                    })
+                    ->visible(fn (Recipe $record) => $record->is_active ?? true),
+                Tables\Actions\Action::make('activate')
+                    ->label('Activate')
+                    ->icon('heroicon-o-eye')
+                    ->color('success')
+                    ->action(function (Recipe $record) {
+                        $record->update(['is_active' => true]);
+                        
+                        \Filament\Notifications\Notification::make()
+                            ->title('Recipe Activated')
+                            ->body("'{$record->name}' has been activated.")
+                            ->success()
+                            ->send();
+                    })
+                    ->visible(fn (Recipe $record) => !($record->is_active ?? true)),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make()
                         ->requiresConfirmation()
-                        ->modalDescription('Are you sure you want to delete these recipes?')
-                        ->modalSubmitActionLabel('Delete')
+                        ->modalHeading('Delete Selected Recipes')
+                        ->modalDescription('Are you sure you want to delete the selected recipes?')
                         ->before(function (Tables\Actions\DeleteBulkAction $action, Collection $records) {
-                            // Check if any of the selected recipes have ACTIVE crops
+                            // Check if any of the selected recipes have crops
                             $recipesWithActiveCrops = $records->filter(function ($record) {
                                 return $record->crops()->where('current_stage', '!=', 'harvested')->count() > 0;
                             });
@@ -610,104 +580,45 @@ class RecipeResource extends Resource
                             });
                             
                             if ($recipesWithActiveCrops->isNotEmpty()) {
-                                // There are recipes with ACTIVE crops, let's confirm with the user
-                                $recipesCount = $recipesWithActiveCrops->count();
-                                $totalRecipesWithCrops = $recipesWithCrops->count();
-                                $activecropsCount = $recipesWithActiveCrops->map(fn ($recipe) => $recipe->crops()->where('current_stage', '!=', 'harvested')->count())->sum();
-                                $totalCropsCount = $recipesWithCrops->map(fn ($recipe) => $recipe->crops()->count())->sum();
+                                // PREVENT bulk deletion when there are active crops
+                                $action->cancel();
                                 
-                                $action->requiresConfirmation(false); // Disable the default confirmation
+                                $activeCropsCount = $recipesWithActiveCrops->map(fn ($recipe) => $recipe->crops()->where('current_stage', '!=', 'harvested')->count())->sum();
+                                $recipeNames = $recipesWithActiveCrops->pluck('name')->take(3)->implode(', ');
+                                $moreCount = max(0, $recipesWithActiveCrops->count() - 3);
                                 
-                                $action->modalContent(view(
-                                    'filament.resources.recipe-resource.pages.recipe-crops-bulk-delete-warning',
-                                    [
-                                        'recipesCount' => $recipesCount,
-                                        'totalRecipesWithCrops' => $totalRecipesWithCrops,
-                                        'activeCropsCount' => $activecropsCount,
-                                        'totalCropsCount' => $totalCropsCount,
-                                        'hasActiveCrops' => true,
-                                    ]
-                                ));
-                                
-                                $action->modalSubmitAction(
-                                    fn (Tables\Actions\DeleteBulkAction $action) => $action
-                                        ->label('Delete recipes and all crops')
-                                        ->color('danger')
-                                );
-                                
-                                // Override the delete action with a simpler version
-                                $action->action(function () use ($records) {
-                                    try {
-                                        Log::info('Starting bulk deletion of ' . $records->count() . ' recipes');
-                                        
-                                        // Delete the recipes - crops will be automatically cascaded
-                                        Recipe::whereIn('id', $records->pluck('id'))->delete();
-                                        
-                                        Log::info('Successfully completed bulk deletion');
-                                        
-                                        Notification::make()
-                                            ->success()
-                                            ->title('Recipes and associated crops deleted')
-                                            ->send();
-                                    } catch (\Exception $e) {
-                                        Log::error('Error in bulk recipe deletion: ' . $e->getMessage());
-                                        
-                                        Notification::make()
-                                            ->danger()
-                                            ->title('Error deleting recipes')
-                                            ->body('An error occurred while deleting: ' . $e->getMessage())
-                                            ->send();
-                                    }
-                                });
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Cannot Delete Recipes')
+                                    ->body(
+                                        "Cannot delete recipes because they have {$activeCropsCount} active crops in progress." .
+                                        '<br><br>Recipes with active crops: <strong>' . $recipeNames . '</strong>' .
+                                        ($moreCount > 0 ? " and {$moreCount} others" : '') .
+                                        '<br><br>Please harvest or remove the active crops first, or consider deactivating the recipes instead.'
+                                    )
+                                    ->danger()
+                                    ->persistent()
+                                    ->send();
                             } else if ($recipesWithCrops->isNotEmpty()) {
-                                // There are recipes with only inactive/completed crops
-                                $totalRecipesWithCrops = $recipesWithCrops->count();
+                                // PREVENT bulk deletion when there are completed crops (to preserve history)
+                                $action->cancel();
+                                
                                 $totalCropsCount = $recipesWithCrops->map(fn ($recipe) => $recipe->crops()->count())->sum();
+                                $recipeNames = $recipesWithCrops->pluck('name')->take(3)->implode(', ');
+                                $moreCount = max(0, $recipesWithCrops->count() - 3);
                                 
-                                $action->requiresConfirmation(false); // Disable the default confirmation
-                                
-                                $action->modalContent(view(
-                                    'filament.resources.recipe-resource.pages.recipe-crops-bulk-delete-warning',
-                                    [
-                                        'recipesCount' => 0,
-                                        'totalRecipesWithCrops' => $totalRecipesWithCrops,
-                                        'activeCropsCount' => 0,
-                                        'totalCropsCount' => $totalCropsCount,
-                                        'hasActiveCrops' => false,
-                                    ]
-                                ));
-                                
-                                $action->modalSubmitAction(
-                                    fn (Tables\Actions\DeleteBulkAction $action) => $action
-                                        ->label('Delete recipes and associated crops')
-                                        ->color('danger')
-                                );
-                                
-                                // Use the same simplified action
-                                $action->action(function () use ($records) {
-                                    try {
-                                        Log::info('Starting bulk deletion of ' . $records->count() . ' recipes');
-                                        
-                                        // Delete the recipes - crops will be automatically cascaded
-                                        Recipe::whereIn('id', $records->pluck('id'))->delete();
-                                        
-                                        Log::info('Successfully completed bulk deletion');
-                                        
-                                        Notification::make()
-                                            ->success()
-                                            ->title('Recipes and associated crops deleted')
-                                            ->send();
-                                    } catch (\Exception $e) {
-                                        Log::error('Error in bulk recipe deletion: ' . $e->getMessage());
-                                        
-                                        Notification::make()
-                                            ->danger()
-                                            ->title('Error deleting recipes')
-                                            ->body('An error occurred while deleting: ' . $e->getMessage())
-                                            ->send();
-                                    }
-                                });
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Cannot Delete Recipes')
+                                    ->body(
+                                        "Cannot delete recipes because they have {$totalCropsCount} completed crops in the system." .
+                                        '<br><br>Recipes with crop history: <strong>' . $recipeNames . '</strong>' .
+                                        ($moreCount > 0 ? " and {$moreCount} others" : '') .
+                                        '<br><br>Deleting these recipes would remove valuable historical crop data. Consider deactivating the recipes instead.'
+                                    )
+                                    ->danger()
+                                    ->persistent()
+                                    ->send();
                             }
+                            // If no crops exist, allow normal bulk deletion to proceed
                         }),
                     Tables\Actions\BulkAction::make('activate')
                         ->label('Activate')
