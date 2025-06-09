@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\ConsumableResource\Pages;
 
 use App\Filament\Resources\ConsumableResource;
-use App\Filament\Pages\BaseCreateRecord;
+use App\Filament\Pages\Base\BaseCreateRecord;
 use App\Models\Consumable;
 use App\Models\SeedEntry;
 use Filament\Forms\Components\Select;
