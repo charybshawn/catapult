@@ -38,7 +38,7 @@
                                 >
                                     <option value="">Select product...</option>
                                     <template x-for="[id, name] in Object.entries(productOptions)" :key="id">
-                                        <option :value="id" x-text="name"></option>
+                                        <option :value="id" x-text="name" :selected="id === item.item_id"></option>
                                     </template>
                                 </select>
                             </div>
@@ -53,7 +53,7 @@
                                 >
                                     <option value="">Select variation...</option>
                                     <template x-for="variation in getPriceVariationsForProduct(item.item_id)" :key="variation.id">
-                                        <option :value="variation.id" x-text="variation.name + ' - $' + variation.price"></option>
+                                        <option :value="variation.id" x-text="variation.name + ' - $' + variation.price" :selected="variation.id.toString() === item.price_variation_id.toString()"></option>
                                     </template>
                                 </select>
                             </div>
