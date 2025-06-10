@@ -79,8 +79,9 @@ class BackfillOrderBillingPeriods extends Command
                     continue 2;
             }
             
+            $customerName = $order->user ? $order->user->name : 'Unknown';
             $this->line("Order #{$order->id}:");
-            $this->line("  Customer: {$order->user->name ?? 'Unknown'}");
+            $this->line("  Customer: {$customerName}");
             $this->line("  Delivery Date: {$order->delivery_date}");
             $this->line("  Billing Frequency: {$order->billing_frequency}");
             $this->line("  Period: {$periodStart} to {$periodEnd}");
