@@ -446,9 +446,9 @@ class OrderResource extends Resource
     public static function getRelations(): array
     {
         return [
-            RelationManagers\PaymentsRelationManager::class,
-            RelationManagers\CropsRelationManager::class,
-            RelationManagers\OrderPackagingsRelationManager::class,
+            // Removed all relation managers for cleaner edit interface
+            // Order items are now handled inline in the main form
+            // Other relationships can be managed through dedicated pages if needed
         ];
     }
 
