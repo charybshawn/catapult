@@ -57,7 +57,7 @@ class Consumable extends Model
         'units_quantity' => 'integer',
         'restock_threshold' => 'decimal:3',
         'restock_quantity' => 'decimal:3',
-        'cost_per_unit' => 'decimal:2',
+        'cost_per_unit' => 'decimal:2', // Deprecated field, nullable
         'quantity_per_unit' => 'decimal:3',
         'total_quantity' => 'decimal:3',
         'is_active' => 'boolean',
@@ -498,13 +498,7 @@ class Consumable extends Model
                 ->step(0.01),
             Forms\Components\Hidden::make('quantity_unit')
                 ->default('l'),
-            // Hidden type is set in createOptionUsing
-            Forms\Components\TextInput::make('cost_per_unit')
-                ->label('Cost Per Unit ($)')
-                ->numeric()
-                ->prefix('$')
-                ->required()
-                ->default(0),
+            // Cost per unit is deprecated and no longer required
             Forms\Components\TextInput::make('restock_threshold')
                 ->label('Restock Threshold (bags)')
                 ->helperText('Minimum number of bags to maintain in inventory')

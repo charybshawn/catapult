@@ -36,6 +36,8 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
     
     protected static string $view = 'filament.pages.manage-failed-seed-entries';
     
+    protected static ?string $slug = 'manage-failed-seed-entries';
+    
     protected static ?string $title = 'Failed Seed Entries';
     
     protected static ?string $navigationGroup = 'Seed Management';

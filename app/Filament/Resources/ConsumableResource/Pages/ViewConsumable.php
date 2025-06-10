@@ -73,24 +73,24 @@ class ViewConsumable extends ViewRecord
     {
         $record = $this->getRecord();
         
-        if ($record->type === 'seed' && $record->seedCultivar) {
+        if ($record->type === 'seed' && $record->seedEntry) {
             return [
-                'seedCultivar' => $record->seedCultivar,
+                'seedEntry' => $record->seedEntry,
             ];
         }
         
         return [];
     }
     
-    // Create a custom widget for seed variety information
+    // Create a custom widget for seed entry information
     public function getHeader(): ?View
     {
         $record = $this->getRecord();
         
-        // Only show seed cultivar info for seed type consumables with a cultivar
-        if ($record->type === 'seed' && $record->seedCultivar) {
-            return view('filament.widgets.seed-cultivar-overview', [
-                'seedCultivar' => $record->seedCultivar,
+        // Only show seed entry info for seed type consumables with a seed entry
+        if ($record->type === 'seed' && $record->seedEntry) {
+            return view('filament.widgets.seed-entry-overview', [
+                'seedEntry' => $record->seedEntry,
             ]);
         }
         
@@ -279,9 +279,6 @@ class ViewConsumable extends ViewRecord
                             ->columns(2),
                             
                         Infolists\Components\Group::make([
-                            Infolists\Components\TextEntry::make('cost_per_unit')
-                                ->label('Cost Per Unit')
-                                ->money('USD'),
                             Infolists\Components\TextEntry::make('status')
                                 ->state(function ($record) {
                                     if ($record->current_stock <= 0) {
@@ -303,7 +300,7 @@ class ViewConsumable extends ViewRecord
                                     }
                                 }),
                         ])->columnSpanFull()
-                            ->columns(2),
+                            ->columns(1),
                     ]),
                     
                 Infolists\Components\Section::make('Additional Information')

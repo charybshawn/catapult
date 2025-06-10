@@ -79,9 +79,6 @@ class OrderResource extends Resource
                                 $data['password'] = bcrypt(Str::random(12)); // Generate random password
                                 return User::create($data)->getKey();
                             }),
-                        Forms\Components\DatePicker::make('harvest_date')
-                            ->label('Harvest Date')
-                            ->required(),
                         Forms\Components\DatePicker::make('delivery_date')
                             ->label('Delivery Date')
                             ->required(),

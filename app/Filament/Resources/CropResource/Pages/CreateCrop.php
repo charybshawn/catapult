@@ -70,8 +70,8 @@ class CreateCrop extends BaseCreateRecord
             $recipe = Recipe::find($data['recipe_id']);
             if ($recipe) {
                 $recipeName = $recipe->name;
-                if ($recipe->seedCultivar) {
-                    $varietyName = $recipe->seedCultivar->name;
+                if ($recipe->seedEntry) {
+                    $varietyName = $recipe->seedEntry->common_name . ' - ' . $recipe->seedEntry->cultivar_name;
                 }
             } else {
                 // Handle case where recipe not found, maybe throw error or default

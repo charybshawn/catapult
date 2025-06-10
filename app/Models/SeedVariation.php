@@ -107,6 +107,10 @@ class SeedVariation extends Model
      */
     public function getPricePerKgAttribute(): ?float
     {
+        if ($this->current_price === null) {
+            return null;
+        }
+        
         if ($this->weight_kg && $this->weight_kg > 0) {
             return $this->current_price / $this->weight_kg;
         }
@@ -116,8 +120,12 @@ class SeedVariation extends Model
     /**
      * Get price converted to CAD
      */
-    public function getPriceInCadAttribute(): float
+    public function getPriceInCadAttribute(): ?float
     {
+        if ($this->current_price === null) {
+            return null;
+        }
+        
         $conversionService = app(CurrencyConversionService::class);
         return $conversionService->convertToCad($this->current_price, $this->currency);
     }
@@ -125,8 +133,12 @@ class SeedVariation extends Model
     /**
      * Get price converted to USD
      */
-    public function getPriceInUsdAttribute(): float
+    public function getPriceInUsdAttribute(): ?float
     {
+        if ($this->current_price === null) {
+            return null;
+        }
+        
         $conversionService = app(CurrencyConversionService::class);
         return $conversionService->convertToUsd($this->current_price, $this->currency);
     }
@@ -158,6 +170,11 @@ class SeedVariation extends Model
      */
     public function getFormattedPriceWithConversion(string $displayCurrency = 'CAD'): string
     {
+        // Handle null prices (out of stock items)
+        if ($this->current_price === null) {
+            return 'Out of Stock';
+        }
+        
         $conversionService = app(CurrencyConversionService::class);
         return $conversionService->getFormattedConversion(
             $this->current_price, 

@@ -538,14 +538,12 @@ class ConsumableResource extends BaseResource
                             ])->columns(2),
                     ]),
                 
-                Forms\Components\Section::make('Costs')
+                Forms\Components\Section::make('Additional Information')
                     ->schema([
-                        FormCommon::priceInput('cost_per_unit', 'Cost Per Unit')
-                            ->helperText('How much each unit costs to purchase'),
                         FormCommon::notesTextarea()
                             ->columnSpanFull(),
                     ])
-                    ->columns(2),
+                    ->columns(1),
             ]);
     }
 

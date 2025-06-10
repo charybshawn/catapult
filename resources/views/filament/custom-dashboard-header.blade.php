@@ -144,7 +144,7 @@
                         <!-- Varieties & Trays -->
                         @php
                             $plantingCrops = ($cropsByStage['planting']['crops'] ?? collect())->groupBy(function($crop) {
-                                return $crop->recipe->seedCultivar->name ?? $crop->recipe->name ?? 'Unknown';
+                                return $crop->recipe->seedEntry->cultivar_name ?? $crop->recipe->name ?? 'Unknown';
                             });
                         @endphp
                         @if($plantingCrops->count() > 0)
@@ -197,7 +197,7 @@
                             <div class="flex-1 min-w-0 border-l border-gray-200 dark:border-gray-700 pl-4">
                                 @php
                                     $germinationCrops = ($cropsByStage['germination']['crops'] ?? collect())->groupBy(function($crop) {
-                                        return $crop->recipe->seedCultivar->name ?? $crop->recipe->name ?? 'Unknown';
+                                        return $crop->recipe->seedEntry->cultivar_name ?? $crop->recipe->name ?? 'Unknown';
                                     });
                                 @endphp
                                 @if($germinationCrops->count() > 0)
@@ -254,7 +254,7 @@
                             <div class="flex-1 min-w-0 border-l border-gray-200 dark:border-gray-700 pl-4">
                                 @php
                                     $blackoutCrops = ($cropsByStage['blackout']['crops'] ?? collect())->groupBy(function($crop) {
-                                        return $crop->recipe->seedCultivar->name ?? $crop->recipe->name ?? 'Unknown';
+                                        return $crop->recipe->seedEntry->cultivar_name ?? $crop->recipe->name ?? 'Unknown';
                                     });
                                 @endphp
                                 @if($blackoutCrops->count() > 0)
@@ -311,7 +311,7 @@
                             <div class="flex-1 min-w-0 border-l border-gray-200 dark:border-gray-700 pl-4">
                                 @php
                                     $lightCrops = ($cropsByStage['light']['crops'] ?? collect())->groupBy(function($crop) {
-                                        return $crop->recipe->seedCultivar->name ?? $crop->recipe->name ?? 'Unknown';
+                                        return $crop->recipe->seedEntry->cultivar_name ?? $crop->recipe->name ?? 'Unknown';
                                     });
                                 @endphp
                                 @if($lightCrops->count() > 0)

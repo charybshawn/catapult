@@ -48,13 +48,13 @@ class ListCrops extends ListRecords
         $query = parent::getTableQuery();
         
         // Add additional logging for debugging
-        Log::info('Recipe and Variety Data:', [
-            'recipes' => \App\Models\Recipe::with('seedCultivar')->get()->map(function($recipe) {
+        Log::info('Recipe and Seed Entry Data:', [
+            'recipes' => \App\Models\Recipe::with('seedEntry')->get()->map(function($recipe) {
                 return [
                     'id' => $recipe->id,
                     'name' => $recipe->name,
-                    'seed_variety_id' => $recipe->seed_variety_id,
-                    'variety_name' => $recipe->seedCultivar ? $recipe->seedCultivar->name : null,
+                    'seed_entry_id' => $recipe->seed_entry_id,
+                    'seed_entry_name' => $recipe->seedEntry ? ($recipe->seedEntry->common_name . ' - ' . $recipe->seedEntry->cultivar_name) : null,
                 ];
             })
         ]);
@@ -67,7 +67,7 @@ class ListCrops extends ListRecords
             $query->reorder('planted_at', 'desc');
         }
         
-        return $query->with(['recipe.seedCultivar']);
+        return $query->with(['recipe.seedEntry']);
     }
     
     public function getTableRecords(): Collection|Paginator|CursorPaginator

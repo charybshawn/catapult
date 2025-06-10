@@ -462,7 +462,7 @@ class Dashboard extends BaseDashboard
         $nextWeek = now()->addDays(7);
         
         return Crop::where('current_stage', 'light')
-            ->with(['recipe.seedCultivar', 'order'])
+            ->with(['recipe.seedEntry', 'order'])
             ->get()
             ->filter(function ($crop) use ($nextWeek) {
                 $expectedHarvest = $crop->expectedHarvestDate();

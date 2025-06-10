@@ -18,7 +18,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-Route::middleware('auth:sanctum')->get('/products/{product}/price', function (Request $request, \App\Models\Product $product) {
+Route::middleware(['web', 'auth'])->get('/products/{product}/price', function (Request $request, \App\Models\Product $product) {
     $customerType = $request->get('customer_type', 'retail');
     
     return response()->json([
@@ -28,7 +28,7 @@ Route::middleware('auth:sanctum')->get('/products/{product}/price', function (Re
     ]);
 });
 
-Route::middleware('auth:sanctum')->get('/products/{product}/price-variations', function (Request $request, \App\Models\Product $product) {
+Route::middleware(['web', 'auth'])->get('/products/{product}/price-variations', function (Request $request, \App\Models\Product $product) {
     $priceVariations = $product->priceVariations()
         ->where('is_active', true)
         ->with('packagingType')
@@ -50,7 +50,7 @@ Route::middleware('auth:sanctum')->get('/products/{product}/price-variations', f
     return response()->json($priceVariations);
 });
 
-Route::middleware('auth:sanctum')->post('/price-variations', function (Request $request) {
+Route::middleware(['web', 'auth'])->post('/price-variations', function (Request $request) {
     $isGlobal = $request->boolean('is_global', false);
     $validated = $request->validate(\App\Models\PriceVariation::rules($isGlobal));
 
@@ -68,7 +68,7 @@ Route::middleware('auth:sanctum')->post('/price-variations', function (Request $
     ], 201);
 });
 
-Route::middleware('auth:sanctum')->get('/packaging-types', function (Request $request) {
+Route::middleware(['web', 'auth'])->get('/packaging-types', function (Request $request) {
     $packagingTypes = \App\Models\PackagingType::where('is_active', true)
         ->orderBy('name')
         ->get(['id', 'name', 'display_name'])

@@ -389,9 +389,49 @@ class SeedScrapeImporter
         }
         
         if ($variantsArray) {
-            foreach ($variantsArray as $variantData) {
-                $this->processVariant($variantData, $seedEntry, $timestamp, $defaultCurrency, $productData['is_in_stock'] ?? true);
+            $successfulVariations = 0;
+            $failedVariations = [];
+            
+            foreach ($variantsArray as $index => $variantData) {
+                try {
+                    $this->processVariant($variantData, $seedEntry, $timestamp, $defaultCurrency, $productData['is_in_stock'] ?? true);
+                    $successfulVariations++;
+                } catch (Exception $e) {
+                    $failedVariations[] = [
+                        'index' => $index,
+                        'variation_data' => $variantData,
+                        'error' => $e->getMessage()
+                    ];
+                    
+                    Log::warning('Failed to process variation', [
+                        'title' => $seedEntry->supplier_product_title,
+                        'variation_index' => $index,
+                        'variation_size' => $variantData['size'] ?? $variantData['variant_title'] ?? 'Unknown',
+                        'error' => $e->getMessage()
+                    ]);
+                }
             }
+            
+            // If all variations failed, throw an exception with detailed info
+            if ($successfulVariations === 0 && !empty($failedVariations)) {
+                $errorDetails = collect($failedVariations)->map(function($failed) {
+                    $size = $failed['variation_data']['size'] ?? $failed['variation_data']['variant_title'] ?? 'Unknown size';
+                    return "Variation '{$size}': {$failed['error']}";
+                })->join('; ');
+                
+                throw new Exception("All variations failed: {$errorDetails}");
+            }
+            
+            // If some variations failed but some succeeded, log warning but continue
+            if (!empty($failedVariations)) {
+                Log::warning('Some variations failed processing', [
+                    'title' => $seedEntry->supplier_product_title,
+                    'successful_variations' => $successfulVariations,
+                    'failed_variations' => count($failedVariations),
+                    'failed_details' => $failedVariations
+                ]);
+            }
+            
         } else {
             Log::warning('No variants/variations found for product', [
                 'title' => $seedEntry->supplier_product_title,
@@ -442,7 +482,9 @@ class SeedScrapeImporter
         // Get price from variants
         $price = null;
         if (isset($variantData['price']) && is_numeric($variantData['price'])) {
-            $price = floatval($variantData['price']);
+            $rawPrice = floatval($variantData['price']);
+            // Convert 0 price to null for out-of-stock items (this is a common pattern in scraped data)
+            $price = $rawPrice > 0 ? $rawPrice : null;
         }
         
         // Get currency from variants or use default

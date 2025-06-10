@@ -125,9 +125,21 @@ class CropAlertResource extends Resource
                     ->toggleable(),
                     
                 TextColumn::make('variety')
-                    ->label('Variety')
+                    ->label('Recipe')
                     ->getStateUsing(function (CropAlert $record) {
-                        return $record->conditions['variety'] ?? 'Unknown';
+                        // First try to get from conditions (for backward compatibility)
+                        if (isset($record->conditions['variety'])) {
+                            return $record->conditions['variety'];
+                        }
+                        
+                        // If not in conditions, get from the crop's recipe relationship
+                        $cropId = $record->conditions['crop_id'] ?? null;
+                        if (!$cropId) return 'Unknown';
+                        
+                        $crop = Crop::with(['recipe.seedEntry'])->find($cropId);
+                        if (!$crop || !$crop->recipe) return 'Unknown';
+                        
+                        return $crop->recipe->name ?? 'Unknown';
                     })
                     ->sortable(query: function ($query, $direction) {
                         return $query->orderByRaw("json_extract(conditions, '$.variety') {$direction}");
@@ -156,6 +168,11 @@ class CropAlertResource extends Resource
                 TextColumn::make('target_stage')
                     ->label('Target Stage')
                     ->getStateUsing(function (CropAlert $record) {
+                        // For suspend_watering and similar non-stage tasks, show N/A
+                        if (in_array($record->task_name, ['suspend_watering', 'resume_watering'])) {
+                            return 'N/A';
+                        }
+                        
                         return ucfirst($record->conditions['target_stage'] ?? 'unknown');
                     })
                     ->sortable(query: function ($query, $direction) {
@@ -163,6 +180,11 @@ class CropAlertResource extends Resource
                     })
                     ->badge()
                     ->color(function (CropAlert $record) {
+                        // For non-stage tasks, use a neutral color
+                        if (in_array($record->task_name, ['suspend_watering', 'resume_watering'])) {
+                            return 'gray';
+                        }
+                        
                         return match ($record->conditions['target_stage'] ?? '') {
                             'germination' => 'info',
                             'blackout' => 'warning',
@@ -411,9 +433,21 @@ class CropAlertResource extends Resource
                         $query->orderByRaw("json_extract(conditions, '$.target_stage') {$direction}")
                     ),
                 Group::make('variety')
-                    ->label('Variety')
+                    ->label('Recipe')
                     ->getTitleFromRecordUsing(function ($record) {
-                        return $record->conditions['variety'] ?? 'Unknown';
+                        // First try to get from conditions (for backward compatibility)
+                        if (isset($record->conditions['variety'])) {
+                            return $record->conditions['variety'];
+                        }
+                        
+                        // If not in conditions, get from the crop's recipe relationship
+                        $cropId = $record->conditions['crop_id'] ?? null;
+                        if (!$cropId) return 'Unknown';
+                        
+                        $crop = Crop::with(['recipe.seedEntry'])->find($cropId);
+                        if (!$crop || !$crop->recipe) return 'Unknown';
+                        
+                        return $crop->recipe->name ?? 'Unknown';
                     })
                     ->orderQueryUsing(fn (Builder $query, string $direction): Builder => 
                         $query->orderByRaw("json_extract(conditions, '$.variety') {$direction}")
