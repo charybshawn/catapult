@@ -25,6 +25,13 @@ class Order extends Model
         'delivery_date',
         'status',
         'customer_type',
+        'order_type',
+        'billing_frequency',
+        'requires_invoice',
+        'billing_period_start',
+        'billing_period_end',
+        'consolidated_invoice_id',
+        'billing_preferences',
         'is_recurring',
         'parent_recurring_order_id',
         'recurring_frequency',
@@ -46,6 +53,10 @@ class Order extends Model
     protected $casts = [
         'harvest_date' => 'date',
         'delivery_date' => 'date',
+        'billing_period_start' => 'date',
+        'billing_period_end' => 'date',
+        'requires_invoice' => 'boolean',
+        'billing_preferences' => 'array',
         'recurring_start_date' => 'date',
         'recurring_end_date' => 'date',
         'is_recurring' => 'boolean',
@@ -131,6 +142,14 @@ class Order extends Model
     public function invoice(): HasOne
     {
         return $this->hasOne(Invoice::class);
+    }
+    
+    /**
+     * Get the consolidated invoice for this order.
+     */
+    public function consolidatedInvoice(): BelongsTo
+    {
+        return $this->belongsTo(Invoice::class, 'consolidated_invoice_id');
     }
     
     /**
@@ -396,6 +415,59 @@ class Order extends Model
             'retail' => 'Retail',
             default => 'Retail',
         };
+    }
+    
+    /**
+     * Get the order type display name.
+     */
+    public function getOrderTypeDisplayAttribute(): string
+    {
+        return match($this->order_type) {
+            'farmers_market' => 'Farmer\'s Market',
+            'b2b_recurring' => 'B2B Recurring',
+            'website_immediate' => 'Website Order',
+            default => 'Website Order',
+        };
+    }
+    
+    /**
+     * Get the billing frequency display name.
+     */
+    public function getBillingFrequencyDisplayAttribute(): string
+    {
+        return match($this->billing_frequency) {
+            'immediate' => 'Immediate',
+            'weekly' => 'Weekly',
+            'monthly' => 'Monthly',
+            'quarterly' => 'Quarterly',
+            default => 'Immediate',
+        };
+    }
+    
+    /**
+     * Check if this order requires immediate invoicing.
+     */
+    public function requiresImmediateInvoicing(): bool
+    {
+        return $this->order_type === 'website_immediate' || 
+               $this->billing_frequency === 'immediate';
+    }
+    
+    /**
+     * Check if this order is part of consolidated billing.
+     */
+    public function isConsolidatedBilling(): bool
+    {
+        return $this->order_type === 'b2b_recurring' && 
+               in_array($this->billing_frequency, ['weekly', 'monthly', 'quarterly']);
+    }
+    
+    /**
+     * Check if this order should bypass invoicing completely.
+     */
+    public function shouldBypassInvoicing(): bool
+    {
+        return $this->order_type === 'farmers_market' && !$this->requires_invoice;
     }
     
     /**

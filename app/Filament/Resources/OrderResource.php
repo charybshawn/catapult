@@ -82,6 +82,29 @@ class OrderResource extends Resource
                         Forms\Components\DatePicker::make('delivery_date')
                             ->label('Delivery Date')
                             ->required(),
+                        Forms\Components\Select::make('order_type')
+                            ->label('Order Type')
+                            ->options([
+                                'website_immediate' => 'Website Order',
+                                'farmers_market' => 'Farmer\'s Market',
+                                'b2b_recurring' => 'B2B Recurring',
+                            ])
+                            ->default('website_immediate')
+                            ->required()
+                            ->reactive()
+                            ->afterStateUpdated(function ($state, callable $set) {
+                                // Auto-set billing frequency based on order type
+                                if ($state === 'farmers_market') {
+                                    $set('billing_frequency', 'immediate');
+                                    $set('requires_invoice', false);
+                                } elseif ($state === 'website_immediate') {
+                                    $set('billing_frequency', 'immediate');
+                                    $set('requires_invoice', true);
+                                } elseif ($state === 'b2b_recurring') {
+                                    $set('billing_frequency', 'monthly');
+                                    $set('requires_invoice', true);
+                                }
+                            }),
                         Forms\Components\Toggle::make('is_recurring')
                             ->label('Make this a recurring order')
                             ->reactive()
@@ -93,6 +116,28 @@ class OrderResource extends Resource
                                 }
                             }),
                     ])
+                    ->columns(2),
+                
+                Forms\Components\Section::make('Billing & Invoicing')
+                    ->schema([
+                        Forms\Components\Select::make('billing_frequency')
+                            ->label('Billing Frequency')
+                            ->options([
+                                'immediate' => 'Immediate',
+                                'weekly' => 'Weekly',
+                                'monthly' => 'Monthly',
+                                'quarterly' => 'Quarterly',
+                            ])
+                            ->default('immediate')
+                            ->required()
+                            ->visible(fn ($get) => $get('order_type') === 'b2b_recurring'),
+                        
+                        Forms\Components\Toggle::make('requires_invoice')
+                            ->label('Requires Invoice')
+                            ->helperText('Uncheck for farmer\'s market orders that don\'t need invoicing')
+                            ->default(true),
+                    ])
+                    ->visible(fn ($get) => in_array($get('order_type'), ['b2b_recurring', 'farmers_market']))
                     ->columns(2),
                 
                 Forms\Components\Section::make('Recurring Order Settings')
@@ -158,11 +203,30 @@ class OrderResource extends Resource
                     ->label('Customer')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('customer_type_display')
-                    ->label('Type')
+                    ->label('Customer Type')
                     ->badge()
                     ->color(fn (Order $record): string => match ($record->customer_type) {
                         'retail' => 'success',
                         'wholesale' => 'info',
+                        default => 'gray',
+                    }),
+                Tables\Columns\TextColumn::make('order_type_display')
+                    ->label('Order Type')
+                    ->badge()
+                    ->color(fn (Order $record): string => match ($record->order_type) {
+                        'website_immediate' => 'success',
+                        'farmers_market' => 'warning',
+                        'b2b_recurring' => 'info',
+                        default => 'gray',
+                    }),
+                Tables\Columns\TextColumn::make('billing_frequency_display')
+                    ->label('Billing')
+                    ->badge()
+                    ->color(fn (Order $record): string => match ($record->billing_frequency) {
+                        'immediate' => 'success',
+                        'weekly' => 'info',
+                        'monthly' => 'warning',
+                        'quarterly' => 'danger',
                         default => 'gray',
                     }),
                 Tables\Columns\TextColumn::make('status')
