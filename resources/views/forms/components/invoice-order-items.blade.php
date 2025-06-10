@@ -151,31 +151,21 @@ document.addEventListener('alpine:init', () => {
         async updatePriceVariations(index) {
             const item = this.items[index];
             if (item.item_id) {
-                try {
-                    // Fetch price variations for the selected product
-                    const response = await fetch(`/api/products/${item.item_id}/price-variations`, {
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                            'Accept': 'application/json',
-                        }
-                    });
-                    if (response.ok) {
-                        const variations = await response.json();
-                        this.priceVariations[item.item_id] = variations;
-                        
-                        // Reset price variation selection
-                        item.price_variation_id = null;
-                        item.price = 0;
-                        
-                        // Auto-select default variation if available
-                        const defaultVariation = variations.find(v => v.is_default);
-                        if (defaultVariation) {
-                            item.price_variation_id = defaultVariation.id;
-                            item.price = defaultVariation.price;
-                        }
-                    }
-                } catch (error) {
-                    console.warn('Could not fetch price variations:', error);
+                // Load price variations if not already loaded
+                if (!this.priceVariations[item.item_id]) {
+                    await this.loadPriceVariationsForProduct(item.item_id);
+                }
+                
+                // Reset price variation selection for new product selection
+                item.price_variation_id = null;
+                item.price = 0;
+                
+                // Auto-select default variation if available
+                const variations = this.priceVariations[item.item_id] || [];
+                const defaultVariation = variations.find(v => v.is_default);
+                if (defaultVariation) {
+                    item.price_variation_id = defaultVariation.id.toString();
+                    item.price = defaultVariation.price;
                 }
             } else {
                 // Clear price variation data if no product selected
@@ -188,7 +178,7 @@ document.addEventListener('alpine:init', () => {
         updatePriceFromVariation(index) {
             const item = this.items[index];
             if (item.price_variation_id && this.priceVariations[item.item_id]) {
-                const variation = this.priceVariations[item.item_id].find(v => v.id == item.price_variation_id);
+                const variation = this.priceVariations[item.item_id].find(v => v.id.toString() === item.price_variation_id.toString());
                 if (variation) {
                     item.price = variation.price;
                 }
@@ -225,10 +215,41 @@ document.addEventListener('alpine:init', () => {
             this.$wire.set(this.statePath, this.items);
         },
 
-        init() {
+        async init() {
+            // Load price variations for existing items
+            await this.loadExistingPriceVariations();
+            
             this.$watch('items', () => {
                 this.syncWithLivewire();
             }, { deep: true });
+        },
+
+        async loadExistingPriceVariations() {
+            // Load price variations for products that already have items
+            const productIds = [...new Set(this.items.map(item => item.item_id).filter(id => id))];
+            
+            for (const productId of productIds) {
+                if (productId && !this.priceVariations[productId]) {
+                    await this.loadPriceVariationsForProduct(productId);
+                }
+            }
+        },
+
+        async loadPriceVariationsForProduct(productId) {
+            try {
+                const response = await fetch(`/api/products/${productId}/price-variations`, {
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'Accept': 'application/json',
+                    }
+                });
+                if (response.ok) {
+                    const variations = await response.json();
+                    this.priceVariations[productId] = variations;
+                }
+            } catch (error) {
+                console.warn('Could not fetch price variations for product:', productId, error);
+            }
         }
     }));
 });

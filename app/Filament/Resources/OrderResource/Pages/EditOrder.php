@@ -22,12 +22,12 @@ class EditOrder extends BaseEditRecord
     {
         // Load existing order items into the form
         $order = $this->getRecord();
-        $orderItems = $order->orderItems()->with('product', 'priceVariation')->get();
+        $orderItems = $order->orderItems()->with(['product', 'priceVariation'])->get();
         
         $data['orderItems'] = $orderItems->map(function ($item) {
             return [
-                'item_id' => $item->product_id,
-                'price_variation_id' => $item->price_variation_id,
+                'item_id' => (string) $item->product_id, // Cast to string to match select options
+                'price_variation_id' => $item->price_variation_id ? (string) $item->price_variation_id : null,
                 'quantity' => $item->quantity,
                 'price' => $item->price,
             ];
