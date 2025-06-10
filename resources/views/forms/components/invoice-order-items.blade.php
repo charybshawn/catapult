@@ -31,6 +31,10 @@
                         <div class="flex items-center gap-3 w-full">
                             <!-- Product Select -->
                             <div class="flex-1 min-w-0">
+                                <!-- Debug info -->
+                                <div x-show="$store.debug" class="text-xs text-gray-500 mb-1">
+                                    Current item_id: <span x-text="item.item_id"></span> (type: <span x-text="typeof item.item_id"></span>)
+                                </div>
                                 <select 
                                     x-model="item.item_id"
                                     @change="updatePriceVariations(index)"
@@ -38,13 +42,18 @@
                                 >
                                     <option value="">Select product...</option>
                                     <template x-for="[id, name] in Object.entries(productOptions)" :key="id">
-                                        <option :value="id" x-text="name"></option>
+                                        <option :value="id" x-text="name" :selected="id === item.item_id"></option>
                                     </template>
                                 </select>
                             </div>
 
                             <!-- Price Variation Select -->
                             <div class="flex-1 min-w-0">
+                                <!-- Debug info -->
+                                <div x-show="$store.debug" class="text-xs text-gray-500 mb-1">
+                                    Current variation_id: <span x-text="item.price_variation_id"></span> 
+                                    Available: <span x-text="getPriceVariationsForProduct(item.item_id).length"></span>
+                                </div>
                                 <select 
                                     x-model="item.price_variation_id"
                                     @change="updatePriceFromVariation(index)"
@@ -53,7 +62,7 @@
                                 >
                                     <option value="">Select variation...</option>
                                     <template x-for="variation in getPriceVariationsForProduct(item.item_id)" :key="variation.id">
-                                        <option :value="variation.id" x-text="variation.name + ' - $' + variation.price"></option>
+                                        <option :value="variation.id" x-text="variation.name + ' - $' + variation.price" :selected="variation.id.toString() === item.price_variation_id.toString()"></option>
                                     </template>
                                 </select>
                             </div>
@@ -216,6 +225,34 @@ document.addEventListener('alpine:init', () => {
         },
 
         async init() {
+            // Set up debug store
+            if (!this.$store.debug) {
+                Alpine.store('debug', true);
+            }
+            
+            // Debug logging
+            console.log('=== InvoiceOrderItems Debug ===');
+            console.log('Initial items:', this.items);
+            console.log('Product options:', this.productOptions);
+            console.log('Product options type:', typeof this.productOptions);
+            console.log('Product options keys:', Object.keys(this.productOptions));
+            console.log('Product options entries:', Object.entries(this.productOptions));
+            
+            // Check if any items have item_id set
+            this.items.forEach((item, index) => {
+                console.log(`Item ${index}:`, {
+                    item_id: item.item_id,
+                    item_id_type: typeof item.item_id,
+                    price_variation_id: item.price_variation_id,
+                    quantity: item.quantity,
+                    price: item.price
+                });
+                
+                // Check if product exists in options
+                const productExists = Object.keys(this.productOptions).includes(item.item_id?.toString());
+                console.log(`  Product ${item.item_id} exists in options:`, productExists);
+            });
+            
             // Load price variations for existing items
             await this.loadExistingPriceVariations();
             
@@ -228,11 +265,29 @@ document.addEventListener('alpine:init', () => {
             // Load price variations for products that already have items
             const productIds = [...new Set(this.items.map(item => item.item_id).filter(id => id))];
             
+            console.log('Product IDs to load variations for:', productIds);
+            
             for (const productId of productIds) {
                 if (productId && !this.priceVariations[productId]) {
+                    console.log(`Loading variations for product ${productId}`);
                     await this.loadPriceVariationsForProduct(productId);
                 }
             }
+            
+            console.log('Final price variations:', this.priceVariations);
+            
+            // Check if variations match item IDs
+            this.items.forEach((item, index) => {
+                if (item.item_id && item.price_variation_id) {
+                    const variations = this.priceVariations[item.item_id] || [];
+                    const matchingVariation = variations.find(v => v.id.toString() === item.price_variation_id.toString());
+                    console.log(`Item ${index} variation match:`, {
+                        item_price_variation_id: item.price_variation_id,
+                        available_variations: variations.map(v => ({ id: v.id, name: v.name })),
+                        matching_variation: matchingVariation
+                    });
+                }
+            });
         },
 
         async loadPriceVariationsForProduct(productId) {
