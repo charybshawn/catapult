@@ -101,6 +101,34 @@ class Order extends Model
                     $order->customer_type = $user->customer_type ?? 'retail';
                 }
             }
+            
+            // Set billing periods for B2B recurring orders
+            if ($order->order_type === 'b2b_recurring' && 
+                $order->billing_frequency !== 'immediate' && 
+                $order->delivery_date &&
+                (!$order->billing_period_start || !$order->billing_period_end)) {
+                
+                $deliveryDate = $order->delivery_date instanceof \Carbon\Carbon 
+                    ? $order->delivery_date 
+                    : \Carbon\Carbon::parse($order->delivery_date);
+                
+                switch ($order->billing_frequency) {
+                    case 'weekly':
+                        $order->billing_period_start = $deliveryDate->copy()->startOfWeek()->toDateString();
+                        $order->billing_period_end = $deliveryDate->copy()->endOfWeek()->toDateString();
+                        break;
+                        
+                    case 'monthly':
+                        $order->billing_period_start = $deliveryDate->copy()->startOfMonth()->toDateString();
+                        $order->billing_period_end = $deliveryDate->copy()->endOfMonth()->toDateString();
+                        break;
+                        
+                    case 'quarterly':
+                        $order->billing_period_start = $deliveryDate->copy()->startOfQuarter()->toDateString();
+                        $order->billing_period_end = $deliveryDate->copy()->endOfQuarter()->toDateString();
+                        break;
+                }
+            }
         });
     }
     
