@@ -178,7 +178,7 @@ class OrderResource extends Resource
                     ->schema([
                         \App\Forms\Components\InvoiceOrderItems::make('orderItems')
                             ->label('Items')
-                            ->productOptions(fn () => Product::query()->pluck('name', 'id')->toArray())
+                            ->productOptions(fn () => Product::query()->orderBy('name')->pluck('name', 'id')->toArray())
                             ->required(),
                     ]),
                 

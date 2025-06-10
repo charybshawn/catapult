@@ -216,6 +216,13 @@ document.addEventListener('alpine:init', () => {
         },
 
         async init() {
+            // Debug logging
+            console.log('InvoiceOrderItems init:', {
+                items: this.items,
+                productOptions: this.productOptions,
+                defaultItem: this.defaultItem
+            });
+            
             // Load price variations for existing items
             await this.loadExistingPriceVariations();
             
@@ -228,11 +235,15 @@ document.addEventListener('alpine:init', () => {
             // Load price variations for products that already have items
             const productIds = [...new Set(this.items.map(item => item.item_id).filter(id => id))];
             
+            console.log('Loading price variations for product IDs:', productIds);
+            
             for (const productId of productIds) {
                 if (productId && !this.priceVariations[productId]) {
                     await this.loadPriceVariationsForProduct(productId);
                 }
             }
+            
+            console.log('Loaded price variations:', this.priceVariations);
         },
 
         async loadPriceVariationsForProduct(productId) {
