@@ -37,7 +37,7 @@
                                     class="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-2"
                                 >
                                     <option value="">Select product...</option>
-                                    <template x-for="(name, id) in productOptions" :key="id">
+                                    <template x-for="[id, name] in Object.entries(productOptions)" :key="id">
                                         <option :value="id" x-text="name"></option>
                                     </template>
                                 </select>
@@ -216,13 +216,6 @@ document.addEventListener('alpine:init', () => {
         },
 
         async init() {
-            // Debug logging
-            console.log('InvoiceOrderItems init:', {
-                items: this.items,
-                productOptions: this.productOptions,
-                defaultItem: this.defaultItem
-            });
-            
             // Load price variations for existing items
             await this.loadExistingPriceVariations();
             
@@ -235,15 +228,11 @@ document.addEventListener('alpine:init', () => {
             // Load price variations for products that already have items
             const productIds = [...new Set(this.items.map(item => item.item_id).filter(id => id))];
             
-            console.log('Loading price variations for product IDs:', productIds);
-            
             for (const productId of productIds) {
                 if (productId && !this.priceVariations[productId]) {
                     await this.loadPriceVariationsForProduct(productId);
                 }
             }
-            
-            console.log('Loaded price variations:', this.priceVariations);
         },
 
         async loadPriceVariationsForProduct(productId) {
