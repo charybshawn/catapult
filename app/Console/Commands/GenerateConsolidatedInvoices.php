@@ -108,20 +108,20 @@ class GenerateConsolidatedInvoices extends Command
     {
         return \App\Models\User::whereHas('orders', function ($query) use ($forDate) {
             $query->where('order_type', 'b2b_recurring')
-                ->where('billing_frequency', '!=', 'immediate')
+                ->where('billing_frequency', '<>', 'immediate')
                 ->where('requires_invoice', true)
                 ->whereNull('consolidated_invoice_id')
-                ->where('status', '!=', 'cancelled')
+                ->where('status', '<>', 'cancelled')
                 ->where(function ($q) use ($forDate) {
                     $q->where(function ($periodQuery) use ($forDate) {
                         $periodQuery->where('billing_frequency', 'weekly')
-                            ->where('billing_period_end', '<=', $forDate->toDateString());
+                            ->where('billing_period_end', '<=', $forDate);
                     })->orWhere(function ($periodQuery) use ($forDate) {
                         $periodQuery->where('billing_frequency', 'monthly')
-                            ->where('billing_period_end', '<=', $forDate->toDateString());
+                            ->where('billing_period_end', '<=', $forDate);
                     })->orWhere(function ($periodQuery) use ($forDate) {
                         $periodQuery->where('billing_frequency', 'quarterly')
-                            ->where('billing_period_end', '<=', $forDate->toDateString());
+                            ->where('billing_period_end', '<=', $forDate);
                     });
                 });
         })->get();
@@ -134,11 +134,11 @@ class GenerateConsolidatedInvoices extends Command
     {
         return $customer->orders()
             ->where('order_type', 'b2b_recurring')
-            ->where('billing_frequency', '!=', 'immediate')
+            ->where('billing_frequency', '<>', 'immediate')
             ->where('requires_invoice', true)
             ->whereNull('consolidated_invoice_id')
-            ->where('status', '!=', 'cancelled')
-            ->where('billing_period_end', '<=', $forDate->toDateString())
+            ->where('status', '<>', 'cancelled')
+            ->where('billing_period_end', '<=', $forDate)
             ->with(['orderItems', 'user'])
             ->get();
     }

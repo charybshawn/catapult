@@ -127,15 +127,34 @@ class InvoiceResource extends Resource
                 Tables\Columns\TextColumn::make('order.id')
                     ->label('Order ID')
                     ->searchable()
+                    ->placeholder('Consolidated')
                     ->sortable(),
                     
-                Tables\Columns\TextColumn::make('order.user.name')
+                Tables\Columns\TextColumn::make('customer_name')
                     ->label('Customer')
                     ->searchable()
+                    ->getStateUsing(fn (Invoice $record) => $record->user->name ?? $record->order?->user?->name ?? 'Unknown')
                     ->sortable(),
                     
-                Tables\Columns\TextColumn::make('amount')
+                Tables\Columns\IconColumn::make('is_consolidated')
+                    ->label('Type')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-squares-2x2')
+                    ->falseIcon('heroicon-o-document-text')
+                    ->trueColor('info')
+                    ->falseColor('gray')
+                    ->tooltip(fn (Invoice $record) => $record->is_consolidated ? 'Consolidated Invoice' : 'Regular Invoice'),
+                    
+                Tables\Columns\TextColumn::make('consolidated_order_count')
+                    ->label('Orders')
+                    ->placeholder('1')
+                    ->toggleable()
+                    ->tooltip('Number of orders in this consolidated invoice'),
+                    
+                Tables\Columns\TextColumn::make('effective_amount')
+                    ->label('Amount')
                     ->money('USD')
+                    ->getStateUsing(fn (Invoice $record) => $record->total_amount ?? $record->amount)
                     ->sortable(),
                     
                 Tables\Columns\BadgeColumn::make('status')
@@ -228,7 +247,7 @@ class InvoiceResource extends Resource
                     ->openUrlInNewTab()
                     ->color('info')
                     ->icon('heroicon-o-document-arrow-down')
-                    ->visible(fn (Invoice $record) => in_array($record->status, ['sent', 'paid', 'overdue'])),
+                    ->visible(fn (Invoice $record) => in_array($record->status, ['sent', 'paid', 'overdue', 'pending'])),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

@@ -25,6 +25,24 @@ class OrderResource extends Resource
     protected static ?string $navigationLabel = 'Orders';
     protected static ?string $navigationGroup = 'Order Management';
     protected static ?int $navigationSort = 1;
+    
+    public static function shouldRegisterNavigation(): bool
+    {
+        return true;
+    }
+    
+    // Only show regular orders, not recurring templates
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->where(function ($query) {
+                $query->where('is_recurring', false)
+                      ->orWhere(function ($subQuery) {
+                          $subQuery->where('is_recurring', true)
+                                   ->whereNotNull('parent_recurring_order_id'); // Generated orders
+                      });
+            });
+    }
 
     public static function form(Form $form): Form
     {
@@ -105,16 +123,6 @@ class OrderResource extends Resource
                                     $set('requires_invoice', true);
                                 }
                             }),
-                        Forms\Components\Toggle::make('is_recurring')
-                            ->label('Make this a recurring order')
-                            ->reactive()
-                            ->afterStateUpdated(function ($state, callable $set) {
-                                if (!$state) {
-                                    // Clear recurring fields when toggled off
-                                    $set('recurring_frequency', null);
-                                    $set('recurring_interval', null);
-                                }
-                            }),
                     ])
                     ->columns(2),
                 
@@ -140,39 +148,6 @@ class OrderResource extends Resource
                     ->visible(fn ($get) => in_array($get('order_type'), ['b2b_recurring', 'farmers_market']))
                     ->columns(2),
                 
-                Forms\Components\Section::make('Recurring Order Settings')
-                    ->schema([
-                        Forms\Components\Group::make([
-                            Forms\Components\Select::make('recurring_frequency')
-                                ->label('Frequency')
-                                ->options([
-                                    'weekly' => 'Weekly',
-                                    'biweekly' => 'Bi-weekly',
-                                    'monthly' => 'Monthly',
-                                ])
-                                ->reactive()
-                                ->required()
-                                ->visible(fn ($get) => $get('is_recurring')),
-                            
-                            Forms\Components\TextInput::make('recurring_interval')
-                                ->label('Interval (weeks)')
-                                ->helperText('For bi-weekly: enter 2 for every 2 weeks')
-                                ->numeric()
-                                ->default(2)
-                                ->minValue(1)
-                                ->maxValue(12)
-                                ->visible(fn ($get) => $get('is_recurring') && $get('recurring_frequency') === 'biweekly'),
-                        ])->columns(2),
-                        
-                        Forms\Components\Toggle::make('is_recurring_active')
-                            ->label('Active')
-                            ->helperText('Uncheck to pause recurring order generation')
-                            ->default(true)
-                            ->visible(fn ($get) => $get('is_recurring')),
-                    ])
-                    ->visible(fn ($get) => $get('is_recurring'))
-                    ->collapsible()
-                    ->collapsed(fn ($livewire) => $livewire instanceof \Filament\Resources\Pages\EditRecord),
                 
                 Forms\Components\Section::make('Order Items')
                     ->schema([
@@ -229,32 +204,34 @@ class OrderResource extends Resource
                         'quarterly' => 'danger',
                         default => 'gray',
                     }),
-                Tables\Columns\TextColumn::make('status')
-                    ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'pending' => 'gray',
-                        'processing' => 'info',
-                        'planted' => 'warning',
-                        'harvested' => 'success',
-                        'delivered' => 'success',
-                        'cancelled' => 'danger',
-                        'completed' => 'success',
-                        'template' => 'primary',
-                        default => 'gray',
+                Tables\Columns\SelectColumn::make('status')
+                    ->options(function (Order $record): array {
+                        return self::getAvailableStatusOptions($record);
+                    })
+                    ->disabled(fn (Order $record): bool => $record->status === 'template')
+                    ->selectablePlaceholder(false)
+                    ->afterStateUpdated(function (Order $record, $state) {
+                        // Log the status change
+                        activity()
+                            ->performedOn($record)
+                            ->withProperties([
+                                'old_status' => $record->getOriginal('status'),
+                                'new_status' => $state,
+                                'changed_by' => auth()->user()->name ?? 'System'
+                            ])
+                            ->log('Status changed');
+                            
+                        Notification::make()
+                            ->title('Status Updated')
+                            ->body("Order #{$record->id} status changed to: " . ucfirst($state))
+                            ->success()
+                            ->send();
                     }),
-                Tables\Columns\IconColumn::make('is_recurring')
-                    ->label('Recurring')
-                    ->boolean()
+                Tables\Columns\TextColumn::make('parent_template')
+                    ->label('Template')
+                    ->getStateUsing(fn (Order $record) => $record->parent_recurring_order_id ? "Template #{$record->parent_recurring_order_id}" : null)
+                    ->placeholder('Regular Order')
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('recurring_frequency_display')
-                    ->label('Frequency')
-                    ->toggleable()
-                    ->visible(fn () => request()->get('tableFilters.is_recurring.value') === true),
-                Tables\Columns\TextColumn::make('generated_orders_count')
-                    ->label('Generated')
-                    ->numeric()
-                    ->toggleable()
-                    ->visible(fn () => request()->get('tableFilters.is_recurring.value') === true),
                 Tables\Columns\TextColumn::make('totalAmount')
                     ->label('Total')
                     ->money('USD')
@@ -278,35 +255,21 @@ class OrderResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
                     ->options([
-                        'pending' => 'Pending',
-                        'processing' => 'Processing',
-                        'planted' => 'Planted',
+                        'pending' => 'Queued',
+                        'processing' => 'Preparing',
+                        'planted' => 'Growing',
                         'harvested' => 'Harvested',
                         'delivered' => 'Delivered',
                         'cancelled' => 'Cancelled',
                         'completed' => 'Completed',
                         'template' => 'Template (Recurring)',
                     ]),
-                Tables\Filters\TernaryFilter::make('is_recurring')
-                    ->label('Recurring Orders')
+                Tables\Filters\TernaryFilter::make('parent_recurring_order_id')
+                    ->label('Order Source')
                     ->nullable()
                     ->placeholder('All orders')
-                    ->trueLabel('Recurring only')
-                    ->falseLabel('Non-recurring only'),
-                Tables\Filters\SelectFilter::make('recurring_frequency')
-                    ->label('Frequency')
-                    ->options([
-                        'weekly' => 'Weekly',
-                        'biweekly' => 'Bi-weekly',
-                        'monthly' => 'Monthly',
-                    ])
-                    ->query(function (Builder $query, $data) {
-                        if ($data['value']) {
-                            return $query->where('is_recurring', true)
-                                        ->where('recurring_frequency', $data['value']);
-                        }
-                        return $query;
-                    }),
+                    ->trueLabel('Generated from template')
+                    ->falseLabel('Manual orders only'),
                 Tables\Filters\SelectFilter::make('customer_type')
                     ->options([
                         'retail' => 'Retail',
@@ -336,105 +299,6 @@ class OrderResource extends Resource
                     ->tooltip('Edit order'),
                 Tables\Actions\DeleteAction::make()
                     ->tooltip('Delete order'),
-                Tables\Actions\Action::make('mark_processing')
-                    ->label('Mark as Processing')
-                    ->icon('heroicon-o-arrow-path')
-                    ->color('info')
-                    ->action(function (Order $record): void {
-                        $record->update(['status' => 'processing']);
-                    })
-                    ->visible(fn (Order $record): bool => $record->status === 'pending' && !$record->is_recurring),
-                Tables\Actions\Action::make('mark_planted')
-                    ->label('Mark as Planted')
-                    ->icon('heroicon-o-arrow-path')
-                    ->color('warning')
-                    ->action(function (Order $record): void {
-                        $record->update(['status' => 'planted']);
-                    })
-                    ->visible(fn (Order $record): bool => $record->status === 'processing'),
-                Tables\Actions\Action::make('mark_harvested')
-                    ->label('Mark as Harvested')
-                    ->icon('heroicon-o-arrow-path')
-                    ->color('success')
-                    ->action(function (Order $record): void {
-                        $record->update(['status' => 'harvested']);
-                    })
-                    ->visible(fn (Order $record): bool => $record->status === 'planted'),
-                Tables\Actions\Action::make('mark_delivered')
-                    ->label('Mark as Delivered')
-                    ->icon('heroicon-o-arrow-path')
-                    ->color('success')
-                    ->action(function (Order $record): void {
-                        $record->update(['status' => 'delivered']);
-                    })
-                    ->visible(fn (Order $record): bool => $record->status === 'harvested'),
-                Tables\Actions\Action::make('mark_completed')
-                    ->label('Mark as Completed')
-                    ->icon('heroicon-o-check-circle')
-                    ->color('success')
-                    ->action(function (Order $record): void {
-                        $record->update(['status' => 'completed']);
-                    })
-                    ->visible(fn (Order $record): bool => $record->status === 'delivered'),
-                Tables\Actions\Action::make('mark_cancelled')
-                    ->label('Cancel Order')
-                    ->icon('heroicon-o-x-circle')
-                    ->color('danger')
-                    ->action(function (Order $record): void {
-                        $record->update(['status' => 'cancelled']);
-                    })
-                    ->requiresConfirmation()
-                    ->visible(fn (Order $record): bool => !in_array($record->status, ['completed', 'cancelled'])),
-                
-                // Recurring Order Actions
-                Tables\Actions\Action::make('generate_next')
-                    ->label('Generate Next Order')
-                    ->icon('heroicon-o-plus-circle')
-                    ->color('primary')
-                    ->action(function (Order $record): void {
-                        $newOrder = $record->generateNextRecurringOrder();
-                        if ($newOrder) {
-                            Notification::make()
-                                ->title('Recurring order generated')
-                                ->body("Order #{$newOrder->id} created for {$newOrder->harvest_date->format('M d, Y')}")
-                                ->success()
-                                ->send();
-                        } else {
-                            Notification::make()
-                                ->title('Unable to generate order')
-                                ->body('Check recurring order settings and end date')
-                                ->warning()
-                                ->send();
-                        }
-                    })
-                    ->visible(fn (Order $record): bool => $record->isRecurringTemplate() && $record->is_recurring_active),
-                
-                Tables\Actions\Action::make('pause_recurring')
-                    ->label('Pause Recurring')
-                    ->icon('heroicon-o-pause')
-                    ->color('warning')
-                    ->action(function (Order $record): void {
-                        $record->update(['is_recurring_active' => false]);
-                        Notification::make()
-                            ->title('Recurring order paused')
-                            ->success()
-                            ->send();
-                    })
-                    ->requiresConfirmation()
-                    ->visible(fn (Order $record): bool => $record->isRecurringTemplate() && $record->is_recurring_active),
-                
-                Tables\Actions\Action::make('resume_recurring')
-                    ->label('Resume Recurring')
-                    ->icon('heroicon-o-play')
-                    ->color('success')
-                    ->action(function (Order $record): void {
-                        app(\App\Services\RecurringOrderService::class)->resumeRecurringOrder($record);
-                        Notification::make()
-                            ->title('Recurring order resumed')
-                            ->success()
-                            ->send();
-                    })
-                    ->visible(fn (Order $record): bool => $record->isRecurringTemplate() && !$record->is_recurring_active),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -450,6 +314,57 @@ class OrderResource extends Resource
             // Order items are now handled inline in the main form
             // Other relationships can be managed through dedicated pages if needed
         ];
+    }
+
+    /**
+     * Get available status options based on current status and business logic
+     */
+    public static function getAvailableStatusOptions(Order $record): array
+    {
+        $allStatuses = [
+            'pending' => 'Queued',
+            'processing' => 'Preparing',
+            'planted' => 'Growing',
+            'harvested' => 'Harvested',
+            'delivered' => 'Delivered',
+            'completed' => 'Completed',
+            'cancelled' => 'Cancelled',
+            'template' => 'Template',
+        ];
+        
+        // Templates can't change status
+        if ($record->status === 'template') {
+            return ['template' => 'Template'];
+        }
+        
+        // Define logical status transitions
+        $allowedTransitions = match($record->status) {
+            'pending' => ['pending', 'processing', 'cancelled'], // Can start preparing or cancel
+            'processing' => ['processing', 'planted', 'cancelled'], // Can start growing or cancel
+            'planted' => ['planted', 'harvested', 'cancelled'], // Can harvest or cancel (in case of crop failure)
+            'harvested' => ['harvested', 'delivered', 'cancelled'], // Can deliver or cancel
+            'delivered' => ['delivered', 'completed'], // Can only complete (rarely cancel after delivery)
+            'completed' => ['completed'], // Final state - no changes allowed
+            'cancelled' => ['cancelled', 'pending'], // Can reactivate cancelled orders
+            default => array_keys($allStatuses), // Fallback: allow all
+        };
+        
+        // For admin users (check by email or add your own admin logic), allow more flexibility
+        $isAdmin = auth()->user()?->email === 'admin@example.com' || 
+                   str_contains(auth()->user()?->email ?? '', 'admin') ||
+                   auth()->user()?->is_admin ?? false;
+                   
+        if ($isAdmin) {
+            $adminExtraOptions = match($record->status) {
+                'processing', 'planted', 'harvested' => ['cancelled'],
+                'delivered' => ['cancelled'], // Admin can cancel even delivered orders
+                'completed' => ['delivered'], // Admin can step back completed orders
+                default => [],
+            };
+            $allowedTransitions = array_unique(array_merge($allowedTransitions, $adminExtraOptions));
+        }
+        
+        return array_intersect_key($allStatuses, array_flip($allowedTransitions));
     }
 
     public static function getPages(): array

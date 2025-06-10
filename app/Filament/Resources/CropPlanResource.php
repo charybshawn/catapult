@@ -1,0 +1,312 @@
+<?php
+
+namespace App\Filament\Resources;
+
+use App\Filament\Resources\CropPlanResource\Pages;
+use App\Models\CropPlan;
+use App\Models\Order;
+use App\Models\Recipe;
+use App\Models\User;
+use Filament\Forms;
+use Filament\Forms\Form;
+use Filament\Resources\Resource;
+use Filament\Tables;
+use Filament\Tables\Table;
+use Filament\Notifications\Notification;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
+
+class CropPlanResource extends Resource
+{
+    protected static ?string $model = CropPlan::class;
+
+    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
+    protected static ?string $navigationLabel = 'Crop Plans';
+    protected static ?string $navigationGroup = 'Production Management';
+    protected static ?int $navigationSort = 1;
+    
+    public static function shouldRegisterNavigation(): bool
+    {
+        return true;
+    }
+    
+    protected static ?string $recordTitleAttribute = 'id';
+
+    public static function form(Form $form): Form
+    {
+        return $form
+            ->schema([
+                Forms\Components\Section::make('Plan Details')
+                    ->schema([
+                        Forms\Components\Grid::make(2)
+                            ->schema([
+                                Forms\Components\Select::make('order_id')
+                                    ->label('Order')
+                                    ->relationship('order', 'id')
+                                    ->getOptionLabelFromRecordUsing(function ($record) {
+                                        $customerName = $record->user->name ?? 'Unknown';
+                                        return "Order #{$record->id} - {$customerName}";
+                                    })
+                                    ->searchable()
+                                    ->preload()
+                                    ->required(),
+                                    
+                                Forms\Components\Select::make('recipe_id')
+                                    ->label('Recipe')
+                                    ->relationship('recipe', 'name')
+                                    ->searchable()
+                                    ->preload()
+                                    ->required(),
+                            ]),
+                            
+                        Forms\Components\Grid::make(3)
+                            ->schema([
+                                Forms\Components\TextInput::make('trays_needed')
+                                    ->label('Trays Needed')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->required(),
+                                    
+                                Forms\Components\TextInput::make('grams_needed')
+                                    ->label('Grams Needed')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->step(0.01)
+                                    ->required(),
+                                    
+                                Forms\Components\TextInput::make('grams_per_tray')
+                                    ->label('Grams per Tray')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->step(0.01),
+                            ]),
+                    ]),
+                    
+                Forms\Components\Section::make('Timeline')
+                    ->schema([
+                        Forms\Components\Grid::make(3)
+                            ->schema([
+                                Forms\Components\DatePicker::make('plant_by_date')
+                                    ->label('Plant By Date')
+                                    ->required(),
+                                    
+                                Forms\Components\DatePicker::make('expected_harvest_date')
+                                    ->label('Expected Harvest Date')
+                                    ->required(),
+                                    
+                                Forms\Components\DatePicker::make('delivery_date')
+                                    ->label('Delivery Date')
+                                    ->required(),
+                            ]),
+                    ]),
+                    
+                Forms\Components\Section::make('Status & Approval')
+                    ->schema([
+                        Forms\Components\Grid::make(2)
+                            ->schema([
+                                Forms\Components\Select::make('status')
+                                    ->label('Status')
+                                    ->options([
+                                        'draft' => 'Draft',
+                                        'approved' => 'Approved',
+                                        'generating' => 'Generating Crops',
+                                        'completed' => 'Completed',
+                                        'cancelled' => 'Cancelled',
+                                    ])
+                                    ->default('draft')
+                                    ->required(),
+                                    
+                                Forms\Components\Select::make('approved_by')
+                                    ->label('Approved By')
+                                    ->relationship('approvedBy', 'name')
+                                    ->searchable()
+                                    ->preload()
+                                    ->visible(fn ($record) => $record && $record->approved_by),
+                            ]),
+                            
+                        Forms\Components\DateTimePicker::make('approved_at')
+                            ->label('Approved At')
+                            ->disabled()
+                            ->visible(fn ($record) => $record && $record->approved_at),
+                    ]),
+                    
+                Forms\Components\Section::make('Calculation Details')
+                    ->schema([
+                        Forms\Components\Textarea::make('notes')
+                            ->label('Notes')
+                            ->rows(3),
+                            
+                        Forms\Components\Textarea::make('admin_notes')
+                            ->label('Admin Notes')
+                            ->rows(3),
+                            
+                        Forms\Components\KeyValue::make('calculation_details')
+                            ->label('Calculation Details')
+                            ->addActionLabel('Add Detail')
+                            ->columnSpanFull(),
+                            
+                        Forms\Components\KeyValue::make('order_items_included')
+                            ->label('Order Items Included')
+                            ->addActionLabel('Add Item')
+                            ->columnSpanFull(),
+                    ])
+                    ->collapsible()
+                    ->collapsed(),
+            ]);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->columns([
+                Tables\Columns\TextColumn::make('id')
+                    ->label('Plan #')
+                    ->sortable(),
+                    
+                Tables\Columns\TextColumn::make('order.id')
+                    ->label('Order')
+                    ->formatStateUsing(fn ($record) => "#{$record->order->id}")
+                    ->url(fn ($record) => route('filament.admin.resources.orders.edit', $record->order_id))
+                    ->sortable(),
+                    
+                Tables\Columns\TextColumn::make('order.user.name')
+                    ->label('Customer')
+                    ->searchable()
+                    ->sortable(),
+                    
+                Tables\Columns\TextColumn::make('recipe.name')
+                    ->label('Recipe')
+                    ->searchable()
+                    ->sortable(),
+                    
+                Tables\Columns\BadgeColumn::make('status')
+                    ->label('Status')
+                    ->colors([
+                        'secondary' => 'draft',
+                        'success' => 'approved',
+                        'warning' => 'generating',
+                        'primary' => 'completed',
+                        'danger' => 'cancelled',
+                    ])
+                    ->sortable(),
+                    
+                Tables\Columns\TextColumn::make('trays_needed')
+                    ->label('Trays')
+                    ->sortable(),
+                    
+                Tables\Columns\TextColumn::make('plant_by_date')
+                    ->label('Plant By')
+                    ->date()
+                    ->sortable(),
+                    
+                Tables\Columns\TextColumn::make('days_until_planting')
+                    ->label('Days Until')
+                    ->getStateUsing(fn ($record) => $record->days_until_planting)
+                    ->color(fn ($state) => match (true) {
+                        $state < 0 => 'danger',
+                        $state <= 2 => 'warning',
+                        default => 'success',
+                    })
+                    ->weight(fn ($state) => $state <= 2 ? 'bold' : 'normal'),
+                    
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label('Created')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+            ])
+            ->defaultSort('plant_by_date', 'asc')
+            ->filters([
+                Tables\Filters\SelectFilter::make('status')
+                    ->options([
+                        'draft' => 'Draft',
+                        'approved' => 'Approved',
+                        'generating' => 'Generating',
+                        'completed' => 'Completed',
+                        'cancelled' => 'Cancelled',
+                    ]),
+                    
+                Tables\Filters\Filter::make('urgent')
+                    ->label('Urgent (Plant within 2 days)')
+                    ->query(fn (Builder $query) => $query->where('plant_by_date', '<=', now()->addDays(2))),
+                    
+                Tables\Filters\Filter::make('overdue')
+                    ->label('Overdue')
+                    ->query(fn (Builder $query) => $query->where('plant_by_date', '<', now())),
+            ])
+            ->actions([
+                Tables\Actions\Action::make('approve')
+                    ->label('Approve')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->visible(fn ($record) => $record->canBeApproved())
+                    ->action(function ($record) {
+                        $record->approve(Auth::user());
+                        Notification::make()
+                            ->title('Crop plan approved successfully')
+                            ->success()
+                            ->send();
+                    })
+                    ->requiresConfirmation(),
+                    
+                Tables\Actions\Action::make('generate_crops')
+                    ->label('Generate Crops')
+                    ->icon('heroicon-o-plus-circle')
+                    ->color('primary')
+                    ->visible(fn ($record) => $record->canGenerateCrops())
+                    ->url(fn ($record) => route('filament.admin.resources.crop-plans.generate-crops', $record))
+                    ->openUrlInNewTab(false),
+                    
+                Tables\Actions\ViewAction::make(),
+                Tables\Actions\EditAction::make(),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                    
+                    Tables\Actions\BulkAction::make('approve_selected')
+                        ->label('Approve Selected')
+                        ->icon('heroicon-o-check-circle')
+                        ->color('success')
+                        ->action(function ($records) {
+                            $approved = 0;
+                            foreach ($records as $record) {
+                                if ($record->canBeApproved()) {
+                                    $record->approve(Auth::user());
+                                    $approved++;
+                                }
+                            }
+                            
+                            Notification::make()
+                                ->title("Approved {$approved} crop plans")
+                                ->success()
+                                ->send();
+                        })
+                        ->requiresConfirmation(),
+                ]),
+            ]);
+    }
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => Pages\ListCropPlans::route('/'),
+            'edit' => Pages\EditCropPlan::route('/{record}/edit'),
+        ];
+    }
+    
+    public static function canCreate(): bool
+    {
+        return false; // Crop plans are auto-generated from orders
+    }
+    
+    public static function getNavigationBadge(): ?string
+    {
+        return static::getModel()::where('status', 'draft')->count() ?: null;
+    }
+    
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return static::getNavigationBadge() > 0 ? 'warning' : null;
+    }
+}

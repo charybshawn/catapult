@@ -30,6 +30,11 @@ class RecipeResource extends Resource
     protected static ?string $navigationLabel = 'Recipes';
     protected static ?string $navigationGroup = 'Production Management';
     protected static ?int $navigationSort = 1;
+    
+    public static function shouldRegisterNavigation(): bool
+    {
+        return true;
+    }
 
     public static function getFormSchema(): array
     {

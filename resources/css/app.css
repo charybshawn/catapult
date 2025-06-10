@@ -1,3 +1,40 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Make status select column flat */
+[data-column="status"] select {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+    cursor: pointer !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    padding: 0.25rem 1.5rem 0.25rem 0 !important;
+}
+
+[data-column="status"] {
+    position: relative !important;
+}
+
+[data-column="status"]::after {
+    content: '▼' !important;
+    position: absolute !important;
+    right: 0.25rem !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    pointer-events: none !important;
+    color: rgb(107 114 128) !important;
+    font-size: 0.75rem !important;
+}
+
+[data-column="status"] select:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+[data-column="status"] select::-ms-expand {
+    display: none;
+}

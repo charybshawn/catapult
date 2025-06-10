@@ -22,10 +22,10 @@ class TaskResource extends Resource
     protected static ?string $navigationGroup = 'Production Management';
     
     protected static ?int $navigationSort = 3;
-
+    
     public static function shouldRegisterNavigation(): bool
     {
-        return true; // We'll re-enable it now that the migration is fixed
+        return true;
     }
 
     public static function form(Form $form): Form

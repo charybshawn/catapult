@@ -27,11 +27,16 @@ use App\Filament\Forms\Components\Common as FormCommon;
 class CropResource extends BaseResource
 {
     protected static ?string $model = Crop::class;
-
+    
     protected static ?string $navigationIcon = 'heroicon-o-fire';
     protected static ?string $navigationLabel = 'Grows';
     protected static ?string $navigationGroup = 'Production Management';
     protected static ?int $navigationSort = 2;
+    
+    public static function shouldRegisterNavigation(): bool
+    {
+        return true;
+    }
     
     protected static ?string $recordTitleAttribute = 'name';
 

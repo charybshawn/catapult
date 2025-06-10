@@ -32,6 +32,7 @@ class Order extends Model
         'billing_period_end',
         'consolidated_invoice_id',
         'billing_preferences',
+        'billing_period',
         'is_recurring',
         'parent_recurring_order_id',
         'recurring_frequency',
@@ -86,8 +87,8 @@ class Order extends Model
                 $order->recurring_start_date = $order->harvest_date;
             }
             
-            // Automatically set status to template when marked as recurring
-            if ($order->is_recurring && $order->status !== 'template') {
+            // Automatically set status to template when marked as recurring (but not for B2B orders)
+            if ($order->is_recurring && $order->order_type !== 'b2b_recurring' && $order->status !== 'template') {
                 $order->status = 'template';
             } elseif (!$order->is_recurring && $order->status === 'template') {
                 // If no longer recurring, change status from template to pending
@@ -154,6 +155,14 @@ class Order extends Model
     public function crops(): HasMany
     {
         return $this->hasMany(Crop::class);
+    }
+    
+    /**
+     * Get the crop plans for this order.
+     */
+    public function cropPlans(): HasMany
+    {
+        return $this->hasMany(CropPlan::class);
     }
     
     /**
@@ -297,6 +306,16 @@ class Order extends Model
     }
     
     /**
+     * Check if this is a B2B recurring order that can generate new orders.
+     */
+    public function isB2BRecurringTemplate(): bool
+    {
+        return $this->order_type === 'b2b_recurring' && 
+               $this->is_recurring && 
+               $this->parent_recurring_order_id === null;
+    }
+    
+    /**
      * Check if this order was generated from a recurring template.
      */
     public function isGeneratedFromRecurring(): bool
@@ -363,17 +382,25 @@ class Order extends Model
         $newOrder->parent_recurring_order_id = $this->id;
         $newOrder->harvest_date = $nextDate->copy();
         $newOrder->delivery_date = $nextDate->copy()->addDay(); // Delivery next day
-        $newOrder->status = 'pending';
+        
+        // For B2B recurring orders, keep the same order_type and billing_frequency
+        // but don't make the generated order recurring itself
+        if ($this->isB2BRecurringTemplate()) {
+            $newOrder->is_recurring = false;
+            $newOrder->status = 'pending';
+        } else {
+            $newOrder->status = 'pending';
+        }
+        
         $newOrder->save();
         
         // Copy order items
         foreach ($this->orderItems as $item) {
             $newOrder->orderItems()->create([
-                'item_id' => $item->item_id,
-                'name' => $item->name,
+                'product_id' => $item->product_id,
+                'price_variation_id' => $item->price_variation_id,
                 'quantity' => $item->quantity,
                 'price' => $item->price,
-                'notes' => $item->notes,
             ]);
         }
         

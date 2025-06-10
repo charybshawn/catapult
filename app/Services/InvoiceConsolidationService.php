@@ -53,21 +53,21 @@ class InvoiceConsolidationService
     {
         return User::whereHas('orders', function ($query) use ($forDate) {
             $query->where('order_type', 'b2b_recurring')
-                ->where('billing_frequency', '!=', 'immediate')
+                ->where('billing_frequency', '<>', 'immediate')
                 ->where('requires_invoice', true)
                 ->whereNull('consolidated_invoice_id')
-                ->where('status', '!=', 'cancelled')
+                ->where('status', '<>', 'cancelled')
                 ->where(function ($q) use ($forDate) {
                     // Orders that fall within billing periods ending on or before the target date
                     $q->where(function ($periodQuery) use ($forDate) {
                         $periodQuery->where('billing_frequency', 'weekly')
-                            ->where('billing_period_end', '<=', $forDate->toDateString());
+                            ->where('billing_period_end', '<=', $forDate);
                     })->orWhere(function ($periodQuery) use ($forDate) {
                         $periodQuery->where('billing_frequency', 'monthly')
-                            ->where('billing_period_end', '<=', $forDate->toDateString());
+                            ->where('billing_period_end', '<=', $forDate);
                     })->orWhere(function ($periodQuery) use ($forDate) {
                         $periodQuery->where('billing_frequency', 'quarterly')
-                            ->where('billing_period_end', '<=', $forDate->toDateString());
+                            ->where('billing_period_end', '<=', $forDate);
                     });
                 });
         })->get();
@@ -112,11 +112,11 @@ class InvoiceConsolidationService
     {
         return $customer->orders()
             ->where('order_type', 'b2b_recurring')
-            ->where('billing_frequency', '!=', 'immediate')
+            ->where('billing_frequency', '<>', 'immediate')
             ->where('requires_invoice', true)
             ->whereNull('consolidated_invoice_id')
-            ->where('status', '!=', 'cancelled')
-            ->where('billing_period_end', '<=', $forDate->toDateString())
+            ->where('status', '<>', 'cancelled')
+            ->where('billing_period_end', '<=', $forDate)
             ->with(['orderItems', 'user'])
             ->get();
     }
@@ -136,6 +136,7 @@ class InvoiceConsolidationService
         $invoice = Invoice::create([
             'user_id' => $customer->id,
             'invoice_number' => $this->generateConsolidatedInvoiceNumber($customer, $forDate),
+            'amount' => $totalAmount,
             'total_amount' => $totalAmount,
             'status' => 'pending',
             'issue_date' => $forDate->toDateString(),
@@ -230,6 +231,7 @@ class InvoiceConsolidationService
                 'order_id' => $order->id,
                 'user_id' => $order->user_id,
                 'invoice_number' => $this->generateImmediateInvoiceNumber($order),
+                'amount' => $order->totalAmount(),
                 'total_amount' => $order->totalAmount(),
                 'status' => 'pending',
                 'issue_date' => now()->toDateString(),

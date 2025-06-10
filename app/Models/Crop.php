@@ -29,6 +29,7 @@ class Crop extends Model
     protected $fillable = [
         'recipe_id',
         'order_id',
+        'crop_plan_id',
         'tray_number',
         'planted_at',
         'current_stage',
@@ -86,6 +87,14 @@ class Crop extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
+    }
+    
+    /**
+     * Get the crop plan for this crop.
+     */
+    public function cropPlan(): BelongsTo
+    {
+        return $this->belongsTo(CropPlan::class);
     }
     
     /**
