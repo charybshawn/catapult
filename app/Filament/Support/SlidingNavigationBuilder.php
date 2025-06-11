@@ -216,14 +216,21 @@ class SlidingNavigationBuilder
     
     private static function getProductionBadge(): ?array
     {
-        // Get overdue crop alerts count
-        $overdueCount = \App\Models\CropAlert::where('alert_date', '<', now())->count();
-        
-        if ($overdueCount > 0) {
-            return [
-                'count' => $overdueCount,
-                'color' => 'danger',
-            ];
+        try {
+            // Get overdue task schedules count (using existing TaskSchedule model)
+            $overdueCount = \App\Models\TaskSchedule::where('resource_type', 'crops')
+                ->where('is_active', true)
+                ->where('next_run_at', '<', now())
+                ->count();
+            
+            if ($overdueCount > 0) {
+                return [
+                    'count' => $overdueCount,
+                    'color' => 'danger',
+                ];
+            }
+        } catch (\Exception $e) {
+            // Silently fail if there's an issue
         }
         
         return null;
@@ -231,14 +238,18 @@ class SlidingNavigationBuilder
     
     private static function getOrdersBadge(): ?array
     {
-        // Get pending orders count
-        $pendingCount = \App\Models\Order::where('status', 'pending')->count();
-        
-        if ($pendingCount > 0) {
-            return [
-                'count' => $pendingCount,
-                'color' => 'warning',
-            ];
+        try {
+            // Get pending orders count
+            $pendingCount = \App\Models\Order::where('status', 'pending')->count();
+            
+            if ($pendingCount > 0) {
+                return [
+                    'count' => $pendingCount,
+                    'color' => 'warning',
+                ];
+            }
+        } catch (\Exception $e) {
+            // Silently fail if there's an issue
         }
         
         return null;
@@ -246,14 +257,21 @@ class SlidingNavigationBuilder
     
     private static function getAlertsBadge(): ?array
     {
-        // Get today's alerts
-        $todayCount = \App\Models\CropAlert::whereDate('alert_date', today())->count();
-        
-        if ($todayCount > 0) {
-            return [
-                'count' => $todayCount,
-                'color' => 'primary',
-            ];
+        try {
+            // Get today's task schedules
+            $todayCount = \App\Models\TaskSchedule::where('resource_type', 'crops')
+                ->where('is_active', true)
+                ->whereDate('next_run_at', today())
+                ->count();
+            
+            if ($todayCount > 0) {
+                return [
+                    'count' => $todayCount,
+                    'color' => 'primary',
+                ];
+            }
+        } catch (\Exception $e) {
+            // Silently fail if there's an issue
         }
         
         return null;

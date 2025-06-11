@@ -15,16 +15,11 @@ class SlidingNavigationServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // Replace the default navigation with our sliding navigation
+        // Inject our custom sliding navigation and hide the default one
         FilamentView::registerRenderHook(
             PanelsRenderHook::SIDEBAR_NAV_START,
-            fn (): string => view('filament.navigation.sliding-navigation')->render()
-        );
-        
-        // Hide the default navigation
-        FilamentView::registerRenderHook(
-            PanelsRenderHook::SIDEBAR_NAV_START,
-            fn (): string => '<style>.fi-sidebar-nav-groups { display: none !important; }</style>'
+            fn (): string => view('filament.navigation.sliding-navigation')->render() . 
+                            '<style>.fi-sidebar-nav-groups { display: none !important; }</style>'
         );
     }
 }

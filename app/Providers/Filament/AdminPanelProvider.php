@@ -39,12 +39,13 @@ class AdminPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Amber,
             ])
-            // Custom sliding navigation - groups defined in SlidingNavigationBuilder
-            ->navigation(function (): array {
-                // Return empty array to disable default navigation
-                // Our custom navigation is handled in the view
-                return [];
-            })
+            ->navigationGroups([
+                'Dashboard & Overview',
+                'Production',
+                'Products & Inventory',
+                'Orders & Sales',
+                'System',
+            ])
             ->resources([
                 CropAlertResource::class,
                 // Hide the original TaskScheduleResource from navigation but keep it available for now
