@@ -213,6 +213,8 @@ class InvoiceResource extends Resource
                     }),
             ])
             ->actions([
+                Tables\Actions\ViewAction::make()
+                    ->tooltip('View invoice'),
                 Tables\Actions\EditAction::make()
                     ->tooltip('Edit invoice'),
                 Tables\Actions\DeleteAction::make()
@@ -280,6 +282,7 @@ class InvoiceResource extends Resource
         return [
             'index' => Pages\ListInvoices::route('/'),
             'create' => Pages\CreateInvoice::route('/create'),
+            'view' => Pages\ViewInvoice::route('/{record}'),
             'edit' => Pages\EditInvoice::route('/{record}/edit'),
         ];
     }

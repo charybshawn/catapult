@@ -293,6 +293,88 @@ class OrderResource extends Resource
                     }),
             ])
             ->actions([
+                Tables\Actions\Action::make('generate_next_recurring')
+                    ->label('Generate Next Order')
+                    ->icon('heroicon-o-plus-circle')
+                    ->color('success')
+                    ->visible(fn (Order $record): bool => 
+                        $record->status === 'template' && 
+                        $record->is_recurring
+                    )
+                    ->requiresConfirmation()
+                    ->modalHeading('Generate Next Recurring Order')
+                    ->modalDescription(fn (Order $record) => 
+                        "This will create the next order in the recurring series for {$record->user->name}."
+                    )
+                    ->action(function (Order $record) {
+                        try {
+                            $recurringOrderService = app(\App\Services\RecurringOrderService::class);
+                            $newOrder = $recurringOrderService->generateNextOrder($record);
+                            
+                            if ($newOrder) {
+                                Notification::make()
+                                    ->title('Recurring Order Generated')
+                                    ->body("Order #{$newOrder->id} has been created successfully.")
+                                    ->success()
+                                    ->actions([
+                                        \Filament\Notifications\Actions\Action::make('view')
+                                            ->label('View Order')
+                                            ->url(route('filament.admin.resources.orders.edit', ['record' => $newOrder->id]))
+                                    ])
+                                    ->send();
+                            } else {
+                                Notification::make()
+                                    ->title('No Order Generated')
+                                    ->body('No new order was generated. It may not be time for the next recurring order yet.')
+                                    ->warning()
+                                    ->send();
+                            }
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Error Generating Order')
+                                ->body('Failed to generate recurring order: ' . $e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
+                
+                Tables\Actions\Action::make('convert_to_invoice')
+                    ->label('Create Invoice')
+                    ->icon('heroicon-o-document-text')
+                    ->color('warning')
+                    ->visible(fn (Order $record): bool => 
+                        $record->status !== 'template' && 
+                        $record->requires_invoice &&
+                        !$record->invoice // Only show if no invoice exists yet
+                    )
+                    ->requiresConfirmation()
+                    ->modalHeading('Create Invoice')
+                    ->modalDescription(fn (Order $record) => 
+                        "This will create an invoice for Order #{$record->id} totaling $" . number_format($record->totalAmount(), 2) . "."
+                    )
+                    ->action(function (Order $record) {
+                        try {
+                            $invoice = \App\Models\Invoice::createFromOrder($record);
+                            
+                            Notification::make()
+                                ->title('Invoice Created')
+                                ->body("Invoice #{$invoice->id} has been created successfully.")
+                                ->success()
+                                ->actions([
+                                    \Filament\Notifications\Actions\Action::make('view')
+                                        ->label('View Invoice')
+                                        ->url(route('filament.admin.resources.invoices.edit', ['record' => $invoice->id]))
+                                ])
+                                ->send();
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Error Creating Invoice')
+                                ->body('Failed to create invoice: ' . $e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
+                
                 Tables\Actions\ViewAction::make()
                     ->tooltip('View order details'),
                 Tables\Actions\EditAction::make()
@@ -302,6 +384,63 @@ class OrderResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\BulkAction::make('create_consolidated_invoice')
+                        ->label('Create Consolidated Invoice')
+                        ->icon('heroicon-o-document-text')
+                        ->color('warning')
+                        ->requiresConfirmation()
+                        ->modalHeading('Create Consolidated Invoice')
+                        ->modalDescription('This will create a single invoice for all selected orders.')
+                        ->form([
+                            Forms\Components\DatePicker::make('issue_date')
+                                ->label('Issue Date')
+                                ->default(now())
+                                ->required(),
+                            Forms\Components\DatePicker::make('due_date')
+                                ->label('Due Date')
+                                ->default(now()->addDays(30))
+                                ->required(),
+                            Forms\Components\Textarea::make('notes')
+                                ->label('Invoice Notes')
+                                ->placeholder('Additional notes for the consolidated invoice...')
+                                ->rows(3),
+                        ])
+                        ->action(function (\Illuminate\Database\Eloquent\Collection $records, array $data) {
+                            // Validate that orders can be consolidated
+                            $errors = self::validateOrdersForConsolidation($records);
+                            
+                            if (!empty($errors)) {
+                                Notification::make()
+                                    ->title('Cannot Create Consolidated Invoice')
+                                    ->body(implode(' ', $errors))
+                                    ->danger()
+                                    ->persistent()
+                                    ->send();
+                                return;
+                            }
+                            
+                            try {
+                                $invoice = self::createConsolidatedInvoice($records, $data);
+                                
+                                Notification::make()
+                                    ->title('Consolidated Invoice Created')
+                                    ->body("Invoice #{$invoice->invoice_number} created for {$records->count()} orders totaling $" . number_format($invoice->total_amount, 2) . ".")
+                                    ->success()
+                                    ->actions([
+                                        \Filament\Notifications\Actions\Action::make('view')
+                                            ->label('View Invoice')
+                                            ->url(route('filament.admin.resources.invoices.edit', ['record' => $invoice->id]))
+                                    ])
+                                    ->send();
+                            } catch (\Exception $e) {
+                                Notification::make()
+                                    ->title('Error Creating Invoice')
+                                    ->body('Failed to create consolidated invoice: ' . $e->getMessage())
+                                    ->danger()
+                                    ->send();
+                            }
+                        })
+                        ->deselectRecordsAfterCompletion(),
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
@@ -365,6 +504,87 @@ class OrderResource extends Resource
         }
         
         return array_intersect_key($allStatuses, array_flip($allowedTransitions));
+    }
+
+    /**
+     * Validate that orders can be consolidated into a single invoice
+     */
+    protected static function validateOrdersForConsolidation(\Illuminate\Database\Eloquent\Collection $orders): array
+    {
+        $errors = [];
+
+        // Check if any orders are templates
+        $templates = $orders->where('status', 'template');
+        if ($templates->isNotEmpty()) {
+            $errors[] = 'Cannot create invoices for template orders.';
+        }
+
+        // Check if any orders don't require invoices
+        $noInvoiceNeeded = $orders->where('requires_invoice', false);
+        if ($noInvoiceNeeded->isNotEmpty()) {
+            $errors[] = 'Some selected orders do not require invoices.';
+        }
+
+        // Check if any orders already have invoices
+        $alreadyInvoiced = $orders->whereNotNull('invoice_id');
+        if ($alreadyInvoiced->isNotEmpty()) {
+            $errors[] = 'Some orders already have invoices.';
+        }
+
+        // Check if all orders belong to the same customer
+        $customerIds = $orders->pluck('user_id')->unique();
+        if ($customerIds->count() > 1) {
+            $errors[] = 'All orders must belong to the same customer for consolidated invoicing.';
+        }
+
+        // Check minimum number of orders
+        if ($orders->count() < 2) {
+            $errors[] = 'At least 2 orders are required for consolidated invoicing.';
+        }
+
+        return $errors;
+    }
+
+    /**
+     * Create a consolidated invoice from multiple orders
+     */
+    protected static function createConsolidatedInvoice(\Illuminate\Database\Eloquent\Collection $orders, array $data): \App\Models\Invoice
+    {
+        // Calculate total amount
+        $totalAmount = $orders->sum(function ($order) {
+            return $order->totalAmount();
+        });
+
+        // Get billing period from order dates
+        $deliveryDates = $orders->pluck('delivery_date')->map(fn($date) => \Carbon\Carbon::parse($date))->sort();
+        $billingPeriodStart = $deliveryDates->first()->startOfMonth();
+        $billingPeriodEnd = $deliveryDates->last()->endOfMonth();
+
+        // Generate invoice number
+        $invoiceNumber = \App\Models\Invoice::generateInvoiceNumber();
+
+        // Create the consolidated invoice
+        $invoice = \App\Models\Invoice::create([
+            'user_id' => $orders->first()->user_id,
+            'invoice_number' => $invoiceNumber,
+            'amount' => $totalAmount,
+            'total_amount' => $totalAmount,
+            'status' => 'draft',
+            'issue_date' => $data['issue_date'],
+            'due_date' => $data['due_date'],
+            'billing_period_start' => $billingPeriodStart,
+            'billing_period_end' => $billingPeriodEnd,
+            'is_consolidated' => true,
+            'consolidated_order_count' => $orders->count(),
+            'notes' => $data['notes'] ?? "Consolidated invoice for {$orders->count()} orders: " . $orders->pluck('id')->implode(', '),
+        ]);
+
+        // Link all orders to this consolidated invoice
+        $orders->each(function ($order) use ($invoice) {
+            $order->update(['consolidated_invoice_id' => $invoice->id]);
+        });
+
+        return $invoice;
     }
 
     public static function getPages(): array

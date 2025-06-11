@@ -20,6 +20,9 @@ Route::middleware('auth')->group(function () {
     // Invoice routes
     Route::get('/invoices/{invoice}/download', [InvoiceController::class, 'download'])->name('invoices.download');
     
+    // Crop planning routes
+    Route::get('/crop-planning/pdf', [\App\Http\Controllers\CropPlanningController::class, 'generatePdf'])->name('crop-planning.pdf');
+    
     // Dashboard AJAX endpoint
     Route::get('/admin/dashboard/data', [\App\Filament\Pages\Dashboard::class, 'getDashboardDataAjax'])->name('dashboard.data');
 });

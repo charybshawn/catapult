@@ -202,6 +202,34 @@ class RecurringOrderService
     }
 
     /**
+     * Manually generate the next order for a recurring template.
+     */
+    public function generateNextOrder(Order $template): ?Order
+    {
+        if (!$template->isRecurringTemplate()) {
+            throw new \InvalidArgumentException('Order is not a recurring template');
+        }
+
+        if (!$template->is_recurring_active) {
+            throw new \InvalidArgumentException('Recurring order template is not active');
+        }
+
+        // Use the model's generateNextRecurringOrder method
+        $newOrder = $template->generateNextRecurringOrder();
+        
+        if ($newOrder) {
+            Log::info('Manually generated recurring order', [
+                'template_id' => $template->id,
+                'new_order_id' => $newOrder->id,
+                'customer' => $template->user->name ?? 'Unknown',
+                'generated_by' => auth()->user()?->name ?? 'System'
+            ]);
+        }
+
+        return $newOrder;
+    }
+
+    /**
      * Get statistics about recurring orders.
      */
     public function getRecurringOrderStats(): array

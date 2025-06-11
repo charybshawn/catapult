@@ -234,6 +234,14 @@ class CropPlanResource extends Resource
                     ->label('Overdue')
                     ->query(fn (Builder $query) => $query->where('plant_by_date', '<', now())),
             ])
+            ->headerActions([
+                Tables\Actions\Action::make('manual_planning')
+                    ->label('Manual Crop Planning')
+                    ->icon('heroicon-o-calculator')
+                    ->color('success')
+                    ->url(static::getUrl('manual-planning'))
+                    ->button(),
+            ])
             ->actions([
                 Tables\Actions\Action::make('approve')
                     ->label('Approve')
@@ -254,8 +262,13 @@ class CropPlanResource extends Resource
                     ->icon('heroicon-o-plus-circle')
                     ->color('primary')
                     ->visible(fn ($record) => $record->canGenerateCrops())
-                    ->url(fn ($record) => route('filament.admin.resources.crop-plans.generate-crops', $record))
-                    ->openUrlInNewTab(false),
+                    ->action(function ($record) {
+                        // TODO: Implement crop generation logic
+                        Notification::make()
+                            ->title('Crop generation not yet implemented')
+                            ->warning()
+                            ->send();
+                    }),
                     
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
@@ -292,6 +305,7 @@ class CropPlanResource extends Resource
         return [
             'index' => Pages\ListCropPlans::route('/'),
             'edit' => Pages\EditCropPlan::route('/{record}/edit'),
+            'manual-planning' => Pages\ManualCropPlanning::route('/manual-planning'),
         ];
     }
     

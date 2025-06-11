@@ -159,6 +159,63 @@ class Invoice extends Model
         
         return $this->billing_period_start->format('M d, Y') . ' - ' . $this->billing_period_end->format('M d, Y');
     }
+
+    /**
+     * Create an invoice from an order.
+     */
+    public static function createFromOrder(Order $order): self
+    {
+        if ($order->invoice) {
+            throw new \InvalidArgumentException('Order already has an invoice');
+        }
+
+        if (!$order->requires_invoice) {
+            throw new \InvalidArgumentException('Order does not require an invoice');
+        }
+
+        $totalAmount = $order->totalAmount();
+        
+        // Generate invoice number
+        $invoiceNumber = self::generateInvoiceNumber();
+        
+        $invoice = self::create([
+            'order_id' => $order->id,
+            'user_id' => $order->user_id,
+            'invoice_number' => $invoiceNumber,
+            'amount' => $totalAmount,
+            'total_amount' => $totalAmount,
+            'status' => 'draft',
+            'issue_date' => now(),
+            'due_date' => now()->addDays(30), // Default 30-day payment terms
+            'is_consolidated' => false,
+            'consolidated_order_count' => 1,
+            'notes' => "Invoice for Order #{$order->id}",
+        ]);
+
+        // Update the order to link to this invoice
+        $order->update(['invoice_id' => $invoice->id]);
+
+        return $invoice;
+    }
+
+    /**
+     * Generate a unique invoice number.
+     */
+    public static function generateInvoiceNumber(): string
+    {
+        $year = now()->year;
+        $month = now()->format('m');
+        
+        // Get the next sequential number for this month
+        $lastInvoice = self::whereYear('created_at', $year)
+            ->whereMonth('created_at', now()->month)
+            ->orderBy('id', 'desc')
+            ->first();
+        
+        $sequence = $lastInvoice ? (int) substr($lastInvoice->invoice_number, -4) + 1 : 1;
+        
+        return sprintf('INV-%s%s-%04d', $year, $month, $sequence);
+    }
     
     /**
      * Configure the activity log options for this model.
