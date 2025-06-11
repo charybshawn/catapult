@@ -39,13 +39,12 @@ class AdminPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Amber,
             ])
-            ->navigationGroups([
-                'Dashboard & Overview',
-                'Production',
-                'Products & Inventory',
-                'Orders & Sales',
-                'System',
-            ])
+            // Custom sliding navigation - groups defined in SlidingNavigationBuilder
+            ->navigation(function (): array {
+                // Return empty array to disable default navigation
+                // Our custom navigation is handled in the view
+                return [];
+            })
             ->resources([
                 CropAlertResource::class,
                 // Hide the original TaskScheduleResource from navigation but keep it available for now
@@ -60,6 +59,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->homeUrl('/admin/dashboard')
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
+            ->viteTheme('resources/css/filament/admin/theme.css')
             ->widgets([
                 // Removed AccountWidget to hide welcome message and sign out button
                 SeedPriceTrendsWidget::class,
