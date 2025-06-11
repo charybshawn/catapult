@@ -1,8 +1,35 @@
 <div 
     x-data="{
-        currentView: 'main',
+        currentView: localStorage.getItem('slidingNavView') || 'main',
         previousView: null,
         isTransitioning: false,
+        
+        init() {
+            // Check if we're on a route that belongs to a submenu
+            this.checkCurrentRoute();
+        },
+        
+        checkCurrentRoute() {
+            // Get the current path
+            const currentPath = window.location.pathname;
+            
+            // Check each submenu to see if current route belongs to it
+            @foreach($submenus as $groupKey => $submenu)
+                @foreach($submenu['items'] as $item)
+                    if (currentPath.startsWith('{{ $item['url'] }}')) {
+                        this.currentView = '{{ $groupKey }}';
+                        this.saveView();
+                        return;
+                    }
+                @endforeach
+            @endforeach
+            
+            // If no match found and we're at the root admin, go to main
+            if (currentPath === '/admin' || currentPath === '/admin/') {
+                this.currentView = 'main';
+                this.saveView();
+            }
+        },
         
         showSubmenu(group) {
             if (this.isTransitioning) return;
@@ -13,6 +40,7 @@
             // Add slight delay for smooth animation
             setTimeout(() => {
                 this.currentView = group;
+                this.saveView();
                 this.isTransitioning = false;
             }, 150);
         },
@@ -25,8 +53,13 @@
             
             setTimeout(() => {
                 this.currentView = 'main';
+                this.saveView();
                 this.isTransitioning = false;
             }, 150);
+        },
+        
+        saveView() {
+            localStorage.setItem('slidingNavView', this.currentView);
         }
     }"
     class="fi-sidebar-nav flex-1 overflow-hidden"

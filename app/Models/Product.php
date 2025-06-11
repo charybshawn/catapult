@@ -11,6 +11,7 @@ use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 
 class Product extends Model
 {
@@ -37,6 +38,11 @@ class Product extends Model
         'category_id',
         'is_visible_in_store',
         'product_mix_id',
+        'total_stock',
+        'reserved_stock',
+        'reorder_threshold',
+        'track_inventory',
+        'stock_status',
     ];
     
     /**
@@ -51,6 +57,10 @@ class Product extends Model
         'wholesale_price' => 'decimal:2',
         'bulk_price' => 'decimal:2',
         'special_price' => 'decimal:2',
+        'total_stock' => 'decimal:2',
+        'reserved_stock' => 'decimal:2',
+        'reorder_threshold' => 'decimal:2',
+        'track_inventory' => 'boolean',
     ];
     
     protected static function booted()
@@ -542,5 +552,193 @@ class Product extends Model
         }
         
         return $this->attributes['special_price'] ?? null;
+    }
+
+    /**
+     * Get the inventory batches for this product.
+     */
+    public function inventories(): HasMany
+    {
+        return $this->hasMany(ProductInventory::class);
+    }
+
+    /**
+     * Get active inventory batches.
+     */
+    public function activeInventories(): HasMany
+    {
+        return $this->inventories()->active();
+    }
+
+    /**
+     * Get available inventory batches (with available quantity).
+     */
+    public function availableInventories(): HasMany
+    {
+        return $this->inventories()->available();
+    }
+
+    /**
+     * Get inventory transactions.
+     */
+    public function inventoryTransactions(): HasMany
+    {
+        return $this->hasMany(InventoryTransaction::class);
+    }
+
+    /**
+     * Get inventory reservations.
+     */
+    public function inventoryReservations(): HasMany
+    {
+        return $this->hasMany(InventoryReservation::class);
+    }
+
+    /**
+     * Get the available stock attribute.
+     */
+    public function getAvailableStockAttribute(): float
+    {
+        return $this->total_stock - $this->reserved_stock;
+    }
+
+    /**
+     * Check if the product is in stock.
+     */
+    public function isInStock(): bool
+    {
+        return $this->available_stock > 0;
+    }
+
+    /**
+     * Check if the product needs reordering.
+     */
+    public function needsReorder(): bool
+    {
+        return $this->track_inventory && $this->available_stock <= $this->reorder_threshold;
+    }
+
+    /**
+     * Add inventory to the product.
+     */
+    public function addInventory(array $data): ProductInventory
+    {
+        $inventory = $this->inventories()->create([
+            'batch_number' => $data['batch_number'] ?? null,
+            'lot_number' => $data['lot_number'] ?? null,
+            'quantity' => $data['quantity'],
+            'cost_per_unit' => $data['cost_per_unit'] ?? null,
+            'price_variation_id' => $data['price_variation_id'] ?? null,
+            'expiration_date' => $data['expiration_date'] ?? null,
+            'production_date' => $data['production_date'] ?? null,
+            'location' => $data['location'] ?? null,
+            'notes' => $data['notes'] ?? null,
+            'status' => 'active',
+        ]);
+
+        // Record the transaction
+        $inventory->recordTransaction(
+            type: $data['transaction_type'] ?? 'production',
+            quantity: $data['quantity'],
+            notes: $data['transaction_notes'] ?? null,
+            referenceType: $data['reference_type'] ?? null,
+            referenceId: $data['reference_id'] ?? null
+        );
+
+        return $inventory;
+    }
+
+    /**
+     * Reserve stock for an order using FIFO.
+     */
+    public function reserveStock(float $quantity, int $orderId, int $orderItemId): array
+    {
+        if (!$this->track_inventory) {
+            return []; // No reservation needed if not tracking inventory
+        }
+
+        if ($quantity > $this->available_stock) {
+            throw new \Exception("Insufficient stock. Available: {$this->available_stock}, Requested: {$quantity}");
+        }
+
+        $reservations = [];
+        $remainingQuantity = $quantity;
+
+        // Get available inventory batches ordered by FIFO (expiration date, then creation date)
+        $batches = $this->availableInventories()
+            ->orderByRaw('COALESCE(expiration_date, DATE_ADD(created_at, INTERVAL 365 DAY))')
+            ->orderBy('created_at')
+            ->get();
+
+        foreach ($batches as $batch) {
+            if ($remainingQuantity <= 0) break;
+
+            $availableInBatch = $batch->available_quantity;
+            $toReserve = min($remainingQuantity, $availableInBatch);
+
+            if ($toReserve > 0) {
+                $reservation = $batch->reserveStock($toReserve, $orderId, $orderItemId);
+                $reservations[] = $reservation;
+                $remainingQuantity -= $toReserve;
+            }
+        }
+
+        return $reservations;
+    }
+
+    /**
+     * Get the next batch number for this product.
+     */
+    public function getNextBatchNumber(): string
+    {
+        $lastBatch = $this->inventories()
+            ->whereNotNull('batch_number')
+            ->orderByRaw('LENGTH(batch_number) DESC')
+            ->orderBy('batch_number', 'desc')
+            ->first();
+
+        if (!$lastBatch || !$lastBatch->batch_number) {
+            return $this->sku . '-001';
+        }
+
+        // Extract number from batch number
+        if (preg_match('/(\d+)$/', $lastBatch->batch_number, $matches)) {
+            $number = intval($matches[1]) + 1;
+            $prefix = substr($lastBatch->batch_number, 0, -strlen($matches[1]));
+            return $prefix . str_pad($number, strlen($matches[1]), '0', STR_PAD_LEFT);
+        }
+
+        return $this->sku . '-001';
+    }
+
+    /**
+     * Get inventory value for this product.
+     */
+    public function getInventoryValue(): float
+    {
+        return $this->activeInventories()->sum(\DB::raw('quantity * COALESCE(cost_per_unit, 0)'));
+    }
+
+    /**
+     * Update stock status based on current levels.
+     */
+    public function updateStockStatus(): void
+    {
+        if (!$this->track_inventory) {
+            $this->update(['stock_status' => 'in_stock']);
+            return;
+        }
+
+        $available = $this->available_stock;
+
+        if ($available <= 0) {
+            $status = 'out_of_stock';
+        } elseif ($available <= $this->reorder_threshold) {
+            $status = 'low_stock';
+        } else {
+            $status = 'in_stock';
+        }
+
+        $this->update(['stock_status' => $status]);
     }
 } 

@@ -25,10 +25,16 @@ class SlidingNavigationBuilder
                     'description' => 'Crops, recipes, and alerts',
                     'badge' => self::getProductionBadge(),
                 ],
+                'products' => [
+                    'label' => 'Products',
+                    'icon' => 'heroicon-o-shopping-bag',
+                    'description' => 'Products and pricing',
+                    'badge' => null,
+                ],
                 'inventory' => [
-                    'label' => 'Products & Inventory',
+                    'label' => 'Inventory',
                     'icon' => 'heroicon-o-cube',
-                    'description' => 'Seeds, products, and supplies',
+                    'description' => 'Seeds, consumables, and supplies',
                     'badge' => null,
                 ],
                 'orders' => [
@@ -106,6 +112,42 @@ class SlidingNavigationBuilder
                     ],
                 ],
                 
+                'products' => [
+                    'items' => [
+                        [
+                            'label' => 'Products',
+                            'url' => '/admin/products',
+                            'icon' => 'heroicon-o-shopping-bag',
+                            'active' => request()->routeIs('filament.admin.resources.products.*'),
+                        ],
+                        [
+                            'label' => 'Product Inventory',
+                            'url' => '/admin/product-inventories',
+                            'icon' => 'heroicon-o-cube',
+                            'active' => request()->routeIs('filament.admin.resources.product-inventories.*'),
+                            'badge' => self::getProductInventoryBadge(),
+                        ],
+                        [
+                            'label' => 'Product Mixes',
+                            'url' => '/admin/product-mixes',
+                            'icon' => 'heroicon-o-puzzle-piece',
+                            'active' => request()->routeIs('filament.admin.resources.product-mixes.*'),
+                        ],
+                        [
+                            'label' => 'Categories',
+                            'url' => '/admin/categories',
+                            'icon' => 'heroicon-o-tag',
+                            'active' => request()->routeIs('filament.admin.resources.categories.*'),
+                        ],
+                        [
+                            'label' => 'Packaging Types',
+                            'url' => '/admin/packaging-types',
+                            'icon' => 'heroicon-o-cube',
+                            'active' => request()->routeIs('filament.admin.resources.packaging-types.*'),
+                        ],
+                    ],
+                ],
+                
                 'inventory' => [
                     'items' => [
                         [
@@ -115,40 +157,16 @@ class SlidingNavigationBuilder
                             'active' => request()->routeIs('filament.admin.resources.seed-entries.*'),
                         ],
                         [
-                            'label' => 'Products',
-                            'url' => '/admin/products',
-                            'icon' => 'heroicon-o-shopping-bag',
-                            'active' => request()->routeIs('filament.admin.resources.products.*'),
-                        ],
-                        [
                             'label' => 'Consumables',
                             'url' => '/admin/consumables',
                             'icon' => 'heroicon-o-archive-box',
                             'active' => request()->routeIs('filament.admin.resources.consumables.*'),
                         ],
                         [
-                            'label' => 'Categories',
-                            'url' => '/admin/categories',
-                            'icon' => 'heroicon-o-tag',
-                            'active' => request()->routeIs('filament.admin.resources.categories.*'),
-                        ],
-                        [
                             'label' => 'Suppliers',
                             'url' => '/admin/suppliers',
                             'icon' => 'heroicon-o-building-office',
                             'active' => request()->routeIs('filament.admin.resources.suppliers.*'),
-                        ],
-                        [
-                            'label' => 'Packaging Types',
-                            'url' => '/admin/packaging-types',
-                            'icon' => 'heroicon-o-cube',
-                            'active' => request()->routeIs('filament.admin.resources.packaging-types.*'),
-                        ],
-                        [
-                            'label' => 'Product Mixes',
-                            'url' => '/admin/product-mixes',
-                            'icon' => 'heroicon-o-puzzle-piece',
-                            'active' => request()->routeIs('filament.admin.resources.product-mixes.*'),
                         ],
                         [
                             'label' => 'Seed Price Trends',
@@ -268,6 +286,28 @@ class SlidingNavigationBuilder
                 return [
                     'count' => $todayCount,
                     'color' => 'primary',
+                ];
+            }
+        } catch (\Exception $e) {
+            // Silently fail if there's an issue
+        }
+        
+        return null;
+    }
+    
+    private static function getProductInventoryBadge(): ?array
+    {
+        try {
+            // Get count of low stock items
+            $lowStockCount = \App\Models\ProductInventory::active()
+                ->where('available_quantity', '>', 0)
+                ->where('available_quantity', '<=', 10)
+                ->count();
+            
+            if ($lowStockCount > 0) {
+                return [
+                    'count' => $lowStockCount,
+                    'color' => 'warning',
                 ];
             }
         } catch (\Exception $e) {
