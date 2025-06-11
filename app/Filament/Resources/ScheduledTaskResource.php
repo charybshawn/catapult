@@ -14,7 +14,7 @@ class ScheduledTaskResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-clock';
     protected static ?string $navigationLabel = 'Scheduled Tasks';
-    protected static ?string $navigationGroup = 'System & Settings';
+    protected static ?string $navigationGroup = 'System';
     protected static ?int $navigationSort = 10;
     
     // Disable create/edit since these are system-managed

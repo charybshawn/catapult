@@ -19,7 +19,7 @@ class SeedScrapeUploadResource extends Resource
     
     protected static ?string $navigationLabel = 'Seed Data Uploads';
     
-    protected static ?string $navigationGroup = 'Seed Management';
+    protected static ?string $navigationGroup = 'Products & Inventory';
     
     protected static ?int $navigationSort = 5;
 

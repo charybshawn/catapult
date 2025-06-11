@@ -23,7 +23,7 @@ class OrderResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-shopping-cart';
     protected static ?string $navigationLabel = 'Orders';
-    protected static ?string $navigationGroup = 'Order Management';
+    protected static ?string $navigationGroup = 'Orders & Sales';
     protected static ?int $navigationSort = 1;
     
     public static function shouldRegisterNavigation(): bool
@@ -97,6 +97,10 @@ class OrderResource extends Resource
                                 $data['password'] = bcrypt(Str::random(12)); // Generate random password
                                 return User::create($data)->getKey();
                             }),
+                        Forms\Components\DatePicker::make('harvest_date')
+                            ->label('Harvest Date')
+                            ->helperText('When this order should be harvested (used by crop planner)')
+                            ->required(),
                         Forms\Components\DatePicker::make('delivery_date')
                             ->label('Delivery Date')
                             ->required(),
@@ -105,7 +109,7 @@ class OrderResource extends Resource
                             ->options([
                                 'website_immediate' => 'Website Order',
                                 'farmers_market' => 'Farmer\'s Market',
-                                'b2b_recurring' => 'B2B Recurring',
+                                'b2b' => 'B2B',
                             ])
                             ->default('website_immediate')
                             ->required()
@@ -118,13 +122,55 @@ class OrderResource extends Resource
                                 } elseif ($state === 'website_immediate') {
                                     $set('billing_frequency', 'immediate');
                                     $set('requires_invoice', true);
-                                } elseif ($state === 'b2b_recurring') {
+                                } elseif ($state === 'b2b') {
                                     $set('billing_frequency', 'monthly');
                                     $set('requires_invoice', true);
                                 }
                             }),
                     ])
                     ->columns(2),
+                
+                Forms\Components\Section::make('Recurring Settings')
+                    ->schema([
+                        Forms\Components\Toggle::make('is_recurring')
+                            ->label('Make this a recurring order')
+                            ->helperText('When enabled, this order will generate new orders automatically')
+                            ->reactive()
+                            ->afterStateUpdated(function ($state, callable $set) {
+                                if (!$state) {
+                                    $set('recurring_frequency', null);
+                                    $set('recurring_start_date', null);
+                                    $set('recurring_end_date', null);
+                                }
+                            }),
+                        
+                        Forms\Components\Grid::make(3)
+                            ->schema([
+                                Forms\Components\Select::make('recurring_frequency')
+                                    ->label('Frequency')
+                                    ->options([
+                                        'weekly' => 'Weekly',
+                                        'biweekly' => 'Biweekly',
+                                        'monthly' => 'Monthly',
+                                    ])
+                                    ->required()
+                                    ->visible(fn ($get) => $get('is_recurring')),
+                                
+                                Forms\Components\DatePicker::make('recurring_start_date')
+                                    ->label('Start Date')
+                                    ->helperText('First occurrence date')
+                                    ->required()
+                                    ->visible(fn ($get) => $get('is_recurring')),
+                                
+                                Forms\Components\DatePicker::make('recurring_end_date')
+                                    ->label('End Date (Optional)')
+                                    ->helperText('Leave empty for indefinite')
+                                    ->visible(fn ($get) => $get('is_recurring')),
+                            ])
+                            ->visible(fn ($get) => $get('is_recurring')),
+                    ])
+                    ->collapsible()
+                    ->collapsed(),
                 
                 Forms\Components\Section::make('Billing & Invoicing')
                     ->schema([
@@ -138,14 +184,14 @@ class OrderResource extends Resource
                             ])
                             ->default('immediate')
                             ->required()
-                            ->visible(fn ($get) => $get('order_type') === 'b2b_recurring'),
+                            ->visible(fn ($get) => $get('order_type') === 'b2b'),
                         
                         Forms\Components\Toggle::make('requires_invoice')
                             ->label('Requires Invoice')
                             ->helperText('Uncheck for farmer\'s market orders that don\'t need invoicing')
                             ->default(true),
                     ])
-                    ->visible(fn ($get) => in_array($get('order_type'), ['b2b_recurring', 'farmers_market']))
+                    ->visible(fn ($get) => in_array($get('order_type'), ['b2b', 'farmers_market']))
                     ->columns(2),
                 
                 
@@ -191,7 +237,8 @@ class OrderResource extends Resource
                     ->color(fn (Order $record): string => match ($record->order_type) {
                         'website_immediate' => 'success',
                         'farmers_market' => 'warning',
-                        'b2b_recurring' => 'info',
+                        'b2b' => 'info',
+                        'b2b_recurring' => 'info', // Legacy support
                         default => 'gray',
                     }),
                 Tables\Columns\TextColumn::make('billing_frequency_display')

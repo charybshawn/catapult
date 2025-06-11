@@ -19,7 +19,7 @@ class TaskResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
     
-    protected static ?string $navigationGroup = 'Production Management';
+    protected static ?string $navigationGroup = 'Production';
     
     protected static ?int $navigationSort = 3;
     

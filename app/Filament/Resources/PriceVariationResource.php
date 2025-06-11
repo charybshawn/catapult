@@ -17,9 +17,12 @@ class PriceVariationResource extends Resource
 {
     protected static ?string $model = PriceVariation::class;
 
+    // Hide from navigation since price variations are managed within ProductResource
+    protected static bool $shouldRegisterNavigation = false;
+
     protected static ?string $navigationIcon = 'heroicon-o-currency-dollar';
 
-    protected static ?string $navigationGroup = 'Sales & Products';
+    protected static ?string $navigationGroup = 'Products & Inventory';
     
     protected static ?int $navigationSort = 5;
 

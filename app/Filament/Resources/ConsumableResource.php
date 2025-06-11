@@ -22,7 +22,7 @@ class ConsumableResource extends BaseResource
 
     protected static ?string $navigationIcon = 'heroicon-o-cube';
     protected static ?string $navigationLabel = 'Consumables & Supplies';
-    protected static ?string $navigationGroup = 'Inventory & Materials';
+    protected static ?string $navigationGroup = 'Products & Inventory';
     protected static ?int $navigationSort = 1;
 
     public static function form(Form $form): Form

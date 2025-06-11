@@ -30,7 +30,7 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
     
     protected static ?string $title = 'Seed Reorder Advisor';
     
-    protected static ?string $navigationGroup = 'Analytics & Reports';
+    protected static ?string $navigationGroup = 'Products & Inventory';
     
     protected static ?int $navigationSort = 3;
     

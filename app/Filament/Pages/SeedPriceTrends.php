@@ -26,7 +26,7 @@ class SeedPriceTrends extends Page implements HasForms
     
     protected static ?string $title = 'Seed Price Trends';
     
-    protected static ?string $navigationGroup = 'Analytics & Reports';
+    protected static ?string $navigationGroup = 'Products & Inventory';
     
     protected static ?int $navigationSort = 2;
     

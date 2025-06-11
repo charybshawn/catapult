@@ -32,7 +32,7 @@ class ProductResource extends BaseResource
 
     protected static ?string $navigationIcon = 'heroicon-o-shopping-bag';
     protected static ?string $navigationLabel = 'Products';
-    protected static ?string $navigationGroup = 'Sales & Products';
+    protected static ?string $navigationGroup = 'Products & Inventory';
     protected static ?int $navigationSort = 1;
 
     public static function form(Form $form): Form

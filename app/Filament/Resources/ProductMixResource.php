@@ -18,7 +18,7 @@ class ProductMixResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-squares-plus';
     protected static ?string $navigationLabel = 'Product Mixes';
-    protected static ?string $navigationGroup = 'Sales & Products';
+    protected static ?string $navigationGroup = 'Products & Inventory';
     
     protected static ?int $navigationSort = 3;
 

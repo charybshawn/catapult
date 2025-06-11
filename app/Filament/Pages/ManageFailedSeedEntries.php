@@ -40,7 +40,7 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
     
     protected static ?string $title = 'Failed Seed Entries';
     
-    protected static ?string $navigationGroup = 'Seed Management';
+    protected static ?string $navigationGroup = 'Products & Inventory';
     
     protected static ?int $navigationSort = 7;
     

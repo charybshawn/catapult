@@ -88,7 +88,7 @@ class Order extends Model
             }
             
             // Automatically set status to template when marked as recurring (but not for B2B orders)
-            if ($order->is_recurring && $order->order_type !== 'b2b_recurring' && $order->status !== 'template') {
+            if ($order->is_recurring && !in_array($order->order_type, ['b2b', 'b2b_recurring']) && $order->status !== 'template') {
                 $order->status = 'template';
             } elseif (!$order->is_recurring && $order->status === 'template') {
                 // If no longer recurring, change status from template to pending
@@ -103,8 +103,8 @@ class Order extends Model
                 }
             }
             
-            // Set billing periods for B2B recurring orders
-            if ($order->order_type === 'b2b_recurring' && 
+            // Set billing periods for B2B orders
+            if (in_array($order->order_type, ['b2b', 'b2b_recurring']) && 
                 $order->billing_frequency !== 'immediate' && 
                 $order->delivery_date &&
                 (!$order->billing_period_start || !$order->billing_period_end)) {
@@ -310,7 +310,7 @@ class Order extends Model
      */
     public function isB2BRecurringTemplate(): bool
     {
-        return $this->order_type === 'b2b_recurring' && 
+        return in_array($this->order_type, ['b2b', 'b2b_recurring']) && 
                $this->is_recurring && 
                $this->parent_recurring_order_id === null;
     }
@@ -383,7 +383,7 @@ class Order extends Model
         $newOrder->harvest_date = $nextDate->copy();
         $newOrder->delivery_date = $nextDate->copy()->addDay(); // Delivery next day
         
-        // For B2B recurring orders, keep the same order_type and billing_frequency
+        // For B2B orders, keep the same order_type and billing_frequency
         // but don't make the generated order recurring itself
         if ($this->isB2BRecurringTemplate()) {
             $newOrder->is_recurring = false;
@@ -479,7 +479,8 @@ class Order extends Model
     {
         return match($this->order_type) {
             'farmers_market' => 'Farmer\'s Market',
-            'b2b_recurring' => 'B2B Recurring',
+            'b2b' => 'B2B',
+            'b2b_recurring' => 'B2B', // Legacy support
             'website_immediate' => 'Website Order',
             default => 'Website Order',
         };
@@ -513,7 +514,7 @@ class Order extends Model
      */
     public function isConsolidatedBilling(): bool
     {
-        return $this->order_type === 'b2b_recurring' && 
+        return in_array($this->order_type, ['b2b', 'b2b_recurring']) && 
                in_array($this->billing_frequency, ['weekly', 'monthly', 'quarterly']);
     }
     
