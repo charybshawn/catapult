@@ -141,8 +141,7 @@ class CropResource extends BaseResource
 
     public static function table(Table $table): Table
     {
-        return $table
-            ->persistSortInSession()
+        return static::configureTableDefaults($table)
             ->defaultSort('planted_at', 'desc')
             ->modifyQueryUsing(function (Builder $query): Builder {
                 // Build the query

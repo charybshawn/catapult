@@ -99,65 +99,64 @@ class ConsumableResource extends BaseResource
                                 } else if ($get('type') === 'seed') {
                                     // Simple, explicit seed cultivar selection
                                     return [
-                                        Forms\Components\Select::make('seed_entry_id')
-                                            ->label('Seed Entry')
-                                            ->helperText('Required: Please select a seed entry')
-                                            ->options(function () {
-                                                return \App\Models\SeedEntry::with('supplier')
-                                                    ->orderBy('common_name', 'asc')
-                                                    ->orderBy('cultivar_name', 'asc')
-                                                    ->get()
-                                                    ->mapWithKeys(function ($entry) {
-                                                        $label = $entry->common_name . ' - ' . $entry->cultivar_name;
-                                                        if ($entry->supplier) {
-                                                            $label .= ' (' . $entry->supplier->name . ')';
-                                                        }
-                                                        return [$entry->id => $label];
+                                        Forms\Components\Grid::make(2)
+                                            ->schema([
+                                                Forms\Components\Select::make('seed_entry_id')
+                                                    ->label('Seed Entry')
+                                                    ->helperText('Required: Please select a seed entry')
+                                                    ->options(function () {
+                                                        return \App\Models\SeedEntry::with('supplier')
+                                                            ->orderBy('common_name', 'asc')
+                                                            ->orderBy('cultivar_name', 'asc')
+                                                            ->get()
+                                                            ->mapWithKeys(function ($entry) {
+                                                                $label = $entry->common_name . ' - ' . $entry->cultivar_name;
+                                                                if ($entry->supplier) {
+                                                                    $label .= ' (' . $entry->supplier->name . ')';
+                                                                }
+                                                                return [$entry->id => $label];
+                                                            })
+                                                            ->toArray();
                                                     })
-                                                    ->toArray();
-                                            })
-                                            ->searchable()
-                                            ->required()
-                                            ->live() // Make the field live to update instantly
-                                            ->createOptionForm([
-                                                Forms\Components\TextInput::make('common_name')
-                                                    ->label('Common Name')
-                                                    ->required()
-                                                    ->maxLength(255),
-                                                Forms\Components\TextInput::make('cultivar_name')
-                                                    ->label('Cultivar Name')
-                                                    ->required()
-                                                    ->maxLength(255),
-                                                Forms\Components\Select::make('supplier_id')
-                                                    ->label('Supplier')
-                                                    ->options(\App\Models\Supplier::pluck('name', 'id'))
                                                     ->searchable()
-                                                    ->required(),
-                                                Forms\Components\Textarea::make('description')
-                                                    ->label('Description')
-                                                    ->maxLength(1000),
-                                                Forms\Components\Toggle::make('is_active')
-                                                    ->label('Active')
-                                                    ->default(true),
+                                                    ->required()
+                                                    ->live() // Make the field live to update instantly
+                                                    ->createOptionForm([
+                                                        Forms\Components\TextInput::make('common_name')
+                                                            ->label('Common Name')
+                                                            ->required()
+                                                            ->maxLength(255),
+                                                        Forms\Components\TextInput::make('cultivar_name')
+                                                            ->label('Cultivar Name')
+                                                            ->required()
+                                                            ->maxLength(255),
+                                                        Forms\Components\Select::make('supplier_id')
+                                                            ->label('Supplier')
+                                                            ->options(\App\Models\Supplier::pluck('name', 'id'))
+                                                            ->searchable()
+                                                            ->required()
+                                                            ->preload(),
+                                                        Forms\Components\Toggle::make('is_active')
+                                                            ->label('Active')
+                                                            ->default(true)
+                                                            ->columnSpan(2),
+                                                    ])
+                                                    ->createOptionAction(
+                                                        fn (Forms\Components\Actions\Action $action) => $action->modalWidth('2xl'),
+                                                    )
+                                                    ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                                        if ($state) {
+                                                            $entry = \App\Models\SeedEntry::find($state);
+                                                            if ($entry) {
+                                                                $set('name', $entry->common_name . ' (' . $entry->cultivar_name . ')');
+                                                            }
+                                                        }
+                                                    }),
+                                                    
+                                                FormCommon::supplierSelect(),
                                             ])
-                                            ->createOptionUsing(function (array $data) {
-                                                return \App\Models\SeedEntry::create($data)->id;
-                                            })
-                                            ->createOptionAction(function (Forms\Components\Actions\Action $action) {
-                                                return $action
-                                                    ->modalHeading('Create Seed Entry')
-                                                    ->modalSubmitActionLabel('Create Seed Entry')
-                                                    ->modalWidth('lg');
-                                            })
-                                            ->afterStateUpdated(function ($state, Forms\Set $set) {
-                                                if ($state) {
-                                                    $entry = \App\Models\SeedEntry::find($state);
-                                                    if ($entry) {
-                                                        $set('name', $entry->common_name . ' - ' . $entry->cultivar_name);
-                                                    }
-                                                }
-                                            }),
-                                            
+                                            ->columnSpanFull(),
+                                        
                                         // Hidden name field - will be set from the seed cultivar
                                         Forms\Components\Hidden::make('name'),
                                     ];
@@ -210,7 +209,19 @@ class ConsumableResource extends BaseResource
                             })
                             ->columnSpanFull(),
                         
-                        FormCommon::supplierSelect(),
+                        // Supplier field moved to be beside seed entry for seed type
+                        Forms\Components\Grid::make()
+                            ->schema(function (Forms\Get $get) {
+                                if ($get('type') === 'seed') {
+                                    // For seed type, supplier is already in the grid with seed_entry_id
+                                    return [];
+                                } else {
+                                    // For other types, show supplier field here
+                                    return [
+                                        FormCommon::supplierSelect(),
+                                    ];
+                                }
+                            })->columnSpanFull(),
                         
                         FormCommon::activeToggle()
                             ->columnSpanFull()
@@ -228,53 +239,98 @@ class ConsumableResource extends BaseResource
                                 // For seed consumables - simplified approach with direct total quantity
                                 if ($type === 'seed') {
                                     return [
-                                        // Direct total quantity input for seeds
-                                        Forms\Components\TextInput::make('total_quantity')
-                                            ->label('Total Weight')
-                                            ->helperText('Total weight of seed (e.g., 3 for 3 KG)')
+                                        // Grid for initial quantity and unit
+                                        Forms\Components\Grid::make(2)
+                                            ->schema([
+                                                // Direct total quantity input for seeds
+                                                Forms\Components\TextInput::make('total_quantity')
+                                                    ->label('Initial Quantity')
+                                                    ->helperText('Total amount purchased/received')
+                                                    ->numeric()
+                                                    ->minValue(0)
+                                                    ->required()
+                                                    ->default(0)
+                                                    ->step(0.001)
+                                                    ->reactive()
+                                                    ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                                        // When initial quantity changes, update remaining if it hasn't been manually set
+                                                        if (!$get('remaining_quantity') || $get('remaining_quantity') == 0) {
+                                                            $set('remaining_quantity', $state);
+                                                        }
+                                                    }),
+                                                    
+                                                // Unit of measurement for seeds
+                                                Forms\Components\Select::make('quantity_unit')
+                                                    ->label('Unit')
+                                                    ->options([
+                                                        'g' => 'Grams (g)',
+                                                        'kg' => 'Kilograms (kg)',
+                                                        'oz' => 'Ounces (oz)',
+                                                        'lb' => 'Pounds (lb)',
+                                                    ])
+                                                    ->required()
+                                                    ->default('g')
+                                                    ->reactive(),
+                                            ])
+                                            ->columnSpan(2),
+                                            
+                                        // Remaining quantity for existing inventory
+                                        Forms\Components\TextInput::make('remaining_quantity')
+                                            ->label('Current Remaining')
+                                            ->helperText('Actual weight remaining (e.g., weighed out 498g from 1000g)')
                                             ->numeric()
                                             ->minValue(0)
-                                            ->required()
-                                            ->default(0)
-                                            ->step(0.001),
-                                            
-                                        // Unit of measurement for seeds
-                                        Forms\Components\Select::make('quantity_unit')
-                                            ->label('Unit of Measurement')
-                                            ->helperText('Unit for the total weight')
-                                            ->options([
-                                                'g' => 'Grams',
-                                                'kg' => 'Kilograms',
-                                                'oz' => 'Ounces',
-                                                'lb' => 'Pounds',
-                                            ])
-                                            ->required()
-                                            ->default('g')
+                                            ->default(function (Forms\Get $get) {
+                                                return (float) $get('total_quantity');
+                                            })
+                                            ->step(0.001)
                                             ->reactive()
-                                            ->afterStateUpdated(function (Forms\Set $set, $state) {
-                                                // Update restock defaults when unit changes
-                                                $set('restock_threshold', match($state) {
-                                                    'kg' => 0.5,  // 0.5 kg
-                                                    'g' => 500,   // 500 g
-                                                    'lb' => 1,    // 1 pound
-                                                    'oz' => 16,   // 16 ounces
-                                                    default => 500
-                                                });
+                                            ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
+                                                $total = (float) $get('total_quantity');
+                                                $remaining = (float) $state;
+                                                $consumed = max(0, $total - $remaining);
+                                                $set('consumed_quantity', $consumed);
                                                 
-                                                $set('restock_quantity', match($state) {
-                                                    'kg' => 1,     // 1 kg
-                                                    'g' => 1000,   // 1000 g
-                                                    'lb' => 2.2,   // 2.2 pounds (1 kg)
-                                                    'oz' => 35.3,  // 35.3 ounces (1 kg)
-                                                    default => 1000
-                                                });
+                                                // Log the calculation for debugging
+                                                \Illuminate\Support\Facades\Log::info('Remaining quantity updated:', [
+                                                    'total' => $total,
+                                                    'remaining' => $remaining,
+                                                    'consumed' => $consumed
+                                                ]);
                                             }),
+                                            
+                                        // Consumed quantity display
+                                        Forms\Components\Placeholder::make('consumed_display')
+                                            ->label('Amount Used')
+                                            ->content(function (Forms\Get $get) {
+                                                $total = (float) $get('total_quantity');
+                                                $remaining = (float) $get('remaining_quantity');
+                                                $consumed = max(0, $total - $remaining);
+                                                $unit = $get('quantity_unit') ?: 'g';
+                                                return number_format($consumed, 3) . ' ' . $unit . ' used';
+                                            }),
+                                            
                                             
                                         // Lot/batch number for seeds
                                         Forms\Components\TextInput::make('lot_no')
                                             ->label('Lot/Batch Number')
-                                            ->helperText('Batch identifier for this seed (will be stored as uppercase)')
+                                            ->helperText('Optional: Batch identifier')
                                             ->maxLength(100),
+                                            
+                                        // Hidden fields for compatibility
+                                        Forms\Components\Hidden::make('consumed_quantity')
+                                            ->default(0)
+                                            ->dehydrated(),
+                                        Forms\Components\Hidden::make('initial_stock')
+                                            ->default(1),
+                                        Forms\Components\Hidden::make('quantity_per_unit')
+                                            ->default(1),
+                                        Forms\Components\Hidden::make('unit')
+                                            ->default('unit'),
+                                        Forms\Components\Hidden::make('restock_threshold')
+                                            ->default(0),
+                                        Forms\Components\Hidden::make('restock_quantity')
+                                            ->default(0),
                                     ];
                                 }
                                 
@@ -395,6 +451,7 @@ class ConsumableResource extends BaseResource
                             ->columns(3),
                         
                         Forms\Components\Fieldset::make('Restock Settings')
+                            ->visible(false) // Temporarily hidden/deprecated
                             ->schema([
                                 // Info placeholder for seeds showing conversion
                                 Forms\Components\Placeholder::make('restock_info')
@@ -538,18 +595,63 @@ class ConsumableResource extends BaseResource
                             ])->columns(2),
                     ]),
                 
+                Forms\Components\Section::make('Cost Information')
+                    ->schema([
+                        Forms\Components\Grid::make(3)
+                            ->schema([
+                                Forms\Components\TextInput::make('cost_per_unit')
+                                    ->label('Cost per Unit')
+                                    ->prefix('$')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->step(0.01)
+                                    ->helperText(fn (Forms\Get $get) => 
+                                        $get('type') === 'seed' 
+                                            ? 'Cost per ' . ($get('quantity_unit') ?: 'unit')
+                                            : 'Cost per ' . ($get('unit') ?: 'unit')
+                                    ),
+                                Forms\Components\TextInput::make('last_purchase_price')
+                                    ->label('Last Purchase Price')
+                                    ->prefix('$')
+                                    ->numeric()
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->visible(fn ($record) => $record !== null),
+                                Forms\Components\Placeholder::make('total_value')
+                                    ->label('Total Inventory Value')
+                                    ->content(function (Forms\Get $get) {
+                                        $costPerUnit = (float) $get('cost_per_unit');
+                                        if ($get('type') === 'seed') {
+                                            $total = (float) $get('total_quantity');
+                                            $consumed = (float) $get('consumed_quantity');
+                                            $available = max(0, $total - $consumed);
+                                            $value = $available * $costPerUnit;
+                                        } else {
+                                            $initial = (float) $get('initial_stock');
+                                            $consumed = (float) $get('consumed_quantity');
+                                            $available = max(0, $initial - $consumed);
+                                            $value = $available * $costPerUnit;
+                                        }
+                                        return '$' . number_format($value, 2);
+                                    }),
+                            ]),
+                    ])
+                    ->collapsed()
+                    ->visible(fn (Forms\Get $get) => $get('type') === 'seed'),
+                    
                 Forms\Components\Section::make('Additional Information')
                     ->schema([
                         FormCommon::notesTextarea()
                             ->columnSpanFull(),
                     ])
-                    ->columns(1),
+                    ->columns(1)
+                    ->collapsed(),
             ]);
     }
 
     public static function table(Table $table): Table
     {
-        return $table
+        return static::configureTableDefaults($table)
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->label('Name')

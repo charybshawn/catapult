@@ -4,11 +4,25 @@ namespace App\Filament\Resources;
 
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Table;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\IconColumn;
 
 abstract class BaseResource extends Resource
 {
+    /**
+     * Configure default table settings with persistence
+     */
+    public static function configureTableDefaults(Table $table): Table
+    {
+        return $table
+            ->persistFiltersInSession()
+            ->persistSortInSession()
+            ->persistColumnSearchesInSession()
+            ->persistSearchInSession()
+            ->striped();
+    }
+    
     /**
      * Get a standard text column
      */

@@ -127,7 +127,10 @@ class SettingsResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->columns([
+            ->persistFiltersInSession()
+            ->persistSortInSession()
+            ->persistColumnSearchesInSession()
+            ->persistSearchInSession()            ->columns([
                 Tables\Columns\TextColumn::make('key')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('value')

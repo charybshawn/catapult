@@ -21,7 +21,7 @@ export default defineConfig({
     },
     build: {
         // Ensure assets are built with the correct base URL
-        manifest: true,
+        manifest: 'manifest.json',
         outDir: 'public/build',
         rollupOptions: {
             output: {

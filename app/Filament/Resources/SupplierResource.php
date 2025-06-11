@@ -58,7 +58,7 @@ class SupplierResource extends BaseResource
 
     public static function table(Table $table): Table
     {
-        return $table
+        return static::configureTableDefaults($table)
             ->columns([
                 static::getTextColumn('name', 'Name')
                     ->url(fn (Supplier $record): string => SupplierResource::getUrl('edit', ['record' => $record]))

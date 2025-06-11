@@ -38,6 +38,7 @@ class Product extends Model
         'category_id',
         'is_visible_in_store',
         'product_mix_id',
+        'seed_entry_id',
         'total_stock',
         'reserved_stock',
         'reorder_threshold',
@@ -65,6 +66,13 @@ class Product extends Model
     
     protected static function booted()
     {
+        // Validate mutual exclusivity of seed_entry_id and product_mix_id
+        static::saving(function ($product) {
+            if ($product->seed_entry_id && $product->product_mix_id) {
+                throw new \Exception('A product cannot have both a single variety and a product mix assigned.');
+            }
+        });
+        
         // After a product is saved, handle setting the default photo if needed
         static::saved(function ($product) {
             // Find any photo marked as default
@@ -254,6 +262,8 @@ class Product extends Model
                 'active',
                 'is_visible_in_store',
                 'category_id',
+                'product_mix_id',
+                'seed_entry_id',
                 'image',
                 'base_price',
                 'wholesale_price',
@@ -358,6 +368,30 @@ class Product extends Model
             // We have to return a relationship, so re-throw after logging
             throw $e;
         }
+    }
+
+    /**
+     * Get the seed entry (variety) for single-variety products.
+     */
+    public function seedEntry(): BelongsTo
+    {
+        return $this->belongsTo(SeedEntry::class);
+    }
+
+    /**
+     * Get the varieties associated with this product (either direct or through mix).
+     */
+    public function getVarietiesAttribute()
+    {
+        if ($this->seed_entry_id) {
+            // Single variety product
+            return collect([$this->seedEntry]);
+        } elseif ($this->product_mix_id && $this->productMix) {
+            // Mix product - return all varieties in the mix
+            return $this->productMix->seedEntries;
+        }
+        
+        return collect();
     }
 
     /**

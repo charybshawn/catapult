@@ -75,7 +75,10 @@ class CropAlertResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->defaultSort('next_run_at', 'asc')
+            ->persistFiltersInSession()
+            ->persistSortInSession()
+            ->persistColumnSearchesInSession()
+            ->persistSearchInSession()            ->defaultSort('next_run_at', 'asc')
             ->columns([
                 TextColumn::make('alert_type')
                     ->label('Action')

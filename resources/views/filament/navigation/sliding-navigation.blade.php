@@ -7,25 +7,64 @@
         init() {
             // Check if we're on a route that belongs to a submenu
             this.checkCurrentRoute();
+            
+            // Listen for navigation changes (including back/forward browser buttons)
+            window.addEventListener('popstate', () => this.checkCurrentRoute());
+            
+            // Watch for Livewire navigation
+            if (window.Livewire) {
+                Livewire.hook('commit.prepared', () => {
+                    // Small delay to ensure URL has updated
+                    setTimeout(() => this.checkCurrentRoute(), 50);
+                });
+            }
         },
         
         checkCurrentRoute() {
             // Get the current path
             const currentPath = window.location.pathname;
+            let matched = false;
             
             // Check each submenu to see if current route belongs to it
             @foreach($submenus as $groupKey => $submenu)
                 @foreach($submenu['items'] as $item)
+                    // Check if current path starts with the item URL
                     if (currentPath.startsWith('{{ $item['url'] }}')) {
-                        this.currentView = '{{ $groupKey }}';
-                        this.saveView();
+                        if (this.currentView !== '{{ $groupKey }}') {
+                            this.currentView = '{{ $groupKey }}';
+                            this.saveView();
+                        }
+                        matched = true;
                         return;
                     }
                 @endforeach
             @endforeach
             
+            // If no direct match, check by resource patterns
+            if (!matched) {
+                const resourcePatterns = {
+                    'dashboard': ['/dashboard', '/daily-operations', '/weekly-planning', '/analytics'],
+                    'production': ['/crops', '/recipes', '/crop-plans', '/crop-alerts', '/tasks', '/activities'],
+                    'orders': ['/orders', '/recurring-orders', '/invoices', '/users'],
+                    'inventory': ['/consumables', '/packaging-types', '/product-inventories'],
+                    'products': ['/products', '/product-mixes', '/price-variations'],
+                    'procurement': ['/suppliers', '/seed-entries', '/seed-scrapes', '/seed-price-trends', '/seed-reorder-advisor'],
+                    'system': ['/settings', '/categories', '/scheduled-tasks']
+                };
+                
+                for (const [group, patterns] of Object.entries(resourcePatterns)) {
+                    if (patterns.some(pattern => currentPath.includes(pattern))) {
+                        if (this.currentView !== group) {
+                            this.currentView = group;
+                            this.saveView();
+                        }
+                        return;
+                    }
+                }
+            }
+            
             // If no match found and we're at the root admin, go to main
-            if (currentPath === '/admin' || currentPath === '/admin/') {
+            if (!matched && (currentPath === '/admin' || currentPath === '/admin/')) {
                 this.currentView = 'main';
                 this.saveView();
             }

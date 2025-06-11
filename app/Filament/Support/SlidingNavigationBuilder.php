@@ -62,6 +62,12 @@ class SlidingNavigationBuilder
                             'active' => request()->routeIs('filament.admin.pages.dashboard'),
                         ],
                         [
+                            'label' => 'Daily Operations',
+                            'url' => '/admin/daily-operations',
+                            'icon' => 'heroicon-o-clipboard-document-check',
+                            'active' => request()->routeIs('filament.admin.pages.daily-operations'),
+                        ],
+                        [
                             'label' => 'Weekly Planning',
                             'url' => '/admin/weekly-planning',
                             'icon' => 'heroicon-o-calendar',
