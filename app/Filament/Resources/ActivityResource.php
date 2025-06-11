@@ -17,6 +17,9 @@ class ActivityResource extends Resource
 {
     protected static ?string $model = Activity::class;
 
+    // Hide from navigation - activity logs can be viewed via direct URL if needed
+    protected static bool $shouldRegisterNavigation = false;
+
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
 
     protected static ?string $navigationGroup = 'System';

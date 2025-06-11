@@ -57,14 +57,16 @@ class ProductResource extends BaseResource
                     ->label('Mix')
                     ->boolean()
                     ->getStateUsing(fn ($record): bool => $record->productMix !== null)
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\IconColumn::make('active')
                     ->boolean()
                     ->sortable(),
                 Tables\Columns\IconColumn::make('is_visible_in_store')
                     ->label('In Store')
                     ->boolean()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('available_packaging')
                     ->label('Packaging')
                     ->html()

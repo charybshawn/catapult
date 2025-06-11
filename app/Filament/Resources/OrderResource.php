@@ -56,47 +56,7 @@ class OrderResource extends Resource
                             ->searchable()
                             ->preload()
                             ->required()
-                            ->createOptionForm([
-                                Forms\Components\TextInput::make('name')
-                                    ->required()
-                                    ->maxLength(255),
-                                Forms\Components\TextInput::make('email')
-                                    ->email()
-                                    ->required()
-                                    ->unique(User::class, 'email')
-                                    ->maxLength(255),
-                                Forms\Components\TextInput::make('phone')
-                                    ->tel()
-                                    ->maxLength(255),
-                                Forms\Components\Select::make('customer_type')
-                                    ->label('Customer Type')
-                                    ->options([
-                                        'retail' => 'Retail',
-                                        'wholesale' => 'Wholesale',
-                                    ])
-                                    ->default('retail')
-                                    ->required(),
-                                Forms\Components\TextInput::make('company_name')
-                                    ->label('Company Name')
-                                    ->maxLength(255)
-                                    ->visible(fn (Forms\Get $get) => $get('customer_type') === 'wholesale'),
-                                Forms\Components\Group::make([
-                                    Forms\Components\Textarea::make('address')
-                                        ->rows(2)
-                                        ->columnSpanFull(),
-                                    Forms\Components\TextInput::make('city')
-                                        ->maxLength(100),
-                                    Forms\Components\TextInput::make('state')
-                                        ->maxLength(50),
-                                    Forms\Components\TextInput::make('zip')
-                                        ->label('ZIP Code')
-                                        ->maxLength(20),
-                                ])->columns(3),
-                            ])
-                            ->createOptionUsing(function (array $data): int {
-                                $data['password'] = bcrypt(Str::random(12)); // Generate random password
-                                return User::create($data)->getKey();
-                            }),
+                            ->helperText('To add new customers, use the Customers section first'),
                         Forms\Components\DatePicker::make('harvest_date')
                             ->label('Harvest Date')
                             ->helperText('When this order should be harvested (used by crop planner)')
@@ -112,21 +72,7 @@ class OrderResource extends Resource
                                 'b2b' => 'B2B',
                             ])
                             ->default('website_immediate')
-                            ->required()
-                            ->reactive()
-                            ->afterStateUpdated(function ($state, callable $set) {
-                                // Auto-set billing frequency based on order type
-                                if ($state === 'farmers_market') {
-                                    $set('billing_frequency', 'immediate');
-                                    $set('requires_invoice', false);
-                                } elseif ($state === 'website_immediate') {
-                                    $set('billing_frequency', 'immediate');
-                                    $set('requires_invoice', true);
-                                } elseif ($state === 'b2b') {
-                                    $set('billing_frequency', 'monthly');
-                                    $set('requires_invoice', true);
-                                }
-                            }),
+                            ->required(),
                     ])
                     ->columns(2),
                 
@@ -183,16 +129,15 @@ class OrderResource extends Resource
                                 'quarterly' => 'Quarterly',
                             ])
                             ->default('immediate')
-                            ->required()
-                            ->visible(fn ($get) => $get('order_type') === 'b2b'),
+                            ->required(),
                         
                         Forms\Components\Toggle::make('requires_invoice')
                             ->label('Requires Invoice')
-                            ->helperText('Uncheck for farmer\'s market orders that don\'t need invoicing')
                             ->default(true),
                     ])
-                    ->visible(fn ($get) => in_array($get('order_type'), ['b2b', 'farmers_market']))
-                    ->columns(2),
+                    ->columns(2)
+                    ->collapsible()
+                    ->collapsed(),
                 
                 
                 Forms\Components\Section::make('Order Items')
@@ -223,32 +168,14 @@ class OrderResource extends Resource
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Customer')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('customer_type_display')
-                    ->label('Customer Type')
-                    ->badge()
-                    ->color(fn (Order $record): string => match ($record->customer_type) {
-                        'retail' => 'success',
-                        'wholesale' => 'info',
-                        default => 'gray',
-                    }),
                 Tables\Columns\TextColumn::make('order_type_display')
-                    ->label('Order Type')
+                    ->label('Type')
                     ->badge()
                     ->color(fn (Order $record): string => match ($record->order_type) {
                         'website_immediate' => 'success',
                         'farmers_market' => 'warning',
                         'b2b' => 'info',
                         'b2b_recurring' => 'info', // Legacy support
-                        default => 'gray',
-                    }),
-                Tables\Columns\TextColumn::make('billing_frequency_display')
-                    ->label('Billing')
-                    ->badge()
-                    ->color(fn (Order $record): string => match ($record->billing_frequency) {
-                        'immediate' => 'success',
-                        'weekly' => 'info',
-                        'monthly' => 'warning',
-                        'quarterly' => 'danger',
                         default => 'gray',
                     }),
                 Tables\Columns\SelectColumn::make('status')
@@ -278,7 +205,7 @@ class OrderResource extends Resource
                     ->label('Template')
                     ->getStateUsing(fn (Order $record) => $record->parent_recurring_order_id ? "Template #{$record->parent_recurring_order_id}" : null)
                     ->placeholder('Regular Order')
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('totalAmount')
                     ->label('Total')
                     ->money('USD')
@@ -292,7 +219,8 @@ class OrderResource extends Resource
                 Tables\Columns\IconColumn::make('isPaid')
                     ->label('Paid')
                     ->boolean()
-                    ->getStateUsing(fn (Order $record) => $record->isPaid()),
+                    ->getStateUsing(fn (Order $record) => $record->isPaid())
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
