@@ -153,7 +153,7 @@ class SlidingNavigationBuilder
                         [
                             'label' => 'Seed Price Trends',
                             'url' => '/admin/seed-price-trends',
-                            'icon' => 'heroicon-o-chart-line',
+                            'icon' => 'heroicon-o-chart-bar',
                             'active' => request()->routeIs('filament.admin.pages.seed-price-trends'),
                         ],
                         [
