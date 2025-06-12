@@ -189,6 +189,7 @@ This document tracks all significant changes to the Catapult v2 project.
   - Grouping options (by recipe, plant date, growth stage) remain available
   - Improves immediate visibility of all active grows without additional clicks
   - Better aligns with most farmers' preference for seeing all current grows at once
+- Added PHP-based restore fallback when `mysql` CLI is unavailable, ensuring database restoration works in environments without the MySQL client.
 
 ### Changed
 - Completely redesigned seed inventory management (2024-08-15)
@@ -415,6 +416,10 @@ This document tracks all significant changes to the Catapult v2 project.
   - Fixed "Class Filament\Forms\Components\TextEntry not found" error
   - Implemented safer form rendering with proper component usage
   - Added additional error handling to prevent crashes when viewing products
+- Fixed restore backup upload validation error for .sql files (2025-06-12)
+  - Broadened accepted MIME types list in `DatabaseManagement` page FileUpload component to include `application/x-sql`, `application/octet-stream`, and other common variants.
+  - Fixed path resolution for the uploaded file when using Livewire temporary uploads, preventing "Uploaded file not found" validation errors.
+  - Allows uploaded SQL backup files to pass validation and be restored successfully regardless of browser-reported MIME type or upload mechanism.
 
 ### Enhanced
 - Improved crop stage duration display in the crops list view

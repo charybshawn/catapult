@@ -50,7 +50,14 @@ class DatabaseManagement extends Page
                 ->form([
                     FileUpload::make('backup_file')
                         ->label('Backup File (.sql)')
-                        ->acceptedFileTypes(['application/sql', 'text/plain', '.sql'])
+                        ->acceptedFileTypes([
+                            'application/sql',          // generic SQL mime
+                            'application/x-sql',        // common on some browsers
+                            'application/octet-stream', // fallback for unknown binary/text files
+                            'text/plain',               // plain-text fallback
+                            'text/x-sql',               // text-based SQL
+                            '.sql',                     // extension for browser file filter
+                        ])
                         ->required()
                         ->maxSize(102400) // 100MB
                         ->disk('local')
@@ -93,9 +100,25 @@ class DatabaseManagement extends Page
         }
     }
 
-    public function restoreFromUpload(string $uploadedFile): void
+    /**
+     * Handle a backup file uploaded via the FileUpload component and initiate the restore.
+     *
+     * Filament\Livewire returns either:
+     * 1. A \Livewire\Features\SupportFileUploads\TemporaryUploadedFile instance (when the file hasn't yet been persisted), or
+     * 2. A relative storage path (string) when the component has already stored the file to the chosen disk.
+     *
+     * We need to support both to avoid "Uploaded file not found" validation failures.
+     */
+    public function restoreFromUpload($uploadedFile): void
     {
-        $filePath = storage_path("app/{$uploadedFile}");
+        // Resolve the absolute path to the uploaded SQL file.
+        if ($uploadedFile instanceof \Livewire\Features\SupportFileUploads\TemporaryUploadedFile) {
+            // The file is still in Livewire's temporary directory; use its real path.
+            $filePath = $uploadedFile->getRealPath();
+        } else {
+            // Treat it as a path relative to the configured storage disk.
+            $filePath = \Illuminate\Support\Facades\Storage::disk('local')->path($uploadedFile);
+        }
         
         // Security validation
         if (!$this->validateBackupFile($filePath)) {
@@ -108,8 +131,8 @@ class DatabaseManagement extends Page
         
         $this->restoreBackup($filePath);
         
-        // Clean up uploaded file
-        if (file_exists($filePath)) {
+        // Clean up uploaded file (only if we have a relative path, not a tmp file already managed by Livewire)
+        if (isset($uploadedFile) && !($uploadedFile instanceof \Livewire\Features\SupportFileUploads\TemporaryUploadedFile) && file_exists($filePath)) {
             unlink($filePath);
         }
     }

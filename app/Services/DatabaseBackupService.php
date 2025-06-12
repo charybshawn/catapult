@@ -76,21 +76,41 @@ class DatabaseBackupService
 
             $config = config('database.connections.' . config('database.default'));
             
-            // Build mysql restore command
-            $command = $this->buildMysqlRestoreCommand($config, $backupFilePath);
-            
-            // Execute restore
-            $result = Process::run($command);
-            
-            if ($result->failed()) {
-                throw new Exception('Restore command failed: ' . $result->errorOutput());
+            // Check if mysql CLI is available
+            $mysqlCheck = Process::run('which mysql');
+
+            if ($mysqlCheck->successful()) {
+                // Build mysql restore command
+                $command = $this->buildMysqlRestoreCommand($config, $backupFilePath);
+
+                // Execute restore
+                $result = Process::run($command);
+
+                if ($result->successful()) {
+                    return [
+                        'success' => true,
+                        'method' => 'mysql CLI',
+                        'message' => 'Database restored successfully',
+                        'restored_at' => now()->toDateTimeString(),
+                    ];
+                }
+
+                // If CLI restore failed, fall back to PHP restore below
             }
 
-            return [
-                'success' => true,
-                'message' => 'Database restored successfully',
-                'restored_at' => now()->toDateTimeString(),
-            ];
+            // ----- Fallback: PHP-based restore -----
+            $phpRestoreResult = $this->restoreUsingPhp($backupFilePath);
+
+            if ($phpRestoreResult) {
+                return [
+                    'success' => true,
+                    'method' => 'PHP-based restore',
+                    'message' => 'Database restored successfully (PHP fallback)',
+                    'restored_at' => now()->toDateTimeString(),
+                ];
+            } else {
+                throw new Exception('PHP-based restore failed');
+            }
 
         } catch (Exception $e) {
             return [
@@ -317,6 +337,66 @@ class DatabaseBackupService
 
         } catch (Exception $e) {
             throw new Exception('PHP backup failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Restore a database from an SQL file using pure PHP (no mysql CLI).
+     * Iterates through the SQL file and executes statements one by one.
+     *
+     * @param string $backupFilePath
+     * @return bool true on success, false on failure
+     */
+    protected function restoreUsingPhp(string $backupFilePath): bool
+    {
+        try {
+            // Turn off foreign key checks for the duration of the import
+            DB::statement('SET FOREIGN_KEY_CHECKS=0');
+
+            $handle = fopen($backupFilePath, 'r');
+            if (!$handle) {
+                throw new Exception('Unable to read backup file');
+            }
+
+            $statement = '';
+            while (($line = fgets($handle)) !== false) {
+                $trimmedLine = trim($line);
+
+                // Skip comments and empty lines
+                if ($trimmedLine === '' || str_starts_with($trimmedLine, '--') || str_starts_with($trimmedLine, '/*')) {
+                    continue;
+                }
+
+                $statement .= $line;
+
+                // Check for statement delimiter (semicolon at line end)
+                if (preg_match('/;\s*$/', $trimmedLine)) {
+                    // Execute the accumulated statement
+                    DB::unprepared($statement);
+                    $statement = '';
+                }
+            }
+
+            // In case there's any remaining statement without semicolon (unlikely)
+            if (trim($statement) !== '') {
+                DB::unprepared($statement);
+            }
+
+            fclose($handle);
+            DB::statement('SET FOREIGN_KEY_CHECKS=1');
+
+            return true;
+
+        } catch (Exception $e) {
+            // Ensure FK checks are re-enabled even on failure
+            try {
+                DB::statement('SET FOREIGN_KEY_CHECKS=1');
+            } catch (Exception $inner) {
+                // ignore
+            }
+
+            // Re-throw to outer catch
+            throw $e;
         }
     }
 }
