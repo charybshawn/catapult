@@ -58,7 +58,7 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\Dashboard::class,
                 \App\Filament\Pages\WeeklyPlanning::class,
             ])
-            ->homeUrl('/admin/dashboard')
+            ->homeUrl('/admin')
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->viteTheme('resources/css/filament/admin/theme.css')
             ->widgets([

@@ -19,6 +19,7 @@ use Carbon\Carbon;
 
 class Dashboard extends BaseDashboard
 {
+    protected static ?string $slug = 'dashboard';
     protected static ?string $navigationIcon = 'heroicon-o-home';
     protected static ?string $navigationLabel = 'Dashboard';
     protected static ?string $title = 'Farm Dashboard';

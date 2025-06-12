@@ -35,7 +35,7 @@
     "dashboard": [
       {
         "label": "Main Dashboard",
-        "url": "/admin/dashboard",
+        "url": "/admin",
         "icon": "heroicon-o-home",
         "routes": ["filament.admin.pages.dashboard"]
       },
