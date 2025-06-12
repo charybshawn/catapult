@@ -18,7 +18,7 @@ class DatabaseSeeder extends Seeder
             RoleSeeder::class,
             FilamentAdminUserSeeder::class,
             PackagingSeeder::class,
-            // CurrentSeedConsumableDataSeeder::class, // Uncomment to seed with actual inventory data
+             CurrentSeedConsumableDataSeeder::class, // Uncomment to seed with actual inventory data
             // DevelopmentSeeder::class, // Disabled until updated to match simplified schema
         ]);
 

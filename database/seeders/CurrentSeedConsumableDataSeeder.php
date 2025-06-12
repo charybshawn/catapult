@@ -56,15 +56,15 @@ class CurrentSeedConsumableDataSeeder extends Seeder
                 $commonName = trim($matches[1]);
                 $cultivarName = trim($matches[2]);
                 
-                // Find the seed entry
-                $seedEntry = SeedEntry::where('common_name', $commonName)
-                    ->where('cultivar_name', $cultivarName)
-                    ->first();
+                // // Find the seed entry
+                // $seedEntry = SeedEntry::where('common_name', $commonName)
+                //     ->where('cultivar_name', $cultivarName)
+                //     ->first();
                 
-                if (!$seedEntry) {
-                    $this->command->warn("Seed entry not found for: {$data['name']}");
-                    continue;
-                }
+                // if (!$seedEntry) {
+                //     $this->command->warn("Seed entry not found for: {$data['name']}");
+                //     continue;
+                // }
                 
                 // Create or update the consumable
                 $consumable = Consumable::updateOrCreate(
