@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             RoleSeeder::class,
             FilamentAdminUserSeeder::class,
             PackagingSeeder::class,
+            SeedConsumableSeeder::class, // Create consumables from existing seed entries
             // DevelopmentSeeder::class, // Disabled until updated to match simplified schema
         ]);
 
