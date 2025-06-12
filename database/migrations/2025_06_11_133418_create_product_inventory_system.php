@@ -12,6 +12,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Drop view if it exists from previous migration attempts
+        DB::statement("DROP VIEW IF EXISTS product_inventory_summary");
+        
         // Create product_inventories table for batch/lot tracking
         Schema::create('product_inventories', function (Blueprint $table) {
             $table->id();
