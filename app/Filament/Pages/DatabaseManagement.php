@@ -1,0 +1,217 @@
+<?php
+
+namespace App\Filament\Pages;
+
+use App\Services\DatabaseBackupService;
+use Filament\Actions\Action;
+use Filament\Forms\Components\FileUpload;
+use Filament\Notifications\Notification;
+use Filament\Pages\Page;
+use Illuminate\Contracts\Support\Htmlable;
+
+class DatabaseManagement extends Page
+{
+    protected static ?string $navigationIcon = 'heroicon-o-circle-stack';
+    protected static ?string $navigationLabel = 'Database Management';
+    protected static ?string $navigationGroup = 'System';
+    protected static string $view = 'filament.pages.database-management';
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('createBackup')
+                ->label('Create Backup')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('success')
+                ->action(function () {
+                    $backupService = new DatabaseBackupService();
+                    $result = $backupService->createBackup();
+
+                    if ($result['success']) {
+                        $method = isset($result['method']) ? " ({$result['method']})" : '';
+                        Notification::make()
+                            ->success()
+                            ->title('Backup Created Successfully')
+                            ->body("Backup file: {$result['filename']} ({$result['size']}){$method}")
+                            ->send();
+                    } else {
+                        Notification::make()
+                            ->danger()
+                            ->title('Backup Failed')
+                            ->body($result['error'])
+                            ->send();
+                    }
+                }),
+                
+            Action::make('uploadRestore')
+                ->label('Restore from Upload')
+                ->icon('heroicon-o-arrow-up-tray')
+                ->color('warning')
+                ->form([
+                    FileUpload::make('backup_file')
+                        ->label('Backup File (.sql)')
+                        ->acceptedFileTypes(['application/sql', 'text/plain', '.sql'])
+                        ->required()
+                        ->maxSize(102400) // 100MB
+                        ->disk('local')
+                        ->directory('temp/restore')
+                        ->visibility('private'),
+                ])
+                ->action(function (array $data) {
+                    $this->restoreFromUpload($data['backup_file']);
+                })
+                ->requiresConfirmation()
+                ->modalHeading('Restore Database from Upload')
+                ->modalDescription('This will completely replace your current database. This action cannot be undone.')
+                ->modalSubmitActionLabel('Restore Database'),
+        ];
+    }
+
+    public function getBackups(): array
+    {
+        $backupService = new DatabaseBackupService();
+        return $backupService->listBackups();
+    }
+
+    public function restoreBackup(string $backupPath): void
+    {
+        $backupService = new DatabaseBackupService();
+        $result = $backupService->restoreBackup($backupPath);
+
+        if ($result['success']) {
+            Notification::make()
+                ->success()
+                ->title('Database Restored Successfully')
+                ->body('The database has been restored from the backup.')
+                ->send();
+        } else {
+            Notification::make()
+                ->danger()
+                ->title('Restore Failed')
+                ->body($result['error'])
+                ->send();
+        }
+    }
+
+    public function restoreFromUpload(string $uploadedFile): void
+    {
+        $filePath = storage_path("app/{$uploadedFile}");
+        
+        // Security validation
+        if (!$this->validateBackupFile($filePath)) {
+            // Clean up uploaded file
+            if (file_exists($filePath)) {
+                unlink($filePath);
+            }
+            return;
+        }
+        
+        $this->restoreBackup($filePath);
+        
+        // Clean up uploaded file
+        if (file_exists($filePath)) {
+            unlink($filePath);
+        }
+    }
+
+    protected function validateBackupFile(string $filePath): bool
+    {
+        // Check file exists
+        if (!file_exists($filePath)) {
+            Notification::make()
+                ->danger()
+                ->title('Validation Failed')
+                ->body('Uploaded file not found.')
+                ->send();
+            return false;
+        }
+
+        // Check file size (prevent extremely large files)
+        $maxSize = 100 * 1024 * 1024; // 100MB
+        if (filesize($filePath) > $maxSize) {
+            Notification::make()
+                ->danger()
+                ->title('File Too Large')
+                ->body('Backup file exceeds 100MB limit.')
+                ->send();
+            return false;
+        }
+
+        // Check file extension
+        if (!str_ends_with(strtolower($filePath), '.sql')) {
+            Notification::make()
+                ->danger()
+                ->title('Invalid File Type')
+                ->body('Only .sql files are allowed.')
+                ->send();
+            return false;
+        }
+
+        // Basic content validation
+        $handle = fopen($filePath, 'r');
+        if (!$handle) {
+            Notification::make()
+                ->danger()
+                ->title('File Read Error')
+                ->body('Cannot read the uploaded file.')
+                ->send();
+            return false;
+        }
+
+        // Read first few lines to check if it looks like an SQL dump
+        $isValidSql = false;
+        $linesChecked = 0;
+        $maxLinesToCheck = 50;
+
+        while (($line = fgets($handle)) !== false && $linesChecked < $maxLinesToCheck) {
+            $line = trim($line);
+            
+            // Skip empty lines and comments
+            if (empty($line) || str_starts_with($line, '--') || str_starts_with($line, '/*')) {
+                $linesChecked++;
+                continue;
+            }
+
+            // Look for SQL keywords that indicate a database dump
+            if (preg_match('/^(CREATE|DROP|INSERT|USE|SET|LOCK|UNLOCK)/i', $line)) {
+                $isValidSql = true;
+                break;
+            }
+
+            $linesChecked++;
+        }
+
+        fclose($handle);
+
+        if (!$isValidSql) {
+            Notification::make()
+                ->danger()
+                ->title('Invalid SQL File')
+                ->body('The uploaded file does not appear to be a valid SQL database dump.')
+                ->send();
+            return false;
+        }
+
+        return true;
+    }
+
+    public function deleteBackup(string $filename): void
+    {
+        $backupService = new DatabaseBackupService();
+        $deleted = $backupService->deleteBackup($filename);
+
+        if ($deleted) {
+            Notification::make()
+                ->success()
+                ->title('Backup Deleted')
+                ->body('Backup file has been deleted successfully.')
+                ->send();
+        } else {
+            Notification::make()
+                ->danger()
+                ->title('Delete Failed')
+                ->body('Could not delete the backup file.')
+                ->send();
+        }
+    }
+}

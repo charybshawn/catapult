@@ -29,7 +29,8 @@ class Consumable extends Model
         'type', // packaging, soil, seed, label, other
         'supplier_id',
         'packaging_type_id', // For packaging consumables only
-        'seed_entry_id', // For seed consumables only
+        'seed_entry_id', // For seed consumables only (deprecated, use master_seed_catalog_id)
+        'master_seed_catalog_id', // For seed consumables - references master catalog
         'initial_stock',
         'consumed_quantity',
         'unit', // pieces, rolls, bags, etc.
@@ -125,6 +126,15 @@ class Consumable extends Model
     public function seedEntry(): BelongsTo
     {
         return $this->belongsTo(SeedEntry::class);
+    }
+    
+    /**
+     * Get the master seed catalog for this consumable.
+     * Only applicable for seed consumables.
+     */
+    public function masterSeedCatalog(): BelongsTo
+    {
+        return $this->belongsTo(MasterSeedCatalog::class);
     }
     
     
@@ -233,6 +243,7 @@ class Consumable extends Model
                 'supplier_id',
                 'packaging_type_id',
                 'seed_entry_id',
+                'master_seed_catalog_id',
                 'initial_stock',
                 'consumed_quantity',
                 'unit',

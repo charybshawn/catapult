@@ -97,58 +97,73 @@ class ConsumableResource extends BaseResource
                                         Forms\Components\Hidden::make('name')
                                     ];
                                 } else if ($get('type') === 'seed') {
-                                    // Simple, explicit seed cultivar selection
+                                    // Use master seed catalog for seed selection
                                     return [
                                         Forms\Components\Grid::make(2)
                                             ->schema([
-                                                Forms\Components\Select::make('seed_entry_id')
-                                                    ->label('Seed Entry')
-                                                    ->helperText('Required: Please select a seed entry')
+                                                Forms\Components\Select::make('master_seed_catalog_id')
+                                                    ->label('Master Seed Catalog')
+                                                    ->helperText('Required: Please select from master catalog or create new')
                                                     ->options(function () {
-                                                        return \App\Models\SeedEntry::with('supplier')
+                                                        return \App\Models\MasterSeedCatalog::where('is_active', true)
                                                             ->orderBy('common_name', 'asc')
-                                                            ->orderBy('cultivar_name', 'asc')
                                                             ->get()
-                                                            ->mapWithKeys(function ($entry) {
-                                                                $label = $entry->common_name . ' - ' . $entry->cultivar_name;
-                                                                if ($entry->supplier) {
-                                                                    $label .= ' (' . $entry->supplier->name . ')';
-                                                                }
-                                                                return [$entry->id => $label];
+                                                            ->mapWithKeys(function ($catalog) {
+                                                                $cultivars = is_array($catalog->cultivars) ? $catalog->cultivars : [];
+                                                                $cultivarName = !empty($cultivars) ? $cultivars[0] : 'No cultivar';
+                                                                
+                                                                return [$catalog->id => $catalog->common_name . ' (' . $cultivarName . ')'];
                                                             })
                                                             ->toArray();
                                                     })
                                                     ->searchable()
                                                     ->required()
-                                                    ->live() // Make the field live to update instantly
+                                                    ->live()
                                                     ->createOptionForm([
                                                         Forms\Components\TextInput::make('common_name')
-                                                            ->label('Common Name')
                                                             ->required()
-                                                            ->maxLength(255),
+                                                            ->maxLength(255)
+                                                            ->helperText('e.g. Radish, Cress, Peas, Sunflower'),
                                                         Forms\Components\TextInput::make('cultivar_name')
                                                             ->label('Cultivar Name')
                                                             ->required()
-                                                            ->maxLength(255),
-                                                        Forms\Components\Select::make('supplier_id')
-                                                            ->label('Supplier')
-                                                            ->options(\App\Models\Supplier::pluck('name', 'id'))
-                                                            ->searchable()
-                                                            ->required()
-                                                            ->preload(),
-                                                        Forms\Components\Toggle::make('is_active')
-                                                            ->label('Active')
-                                                            ->default(true)
-                                                            ->columnSpan(2),
+                                                            ->maxLength(255)
+                                                            ->helperText('Single cultivar name, e.g. Cherry Belle, French Breakfast, Watermelon'),
+                                                        Forms\Components\Select::make('category')
+                                                            ->options([
+                                                                'Herbs' => 'Herbs',
+                                                                'Brassicas' => 'Brassicas',
+                                                                'Legumes' => 'Legumes',
+                                                                'Greens' => 'Greens',
+                                                                'Grains' => 'Grains',
+                                                                'Shoots' => 'Shoots',
+                                                                'Other' => 'Other',
+                                                            ])
+                                                            ->searchable(),
+                                                        Forms\Components\TagsInput::make('aliases')
+                                                            ->helperText('Alternative names for this seed type'),
+                                                        Forms\Components\Textarea::make('description')
+                                                            ->columnSpanFull(),
                                                     ])
-                                                    ->createOptionAction(
-                                                        fn (Forms\Components\Actions\Action $action) => $action->modalWidth('2xl'),
-                                                    )
+                                                    ->createOptionUsing(function (array $data): string {
+                                                        $catalog = \App\Models\MasterSeedCatalog::create([
+                                                            'common_name' => $data['common_name'],
+                                                            'cultivars' => [$data['cultivar_name']], // Store as single-item array
+                                                            'category' => $data['category'] ?? null,
+                                                            'aliases' => $data['aliases'] ?? [],
+                                                            'description' => $data['description'] ?? null,
+                                                            'is_active' => true,
+                                                        ]);
+                                                        
+                                                        return $catalog->getKey();
+                                                    })
                                                     ->afterStateUpdated(function ($state, Forms\Set $set) {
                                                         if ($state) {
-                                                            $entry = \App\Models\SeedEntry::find($state);
-                                                            if ($entry) {
-                                                                $set('name', $entry->common_name . ' (' . $entry->cultivar_name . ')');
+                                                            $catalog = \App\Models\MasterSeedCatalog::find($state);
+                                                            if ($catalog) {
+                                                                $cultivars = is_array($catalog->cultivars) ? $catalog->cultivars : [];
+                                                                $cultivarName = !empty($cultivars) ? $cultivars[0] : '';
+                                                                $set('name', $catalog->common_name . ($cultivarName ? ' (' . $cultivarName . ')' : ''));
                                                             }
                                                         }
                                                     }),
@@ -157,7 +172,7 @@ class ConsumableResource extends BaseResource
                                             ])
                                             ->columnSpanFull(),
                                         
-                                        // Hidden name field - will be set from the seed cultivar
+                                        // Hidden name field - will be set from the master catalog
                                         Forms\Components\Hidden::make('name'),
                                     ];
                                 } else if ($get('type') === 'mix') {
@@ -213,7 +228,7 @@ class ConsumableResource extends BaseResource
                         Forms\Components\Grid::make()
                             ->schema(function (Forms\Get $get) {
                                 if ($get('type') === 'seed') {
-                                    // For seed type, supplier is already in the grid with seed_entry_id
+                                    // For seed type, supplier is already in the grid with master_seed_catalog_id
                                     return [];
                                 } else {
                                     // For other types, show supplier field here
@@ -682,10 +697,13 @@ class ConsumableResource extends BaseResource
                     ->searchable()
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('seedEntry.common_name')
-                    ->label('Seed Entry')
+                Tables\Columns\TextColumn::make('masterSeedCatalog.common_name')
+                    ->label('Master Catalog')
                     ->getStateUsing(function ($record) {
-                        if ($record->type === 'seed' && $record->seedEntry) {
+                        if ($record->type === 'seed' && $record->masterSeedCatalog) {
+                            return $record->masterSeedCatalog->common_name;
+                        } elseif ($record->type === 'seed' && $record->seedEntry) {
+                            // Fallback for existing records
                             return $record->seedEntry->common_name . ' - ' . $record->seedEntry->cultivar_name;
                         }
                         return null;

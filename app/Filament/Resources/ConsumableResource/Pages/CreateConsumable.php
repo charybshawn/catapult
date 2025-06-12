@@ -40,9 +40,9 @@ class CreateConsumable extends BaseCreateRecord
     {
         $rules = parent::getFormValidationRules();
         
-        // For seed types, ensure seed_entry_id is required
+        // For seed types, ensure master_seed_catalog_id is required
         if (isset($this->data['type']) && $this->data['type'] === 'seed') {
-            $rules['seed_entry_id'] = ['required', 'exists:seed_entries,id'];
+            $rules['master_seed_catalog_id'] = ['required', 'exists:master_seed_catalog,id'];
         }
         
         return $rules;

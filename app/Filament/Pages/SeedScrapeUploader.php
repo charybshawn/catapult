@@ -44,6 +44,9 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
     
     protected static ?int $navigationSort = 6;
     
+    // Hide from navigation since it's handled by our JSON navigation
+    protected static bool $shouldRegisterNavigation = false;
+    
     public $jsonFiles = [];
     public $selectedSupplier = null;
     public $showSupplierSelection = false;

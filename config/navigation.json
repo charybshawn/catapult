@@ -1,0 +1,171 @@
+{
+  "main": {
+    "dashboard": {
+      "label": "Dashboard & Overview",
+      "icon": "heroicon-o-home",
+      "description": "Farm overview and planning"
+    },
+    "production": {
+      "label": "Crop Management",
+      "icon": "heroicon-o-beaker",
+      "description": "Crops, recipes, and alerts"
+    },
+    "products": {
+      "label": "Products",
+      "icon": "heroicon-o-shopping-bag",
+      "description": "Products and pricing"
+    },
+    "inventory": {
+      "label": "Inventory",
+      "icon": "heroicon-o-cube",
+      "description": "Seeds, consumables, and supplies"
+    },
+    "orders": {
+      "label": "Orders & Sales",
+      "icon": "heroicon-o-shopping-cart",
+      "description": "Customer orders and invoices"
+    },
+    "system": {
+      "label": "System",
+      "icon": "heroicon-o-cog-6-tooth",
+      "description": "Settings and administration"
+    }
+  },
+  "submenus": {
+    "dashboard": [
+      {
+        "label": "Main Dashboard",
+        "url": "/admin/dashboard",
+        "icon": "heroicon-o-home",
+        "routes": ["filament.admin.pages.dashboard"]
+      },
+      {
+        "label": "Daily Operations",
+        "url": "/admin/daily-operations",
+        "icon": "heroicon-o-clipboard-document-check",
+        "routes": ["filament.admin.pages.daily-operations"]
+      },
+      {
+        "label": "Weekly Planning",
+        "url": "/admin/weekly-planning",
+        "icon": "heroicon-o-calendar",
+        "routes": ["filament.admin.pages.weekly-planning"]
+      },
+      {
+        "label": "Analytics",
+        "url": "/admin/analytics",
+        "icon": "heroicon-o-chart-bar",
+        "routes": ["filament.admin.pages.analytics"]
+      }
+    ],
+    "production": [
+      {
+        "label": "Alerts & Tasks",
+        "url": "/admin/crop-alerts",
+        "icon": "heroicon-o-bell-alert",
+        "routes": ["filament.admin.resources.crop-alerts.*"],
+        "badge": "alerts"
+      },
+      {
+        "resource": "CropResource"
+      },
+      {
+        "resource": "RecipeResource"
+      },
+      {
+        "resource": "CropPlanResource"
+      },
+      {
+        "resource": "TaskScheduleResource"
+      }
+    ],
+    "products": [
+      {
+        "label": "Product Inventory",
+        "url": "/admin/product-inventories",
+        "icon": "heroicon-o-cube",
+        "routes": ["filament.admin.resources.product-inventories.*"],
+        "badge": "product_inventory"
+      },
+      {
+        "resource": "ProductResource"
+      },
+      {
+        "resource": "CategoryResource"
+      },
+      {
+        "resource": "ProductMixResource"
+      }
+    ],
+    "inventory": [
+      {
+        "label": "Master Seed Catalog",
+        "url": "/admin/master-seed-catalogs",
+        "icon": "heroicon-o-clipboard-document-list",
+        "routes": ["filament.admin.resources.master-seed-catalogs.*"]
+      },
+      {
+        "label": "Online Seed Pricing",
+        "icon": "heroicon-o-chart-bar",
+        "type": "group",
+        "children": [
+          {
+            "label": "Seed Entries",
+            "url": "/admin/seed-entries",
+            "icon": "heroicon-o-identification",
+            "routes": ["filament.admin.resources.seed-entries.*"]
+          },
+          {
+            "label": "Seed Data Uploads",
+            "url": "/admin/seed-scrape-uploader",
+            "icon": "heroicon-o-arrow-up-tray",
+            "routes": ["filament.admin.pages.seed-scrape-uploader"]
+          },
+          {
+            "label": "Seed Price Trends",
+            "url": "/admin/seed-price-trends",
+            "icon": "heroicon-o-chart-bar",
+            "routes": ["filament.admin.pages.seed-price-trends"]
+          },
+          {
+            "label": "Reorder Advisor",
+            "url": "/admin/seed-reorder-advisor",
+            "icon": "heroicon-o-bell-alert",
+            "routes": ["filament.admin.pages.seed-reorder-advisor"]
+          }
+        ]
+      },
+      {
+        "resource": "ConsumableResource"
+      },
+      {
+        "resource": "SupplierResource"
+      },
+      {
+        "resource": "PackagingTypeResource"
+      }
+    ],
+    "orders": [
+      {
+        "resource": "OrderResource"
+      },
+      {
+        "resource": "InvoiceResource"
+      },
+      {
+        "resource": "UserResource"
+      }
+    ],
+    "system": [
+      {
+        "label": "Database Management",
+        "url": "/admin/database-management",
+        "icon": "heroicon-o-circle-stack",
+        "routes": ["filament.admin.pages.database-management"]
+      },
+      {
+        "resource": "CategoryResource"
+      }
+    ]
+  }
+}

@@ -22,10 +22,9 @@ class CurrentSeedEntryDataSeeder extends Seeder
         $supplier = Supplier::firstOrCreate(
             ['name' => "Mumm's Sprouting Seeds"],
             [
-                'type' => 'seeds',
-                'email' => null,
-                'phone' => null,
-                'website' => 'https://sprouting.com',
+                'type' => 'seed',
+                'contact_email' => null,
+                'contact_phone' => null,
                 'is_active' => true,
                 'notes' => 'Primary seed supplier'
             ]
@@ -117,19 +116,19 @@ class CurrentSeedEntryDataSeeder extends Seeder
             ['id' => 80, 'cultivar_name' => 'Popcorn', 'common_name' => 'Popcorn'],
             ['id' => 81, 'cultivar_name' => 'Red Shiso', 'common_name' => 'Red Shiso'],
             ['id' => 82, 'cultivar_name' => 'Black Oilseed', 'common_name' => 'Sunflower'],
-            ['id' => 83, 'cultivar_name' => 'Hulled', 'common_name' => 'Sunflower'},
+            ['id' => 83, 'cultivar_name' => 'Hulled', 'common_name' => 'Sunflower'],
             ['id' => 84, 'cultivar_name' => 'Triton', 'common_name' => 'Radish'],
             ['id' => 85, 'cultivar_name' => 'Rainbow', 'common_name' => 'Radish'],
-            ['id' => 86, 'cultivar_name' => 'Hard Red Spring', 'common_name' => 'Wheat'},
-            ['id' => 87, 'cultivar_name' => 'Hard Red Winter', 'common_name' => 'Wheat'},
-            ['id' => 88, 'cultivar_name' => 'Spigarello', 'common_name' => 'Spigarello'},
-            ['id' => 89, 'cultivar_name' => 'Kamut', 'common_name' => 'Kamut'},
-            ['id' => 90, 'cultivar_name' => 'Mellow Microgreen Mix', 'common_name' => 'Mellow Microgreen Mix'},
-            ['id' => 91, 'cultivar_name' => 'Microgreen Salad Mix', 'common_name' => 'Microgreen Salad Mix'},
-            ['id' => 92, 'cultivar_name' => 'Microgreen Blend', 'common_name' => 'Spicy'},
-            ['id' => 93, 'cultivar_name' => 'Thyme', 'common_name' => 'Thyme'},
-            ['id' => 94, 'cultivar_name' => 'Turnip', 'common_name' => 'Turnip'},
-            ['id' => 95, 'cultivar_name' => 'Watercress', 'common_name' => 'Watercress'},
+            ['id' => 86, 'cultivar_name' => 'Hard Red Spring', 'common_name' => 'Wheat'],
+            ['id' => 87, 'cultivar_name' => 'Hard Red Winter', 'common_name' => 'Wheat'],
+            ['id' => 88, 'cultivar_name' => 'Spigarello', 'common_name' => 'Spigarello'],
+            ['id' => 89, 'cultivar_name' => 'Kamut', 'common_name' => 'Kamut'],
+            ['id' => 90, 'cultivar_name' => 'Mellow Microgreen Mix', 'common_name' => 'Mellow Microgreen Mix'],
+            ['id' => 91, 'cultivar_name' => 'Microgreen Salad Mix', 'common_name' => 'Microgreen Salad Mix'],
+            ['id' => 92, 'cultivar_name' => 'Microgreen Blend', 'common_name' => 'Spicy'],
+            ['id' => 93, 'cultivar_name' => 'Thyme', 'common_name' => 'Thyme'],
+            ['id' => 94, 'cultivar_name' => 'Turnip', 'common_name' => 'Turnip'],
+            ['id' => 95, 'cultivar_name' => 'Watercress', 'common_name' => 'Watercress'],
         ];
         
         $created = 0;
@@ -143,7 +142,7 @@ class CurrentSeedEntryDataSeeder extends Seeder
                     'common_name' => $entry['common_name'],
                     'supplier_id' => $supplier->id,
                     'supplier_product_title' => $entry['common_name'] . ' - ' . $entry['cultivar_name'] . ' - Organic Sprouting Seeds',
-                    'supplier_product_url' => 'https://sprouting.com/product/' . strtolower(str_replace(' ', '-', $entry['common_name'])),
+                    'supplier_product_url' => 'https://sprouting.com/product/' . strtolower(str_replace([' ', "'"], ['-', ''], $entry['cultivar_name'] . '-' . $entry['common_name'])),
                     'image_url' => null,
                     'description' => null,
                     'tags' => [],
@@ -214,7 +213,6 @@ class CurrentSeedEntryDataSeeder extends Seeder
                 SeedVariation::updateOrCreate(
                     [
                         'seed_entry_id' => $seedEntryId,
-                        'supplier_id' => $seedEntry->supplier_id,
                         'size_description' => $size['size'],
                     ],
                     [
@@ -223,7 +221,7 @@ class CurrentSeedEntryDataSeeder extends Seeder
                         'original_weight_unit' => $size['weight'] >= 1 ? 'kg' : 'g',
                         'current_price' => $size['price'],
                         'is_in_stock' => true,
-                        'scrape_upload_id' => null,
+                        'last_checked_at' => now(),
                     ]
                 );
                 $variationCount++;

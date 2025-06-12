@@ -38,7 +38,7 @@ class Product extends Model
         'category_id',
         'is_visible_in_store',
         'product_mix_id',
-        'seed_entry_id',
+        'master_seed_catalog_id',
         'total_stock',
         'reserved_stock',
         'reorder_threshold',
@@ -371,11 +371,11 @@ class Product extends Model
     }
 
     /**
-     * Get the seed entry (variety) for single-variety products.
+     * Get the master seed catalog entry for single-variety products.
      */
-    public function seedEntry(): BelongsTo
+    public function masterSeedCatalog(): BelongsTo
     {
-        return $this->belongsTo(SeedEntry::class);
+        return $this->belongsTo(MasterSeedCatalog::class);
     }
 
     /**

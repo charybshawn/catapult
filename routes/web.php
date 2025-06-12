@@ -25,6 +25,20 @@ Route::middleware('auth')->group(function () {
     
     // Dashboard AJAX endpoint
     Route::get('/admin/dashboard/data', [\App\Filament\Pages\Dashboard::class, 'getDashboardDataAjax'])->name('dashboard.data');
+    
+    // Database backup download route
+    Route::get('/admin/database/backup/download/{filename}', function (string $filename) {
+        $backupService = new \App\Services\DatabaseBackupService();
+        $filePath = $backupService->downloadBackup($filename);
+        
+        if ($filePath && file_exists($filePath)) {
+            return response()->download($filePath, $filename, [
+                'Content-Type' => 'application/sql',
+            ]);
+        }
+        
+        abort(404, 'Backup file not found');
+    })->name('database.backup.download');
 });
 
 require __DIR__.'/auth.php';

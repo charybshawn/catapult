@@ -2,6 +2,7 @@
 
 namespace App\Filament\Support;
 
+use Filament\Facades\Filament;
 use Filament\Navigation\NavigationBuilder;
 use Filament\Navigation\NavigationGroup;
 use Filament\Navigation\NavigationItem;
@@ -9,6 +10,25 @@ use Filament\Navigation\NavigationItem;
 class SlidingNavigationBuilder
 {
     public static function build(): array
+    {
+        $staticNavigation = self::getStaticNavigation();
+        $dynamicNavigation = self::getDynamicNavigation();
+        
+        // Merge dynamic items into static structure
+        $navigation = $staticNavigation;
+        foreach ($dynamicNavigation as $groupKey => $items) {
+            if (isset($navigation['submenus'][$groupKey])) {
+                $navigation['submenus'][$groupKey]['items'] = array_merge(
+                    $navigation['submenus'][$groupKey]['items'] ?? [],
+                    $items
+                );
+            }
+        }
+        
+        return $navigation;
+    }
+
+    private static function getStaticNavigation(): array
     {
         return [
             // Main menu groups (what user sees initially)
@@ -84,24 +104,7 @@ class SlidingNavigationBuilder
                 
                 'production' => [
                     'items' => [
-                        [
-                            'label' => 'Crops',
-                            'url' => '/admin/crops',
-                            'icon' => 'heroicon-o-beaker',
-                            'active' => request()->routeIs('filament.admin.resources.crops.*'),
-                        ],
-                        [
-                            'label' => 'Recipes',
-                            'url' => '/admin/recipes',
-                            'icon' => 'heroicon-o-document-text',
-                            'active' => request()->routeIs('filament.admin.resources.recipes.*'),
-                        ],
-                        [
-                            'label' => 'Crop Plans',
-                            'url' => '/admin/crop-plans',
-                            'icon' => 'heroicon-o-calendar-days',
-                            'active' => request()->routeIs('filament.admin.resources.crop-plans.*'),
-                        ],
+                        // Custom items with badges
                         [
                             'label' => 'Alerts & Tasks',
                             'url' => '/admin/crop-alerts',
@@ -109,23 +112,13 @@ class SlidingNavigationBuilder
                             'active' => request()->routeIs('filament.admin.resources.crop-alerts.*'),
                             'badge' => self::getAlertsBadge(),
                         ],
-                        [
-                            'label' => 'Tasks',
-                            'url' => '/admin/tasks',
-                            'icon' => 'heroicon-o-check-circle',
-                            'active' => request()->routeIs('filament.admin.resources.tasks.*'),
-                        ],
+                        // Dynamic resources will be auto-added via getDynamicNavigation()
                     ],
                 ],
                 
                 'products' => [
                     'items' => [
-                        [
-                            'label' => 'Products',
-                            'url' => '/admin/products',
-                            'icon' => 'heroicon-o-shopping-bag',
-                            'active' => request()->routeIs('filament.admin.resources.products.*'),
-                        ],
+                        // Custom items with badges  
                         [
                             'label' => 'Product Inventory',
                             'url' => '/admin/product-inventories',
@@ -133,109 +126,181 @@ class SlidingNavigationBuilder
                             'active' => request()->routeIs('filament.admin.resources.product-inventories.*'),
                             'badge' => self::getProductInventoryBadge(),
                         ],
-                        [
-                            'label' => 'Product Mixes',
-                            'url' => '/admin/product-mixes',
-                            'icon' => 'heroicon-o-puzzle-piece',
-                            'active' => request()->routeIs('filament.admin.resources.product-mixes.*'),
-                        ],
-                        [
-                            'label' => 'Categories',
-                            'url' => '/admin/categories',
-                            'icon' => 'heroicon-o-tag',
-                            'active' => request()->routeIs('filament.admin.resources.categories.*'),
-                        ],
-                        [
-                            'label' => 'Packaging Types',
-                            'url' => '/admin/packaging-types',
-                            'icon' => 'heroicon-o-cube',
-                            'active' => request()->routeIs('filament.admin.resources.packaging-types.*'),
-                        ],
+                        // Dynamic resources will be auto-added via getDynamicNavigation()
                     ],
                 ],
                 
                 'inventory' => [
                     'items' => [
+                        // Master Seed Catalog (no dropdown needed)
                         [
-                            'label' => 'Seeds',
-                            'url' => '/admin/seed-entries',
-                            'icon' => 'heroicon-o-identification',
-                            'active' => request()->routeIs('filament.admin.resources.seed-entries.*'),
+                            'label' => 'Master Seed Catalog',
+                            'url' => '/admin/master-seed-catalogs',
+                            'icon' => 'heroicon-o-clipboard-document-list',
+                            'active' => request()->routeIs('filament.admin.resources.master-seed-catalogs.*'),
                         ],
+                        // Sub-sub menu: Online Seed Pricing
                         [
-                            'label' => 'Consumables',
-                            'url' => '/admin/consumables',
-                            'icon' => 'heroicon-o-archive-box',
-                            'active' => request()->routeIs('filament.admin.resources.consumables.*'),
-                        ],
-                        [
-                            'label' => 'Suppliers',
-                            'url' => '/admin/suppliers',
-                            'icon' => 'heroicon-o-building-office',
-                            'active' => request()->routeIs('filament.admin.resources.suppliers.*'),
-                        ],
-                        [
-                            'label' => 'Seed Price Trends',
-                            'url' => '/admin/seed-price-trends',
+                            'label' => 'Online Seed Pricing',
                             'icon' => 'heroicon-o-chart-bar',
-                            'active' => request()->routeIs('filament.admin.pages.seed-price-trends'),
+                            'type' => 'group', // This indicates it's a dropdown group
+                            'children' => [
+                                [
+                                    'label' => 'Seed Entries',
+                                    'url' => '/admin/seed-entries',
+                                    'icon' => 'heroicon-o-identification',
+                                    'active' => request()->routeIs('filament.admin.resources.seed-entries.*'),
+                                ],
+                                [
+                                    'label' => 'Seed Data Uploads',
+                                    'url' => '/admin/seed-data-uploads',
+                                    'icon' => 'heroicon-o-arrow-up-tray',
+                                    'active' => request()->routeIs('filament.admin.pages.seed-data-uploads'),
+                                ],
+                                [
+                                    'label' => 'Seed Price Trends',
+                                    'url' => '/admin/seed-price-trends',
+                                    'icon' => 'heroicon-o-chart-bar',
+                                    'active' => request()->routeIs('filament.admin.pages.seed-price-trends'),
+                                ],
+                                [
+                                    'label' => 'Reorder Advisor',
+                                    'url' => '/admin/seed-reorder-advisor',
+                                    'icon' => 'heroicon-o-bell-alert',
+                                    'active' => request()->routeIs('filament.admin.pages.seed-reorder-advisor'),
+                                ],
+                            ],
                         ],
-                        [
-                            'label' => 'Reorder Advisor',
-                            'url' => '/admin/seed-reorder-advisor',
-                            'icon' => 'heroicon-o-bell-alert',
-                            'active' => request()->routeIs('filament.admin.pages.seed-reorder-advisor'),
-                        ],
+                        // Dynamic resources will be auto-added via getDynamicNavigation()
                     ],
                 ],
                 
                 'orders' => [
                     'items' => [
-                        [
-                            'label' => 'Orders',
-                            'url' => '/admin/orders',
-                            'icon' => 'heroicon-o-shopping-cart',
-                            'active' => request()->routeIs('filament.admin.resources.orders.*'),
-                        ],
-                        [
-                            'label' => 'Recurring Orders',
-                            'url' => '/admin/recurring-orders',
-                            'icon' => 'heroicon-o-arrow-path',
-                            'active' => request()->routeIs('filament.admin.resources.recurring-orders.*'),
-                        ],
-                        [
-                            'label' => 'Invoices',
-                            'url' => '/admin/invoices',
-                            'icon' => 'heroicon-o-document-text',
-                            'active' => request()->routeIs('filament.admin.resources.invoices.*'),
-                        ],
-                        [
-                            'label' => 'Customers',
-                            'url' => '/admin/users',
-                            'icon' => 'heroicon-o-users',
-                            'active' => request()->routeIs('filament.admin.resources.users.*'),
-                        ],
+                        // Dynamic resources will be auto-added via getDynamicNavigation()
                     ],
                 ],
                 
                 'system' => [
                     'items' => [
-                        [
-                            'label' => 'Settings',
-                            'url' => '/admin/settings',
-                            'icon' => 'heroicon-o-cog-6-tooth',
-                            'active' => request()->routeIs('filament.admin.resources.settings.*'),
-                        ],
-                        [
-                            'label' => 'Scheduled Tasks',
-                            'url' => '/admin/scheduled-tasks',
-                            'icon' => 'heroicon-o-clock',
-                            'active' => request()->routeIs('filament.admin.resources.scheduled-tasks.*'),
-                        ],
+                        // Dynamic resources will be auto-added via getDynamicNavigation()
                     ],
                 ],
             ],
         ];
+    }
+
+    private static function getDynamicNavigation(): array
+    {
+        try {
+            $panel = Filament::getCurrentPanel();
+            if (!$panel) {
+                return [];
+            }
+
+            $groupedItems = [];
+
+            // Get resources
+            $resources = $panel->getResources();
+            foreach ($resources as $resource) {
+                $navigationGroup = $resource::getNavigationGroup();
+                $slidingGroup = self::mapNavigationGroupToSlidingGroup($navigationGroup, $resource);
+                
+                if ($slidingGroup && !self::isStaticallyDefined($resource)) {
+                    $groupedItems[$slidingGroup][] = [
+                        'label' => $resource::getNavigationLabel(),
+                        'url' => $resource::getUrl('index'),
+                        'icon' => $resource::getNavigationIcon() ?? 'heroicon-o-document',
+                        'active' => request()->routeIs($resource::getRouteBaseName() . '.*'),
+                    ];
+                }
+            }
+
+            // Get pages
+            $pages = $panel->getPages();
+            foreach ($pages as $page) {
+                $navigationGroup = $page::getNavigationGroup();
+                $slidingGroup = self::mapNavigationGroupToSlidingGroup($navigationGroup);
+                
+                if ($slidingGroup && !self::isStaticallyDefined($page)) {
+                    $groupedItems[$slidingGroup][] = [
+                        'label' => $page::getNavigationLabel(),
+                        'url' => $page::getUrl(),
+                        'icon' => $page::getNavigationIcon() ?? 'heroicon-o-document',
+                        'active' => request()->routeIs($page::getRouteName()),
+                    ];
+                }
+            }
+
+            // Sort each group's items alphabetically
+            foreach ($groupedItems as $group => $items) {
+                usort($groupedItems[$group], function ($a, $b) {
+                    return strcmp($a['label'], $b['label']);
+                });
+            }
+
+            return $groupedItems;
+        } catch (\Exception $e) {
+            // Silently fail if there's an issue with resource discovery
+            return [];
+        }
+    }
+
+    private static function mapNavigationGroupToSlidingGroup(?string $navigationGroup, $resource = null): ?string
+    {
+        // Handle special case: "Products & Inventory" needs to be split dynamically
+        if ($navigationGroup === 'Products & Inventory' && $resource) {
+            $resourceName = class_basename($resource);
+            
+            // Use dynamic logic to determine if it's inventory or products
+            // Inventory resources typically manage: supplies, consumables, seeds, packaging
+            $inventoryKeywords = ['consumable', 'supplier', 'packaging', 'seed', 'catalog', 'cultivar', 'inventory'];
+            $productKeywords = ['product', 'category', 'mix', 'entry'];
+            
+            $lowerResourceName = strtolower($resourceName);
+            
+            // Check if resource name contains inventory-related keywords
+            foreach ($inventoryKeywords as $keyword) {
+                if (str_contains($lowerResourceName, $keyword)) {
+                    return 'inventory';
+                }
+            }
+            
+            // Check if resource name contains product-related keywords
+            foreach ($productKeywords as $keyword) {
+                if (str_contains($lowerResourceName, $keyword)) {
+                    return 'products';
+                }
+            }
+            
+            // Default to inventory for "Products & Inventory" group if unclear
+            return 'inventory';
+        }
+        
+        return match ($navigationGroup) {
+            // Direct group mappings
+            'Seeds' => 'inventory',  // Seeds are inventory items
+            'Products' => 'products', // Product catalog items
+            'Production' => 'production', 
+            'Orders & Sales' => 'orders',
+            'System' => 'system',
+            default => null,
+        };
+    }
+
+    private static function isStaticallyDefined($resource): bool
+    {
+        // Resources that are manually defined in static navigation with special handling
+        $staticResources = [
+            'CropAlertResource', // Has badge in production menu
+            'ProductInventoryResource', // Has badge in products menu
+            'SeedEntryResource', // In Online Seed Pricing dropdown
+            'MasterSeedCatalogResource', // In inventory menu
+            'MasterCultivarResource', // Hidden - managed within Master Seed Catalog
+        ];
+
+        $resourceName = class_basename($resource);
+        return in_array($resourceName, $staticResources);
     }
     
     private static function getProductionBadge(): ?array

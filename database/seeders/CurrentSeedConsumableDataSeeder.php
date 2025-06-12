@@ -56,26 +56,19 @@ class CurrentSeedConsumableDataSeeder extends Seeder
                 $commonName = trim($matches[1]);
                 $cultivarName = trim($matches[2]);
                 
-                // // Find the seed entry
-                // $seedEntry = SeedEntry::where('common_name', $commonName)
-                //     ->where('cultivar_name', $cultivarName)
-                //     ->first();
+                // Get default supplier for seeds
+                $supplier = Supplier::where('name', "Mumm's Sprouting Seeds")->first();
                 
-                // if (!$seedEntry) {
-                //     $this->command->warn("Seed entry not found for: {$data['name']}");
-                //     continue;
-                // }
-                
-                // Create or update the consumable
+                // Create or update the consumable - independent of seed entries
                 $consumable = Consumable::updateOrCreate(
                     [
-                        'seed_entry_id' => $seedEntry->id,
+                        'name' => $data['name'],
                         'type' => 'seed',
                         'lot_no' => $data['lot'] ?? null,
                     ],
                     [
-                        'name' => $data['name'],
-                        'supplier_id' => $seedEntry->supplier_id,
+                        'seed_entry_id' => null, // Independent of scraped data
+                        'supplier_id' => $supplier ? $supplier->id : null,
                         'initial_stock' => 1,
                         'consumed_quantity' => $data['consumed'],
                         'total_quantity' => $data['total'],
