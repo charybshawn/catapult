@@ -28,7 +28,7 @@ class RecipeResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-beaker';
     protected static ?string $navigationLabel = 'Recipes';
-    protected static ?string $navigationGroup = 'Production Management';
+    protected static ?string $navigationGroup = 'Production';
     protected static ?int $navigationSort = 1;
     
     public static function shouldRegisterNavigation(): bool
@@ -174,7 +174,10 @@ class RecipeResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->columns([
+            ->persistFiltersInSession()
+            ->persistSortInSession()
+            ->persistColumnSearchesInSession()
+            ->persistSearchInSession()            ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->searchable()
                     ->sortable()

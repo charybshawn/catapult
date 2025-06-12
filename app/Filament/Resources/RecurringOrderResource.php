@@ -22,7 +22,7 @@ class RecurringOrderResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-arrow-path';
     protected static ?string $navigationLabel = 'Recurring Orders';
-    protected static ?string $navigationGroup = 'Order Management';
+    protected static ?string $navigationGroup = 'Orders & Sales';
     protected static ?int $navigationSort = 3;
     protected static ?string $recordTitleAttribute = 'id';
     
@@ -188,7 +188,10 @@ class RecurringOrderResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->columns([
+            ->persistFiltersInSession()
+            ->persistSortInSession()
+            ->persistColumnSearchesInSession()
+            ->persistSearchInSession()            ->columns([
                 Tables\Columns\TextColumn::make('id')
                     ->label('Template ID')
                     ->sortable(),

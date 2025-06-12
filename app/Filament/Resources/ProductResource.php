@@ -32,7 +32,7 @@ class ProductResource extends BaseResource
 
     protected static ?string $navigationIcon = 'heroicon-o-shopping-bag';
     protected static ?string $navigationLabel = 'Products';
-    protected static ?string $navigationGroup = 'Sales & Products';
+    protected static ?string $navigationGroup = 'Products & Inventory';
     protected static ?int $navigationSort = 1;
 
     public static function form(Form $form): Form
@@ -43,7 +43,7 @@ class ProductResource extends BaseResource
 
     public static function table(Table $table): Table
     {
-        return $table
+        return static::configureTableDefaults($table)
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->searchable(),
@@ -53,18 +53,27 @@ class ProductResource extends BaseResource
                 Tables\Columns\TextColumn::make('category.name')
                     ->label('Category')
                     ->sortable(),
-                Tables\Columns\IconColumn::make('has_product_mix')
-                    ->label('Mix')
-                    ->boolean()
-                    ->getStateUsing(fn ($record): bool => $record->productMix !== null)
-                    ->sortable(),
+                Tables\Columns\TextColumn::make('variety_type')
+                    ->label('Type')
+                    ->getStateUsing(function ($record): string {
+                        if ($record->seed_entry_id) {
+                            return 'Single: ' . ($record->seedEntry->cultivar_name ?? 'Unknown');
+                        } elseif ($record->product_mix_id) {
+                            return 'Mix: ' . ($record->productMix->name ?? 'Unknown');
+                        }
+                        return 'None';
+                    })
+                    ->searchable(false)
+                    ->sortable(false)
+                    ->toggleable(),
                 Tables\Columns\IconColumn::make('active')
                     ->boolean()
                     ->sortable(),
                 Tables\Columns\IconColumn::make('is_visible_in_store')
                     ->label('In Store')
                     ->boolean()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('available_packaging')
                     ->label('Packaging')
                     ->html()
@@ -99,12 +108,21 @@ class ProductResource extends BaseResource
             ->filters([
                 Tables\Filters\SelectFilter::make('category')
                     ->relationship('category', 'name'),
-                Tables\Filters\TernaryFilter::make('has_product_mix')
-                    ->label('Has Mix')
-                    ->queries(
-                        true: fn (Builder $query): Builder => $query->whereHas('productMix'),
-                        false: fn (Builder $query): Builder => $query->whereDoesntHave('productMix'),
-                    ),
+                Tables\Filters\SelectFilter::make('variety_type')
+                    ->label('Product Type')
+                    ->options([
+                        'single' => 'Single Variety',
+                        'mix' => 'Product Mix',
+                        'none' => 'No Variety Assigned',
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return match($data['value']) {
+                            'single' => $query->whereNotNull('seed_entry_id'),
+                            'mix' => $query->whereNotNull('product_mix_id'),
+                            'none' => $query->whereNull('seed_entry_id')->whereNull('product_mix_id'),
+                            default => $query,
+                        };
+                    }),
                 Tables\Filters\TernaryFilter::make('active'),
                 Tables\Filters\TernaryFilter::make('is_visible_in_store')
                     ->label('Visible in Store'),
@@ -196,47 +214,94 @@ class ProductResource extends BaseResource
                     ->collapsible()
                     ->columnSpanFull(),
                 
-                'product_mix' => Forms\Components\Section::make('Product Mix')
+                'variety_info' => Forms\Components\Section::make('Variety Information')
                     ->schema([
-                        Forms\Components\Grid::make(2)
-                            ->schema([
-                                Forms\Components\Placeholder::make('mix_name')
-                                    ->label('Mix Name')
-                                    ->content(function ($record) {
-                                        return $record->productMix ? $record->productMix->name : 'No mix assigned';
-                                    }),
-                                Forms\Components\Placeholder::make('variety_count')
-                                    ->label('Number of Varieties')
-                                    ->content(function ($record) {
-                                        return $record->productMix ? $record->productMix->seedEntries->count() : '0';
-                                    }),
-                            ]),
-                        Forms\Components\Placeholder::make('varieties')
-                            ->label('Varieties in Mix')
-                            ->content(function ($record) {
-                                if (!$record->productMix) {
-                                    return 'No mix assigned';
-                                }
-                                
-                                $varieties = $record->productMix->seedEntries;
-                                if ($varieties->isEmpty()) {
-                                    return 'No varieties in this mix';
-                                }
-                                
-                                $content = '<ul class="list-disc list-inside space-y-1">';
-                                foreach ($varieties as $variety) {
-                                    $percentage = $variety->pivot->percentage ?? 0;
-                                    $content .= "<li><strong>{$variety->cultivar_name}</strong> ({$percentage}%)</li>";
-                                }
-                                $content .= '</ul>';
-                                
-                                return $content;
-                            })
-                            ->extraAttributes(['class' => 'prose'])
-                            ->columnSpanFull(),
+                        // Single Variety Section
+                        Forms\Components\Group::make([
+                            Forms\Components\Grid::make(2)
+                                ->schema([
+                                    Forms\Components\Placeholder::make('variety_name')
+                                        ->label('Variety Name')
+                                        ->content(fn ($record) => $record->seedEntry->cultivar_name ?? 'Unknown'),
+                                    Forms\Components\Placeholder::make('common_names')
+                                        ->label('Common Names')
+                                        ->content(fn ($record) => $record->seedEntry->common_names ?? 'N/A'),
+                                ]),
+                            Forms\Components\Grid::make(3)
+                                ->schema([
+                                    Forms\Components\Placeholder::make('days_to_maturity')
+                                        ->label('Days to Maturity')
+                                        ->content(function ($record) {
+                                            $recipe = $record->seedEntry->recipes()->first();
+                                            return $recipe ? $recipe->days_to_maturity . ' days' : 'No recipe';
+                                        }),
+                                    Forms\Components\Placeholder::make('seed_inventory')
+                                        ->label('Seed Stock')
+                                        ->content(function ($record) {
+                                            $consumable = $record->seedEntry->consumables()
+                                                ->where('type', 'seed')
+                                                ->first();
+                                            if ($consumable) {
+                                                $available = $consumable->initial_stock - $consumable->consumed_quantity;
+                                                return number_format($available, 2) . ' ' . $consumable->unit;
+                                            }
+                                            return 'No inventory';
+                                        }),
+                                    Forms\Components\Placeholder::make('supplier')
+                                        ->label('Primary Supplier')
+                                        ->content(function ($record) {
+                                            $consumable = $record->seedEntry->consumables()
+                                                ->where('type', 'seed')
+                                                ->with('supplier')
+                                                ->first();
+                                            return $consumable?->supplier?->name ?? 'N/A';
+                                        }),
+                                ]),
+                        ])
+                        ->visible(fn ($record) => $record->seed_entry_id !== null),
+                        
+                        // Product Mix Section
+                        Forms\Components\Group::make([
+                            Forms\Components\Grid::make(2)
+                                ->schema([
+                                    Forms\Components\Placeholder::make('mix_name')
+                                        ->label('Mix Name')
+                                        ->content(fn ($record) => $record->productMix->name ?? 'Unknown'),
+                                    Forms\Components\Placeholder::make('variety_count')
+                                        ->label('Number of Varieties')
+                                        ->content(fn ($record) => $record->productMix->seedEntries->count() ?? 0),
+                                ]),
+                            Forms\Components\Placeholder::make('varieties')
+                                ->label('Varieties in Mix')
+                                ->content(function ($record) {
+                                    $varieties = $record->productMix->seedEntries;
+                                    if ($varieties->isEmpty()) {
+                                        return 'No varieties in this mix';
+                                    }
+                                    
+                                    $content = '<ul class="list-disc list-inside space-y-1">';
+                                    foreach ($varieties as $variety) {
+                                        $percentage = $variety->pivot->percentage ?? 0;
+                                        $content .= "<li><strong>{$variety->cultivar_name}</strong> ({$percentage}%)</li>";
+                                    }
+                                    $content .= '</ul>';
+                                    
+                                    return $content;
+                                })
+                                ->extraAttributes(['class' => 'prose'])
+                                ->columnSpanFull(),
+                        ])
+                        ->visible(fn ($record) => $record->product_mix_id !== null),
+                        
+                        // No Variety Assigned Message
+                        Forms\Components\Placeholder::make('no_variety')
+                            ->label('')
+                            ->content('This product is not linked to any variety or mix. Consider assigning one for better inventory and planting plan management.')
+                            ->extraAttributes(['class' => 'text-warning-600'])
+                            ->visible(fn ($record) => $record->seed_entry_id === null && $record->product_mix_id === null),
                     ])
                     ->hidden(function ($record) {
-                        return $record->productMix === null;
+                        return $record->seed_entry_id === null && $record->product_mix_id === null;
                     })
                     ->collapsible()
                     ->columnSpanFull(),
@@ -305,12 +370,39 @@ class ProductResource extends BaseResource
                                         ->label('Active')
                                         ->default(true),
                                 ]),
+                            Forms\Components\Select::make('seed_entry_id')
+                                ->label('Single Variety')
+                                ->options(function () {
+                                    // Get varieties that have seed inventory
+                                    return \App\Models\SeedEntry::whereHas('consumables', function ($query) {
+                                        $query->where('type', 'seed')
+                                            ->whereRaw('(initial_stock - consumed_quantity) > 0');
+                                    })
+                                    ->where('is_active', true)
+                                    ->orderBy('cultivar_name')
+                                    ->pluck('cultivar_name', 'id');
+                                })
+                                ->searchable()
+                                ->preload()
+                                ->reactive()
+                                ->disabled(fn (Forms\Get $get): bool => !empty($get('product_mix_id')))
+                                ->helperText(fn (Forms\Get $get): string => 
+                                    !empty($get('product_mix_id')) 
+                                        ? 'Disabled: Product already has a mix assigned' 
+                                        : 'Select for single-variety products'
+                                ),
                             Forms\Components\Select::make('product_mix_id')
                                 ->label('Product Mix')
                                 ->relationship('productMix', 'name')
                                 ->searchable()
                                 ->preload()
-                                ->helperText('Optional: For multi-variety products'),
+                                ->reactive()
+                                ->disabled(fn (Forms\Get $get): bool => !empty($get('seed_entry_id')))
+                                ->helperText(fn (Forms\Get $get): string => 
+                                    !empty($get('seed_entry_id')) 
+                                        ? 'Disabled: Product already has a single variety assigned' 
+                                        : 'Select for multi-variety products'
+                                ),
                             Forms\Components\FileUpload::make('photo')
                                 ->label('Primary Photo')
                                 ->image()

@@ -20,7 +20,7 @@ class CategoryResource extends BaseResource
 
     protected static ?string $navigationIcon = 'heroicon-o-tag';
     
-    protected static ?string $navigationGroup = 'Sales & Products';
+    protected static ?string $navigationGroup = 'Products & Inventory';
     
     protected static ?int $navigationSort = 2;
     
@@ -37,7 +37,7 @@ class CategoryResource extends BaseResource
 
     public static function table(Table $table): Table
     {
-        return $table
+        return static::configureTableDefaults($table)
             ->columns([
                 static::getTextColumn('name', 'Name'),
                 static::getTruncatedTextColumn('description', 'Description'),

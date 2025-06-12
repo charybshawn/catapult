@@ -22,7 +22,7 @@ class CropPlanResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
     protected static ?string $navigationLabel = 'Crop Plans';
-    protected static ?string $navigationGroup = 'Production Management';
+    protected static ?string $navigationGroup = 'Production';
     protected static ?int $navigationSort = 1;
     
     public static function shouldRegisterNavigation(): bool
@@ -158,7 +158,10 @@ class CropPlanResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->columns([
+            ->persistFiltersInSession()
+            ->persistSortInSession()
+            ->persistColumnSearchesInSession()
+            ->persistSearchInSession()            ->columns([
                 Tables\Columns\TextColumn::make('id')
                     ->label('Plan #')
                     ->sortable(),

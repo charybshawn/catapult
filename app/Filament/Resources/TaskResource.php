@@ -19,7 +19,7 @@ class TaskResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
     
-    protected static ?string $navigationGroup = 'Production Management';
+    protected static ?string $navigationGroup = 'Production';
     
     protected static ?int $navigationSort = 3;
     
@@ -81,7 +81,10 @@ class TaskResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->columns([
+            ->persistFiltersInSession()
+            ->persistSortInSession()
+            ->persistColumnSearchesInSession()
+            ->persistSearchInSession()            ->columns([
                 Tables\Columns\TextColumn::make('title')
                     ->searchable()
                     ->sortable(),

@@ -18,7 +18,7 @@ class ProductMixResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-squares-plus';
     protected static ?string $navigationLabel = 'Product Mixes';
-    protected static ?string $navigationGroup = 'Sales & Products';
+    protected static ?string $navigationGroup = 'Products & Inventory';
     
     protected static ?int $navigationSort = 3;
 
@@ -88,7 +88,10 @@ class ProductMixResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->columns([
+            ->persistFiltersInSession()
+            ->persistSortInSession()
+            ->persistColumnSearchesInSession()
+            ->persistSearchInSession()            ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->label('Name')
                     ->searchable()

@@ -17,9 +17,12 @@ class ActivityResource extends Resource
 {
     protected static ?string $model = Activity::class;
 
+    // Hide from navigation - activity logs can be viewed via direct URL if needed
+    protected static bool $shouldRegisterNavigation = false;
+
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
 
-    protected static ?string $navigationGroup = 'System & Settings';
+    protected static ?string $navigationGroup = 'System';
     
     protected static ?int $navigationSort = 2;
 
@@ -60,7 +63,10 @@ class ActivityResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->columns([
+            ->persistFiltersInSession()
+            ->persistSortInSession()
+            ->persistColumnSearchesInSession()
+            ->persistSearchInSession()            ->columns([
                 Tables\Columns\TextColumn::make('log_name')
                     ->label('Log Name')
                     ->searchable(),

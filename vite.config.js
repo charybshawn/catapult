@@ -4,7 +4,11 @@ import laravel from 'laravel-vite-plugin';
 export default defineConfig({
     plugins: [
         laravel({
-            input: ['resources/css/app.css', 'resources/js/app.js'],
+            input: [
+                'resources/css/app.css', 
+                'resources/js/app.js',
+                'resources/css/filament/admin/theme.css'
+            ],
             refresh: true,
         }),
     ],
@@ -17,7 +21,7 @@ export default defineConfig({
     },
     build: {
         // Ensure assets are built with the correct base URL
-        manifest: true,
+        manifest: 'manifest.json',
         outDir: 'public/build',
         rollupOptions: {
             output: {

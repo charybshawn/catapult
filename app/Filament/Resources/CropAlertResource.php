@@ -26,7 +26,7 @@ class CropAlertResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-bell-alert';
     protected static ?string $navigationLabel = 'Crop Alerts';
-    protected static ?string $navigationGroup = 'Dashboard & Overview';
+    protected static ?string $navigationGroup = 'Production';
     protected static ?int $navigationSort = 1;
     
     protected static ?string $recordTitleAttribute = 'task_name';
@@ -75,7 +75,10 @@ class CropAlertResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->defaultSort('next_run_at', 'asc')
+            ->persistFiltersInSession()
+            ->persistSortInSession()
+            ->persistColumnSearchesInSession()
+            ->persistSearchInSession()            ->defaultSort('next_run_at', 'asc')
             ->columns([
                 TextColumn::make('alert_type')
                     ->label('Action')

@@ -19,11 +19,14 @@ class SeedVariationResource extends Resource
 {
     protected static ?string $model = SeedVariation::class;
 
+    // Hide from navigation since variations are managed within SeedEntryResource
+    protected static bool $shouldRegisterNavigation = false;
+
     protected static ?string $navigationIcon = 'heroicon-o-circle-stack';
 
     protected static ?string $navigationLabel = 'Seed Variations';
     
-    protected static ?string $navigationGroup = 'Seed Management';
+    protected static ?string $navigationGroup = 'Products & Inventory';
     
     protected static ?int $navigationSort = 4;
 
@@ -86,7 +89,10 @@ class SeedVariationResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->columns([
+            ->persistFiltersInSession()
+            ->persistSortInSession()
+            ->persistColumnSearchesInSession()
+            ->persistSearchInSession()            ->columns([
                 Tables\Columns\TextColumn::make('seedEntry.cultivar_name')
                     ->label('Cultivar')
                     ->searchable()

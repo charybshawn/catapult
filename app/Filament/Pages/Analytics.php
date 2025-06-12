@@ -11,7 +11,7 @@ class Analytics extends Page
 {
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
     
-    protected static ?string $navigationGroup = 'Analytics & Reports';
+    protected static ?string $navigationGroup = 'Dashboard & Overview';
     
     protected static ?int $navigationSort = 1;
     

@@ -18,7 +18,7 @@ class SupplierResource extends BaseResource
 
     protected static ?string $navigationIcon = 'heroicon-o-truck';
     protected static ?string $navigationLabel = 'Suppliers';
-    protected static ?string $navigationGroup = 'Inventory & Materials';
+    protected static ?string $navigationGroup = 'Products & Inventory';
     protected static ?int $navigationSort = 3;
 
     public static function form(Form $form): Form
@@ -58,7 +58,7 @@ class SupplierResource extends BaseResource
 
     public static function table(Table $table): Table
     {
-        return $table
+        return static::configureTableDefaults($table)
             ->columns([
                 static::getTextColumn('name', 'Name')
                     ->url(fn (Supplier $record): string => SupplierResource::getUrl('edit', ['record' => $record]))

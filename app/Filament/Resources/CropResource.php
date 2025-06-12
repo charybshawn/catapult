@@ -30,7 +30,7 @@ class CropResource extends BaseResource
     
     protected static ?string $navigationIcon = 'heroicon-o-fire';
     protected static ?string $navigationLabel = 'Grows';
-    protected static ?string $navigationGroup = 'Production Management';
+    protected static ?string $navigationGroup = 'Production';
     protected static ?int $navigationSort = 2;
     
     public static function shouldRegisterNavigation(): bool
@@ -141,8 +141,7 @@ class CropResource extends BaseResource
 
     public static function table(Table $table): Table
     {
-        return $table
-            ->persistSortInSession()
+        return static::configureTableDefaults($table)
             ->defaultSort('planted_at', 'desc')
             ->modifyQueryUsing(function (Builder $query): Builder {
                 // Build the query

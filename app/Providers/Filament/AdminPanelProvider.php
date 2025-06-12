@@ -21,7 +21,6 @@ use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use App\Filament\Resources\CropAlertResource;
-use App\Filament\Resources\TaskScheduleResource;
 use App\Filament\Widgets\SeedPriceTrendsWidget;
 use App\Filament\Widgets\SeedReorderAdvisorWidget;
 
@@ -42,13 +41,10 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->navigationGroups([
                 'Dashboard & Overview',
-                'Production Management', 
-                'Seed Management',
-                'Inventory & Materials',
-                'Sales & Products',
-                'Order Management',
-                'Analytics & Reports',
-                'System & Settings',
+                'Production',
+                'Products & Inventory',
+                'Orders & Sales',
+                'System',
             ])
             ->resources([
                 CropAlertResource::class,
@@ -64,6 +60,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->homeUrl('/admin/dashboard')
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
+            ->viteTheme('resources/css/filament/admin/theme.css')
             ->widgets([
                 // Removed AccountWidget to hide welcome message and sign out button
                 SeedPriceTrendsWidget::class,

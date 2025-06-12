@@ -22,7 +22,7 @@ class SettingsResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-cog-6-tooth';
     protected static ?string $navigationLabel = 'Settings';
-    protected static ?string $navigationGroup = 'System & Settings';
+    protected static ?string $navigationGroup = 'System';
     protected static ?int $navigationSort = 3;
     
     protected static ?string $recordTitleAttribute = 'key';
@@ -127,7 +127,10 @@ class SettingsResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->columns([
+            ->persistFiltersInSession()
+            ->persistSortInSession()
+            ->persistColumnSearchesInSession()
+            ->persistSearchInSession()            ->columns([
                 Tables\Columns\TextColumn::make('key')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('value')

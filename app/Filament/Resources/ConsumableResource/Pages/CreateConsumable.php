@@ -113,7 +113,7 @@ class CreateConsumable extends BaseCreateRecord
                                 if ($state && $state !== '') {
                                     $entry = SeedEntry::find($state);
                                     if ($entry) {
-                                        $set('name', $entry->cultivar_name);
+                                        $set('name', $entry->common_name . ' (' . $entry->cultivar_name . ')');
                                     }
                                 }
                             }),
@@ -278,7 +278,7 @@ class CreateConsumable extends BaseCreateRecord
                 }
                 
                 // Always set name from the seed entry for seed consumables
-                $data['name'] = $seedEntry->cultivar_name;
+                $data['name'] = $seedEntry->common_name . ' (' . $seedEntry->cultivar_name . ')';
                 Log::info('Setting consumable name from seed entry', [
                     'seed_entry_id' => $data['seed_entry_id'],
                     'name' => $data['name'],
@@ -304,8 +304,21 @@ class CreateConsumable extends BaseCreateRecord
                 throw new \Exception('Name is required for non-seed consumables');
             }
             
-            // Set consumed_quantity to 0 for new consumables
-            $data['consumed_quantity'] = 0;
+            // For seed consumables, calculate consumed_quantity from remaining_quantity if provided
+            if (isset($data['type']) && $data['type'] === 'seed' && isset($data['remaining_quantity']) && isset($data['total_quantity'])) {
+                $total = (float) $data['total_quantity'];
+                $remaining = (float) $data['remaining_quantity'];
+                $data['consumed_quantity'] = max(0, $total - $remaining);
+                
+                Log::info('Calculated consumed quantity for seed:', [
+                    'total_quantity' => $total,
+                    'remaining_quantity' => $remaining,
+                    'consumed_quantity' => $data['consumed_quantity']
+                ]);
+            } else {
+                // Set consumed_quantity to 0 for new non-seed consumables
+                $data['consumed_quantity'] = 0;
+            }
             
             // Calculate total_quantity for non-seed consumables (if applicable)
             if (isset($data['type']) && $data['type'] !== 'seed') {
@@ -402,7 +415,7 @@ class CreateConsumable extends BaseCreateRecord
                     );
                     
                     $data['seed_entry_id'] = $defaultEntry->id;
-                    $data['name'] = $defaultEntry->cultivar_name;
+                    $data['name'] = $defaultEntry->common_name . ' (' . $defaultEntry->cultivar_name . ')';
                     
                     Log::info('Using default seed entry as fallback', [
                         'id' => $defaultEntry->id,
@@ -432,7 +445,7 @@ class CreateConsumable extends BaseCreateRecord
                         );
                         
                         $data['seed_entry_id'] = $defaultEntry->id;
-                        $data['name'] = $defaultEntry->cultivar_name;
+                        $data['name'] = $defaultEntry->common_name . ' (' . $defaultEntry->cultivar_name . ')';
                         
                         $this->sendCustomNotification(
                             Notification::make()
@@ -442,7 +455,7 @@ class CreateConsumable extends BaseCreateRecord
                         );
                     } else {
                         // Set the name from the seed entry
-                        $data['name'] = $seedEntry->cultivar_name;
+                        $data['name'] = $seedEntry->common_name . ' (' . $seedEntry->cultivar_name . ')';
                     }
                 }
                 
@@ -465,8 +478,21 @@ class CreateConsumable extends BaseCreateRecord
                 throw new \Exception('Name is required for non-seed consumables');
             }
             
-            // Set consumed_quantity to 0 for new consumables
-            $data['consumed_quantity'] = 0;
+            // For seed consumables, calculate consumed_quantity from remaining_quantity if provided
+            if (isset($data['type']) && $data['type'] === 'seed' && isset($data['remaining_quantity']) && isset($data['total_quantity'])) {
+                $total = (float) $data['total_quantity'];
+                $remaining = (float) $data['remaining_quantity'];
+                $data['consumed_quantity'] = max(0, $total - $remaining);
+                
+                Log::info('Calculated consumed quantity for seed:', [
+                    'total_quantity' => $total,
+                    'remaining_quantity' => $remaining,
+                    'consumed_quantity' => $data['consumed_quantity']
+                ]);
+            } else {
+                // Set consumed_quantity to 0 for new non-seed consumables
+                $data['consumed_quantity'] = 0;
+            }
             
             // Create the record
             $model = $this->getModel()::create($data);
