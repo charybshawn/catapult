@@ -56,8 +56,10 @@ class ProductResource extends BaseResource
                 Tables\Columns\TextColumn::make('variety_type')
                     ->label('Type')
                     ->getStateUsing(function ($record): string {
-                        if ($record->seed_entry_id) {
-                            return 'Single: ' . ($record->seedEntry->cultivar_name ?? 'Unknown');
+                        if ($record->master_seed_catalog_id) {
+                            $catalog = $record->masterSeedCatalog;
+                            $cultivar = !empty($catalog->cultivars) ? $catalog->cultivars[0] : 'Unknown';
+                            return 'Single: ' . $catalog->common_name . ' (' . $cultivar . ')';
                         } elseif ($record->product_mix_id) {
                             return 'Mix: ' . ($record->productMix->name ?? 'Unknown');
                         }
@@ -117,9 +119,9 @@ class ProductResource extends BaseResource
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         return match($data['value']) {
-                            'single' => $query->whereNotNull('seed_entry_id'),
+                            'single' => $query->whereNotNull('master_seed_catalog_id'),
                             'mix' => $query->whereNotNull('product_mix_id'),
-                            'none' => $query->whereNull('seed_entry_id')->whereNull('product_mix_id'),
+                            'none' => $query->whereNull('master_seed_catalog_id')->whereNull('product_mix_id'),
                             default => $query,
                         };
                     }),
@@ -222,35 +224,54 @@ class ProductResource extends BaseResource
                                 ->schema([
                                     Forms\Components\Placeholder::make('variety_name')
                                         ->label('Variety Name')
-                                        ->content(fn ($record) => $record->seedEntry->cultivar_name ?? 'Unknown'),
-                                    Forms\Components\Placeholder::make('common_names')
-                                        ->label('Common Names')
-                                        ->content(fn ($record) => $record->seedEntry->common_names ?? 'N/A'),
+                                        ->content(function ($record) {
+                                            $catalog = $record->masterSeedCatalog;
+                                            if (!$catalog) return 'Unknown';
+                                            $cultivar = !empty($catalog->cultivars) ? $catalog->cultivars[0] : 'No cultivar';
+                                            return $catalog->common_name . ' (' . $cultivar . ')';
+                                        }),
+                                    Forms\Components\Placeholder::make('cultivars')
+                                        ->label('All Cultivars')
+                                        ->content(function ($record) {
+                                            $catalog = $record->masterSeedCatalog;
+                                            if (!$catalog || empty($catalog->cultivars)) return 'N/A';
+                                            return implode(', ', $catalog->cultivars);
+                                        }),
                                 ]),
                             Forms\Components\Grid::make(3)
                                 ->schema([
-                                    Forms\Components\Placeholder::make('days_to_maturity')
-                                        ->label('Days to Maturity')
+                                    Forms\Components\Placeholder::make('category')
+                                        ->label('Category')
                                         ->content(function ($record) {
-                                            $recipe = $record->seedEntry->recipes()->first();
-                                            return $recipe ? $recipe->days_to_maturity . ' days' : 'No recipe';
+                                            $catalog = $record->masterSeedCatalog;
+                                            return $catalog->category ?? 'No category';
                                         }),
                                     Forms\Components\Placeholder::make('seed_inventory')
                                         ->label('Seed Stock')
                                         ->content(function ($record) {
-                                            $consumable = $record->seedEntry->consumables()
-                                                ->where('type', 'seed')
-                                                ->first();
-                                            if ($consumable) {
-                                                $available = $consumable->initial_stock - $consumable->consumed_quantity;
-                                                return number_format($available, 2) . ' ' . $consumable->unit;
+                                            $catalog = $record->masterSeedCatalog;
+                                            if (!$catalog) return 'No inventory';
+                                            
+                                            $consumables = $catalog->consumables()->where('type', 'seed')->get();
+                                            if ($consumables->isEmpty()) return 'No inventory';
+                                            
+                                            $totalAvailable = 0;
+                                            $unit = '';
+                                            foreach ($consumables as $consumable) {
+                                                $available = $consumable->total_quantity - $consumable->consumed_quantity;
+                                                $totalAvailable += $available;
+                                                $unit = $consumable->unit;
                                             }
-                                            return 'No inventory';
+                                            
+                                            return number_format($totalAvailable, 2) . ' ' . $unit;
                                         }),
                                     Forms\Components\Placeholder::make('supplier')
                                         ->label('Primary Supplier')
                                         ->content(function ($record) {
-                                            $consumable = $record->seedEntry->consumables()
+                                            $catalog = $record->masterSeedCatalog;
+                                            if (!$catalog) return 'N/A';
+                                            
+                                            $consumable = $catalog->consumables()
                                                 ->where('type', 'seed')
                                                 ->with('supplier')
                                                 ->first();
@@ -258,7 +279,7 @@ class ProductResource extends BaseResource
                                         }),
                                 ]),
                         ])
-                        ->visible(fn ($record) => $record->seed_entry_id !== null),
+                        ->visible(fn ($record) => $record->master_seed_catalog_id !== null),
                         
                         // Product Mix Section
                         Forms\Components\Group::make([
@@ -298,10 +319,10 @@ class ProductResource extends BaseResource
                             ->label('')
                             ->content('This product is not linked to any variety or mix. Consider assigning one for better inventory and planting plan management.')
                             ->extraAttributes(['class' => 'text-warning-600'])
-                            ->visible(fn ($record) => $record->seed_entry_id === null && $record->product_mix_id === null),
+                            ->visible(fn ($record) => $record->master_seed_catalog_id === null && $record->product_mix_id === null),
                     ])
                     ->hidden(function ($record) {
-                        return $record->seed_entry_id === null && $record->product_mix_id === null;
+                        return $record->master_seed_catalog_id === null && $record->product_mix_id === null;
                     })
                     ->collapsible()
                     ->columnSpanFull(),
@@ -405,9 +426,9 @@ class ProductResource extends BaseResource
                                 ->searchable()
                                 ->preload()
                                 ->reactive()
-                                ->disabled(fn (Forms\Get $get): bool => !empty($get('seed_entry_id')))
+                                ->disabled(fn (Forms\Get $get): bool => !empty($get('master_seed_catalog_id')))
                                 ->helperText(fn (Forms\Get $get): string => 
-                                    !empty($get('seed_entry_id')) 
+                                    !empty($get('master_seed_catalog_id')) 
                                         ? 'Disabled: Product already has a single variety assigned' 
                                         : 'Select for multi-variety products'
                                 ),
@@ -512,9 +533,15 @@ class ProductResource extends BaseResource
                             Forms\Components\Repeater::make('components')
                                 ->label('Mix Components')
                                 ->schema([
-                                    Forms\Components\Select::make('seed_entry_id')
+                                    Forms\Components\Select::make('master_seed_catalog_id')
                                         ->label('Variety')
-                                        ->options(\App\Models\SeedEntry::where('is_active', true)->pluck('cultivar_name', 'id'))
+                                        ->options(\App\Models\MasterSeedCatalog::where('is_active', true)
+                                            ->get()
+                                            ->mapWithKeys(function ($catalog) {
+                                                $cultivar = !empty($catalog->cultivars) ? $catalog->cultivars[0] : 'No cultivar';
+                                                return [$catalog->id => $catalog->common_name . ' (' . $cultivar . ')'];
+                                            })
+                                        )
                                         ->searchable()
                                         ->required(),
                                     Forms\Components\TextInput::make('percentage')
@@ -546,8 +573,8 @@ class ProductResource extends BaseResource
                             // Attach the components
                             if (isset($data['components']) && is_array($data['components'])) {
                                 foreach ($data['components'] as $component) {
-                                    if (isset($component['seed_entry_id']) && isset($component['percentage'])) {
-                                        $mix->seedEntries()->attach($component['seed_entry_id'], [
+                                    if (isset($component['master_seed_catalog_id']) && isset($component['percentage'])) {
+                                        $mix->masterSeedCatalogs()->attach($component['master_seed_catalog_id'], [
                                             'percentage' => $component['percentage'],
                                         ]);
                                     }

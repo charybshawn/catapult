@@ -66,9 +66,9 @@ class Product extends Model
     
     protected static function booted()
     {
-        // Validate mutual exclusivity of seed_entry_id and product_mix_id
+        // Validate mutual exclusivity of master_seed_catalog_id and product_mix_id
         static::saving(function ($product) {
-            if ($product->seed_entry_id && $product->product_mix_id) {
+            if ($product->master_seed_catalog_id && $product->product_mix_id) {
                 throw new \Exception('A product cannot have both a single variety and a product mix assigned.');
             }
         });
@@ -263,7 +263,7 @@ class Product extends Model
                 'is_visible_in_store',
                 'category_id',
                 'product_mix_id',
-                'seed_entry_id',
+                'master_seed_catalog_id',
                 'image',
                 'base_price',
                 'wholesale_price',
@@ -383,9 +383,9 @@ class Product extends Model
      */
     public function getVarietiesAttribute()
     {
-        if ($this->seed_entry_id) {
+        if ($this->master_seed_catalog_id) {
             // Single variety product
-            return collect([$this->seedEntry]);
+            return collect([$this->masterSeedCatalog]);
         } elseif ($this->product_mix_id && $this->productMix) {
             // Mix product - return all varieties in the mix
             return $this->productMix->seedEntries;
