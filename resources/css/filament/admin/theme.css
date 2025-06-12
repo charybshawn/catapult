@@ -188,6 +188,25 @@
     display: none !important;
 }
 
+/* Custom Toggle Styling */
+/* Override Filament toggle colors globally using Tailwind */
+.fi-fo-toggle .fi-toggle input:checked + .fi-toggle-track {
+    @apply bg-orange-500 !important;
+}
+
+.fi-fo-toggle .fi-toggle input:not(:checked) + .fi-toggle-track {
+    @apply bg-red-500 !important;
+}
+
+/* Dark mode adjustments */
+.dark .fi-fo-toggle .fi-toggle input:checked + .fi-toggle-track {
+    @apply bg-orange-400 !important;
+}
+
+.dark .fi-fo-toggle .fi-toggle input:not(:checked) + .fi-toggle-track {
+    @apply bg-red-400 !important;
+}
+
 /* Responsive adjustments */
 @media (max-width: 640px) {
     .nav-group-button {

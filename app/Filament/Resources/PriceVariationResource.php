@@ -32,94 +32,394 @@ class PriceVariationResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\Section::make('Price Variation Details')
+                // Compact header with template toggle
+                Forms\Components\Group::make([
+                    Forms\Components\Toggle::make('is_global')
+                        ->label('Global Pricing Template')
+                        ->helperText('Create a reusable template for any product')
+                        ->default(false)
+                        ->live()
+                        ->afterStateUpdated(function ($state, Forms\Set $set) {
+                            if ($state) {
+                                $set('is_default', false);
+                                $set('product_id', null);
+                            }
+                        }),
+                ])
+                ->extraAttributes(['class' => 'bg-gray-50 dark:bg-gray-900 p-4 rounded-lg mb-6']),
+
+                // Primary Information Section
+                Forms\Components\Section::make('Basic Information')
+                    ->description(fn (Forms\Get $get): string => 
+                        $get('is_global') 
+                            ? 'This template can be applied to any product' 
+                            : 'Define pricing for a specific product'
+                    )
                     ->schema([
-                        Forms\Components\Placeholder::make('global_info')
-                            ->content('This is a global price variation that can be applied to any product.')
-                            ->visible(fn (Forms\Get $get): bool => $get('is_global')),
-                            
+                        // Product selection for non-global variations
                         Forms\Components\Select::make('product_id')
                             ->relationship('product', 'name')
                             ->label('Product')
                             ->required(fn (Forms\Get $get): bool => !$get('is_global'))
                             ->searchable()
                             ->preload()
-                            ->createOptionForm([
-                                Forms\Components\TextInput::make('name')
-                                    ->required()
-                                    ->maxLength(255),
-                                Forms\Components\Textarea::make('description')
-                                    ->maxLength(65535)
-                                    ->columnSpanFull(),
-                                Forms\Components\Toggle::make('active')
-                                    ->label('Active')
-                                    ->default(true),
-                            ])
-                            ->visible(fn (Forms\Get $get): bool => !$get('is_global')),
-                        
+                            ->placeholder('Select a product...')
+                            ->visible(fn (Forms\Get $get): bool => !$get('is_global'))
+                            ->columnSpanFull(),
+
+                        // Pricing type and unit selector
                         Forms\Components\Grid::make(2)
                             ->schema([
-                                Forms\Components\TextInput::make('name')
-                                    ->required()
-                                    ->maxLength(255),
-                                    
-                                Forms\Components\Select::make('packaging_type_id')
-                                    ->relationship('packagingType', 'name')
-                                    ->label('Packaging Type')
-                                    ->searchable()
-                                    ->preload()
-                                    ->nullable(),
-                            ]),
-                            
-                        Forms\Components\Grid::make(2)
-                            ->schema([
-                                Forms\Components\TextInput::make('sku')
-                                    ->label('SKU/UPC Code')
-                                    ->maxLength(255),
-                                
-                                Forms\Components\TextInput::make('fill_weight_grams')
-                                    ->label('Fill Weight / Quantity')
-                                    ->numeric()
-                                    ->minValue(0)
-                                    ->suffix('g / trays')
-                                    ->helperText('Fill weight in grams (for packaged products) or quantity in trays (for live trays)')
-                                    ->required(fn (Forms\Get $get): bool => !$get('is_global'))
-                                    ->reactive(),
-                            ]),
-                        
-                        Forms\Components\TextInput::make('price')
-                            ->numeric()
-                            ->prefix('$')
-                            ->minValue(0)
-                            ->required(),
-                            
-                        Forms\Components\Grid::make(3)
-                            ->schema([
-                                Forms\Components\Toggle::make('is_default')
-                                    ->label('Default Price for Product')
-                                    ->default(false)
-                                    ->visible(fn (Forms\Get $get): bool => !$get('is_global'))
-                                    ->disabled(fn (Forms\Get $get): bool => $get('is_global')),
-                                    
-                                Forms\Components\Toggle::make('is_global')
-                                    ->label('Global Template')
-                                    ->helperText('Creates a pricing template that can be applied to any product with customizable fill weights')
-                                    ->default(false)
-                                    ->live()
-                                    ->afterStateUpdated(function ($state, Forms\Set $set) {
-                                        if ($state) {
-                                            // If making global, clear the product association and default status
-                                            $set('is_default', false);
-                                            $set('product_id', null);
+                                Forms\Components\Select::make('pricing_type')
+                                    ->label('Pricing Type')
+                                    ->options([
+                                        'retail' => 'Retail',
+                                        'wholesale' => 'Wholesale', 
+                                        'bulk' => 'Bulk',
+                                        'special' => 'Special',
+                                        'custom' => 'Custom',
+                                    ])
+                                    ->default('retail')
+                                    ->reactive()
+                                    ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                                        // Auto-generate name if not manually overridden
+                                        if (!$get('manual_name_override')) {
+                                            self::generateVariationName($get('packaging_type_id'), $state, $set, $get);
+                                        }
+                                        // Show pricing unit for bulk
+                                        if ($state === 'bulk') {
+                                            $set('show_pricing_unit', true);
                                         }
                                     }),
                                     
+                                Forms\Components\Select::make('pricing_unit')
+                                    ->label('Pricing Unit')
+                                    ->options([
+                                        'per_item' => 'Per Item/Package',
+                                        'per_g' => 'Per Gram',
+                                        'per_kg' => 'Per Kilogram',
+                                        'per_lb' => 'Per Pound',
+                                        'per_oz' => 'Per Ounce',
+                                    ])
+                                    ->default('per_item')
+                                    ->reactive()
+                                    ->visible(fn (Forms\Get $get): bool => 
+                                        $get('pricing_type') === 'bulk' || 
+                                        $get('pricing_type') === 'wholesale' ||
+                                        !$get('packaging_type_id')
+                                    )
+                                    ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                                        // Auto-generate name if not manually overridden
+                                        if (!$get('manual_name_override')) {
+                                            self::generateVariationName($get('packaging_type_id'), $get('pricing_type'), $set, $get);
+                                        }
+                                    }),
+                            ]),
+                            
+                        // Hidden field to track manual override
+                        Forms\Components\Hidden::make('manual_name_override')
+                            ->default(false),
+
+                        // Core fields in logical order
+                        Forms\Components\Grid::make(3)
+                            ->schema([
+                                Forms\Components\TextInput::make('name')
+                                    ->label('Variation Name')
+                                    ->placeholder('Auto-generated or enter custom name')
+                                    ->required()
+                                    ->maxLength(255)
+                                    ->autofocus()
+                                    ->reactive()
+                                    ->suffixAction(
+                                        Forms\Components\Actions\Action::make('regenerate_name')
+                                            ->icon('heroicon-m-arrow-path')
+                                            ->label('Regenerate')
+                                            ->action(function (callable $set, callable $get) {
+                                                $set('manual_name_override', false);
+                                                self::generateVariationName($get('packaging_type_id'), $get('pricing_type'), $set, $get);
+                                            })
+                                            ->visible(fn (callable $get): bool => (bool) $get('manual_name_override'))
+                                    )
+                                    ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                                        // Allow manual override - if user types, don't auto-generate
+                                        if ($state && strlen($state) > 1) {
+                                            $set('manual_name_override', true);
+                                        }
+                                    }),
+
+                                Forms\Components\TextInput::make('price')
+                                    ->label(function (Forms\Get $get): string {
+                                        $unit = $get('pricing_unit');
+                                        return match($unit) {
+                                            'per_g' => 'Price per Gram',
+                                            'per_kg' => 'Price per Kilogram',
+                                            'per_lb' => 'Price per Pound',
+                                            'per_oz' => 'Price per Ounce',
+                                            default => 'Price',
+                                        };
+                                    })
+                                    ->numeric()
+                                    ->prefix('$')
+                                    ->placeholder('0.00')
+                                    ->minValue(0)
+                                    ->step(0.01)
+                                    ->required()
+                                    ->inputMode('decimal')
+                                    ->helperText(function (Forms\Get $get): ?string {
+                                        $unit = $get('pricing_unit');
+                                        if ($unit && $unit !== 'per_item') {
+                                            $fillWeight = $get('fill_weight_grams');
+                                            if ($fillWeight && is_numeric($fillWeight)) {
+                                                $price = $get('price');
+                                                if ($price && is_numeric($price)) {
+                                                    // Calculate total price based on unit
+                                                    $total = match($unit) {
+                                                        'per_g' => $price * $fillWeight,
+                                                        'per_kg' => $price * ($fillWeight / 1000),
+                                                        'per_lb' => $price * ($fillWeight / 453.592),
+                                                        'per_oz' => $price * ($fillWeight / 28.35),
+                                                        default => 0,
+                                                    };
+                                                    return 'Total price: $' . number_format($total, 2);
+                                                }
+                                            }
+                                        }
+                                        return null;
+                                    })
+                                    ->reactive(),
+
+                                Forms\Components\Select::make('packaging_type_id')
+                                    ->relationship('packagingType', 'name')
+                                    ->getOptionLabelFromRecordUsing(fn (\App\Models\PackagingType $record): string => $record->display_name)
+                                    ->label('Packaging')
+                                    ->placeholder('Select packaging or leave empty')
+                                    ->searchable()
+                                    ->preload()
+                                    ->nullable()
+                                    ->reactive()
+                                    ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                                        // Auto-generate name if not manually overridden
+                                        if (!$get('manual_name_override')) {
+                                            self::generateVariationName($state, $get('pricing_type'), $set, $get);
+                                        }
+                                    })
+                                    ->hint('Optional'),
+                            ]),
+                    ])
+                    ->collapsible()
+                    ->persistCollapsed(false),
+
+                // Product Details Section
+                Forms\Components\Section::make('Product Details')
+                    ->description('Specify quantity, weight, or packaging details')
+                    ->schema([
+                        Forms\Components\Grid::make(2)
+                            ->schema([
+                                Forms\Components\TextInput::make('fill_weight_grams')
+                                    ->label(function (Forms\Get $get): string {
+                                        $packagingId = $get('packaging_type_id');
+                                        $name = strtolower($get('name') ?? '');
+                                        
+                                        if (!$packagingId) {
+                                            // Infer from name if no packaging
+                                            if (str_contains($name, 'tray') || str_contains($name, 'live')) {
+                                                return 'Quantity (trays)';
+                                            }
+                                            if (str_contains($name, 'bulk') || str_contains($name, 'pound')) {
+                                                return 'Weight (grams)';
+                                            }
+                                            if (str_contains($name, 'each') || str_contains($name, 'unit')) {
+                                                return 'Units';
+                                            }
+                                            return 'Quantity / Weight';
+                                        }
+                                        
+                                        $packaging = \App\Models\PackagingType::find($packagingId);
+                                        if ($packaging && str_contains(strtolower($packaging->name), 'live')) {
+                                            return 'Quantity (trays)';
+                                        }
+                                        if ($packaging && str_contains(strtolower($packaging->name), 'bulk')) {
+                                            return 'Weight (grams)';
+                                        }
+                                        
+                                        return 'Fill Weight (grams)';
+                                    })
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->step(0.01)
+                                    ->placeholder(function (Forms\Get $get): string {
+                                        $packagingId = $get('packaging_type_id');
+                                        if (!$packagingId) {
+                                            return 'Enter amount';
+                                        }
+                                        return 'Enter weight or quantity';
+                                    })
+                                    ->suffix(function (Forms\Get $get): string {
+                                        $packagingId = $get('packaging_type_id');
+                                        $name = strtolower($get('name') ?? '');
+                                        
+                                        if (!$packagingId) {
+                                            if (str_contains($name, 'tray') || str_contains($name, 'live')) {
+                                                return 'trays';
+                                            }
+                                            if (str_contains($name, 'bulk') || str_contains($name, 'pound')) {
+                                                return 'g';
+                                            }
+                                            return 'units';
+                                        }
+                                        
+                                        $packaging = \App\Models\PackagingType::find($packagingId);
+                                        if ($packaging && str_contains(strtolower($packaging->name), 'live')) {
+                                            return 'trays';
+                                        }
+                                        
+                                        return 'g';
+                                    })
+                                    ->hint(function (Forms\Get $get): string {
+                                        $packagingId = $get('packaging_type_id');
+                                        if (!$packagingId) {
+                                            return 'Package-free variation';
+                                        }
+                                        
+                                        $packaging = \App\Models\PackagingType::find($packagingId);
+                                        if ($packaging && $packaging->capacity_weight) {
+                                            return 'Package capacity: ' . $packaging->capacity_weight . 'g';
+                                        }
+                                        return '';
+                                    })
+                                    ->required(fn (Forms\Get $get): bool => !$get('is_global'))
+                                    ->reactive()
+                                    ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                                        // Auto-generate name if not manually overridden and for bulk types
+                                        if (!$get('manual_name_override') && $get('pricing_type') === 'bulk' && !$get('packaging_type_id')) {
+                                            self::generateVariationName($get('packaging_type_id'), $get('pricing_type'), $set, $get);
+                                        }
+                                    }),
+
+                                Forms\Components\TextInput::make('sku')
+                                    ->label('SKU / Barcode')
+                                    ->placeholder('Optional product code')
+                                    ->maxLength(255),
+                            ]),
+                    ])
+                    ->collapsible()
+                    ->collapsed(),
+
+                // Settings Section
+                Forms\Components\Section::make('Settings')
+                    ->schema([
+                        Forms\Components\Grid::make(2)
+                            ->schema([
                                 Forms\Components\Toggle::make('is_active')
                                     ->label('Active')
+                                    ->helperText('Enable this price variation')
                                     ->default(true),
+                                    
+                                Forms\Components\Toggle::make('is_default')
+                                    ->label('Default Price')
+                                    ->helperText('Use as the default price for this product')
+                                    ->default(false)
+                                    ->visible(fn (Forms\Get $get): bool => !$get('is_global'))
+                                    ->disabled(fn (Forms\Get $get): bool => $get('is_global')),
                             ]),
-                    ]),
+                        
+                        Forms\Components\Textarea::make('description')
+                            ->label('Notes')
+                            ->placeholder('Optional notes about this price variation...')
+                            ->rows(2)
+                            ->columnSpanFull(),
+                    ])
+                    ->collapsible()
+                    ->collapsed(),
             ]);
+    }
+
+    /**
+     * Generate variation name based on packaging and pricing type
+     */
+    protected static function generateVariationName($packagingId, $pricingType, callable $set, callable $get): void
+    {
+        $parts = [];
+        $pricingUnit = $get('pricing_unit');
+        
+        // Get packaging info if selected
+        if ($packagingId) {
+            $packaging = \App\Models\PackagingType::find($packagingId);
+            if ($packaging) {
+                // Add packaging type
+                $parts[] = $packaging->name;
+                
+                // Add size if available
+                if ($packaging->capacity_volume && $packaging->volume_unit) {
+                    $parts[] = '(' . $packaging->capacity_volume . $packaging->volume_unit . ')';
+                } elseif ($packaging->capacity_weight) {
+                    // Convert grams to oz for display
+                    $oz = round($packaging->capacity_weight / 28.35, 1);
+                    $parts[] = '(' . $oz . 'oz)';
+                }
+            }
+        } else {
+            // Handle package-free variations
+            $fillWeight = $get('fill_weight_grams');
+            if ($fillWeight || $pricingUnit !== 'per_item') {
+                if (str_contains(strtolower($pricingType ?? ''), 'bulk')) {
+                    // For bulk, show pricing unit
+                    if ($pricingUnit && $pricingUnit !== 'per_item') {
+                        $unitLabels = [
+                            'per_g' => 'per gram',
+                            'per_kg' => 'per kg',
+                            'per_lb' => 'per lb',
+                            'per_oz' => 'per oz',
+                        ];
+                        $parts[] = 'Bulk';
+                        $parts[] = '(' . ($unitLabels[$pricingUnit] ?? '') . ')';
+                    } elseif ($fillWeight) {
+                        // Show total weight if no unit pricing
+                        $lbs = round($fillWeight / 453.592, 2);
+                        $parts[] = 'Bulk';
+                        $parts[] = '(' . $lbs . 'lb)';
+                    }
+                } else {
+                    // For other package-free, just use type
+                    $parts[] = 'Package-Free';
+                }
+            }
+        }
+        
+        // Add pricing unit indicator for unit-based pricing
+        if ($pricingUnit && $pricingUnit !== 'per_item' && !str_contains(strtolower($pricingType ?? ''), 'bulk')) {
+            $unitLabels = [
+                'per_g' => '/g',
+                'per_kg' => '/kg',
+                'per_lb' => '/lb',
+                'per_oz' => '/oz',
+            ];
+            if (isset($unitLabels[$pricingUnit])) {
+                $parts[] = $unitLabels[$pricingUnit];
+            }
+        }
+        
+        // Add pricing type abbreviation
+        if ($pricingType) {
+            $abbreviations = [
+                'retail' => '(Ret)',
+                'wholesale' => '(Wh)',
+                'bulk' => '(Bulk)',
+                'special' => '(Spec)',
+                'custom' => '',
+            ];
+            
+            $abbr = $abbreviations[$pricingType] ?? '';
+            if ($abbr) {
+                $parts[] = $abbr;
+            }
+        }
+        
+        // Set the generated name
+        $generatedName = implode(' ', $parts);
+        if ($generatedName) {
+            $set('name', $generatedName);
+        }
     }
 
     public static function table(Table $table): Table
@@ -139,7 +439,9 @@ class PriceVariationResource extends Resource
                 Tables\Columns\TextColumn::make('packagingType.name')
                     ->label('Packaging Type')
                     ->sortable()
-                    ->placeholder('N/A'),
+                    ->placeholder('Package-Free')
+                    ->badge()
+                    ->color(fn ($state) => $state ? 'primary' : 'gray'),
                 Tables\Columns\TextColumn::make('sku')
                     ->label('SKU/UPC')
                     ->searchable(),
@@ -154,12 +456,30 @@ class PriceVariationResource extends Resource
                             return 'N/A';
                         }
                         
-                        // Special formatting for different packaging types
-                        if ($record->packagingType) {
-                            if ($record->packagingType->name === 'Live Tray') {
+                        // Handle package-free variations (no packaging type)
+                        if (!$record->packagingType) {
+                            // Determine format based on variation name
+                            $name = strtolower($record->name);
+                            if (str_contains($name, 'tray') || str_contains($name, 'live')) {
                                 return $state . ' tray' . ($state != 1 ? 's' : '');
                             }
-                            if ($record->packagingType->name === 'Bulk') {
+                            if (str_contains($name, 'bulk') || str_contains($name, 'lb') || str_contains($name, 'pound')) {
+                                return $state . 'g (' . number_format($state / 454, 2) . 'lb)';
+                            }
+                            if (str_contains($name, 'each') || str_contains($name, 'unit') || str_contains($name, 'piece')) {
+                                return $state . ' unit' . ($state != 1 ? 's' : '');
+                            }
+                            // Default for package-free
+                            return $state . ' units';
+                        }
+                        
+                        // Special formatting for different packaging types
+                        if ($record->packagingType) {
+                            $packagingName = strtolower($record->packagingType->name);
+                            if (str_contains($packagingName, 'live') || str_contains($packagingName, 'tray')) {
+                                return $state . ' tray' . ($state != 1 ? 's' : '');
+                            }
+                            if (str_contains($packagingName, 'bulk')) {
                                 return $state . 'g (' . number_format($state / 454, 2) . 'lb)';
                             }
                         }

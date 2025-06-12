@@ -80,25 +80,54 @@ class ProductResource extends BaseResource
                     ->label('Packaging')
                     ->html()
                     ->getStateUsing(function ($record): string {
-                        $packaging = $record->priceVariations()
+                        // Get product-specific price variations with packaging
+                        $productPackaging = $record->priceVariations()
                             ->whereNotNull('packaging_type_id')
                             ->with('packagingType')
                             ->get()
                             ->pluck('packagingType.display_name')
-                            ->unique()
-                            ->take(3);
+                            ->unique();
+                        
+                        // Get global price variations with packaging (templates that could be applied)
+                        $globalPackaging = \App\Models\PriceVariation::where('is_global', true)
+                            ->where('is_active', true)
+                            ->whereNotNull('packaging_type_id')
+                            ->with('packagingType')
+                            ->get()
+                            ->pluck('packagingType.display_name')
+                            ->unique();
+                        
+                        // Combine and deduplicate packaging options
+                        $packaging = $productPackaging->concat($globalPackaging)->unique()->take(3);
                         
                         if ($packaging->isEmpty()) {
                             return '<span class="text-gray-400">No packaging</span>';
                         }
                         
-                        $badges = $packaging->map(function ($name) {
-                            return '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">' . $name . '</span>';
+                        // Separate product-specific and global packaging for different styling
+                        $badges = $packaging->map(function ($name) use ($productPackaging) {
+                            $isProductSpecific = $productPackaging->contains($name);
+                            $colorClass = $isProductSpecific 
+                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                                : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
+                            
+                            return '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ' . $colorClass . '">' . $name . '</span>';
                         })->join(' ');
                         
-                        $total = $record->priceVariations()->whereNotNull('packaging_type_id')->count();
-                        if ($total > 3) {
-                            $badges .= ' <span class="text-xs text-gray-500">+' . ($total - 3) . ' more</span>';
+                        $totalProduct = $record->priceVariations()->whereNotNull('packaging_type_id')->count();
+                        $totalGlobal = \App\Models\PriceVariation::where('is_global', true)
+                            ->where('is_active', true)
+                            ->whereNotNull('packaging_type_id')
+                            ->count();
+                        $totalUnique = $productPackaging->concat($globalPackaging)->unique()->count();
+                        
+                        if ($totalUnique > 3) {
+                            $badges .= ' <span class="text-xs text-gray-500">+' . ($totalUnique - 3) . ' more</span>';
+                        }
+                        
+                        // Add a small indicator if global templates are shown
+                        if ($globalPackaging->isNotEmpty() && $productPackaging->isEmpty()) {
+                            $badges .= ' <span class="text-xs text-gray-400 ml-1" title="Available as global templates">(templates)</span>';
                         }
                         
                         return $badges;
@@ -157,7 +186,7 @@ class ProductResource extends BaseResource
     public static function getRelations(): array
     {
         return [
-            RelationManagers\PriceVariationsRelationManager::class,
+            //
         ];
     }
 
@@ -347,7 +376,6 @@ class ProductResource extends BaseResource
         return [
             'index' => Pages\ListProducts::route('/'),
             'create' => Pages\CreateProduct::route('/create'),
-            'view' => Pages\ViewProduct::route('/{record}'),
             'edit' => Pages\EditProduct::route('/{record}/edit'),
         ];
     }
@@ -464,18 +492,127 @@ class ProductResource extends BaseResource
     }
 
     /**
-     * Get the price variation selection field using datatable
+     * Get the price variation management field with modal template selector
      */
     public static function getPriceVariationSelectionField(): Forms\Components\Component
     {
-        return Forms\Components\ViewField::make('price_variations_selector')
-            ->view('filament.forms.price-variations-selector')
-            ->afterStateHydrated(function (Forms\Components\ViewField $component, $state) {
-                $component->state([
-                    'selected_templates' => [],
-                    'custom_variations' => [],
-                ]);
-            });
+        return Forms\Components\Group::make([
+            // Action button to open template selection modal
+            Forms\Components\Actions::make([
+                Forms\Components\Actions\Action::make('select_templates')
+                    ->label('Add Price Variations from Templates')
+                    ->icon('heroicon-o-plus')
+                    ->color('primary')
+                    ->modalHeading('Select Price Variation Templates')
+                    ->modalDescription('Choose global price variation templates to apply to this product.')
+                    ->modalWidth('4xl')
+                    ->form([
+                        Forms\Components\Hidden::make('selected_template_ids')
+                            ->default('[]'),
+                        Forms\Components\ViewField::make('template_selector')
+                            ->view('filament.forms.template-selector')
+                            ->label('Available Templates')
+                            ->columnSpanFull(),
+                    ])
+                    ->action(function (array $data, $livewire) {
+                        // Debug: Log what data we receive
+                        \Illuminate\Support\Facades\Log::info('Modal action data received:', $data);
+                        
+                        // Parse the JSON data from the custom view
+                        $selectedIdsJson = $data['selected_template_ids'] ?? '[]';
+                        $selectedIds = json_decode($selectedIdsJson, true) ?? [];
+                        
+                        \Illuminate\Support\Facades\Log::info('Parsed selected IDs:', $selectedIds);
+                        
+                        if (empty($selectedIds)) {
+                            \Filament\Notifications\Notification::make()
+                                ->warning()
+                                ->title('No templates selected')
+                                ->body('Please select at least one template to add.')
+                                ->send();
+                            return;
+                        }
+                        
+                        // Get the product record
+                        $product = null;
+                        if (method_exists($livewire, 'getRecord')) {
+                            $product = $livewire->getRecord();
+                        } elseif (property_exists($livewire, 'record')) {
+                            $product = $livewire->record;
+                        }
+                        
+                        if (!$product || !$product->exists) {
+                            \Filament\Notifications\Notification::make()
+                                ->danger()
+                                ->title('Error')
+                                ->body('Product not found. Please save the product first.')
+                                ->send();
+                            return;
+                        }
+                        
+                        $createdCount = 0;
+                        $skippedCount = 0;
+                        
+                        // Check if product has any default variation
+                        $hasDefault = $product->priceVariations()->where('is_default', true)->exists();
+                        
+                        // Add new variations from templates
+                        foreach ($selectedIds as $templateId) {
+                            $template = \App\Models\PriceVariation::find($templateId);
+                            if (!$template) {
+                                continue;
+                            }
+                            
+                            // Check if variation with same name already exists
+                            $existingVariation = $product->priceVariations()
+                                ->where('name', $template->name)
+                                ->first();
+                                
+                            if ($existingVariation) {
+                                $skippedCount++;
+                                continue;
+                            }
+                            
+                            // Create the variation
+                            \App\Models\PriceVariation::create([
+                                'product_id' => $product->id,
+                                'template_id' => $template->id,
+                                'name' => $template->name,
+                                'packaging_type_id' => $template->packaging_type_id,
+                                'sku' => $template->sku,
+                                'fill_weight_grams' => $template->fill_weight_grams,
+                                'price' => $template->price,
+                                'is_default' => !$hasDefault && $createdCount === 0, // First one becomes default if no default exists
+                                'is_active' => true,
+                                'is_global' => false, // Product-specific variations are not global
+                            ]);
+                            
+                            $createdCount++;
+                            $hasDefault = true; // Now we have a default
+                        }
+                        
+                        // Refresh the record to ensure relationship is updated
+                        $product->refresh();
+                        
+                        // Show notification
+                        $message = "{$createdCount} template(s) added successfully.";
+                        if ($skippedCount > 0) {
+                            $message .= " {$skippedCount} template(s) skipped (already exist).";
+                        }
+                        
+                        \Filament\Notifications\Notification::make()
+                            ->success()
+                            ->title('Templates Added')
+                            ->body($message)
+                            ->send();
+                    }),
+            ]),
+            
+            // Display selected price variations as editable table
+            Forms\Components\ViewField::make('priceVariations')
+                ->view('filament.forms.price-variations-table')
+                ->columnSpanFull(),
+        ]);
     }
 
     /**
@@ -605,73 +742,8 @@ class ProductResource extends BaseResource
                     Forms\Components\Section::make('Price Variations')
                         ->description('Create flexible pricing variations for different customer types, units, weights, and packaging options.')
                         ->schema([
-                            Forms\Components\Repeater::make('priceVariations')
-                                ->relationship('priceVariations')
-                                ->schema([
-                                    Forms\Components\Grid::make(3)
-                                        ->schema([
-                                            Forms\Components\TextInput::make('name')
-                                                ->label('Variation Name')
-                                                ->required()
-                                                ->placeholder('e.g., Retail, Wholesale, 4oz Container')
-                                                ->maxLength(255),
-                                            Forms\Components\Select::make('packaging_type_id')
-                                                ->label('Packaging')
-                                                ->relationship('packagingType', 'name')
-                                                ->getOptionLabelFromRecordUsing(fn (\App\Models\PackagingType $record): string => $record->display_name)
-                                                ->searchable()
-                                                ->preload()
-                                                ->reactive()
-                                                ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                                                    if ($state) {
-                                                        $packaging = \App\Models\PackagingType::find($state);
-                                                        if ($packaging && empty($get('name'))) {
-                                                            $set('name', $packaging->display_name);
-                                                        }
-                                                    }
-                                                })
-                                                ->helperText('Select the container/packaging type'),
-                                            Forms\Components\TextInput::make('sku')
-                                                ->label('SKU')
-                                                ->placeholder('Optional product SKU')
-                                                ->maxLength(100),
-                                        ]),
-                                    Forms\Components\Grid::make(2)
-                                        ->schema([
-                                            Forms\Components\TextInput::make('fill_weight_grams')
-                                                ->label('Product Fill Weight (grams)')
-                                                ->numeric()
-                                                ->minValue(0)
-                                                ->step(0.01)
-                                                ->placeholder('e.g., 113.4')
-                                                ->helperText('How much product (in grams) goes into this packaging')
-                                                ->suffix('g'),
-                                            Forms\Components\TextInput::make('price')
-                                                ->label('Price')
-                                                ->numeric()
-                                                ->prefix('$')
-                                                ->required()
-                                                ->minValue(0)
-                                                ->step(0.01)
-                                                ->reactive(),
-                                        ]),
-                                    Forms\Components\Grid::make(2)
-                                        ->schema([
-                                            Forms\Components\Toggle::make('is_default')
-                                                ->label('Default Price')
-                                                ->helperText('One variation must be default'),
-                                            Forms\Components\Toggle::make('is_active')
-                                                ->label('Active')
-                                                ->default(true),
-                                        ]),
-                                ])
-                                ->defaultItems(1)
-                                ->addActionLabel('Add Price Variation')
-                                ->reorderableWithButtons()
-                                ->collapsible()
-                                ->itemLabel(fn (array $state): ?string => 
-                                    $state['name'] ?? 'New Variation'
-                                )
+                            Forms\Components\ViewField::make('priceVariations')
+                                ->view('filament.forms.price-variations-table')
                                 ->columnSpanFull(),
                         ]),
                     

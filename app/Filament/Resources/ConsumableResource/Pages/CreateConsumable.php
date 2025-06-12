@@ -5,7 +5,6 @@ namespace App\Filament\Resources\ConsumableResource\Pages;
 use App\Filament\Resources\ConsumableResource;
 use App\Filament\Pages\Base\BaseCreateRecord;
 use App\Models\Consumable;
-use App\Models\SeedEntry;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Hidden;
@@ -69,31 +68,76 @@ class CreateConsumable extends BaseCreateRecord
                             ->live()
                             ->default('seed'),
                             
-                        // For seed type - using a more direct approach
-                        Select::make('seed_entry_id')
-                            ->label('Seed Entry')
-                            ->helperText('Select a seed entry or create a new one')
+                        // For seed type - using master seed catalog
+                        Select::make('master_seed_catalog_id')
+                            ->label('Seed Variety')
+                            ->helperText('Select a seed variety from the master catalog')
                             ->options(function () {
-                                return SeedEntry::where('is_active', true)
-                                    ->orderBy('cultivar_name')
-                                    ->pluck('cultivar_name', 'id');
+                                $options = [];
+                                $catalogs = \App\Models\MasterSeedCatalog::where('is_active', true)
+                                    ->orderBy('common_name')
+                                    ->get();
+                                
+                                \Illuminate\Support\Facades\Log::info('Master catalog options generation', [
+                                    'catalog_count' => $catalogs->count()
+                                ]);
+                                
+                                foreach ($catalogs as $catalog) {
+                                    $cultivars = is_array($catalog->cultivars) ? $catalog->cultivars : [];
+                                    $commonName = ucwords(strtolower($catalog->common_name));
+                                    
+                                    \Illuminate\Support\Facades\Log::info('Processing catalog', [
+                                        'id' => $catalog->id,
+                                        'common_name' => $commonName,
+                                        'cultivars' => $cultivars
+                                    ]);
+                                    
+                                    if (empty($cultivars)) {
+                                        // If no cultivars, show just the common name
+                                        $options[$catalog->id] = $commonName . ' (No Cultivar)';
+                                    } else {
+                                        // Create separate options for each cultivar
+                                        foreach ($cultivars as $index => $cultivar) {
+                                            // Use a composite key: catalog_id:cultivar_index
+                                            $key = $catalog->id . ':' . $index;
+                                            $cultivarName = ucwords(strtolower($cultivar));
+                                            $options[$key] = $commonName . ' (' . $cultivarName . ')';
+                                            
+                                            \Illuminate\Support\Facades\Log::info('Adding cultivar option', [
+                                                'key' => $key,
+                                                'value' => $commonName . ' (' . $cultivarName . ')'
+                                            ]);
+                                        }
+                                    }
+                                }
+                                
+                                \Illuminate\Support\Facades\Log::info('Final options array', [
+                                    'total_options' => count($options),
+                                    'first_10_keys' => array_slice(array_keys($options), 0, 10)
+                                ]);
+                                
+                                return $options;
                             })
                             ->required(fn (Get $get): bool => $get('type') === 'seed')
                             ->hidden(fn (Get $get): bool => $get('type') !== 'seed')
                             ->searchable()
-                            ->preload()
                             ->dehydrated() // Always include in form data
-                            ->validationAttribute('Seed Entry')
+                            ->validationAttribute('Seed Variety')
                             ->createOptionForm([
-                                TextInput::make('cultivar_name')
-                                    ->label('Cultivar Name')
-                                    ->required()
-                                    ->maxLength(255)
-                                    ->placeholder('e.g., Sunflower - Black Oil'),
                                 TextInput::make('common_name')
                                     ->label('Common Name')
+                                    ->required()
                                     ->maxLength(255)
                                     ->placeholder('e.g., Sunflower'),
+                                Forms\Components\TagsInput::make('cultivars')
+                                    ->label('Cultivars')
+                                    ->placeholder('Enter cultivar names')
+                                    ->helperText('Add one or more cultivar names')
+                                    ->default([]),
+                                TextInput::make('category')
+                                    ->label('Category')
+                                    ->maxLength(255)
+                                    ->placeholder('e.g., Microgreens'),
                                 Forms\Components\Textarea::make('description')
                                     ->label('Description')
                                     ->maxLength(1000),
@@ -102,18 +146,35 @@ class CreateConsumable extends BaseCreateRecord
                                     ->default(true),
                             ])
                             ->createOptionUsing(function (array $data) {
-                                $entry = SeedEntry::create($data);
-                                Log::info('Created new seed entry', [
-                                    'id' => $entry->id, 
-                                    'cultivar_name' => $entry->cultivar_name
+                                $catalog = \App\Models\MasterSeedCatalog::create($data);
+                                Log::info('Created new master seed catalog', [
+                                    'id' => $catalog->id, 
+                                    'common_name' => $catalog->common_name,
+                                    'cultivars' => $catalog->cultivars
                                 ]);
-                                return $entry->id;
+                                return $catalog->id;
                             })
                             ->afterStateUpdated(function ($state, Set $set) {
                                 if ($state && $state !== '') {
-                                    $entry = SeedEntry::find($state);
-                                    if ($entry) {
-                                        $set('name', $entry->common_name . ' (' . $entry->cultivar_name . ')');
+                                    // Parse composite key: catalog_id:cultivar_index or just catalog_id
+                                    if (strpos($state, ':') !== false) {
+                                        [$catalogId, $cultivarIndex] = explode(':', $state, 2);
+                                        $catalog = \App\Models\MasterSeedCatalog::find($catalogId);
+                                        if ($catalog) {
+                                            $cultivars = is_array($catalog->cultivars) ? $catalog->cultivars : [];
+                                            $cultivarName = isset($cultivars[$cultivarIndex]) ? ucwords(strtolower($cultivars[$cultivarIndex])) : 'Unknown Cultivar';
+                                            $commonName = ucwords(strtolower($catalog->common_name));
+                                            $set('name', $commonName . ' (' . $cultivarName . ')');
+                                        }
+                                    } else {
+                                        // Fallback for simple catalog ID
+                                        $catalog = \App\Models\MasterSeedCatalog::find($state);
+                                        if ($catalog) {
+                                            $cultivars = is_array($catalog->cultivars) ? $catalog->cultivars : [];
+                                            $cultivarName = !empty($cultivars) ? ucwords(strtolower($cultivars[0])) : 'No Cultivar';
+                                            $commonName = ucwords(strtolower($catalog->common_name));
+                                            $set('name', $commonName . ' (' . $cultivarName . ')');
+                                        }
                                     }
                                 }
                             }),
@@ -238,51 +299,77 @@ class CreateConsumable extends BaseCreateRecord
         // Log the initial data
         Log::info('Mutating form data before create:', [
             'type' => $data['type'] ?? 'not set',
-            'has_seed_entry_id' => isset($data['seed_entry_id']),
-            'seed_entry_id' => $data['seed_entry_id'] ?? 'not set',
+            'has_master_seed_catalog_id' => isset($data['master_seed_catalog_id']),
+            'master_seed_catalog_id' => $data['master_seed_catalog_id'] ?? 'not set',
             'has_name' => isset($data['name']),
             'name' => $data['name'] ?? 'not set',
             'has_total_quantity' => isset($data['total_quantity']),
         ]);
         
         try {
-            // For seed consumables, ensure we have a seed variety and properly set related fields
+            // For seed consumables, ensure we have a master seed catalog and properly set related fields
             if (isset($data['type']) && $data['type'] === 'seed') {
-                // If no seed entry, don't proceed - should have been caught by beforeValidate
-                if (empty($data['seed_entry_id'])) {
-                    Log::error('Seed entry ID missing in mutation');
+                // If no master seed catalog, don't proceed
+                if (empty($data['master_seed_catalog_id'])) {
+                    Log::error('Master seed catalog ID missing in mutation');
                     
                     Notification::make()
-                        ->title('Seed Entry Required')
-                        ->body('A seed entry must be selected for seed consumables.')
+                        ->title('Seed Variety Required')
+                        ->body('A seed variety must be selected for seed consumables.')
                         ->danger()
                         ->persistent()
                         ->send();
                     
-                    throw new \Exception('Seed entry is required for seed consumables');
+                    throw new \Exception('Master seed catalog is required for seed consumables');
                 }
                 
-                // Get the seed entry and ensure it exists
-                $seedEntry = SeedEntry::find($data['seed_entry_id']);
-                if (!$seedEntry) {
-                    Log::error('Seed entry not found with ID: ' . $data['seed_entry_id']);
+                // Parse composite key if present: catalog_id:cultivar_index
+                $catalogId = $data['master_seed_catalog_id'];
+                $cultivarIndex = null;
+                $selectedCultivarName = null;
+                
+                if (strpos($data['master_seed_catalog_id'], ':') !== false) {
+                    [$catalogId, $cultivarIndex] = explode(':', $data['master_seed_catalog_id'], 2);
+                    $cultivarIndex = (int)$cultivarIndex;
+                }
+                
+                // Get the master seed catalog and ensure it exists
+                $masterCatalog = \App\Models\MasterSeedCatalog::find($catalogId);
+                if (!$masterCatalog) {
+                    Log::error('Master seed catalog not found with ID: ' . $catalogId);
                     
                     Notification::make()
-                        ->title('Seed Entry Not Found')
-                        ->body('The selected seed entry could not be found.')
+                        ->title('Seed Variety Not Found')
+                        ->body('The selected seed variety could not be found.')
                         ->danger()
                         ->persistent()
                         ->send();
                     
-                    throw new \Exception('Selected seed entry not found');
+                    throw new \Exception('Selected master seed catalog not found');
                 }
                 
-                // Always set name from the seed entry for seed consumables
-                $data['name'] = $seedEntry->common_name . ' (' . $seedEntry->cultivar_name . ')';
-                Log::info('Setting consumable name from seed entry', [
-                    'seed_entry_id' => $data['seed_entry_id'],
+                // Get the specific cultivar if an index was provided
+                $cultivars = is_array($masterCatalog->cultivars) ? $masterCatalog->cultivars : [];
+                if ($cultivarIndex !== null && isset($cultivars[$cultivarIndex])) {
+                    $selectedCultivarName = ucwords(strtolower($cultivars[$cultivarIndex]));
+                } else {
+                    $selectedCultivarName = !empty($cultivars) ? ucwords(strtolower($cultivars[0])) : 'Unknown Cultivar';
+                }
+                
+                // Store the actual catalog ID (not the composite key) in the database
+                $data['master_seed_catalog_id'] = $catalogId;
+                
+                // Set name from the master catalog with the specific cultivar
+                $commonName = ucwords(strtolower($masterCatalog->common_name));
+                $data['name'] = $commonName . ' (' . $selectedCultivarName . ')';
+                
+                Log::info('Setting consumable name from master seed catalog', [
+                    'original_selection' => $catalogId . ($cultivarIndex !== null ? ':' . $cultivarIndex : ''),
+                    'master_seed_catalog_id' => $data['master_seed_catalog_id'],
                     'name' => $data['name'],
-                    'description' => $seedEntry->description ?? 'none'
+                    'common_name' => $masterCatalog->common_name,
+                    'selected_cultivar' => $selectedCultivarName,
+                    'cultivar_index' => $cultivarIndex
                 ]);
                 
                 // For seed type: set initial_stock from total_quantity and default values for other fields
@@ -334,7 +421,7 @@ class CreateConsumable extends BaseCreateRecord
             Log::info('Final form data after mutation:', [
                 'type' => $data['type'] ?? 'not set',
                 'name' => $data['name'] ?? 'not set',
-                'seed_entry_id' => $data['seed_entry_id'] ?? 'not set',
+                'master_seed_catalog_id' => $data['master_seed_catalog_id'] ?? 'not set',
                 'initial_stock' => $data['initial_stock'] ?? 'not set',
                 'total_quantity' => $data['total_quantity'] ?? 'not set'
             ]);
@@ -358,11 +445,11 @@ class CreateConsumable extends BaseCreateRecord
     protected function onCreate(array $data): mixed
     {
         try {
-            if ($data['type'] === 'seed' && empty($data['seed_entry_id'])) {
+            if ($data['type'] === 'seed' && empty($data['master_seed_catalog_id'])) {
                 $this->sendCustomNotification(
                     Notification::make()
-                        ->title('Missing Seed Entry')
-                        ->body('You must select a seed entry when creating a seed consumable.')
+                        ->title('Missing Seed Variety')
+                        ->body('You must select a seed variety when creating a seed consumable.')
                         ->danger()
                 );
                 
@@ -393,70 +480,39 @@ class CreateConsumable extends BaseCreateRecord
             // Log the data received by the record creation handler
             Log::info('Creating consumable with data:', [
                 'type' => $data['type'] ?? 'not set',
-                'has_seed_entry_id' => array_key_exists('seed_entry_id', $data), 
-                'seed_entry_id' => $data['seed_entry_id'] ?? 'not set',
+                'has_master_seed_catalog_id' => array_key_exists('master_seed_catalog_id', $data), 
+                'master_seed_catalog_id' => $data['master_seed_catalog_id'] ?? 'not set',
                 'all_data' => $data
             ]);
             
             // Special handling for seed consumables
             if (isset($data['type']) && $data['type'] === 'seed') {
-                // Attempt to find or create a default seed entry if not provided
-                if (empty($data['seed_entry_id'])) {
-                    Log::warning('Seed entry ID missing in record creation, using fallback');
-                    
-                    // Try to find an existing default entry or create one
-                    $defaultEntry = SeedEntry::firstOrCreate(
-                        ['cultivar_name' => 'Default Seed Entry'],
-                        [
-                            'common_name' => 'Default',
-                            'description' => 'Default seed entry',
-                            'is_active' => true
-                        ]
-                    );
-                    
-                    $data['seed_entry_id'] = $defaultEntry->id;
-                    $data['name'] = $defaultEntry->common_name . ' (' . $defaultEntry->cultivar_name . ')';
-                    
-                    Log::info('Using default seed entry as fallback', [
-                        'id' => $defaultEntry->id,
-                        'cultivar_name' => $defaultEntry->cultivar_name
-                    ]);
-                    
-                    $this->sendCustomNotification(
-                        Notification::make()
-                            ->title('Default Seed Entry Used')
-                            ->body('A default seed entry was automatically assigned. You can update this later.')
-                            ->warning()
-                    );
-                } else {
-                    // Verify the seed entry exists
-                    $seedEntry = SeedEntry::find($data['seed_entry_id']);
-                    if (!$seedEntry) {
-                        Log::error('Seed entry not found with ID: ' . $data['seed_entry_id']);
-                        
-                        // Create a default one instead of failing
-                        $defaultEntry = SeedEntry::firstOrCreate(
-                            ['cultivar_name' => 'Default Seed Entry'],
-                            [
-                                'common_name' => 'Default',
-                                'description' => 'Default seed entry',
-                                'is_active' => true
-                            ]
-                        );
-                        
-                        $data['seed_entry_id'] = $defaultEntry->id;
-                        $data['name'] = $defaultEntry->common_name . ' (' . $defaultEntry->cultivar_name . ')';
-                        
-                        $this->sendCustomNotification(
-                            Notification::make()
-                                ->title('Invalid Seed Entry')
-                                ->body('The selected seed entry could not be found. A default entry was used instead.')
-                                ->warning()
-                        );
-                    } else {
-                        // Set the name from the seed entry
-                        $data['name'] = $seedEntry->common_name . ' (' . $seedEntry->cultivar_name . ')';
-                    }
+                // Ensure we have a master seed catalog ID
+                if (empty($data['master_seed_catalog_id'])) {
+                    Log::error('Master seed catalog ID missing in record creation');
+                    throw new \Exception('Master seed catalog ID is required for seed consumables');
+                }
+                
+                // Parse composite key if present: catalog_id:cultivar_index (should already be parsed in mutation, but double-check)
+                $catalogId = $data['master_seed_catalog_id'];
+                if (strpos($data['master_seed_catalog_id'], ':') !== false) {
+                    [$catalogId, $cultivarIndex] = explode(':', $data['master_seed_catalog_id'], 2);
+                    $data['master_seed_catalog_id'] = $catalogId; // Store the actual catalog ID
+                }
+                
+                // Verify the master seed catalog exists
+                $masterCatalog = \App\Models\MasterSeedCatalog::find($catalogId);
+                if (!$masterCatalog) {
+                    Log::error('Master seed catalog not found with ID: ' . $catalogId);
+                    throw new \Exception('Selected seed variety not found');
+                }
+                
+                // Name should already be set correctly in mutation, but ensure it's not empty
+                if (empty($data['name'])) {
+                    $cultivars = is_array($masterCatalog->cultivars) ? $masterCatalog->cultivars : [];
+                    $cultivarName = !empty($cultivars) ? ucwords(strtolower($cultivars[0])) : 'Unknown Cultivar';
+                    $commonName = ucwords(strtolower($masterCatalog->common_name));
+                    $data['name'] = $commonName . ' (' . $cultivarName . ')';
                 }
                 
                 // For seed consumables, ensure hidden fields are properly set
@@ -466,7 +522,7 @@ class CreateConsumable extends BaseCreateRecord
                 
                 Log::info('Prepared seed consumable data for creation', [
                     'name' => $data['name'],
-                    'seed_entry_id' => $data['seed_entry_id'],
+                    'master_seed_catalog_id' => $data['master_seed_catalog_id'],
                     'initial_stock' => $data['initial_stock'],
                     'total_quantity' => $data['total_quantity'] ?? 0
                 ]);
@@ -502,7 +558,7 @@ class CreateConsumable extends BaseCreateRecord
                 'id' => $model->id,
                 'name' => $model->name,
                 'type' => $model->type,
-                'seed_entry_id' => $model->seed_entry_id,
+                'master_seed_catalog_id' => $model->master_seed_catalog_id,
             ]);
             
             // Send success notification if not already sent
@@ -543,8 +599,8 @@ class CreateConsumable extends BaseCreateRecord
         // Log the complete form data at this stage of processing
         Log::info('Consumable form data (' . $stage . '):', [
             'data' => $data,
-            'has_seed_entry_id' => isset($data['seed_entry_id']),
-            'seed_entry_id_value' => $data['seed_entry_id'] ?? 'not set',
+            'has_master_seed_catalog_id' => isset($data['master_seed_catalog_id']),
+            'master_seed_catalog_id_value' => $data['master_seed_catalog_id'] ?? 'not set',
             'data_type' => isset($data['type']) ? $data['type'] : 'type not set',
         ]);
     }

@@ -105,16 +105,30 @@ class ConsumableResource extends BaseResource
                                                     ->label('Master Seed Catalog')
                                                     ->helperText('Required: Please select from master catalog or create new')
                                                     ->options(function () {
-                                                        return \App\Models\MasterSeedCatalog::where('is_active', true)
+                                                        $options = [];
+                                                        $catalogs = \App\Models\MasterSeedCatalog::where('is_active', true)
                                                             ->orderBy('common_name', 'asc')
-                                                            ->get()
-                                                            ->mapWithKeys(function ($catalog) {
-                                                                $cultivars = is_array($catalog->cultivars) ? $catalog->cultivars : [];
-                                                                $cultivarName = !empty($cultivars) ? $cultivars[0] : 'No cultivar';
-                                                                
-                                                                return [$catalog->id => $catalog->common_name . ' (' . $cultivarName . ')'];
-                                                            })
-                                                            ->toArray();
+                                                            ->get();
+                                                        
+                                                        foreach ($catalogs as $catalog) {
+                                                            $cultivars = is_array($catalog->cultivars) ? $catalog->cultivars : [];
+                                                            $commonName = ucwords(strtolower($catalog->common_name));
+                                                            
+                                                            if (empty($cultivars)) {
+                                                                // If no cultivars, show just the common name
+                                                                $options[$catalog->id] = $commonName . ' (No cultivar)';
+                                                            } else {
+                                                                // Create separate options for each cultivar
+                                                                foreach ($cultivars as $index => $cultivar) {
+                                                                    // Use a composite key: catalog_id:cultivar_index
+                                                                    $key = $catalog->id . ':' . $index;
+                                                                    $cultivarName = ucwords(strtolower($cultivar));
+                                                                    $options[$key] = $commonName . ' (' . $cultivarName . ')';
+                                                                }
+                                                            }
+                                                        }
+                                                        
+                                                        return $options;
                                                     })
                                                     ->searchable()
                                                     ->required()
@@ -158,12 +172,26 @@ class ConsumableResource extends BaseResource
                                                         return $catalog->getKey();
                                                     })
                                                     ->afterStateUpdated(function ($state, Forms\Set $set) {
-                                                        if ($state) {
-                                                            $catalog = \App\Models\MasterSeedCatalog::find($state);
-                                                            if ($catalog) {
-                                                                $cultivars = is_array($catalog->cultivars) ? $catalog->cultivars : [];
-                                                                $cultivarName = !empty($cultivars) ? $cultivars[0] : '';
-                                                                $set('name', $catalog->common_name . ($cultivarName ? ' (' . $cultivarName . ')' : ''));
+                                                        if ($state && $state !== '') {
+                                                            // Parse composite key: catalog_id:cultivar_index or just catalog_id
+                                                            if (strpos($state, ':') !== false) {
+                                                                [$catalogId, $cultivarIndex] = explode(':', $state, 2);
+                                                                $catalog = \App\Models\MasterSeedCatalog::find($catalogId);
+                                                                if ($catalog) {
+                                                                    $cultivars = is_array($catalog->cultivars) ? $catalog->cultivars : [];
+                                                                    $cultivarName = isset($cultivars[$cultivarIndex]) ? ucwords(strtolower($cultivars[$cultivarIndex])) : 'Unknown Cultivar';
+                                                                    $commonName = ucwords(strtolower($catalog->common_name));
+                                                                    $set('name', $commonName . ' (' . $cultivarName . ')');
+                                                                }
+                                                            } else {
+                                                                // Fallback for simple catalog ID
+                                                                $catalog = \App\Models\MasterSeedCatalog::find($state);
+                                                                if ($catalog) {
+                                                                    $cultivars = is_array($catalog->cultivars) ? $catalog->cultivars : [];
+                                                                    $cultivarName = !empty($cultivars) ? ucwords(strtolower($cultivars[0])) : 'No Cultivar';
+                                                                    $commonName = ucwords(strtolower($catalog->common_name));
+                                                                    $set('name', $commonName . ' (' . $cultivarName . ')');
+                                                                }
                                                             }
                                                         }
                                                     }),

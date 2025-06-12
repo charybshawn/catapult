@@ -95,6 +95,12 @@
       },
       {
         "resource": "ProductMixResource"
+      },
+      {
+        "resource": "PriceVariationResource"
+      },
+      {
+        "resource": "PackagingTypeResource"
       }
     ],
     "inventory": [
@@ -140,9 +146,6 @@
       },
       {
         "resource": "SupplierResource"
-      },
-      {
-        "resource": "PackagingTypeResource"
       }
     ],
     "orders": [

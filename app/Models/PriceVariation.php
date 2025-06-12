@@ -20,11 +20,13 @@ class PriceVariation extends Model
      */
     protected $fillable = [
         'product_id',
+        'template_id',
         'packaging_type_id',
         'name',
         'sku',
         'fill_weight_grams',
         'price',
+        'pricing_unit',
         'is_default',
         'is_global',
         'is_active',
@@ -133,6 +135,14 @@ class PriceVariation extends Model
     }
 
     /**
+     * Get the template that this price variation was created from.
+     */
+    public function template(): BelongsTo
+    {
+        return $this->belongsTo(PriceVariation::class, 'template_id');
+    }
+
+    /**
      * Get the item that owns the price variation.
      * 
      * @deprecated Use product() instead
@@ -150,11 +160,13 @@ class PriceVariation extends Model
         return LogOptions::defaults()
             ->logOnly([
                 'product_id',
+                'template_id',
                 'packaging_type_id',
                 'name',
                 'sku',
                 'fill_weight_grams',
                 'price',
+                'pricing_unit',
                 'is_default',
                 'is_global',
                 'is_active',

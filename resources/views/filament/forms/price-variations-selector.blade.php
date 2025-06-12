@@ -3,9 +3,18 @@
         ->where('is_active', true)
         ->with('packagingType')
         ->get();
+    
+    // Get the current state (selected templates and custom variations)
+    $currentState = $getState() ?? [];
+    $selectedTemplates = $currentState['selected_templates'] ?? [];
+    $customVariations = $currentState['custom_variations'] ?? [];
+    
+    // Create lookup for selected template IDs
+    $selectedTemplateIds = collect($selectedTemplates)->pluck('id')->toArray();
+    $selectedTemplateData = collect($selectedTemplates)->keyBy('id');
 @endphp
 
-<div x-data="priceVariationSelector" class="space-y-6">
+<div x-data="priceVariationSelector(@js($selectedTemplates), @js($customVariations))" class="space-y-6">
     <!-- Global Templates Section -->
     <div class="space-y-4">
         <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Available Templates</h3>
@@ -51,11 +60,18 @@
                     </thead>
                     <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                         @foreach($templates as $template)
-                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700" x-data="{ fillWeight: {{ $template->fill_weight_grams ?? 0 }}, customPrice: {{ $template->price }} }">
+                            @php
+                                $isSelected = in_array($template->id, $selectedTemplateIds);
+                                $selectedData = $selectedTemplateData->get($template->id, []);
+                                $currentPrice = $selectedData['price'] ?? $template->price;
+                                $currentFillWeight = $selectedData['fill_weight_grams'] ?? $template->fill_weight_grams ?? 0;
+                            @endphp
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700" x-data="{ fillWeight: {{ $currentFillWeight }}, customPrice: {{ $currentPrice }} }">
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <input 
                                         type="checkbox" 
                                         value="{{ $template->id }}"
+                                        {{ $isSelected ? 'checked' : '' }}
                                         @change="toggleTemplate({{ $template->id }}, '{{ addslashes($template->name) }}', {{ $template->price }}, {{ $template->packaging_type_id ?? 'null' }}, fillWeight, customPrice)"
                                         class="rounded border-gray-300 text-primary-600 focus:ring-primary-500">
                                 </td>
@@ -75,6 +91,9 @@
                                         step="0.01"
                                         min="0"
                                         placeholder="${{ number_format($template->price, 2) }}"
+                                        @if($isSelected && $currentPrice != $template->price)
+                                        value="{{ $currentPrice }}"
+                                        @endif
                                         class="block w-20 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm focus:border-primary-500 focus:ring-primary-500">
                                     <span class="text-xs text-gray-500 mt-1 block">optional override</span>
                                 </td>
@@ -87,6 +106,9 @@
                                                 step="0.01"
                                                 min="0"
                                                 placeholder="Weight (g)"
+                                                @if($isSelected && $currentFillWeight > 0)
+                                                value="{{ $currentFillWeight }}"
+                                                @endif
                                                 class="block w-24 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm focus:border-primary-500 focus:ring-primary-500">
                                             <span class="text-xs text-gray-500 mt-1 block">grams</span>
                                         @elseif($template->packagingType->name === 'Live Tray')
@@ -102,6 +124,9 @@
                                             step="0.01"
                                             min="0"
                                             placeholder="Fill weight (g)"
+                                            @if($isSelected && $currentFillWeight > 0)
+                                            value="{{ $currentFillWeight }}"
+                                            @endif
                                             class="block w-24 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm focus:border-primary-500 focus:ring-primary-500">
                                         <span class="text-xs text-gray-500 mt-1 block">grams</span>
                                     @endif
@@ -177,9 +202,9 @@
 
 <script>
 document.addEventListener('alpine:init', () => {
-    Alpine.data('priceVariationSelector', () => ({
-        selectedTemplates: [],
-        customVariations: [],
+    Alpine.data('priceVariationSelector', (initialSelectedTemplates = [], initialCustomVariations = []) => ({
+        selectedTemplates: initialSelectedTemplates,
+        customVariations: initialCustomVariations,
         
         toggleAll() {
             const checkboxes = document.querySelectorAll('input[type="checkbox"][value]');

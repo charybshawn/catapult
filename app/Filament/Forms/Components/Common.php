@@ -198,6 +198,7 @@ class Common
     {
         return Forms\Components\Toggle::make('is_active')
             ->label('Active')
+            ->helperText('Toggle right for active, left for inactive')
             ->default(true)
             ->inline(false);
     }
