@@ -167,8 +167,9 @@
         "routes": ["filament.admin.pages.database-management"]
       },
       {
-        "resource": "CategoryResource"
+        "resource": "TableBackupManagement"
       }
+
     ]
   }
 }
