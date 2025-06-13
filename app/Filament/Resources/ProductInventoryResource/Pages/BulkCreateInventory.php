@@ -39,7 +39,11 @@ class BulkCreateInventory extends Page
                     ->schema([
                         Forms\Components\Select::make('product_id')
                             ->label('Product')
-                            ->relationship('product', 'name')
+                            ->options(fn () => \App\Models\Product::where('active', true)
+                                ->orderBy('name')
+                                ->pluck('name', 'id')
+                                ->toArray()
+                            )
                             ->searchable()
                             ->preload()
                             ->required()
@@ -69,16 +73,126 @@ class BulkCreateInventory extends Page
                 ->label('Create Inventory Entries')
                 ->icon('heroicon-o-plus')
                 ->color('success')
-                ->action('createInventoryEntries')
-                ->visible(fn (): bool => !empty($this->data['product_id'])),
+                ->form([
+                    Forms\Components\Section::make('Batch Information')
+                        ->description('Common information shared by all inventory entries')
+                        ->schema([
+                            Forms\Components\Grid::make(3)
+                                ->schema([
+                                    Forms\Components\TextInput::make('batch_number')
+                                        ->label('Batch Number')
+                                        ->default(fn (): string => $this->getDefaultBatchNumber())
+                                        ->helperText('Auto-generated or enter custom'),
+                                    Forms\Components\DatePicker::make('production_date')
+                                        ->label('Production Date')
+                                        ->default(now())
+                                        ->required(),
+                                    Forms\Components\TextInput::make('location')
+                                        ->label('Storage Location')
+                                        ->placeholder('e.g., Warehouse A, Shelf 3'),
+                                ]),
+                        ]),
+                    Forms\Components\Section::make('Inventory Details')
+                        ->description('Enter quantities and details for each price variation')
+                        ->schema([
+                            Forms\Components\Repeater::make('variations')
+                                ->schema([
+                                    Forms\Components\Hidden::make('price_variation_id'),
+                                    Forms\Components\Placeholder::make('variation_info')
+                                        ->content(function (Forms\Get $get): string {
+                                            $variationId = $get('price_variation_id');
+                                            if ($variationId) {
+                                                $variation = \App\Models\PriceVariation::with('packagingType')->find($variationId);
+                                                if ($variation) {
+                                                    $packaging = $variation->packagingType?->display_name ?? 'Package-Free';
+                                                    $weight = $variation->fill_weight_grams ? $variation->fill_weight_grams . 'g' : '-';
+                                                    return $variation->name . ' (' . $packaging . ') - ' . $weight . ' - $' . number_format($variation->price, 2);
+                                                }
+                                            }
+                                            return 'Unknown variation';
+                                        }),
+                                    Forms\Components\Grid::make(4)
+                                        ->schema([
+                                            Forms\Components\TextInput::make('quantity')
+                                                ->label('Quantity')
+                                                ->numeric()
+                                                ->minValue(0)
+                                                ->step(0.01)
+                                                ->default(0)
+                                                ->required()
+                                                ->suffix('units'),
+                                            Forms\Components\TextInput::make('cost_per_unit')
+                                                ->label('Cost per Unit')
+                                                ->numeric()
+                                                ->prefix('$')
+                                                ->step(0.01)
+                                                ->minValue(0)
+                                                ->default(0),
+                                            Forms\Components\TextInput::make('lot_number')
+                                                ->label('Lot Number')
+                                                ->placeholder('Optional'),
+                                            Forms\Components\DatePicker::make('expiration_date')
+                                                ->label('Expiration Date')
+                                                ->after('production_date'),
+                                        ]),
+                                ])
+                                ->default(fn (): array => $this->getVariationDefaults())
+                                ->addable(false)
+                                ->deletable(false)
+                                ->reorderable(false)
+                                ->columnSpanFull(),
+                        ]),
+                ])
+                ->action(function (array $data) {
+                    $this->createInventoryEntries($data);
+                })
+                ->visible(fn (): bool => !empty($this->data['product_id']))
+                ->modalWidth('7xl'),
         ];
     }
 
-    public function createInventoryEntries(): void
+    protected function getDefaultBatchNumber(): string
     {
-        $data = $this->form->getState();
+        if (empty($this->data['product_id'])) {
+            return '';
+        }
+
+        $product = Product::find($this->data['product_id']);
+        return $product?->getNextBatchNumber() ?? '';
+    }
+
+    protected function getVariationDefaults(): array
+    {
+        if (empty($this->data['product_id'])) {
+            return [];
+        }
+
+        $product = Product::with(['priceVariations.packagingType'])->find($this->data['product_id']);
         
-        if (empty($data['product_id'])) {
+        if (!$product) {
+            return [];
+        }
+
+        return $product->priceVariations()
+            ->where('is_active', true)
+            ->get()
+            ->map(function ($variation) {
+                return [
+                    'price_variation_id' => $variation->id,
+                    'quantity' => 0,
+                    'cost_per_unit' => 0,
+                    'lot_number' => '',
+                    'expiration_date' => null,
+                ];
+            })
+            ->toArray();
+    }
+
+    public function createInventoryEntries(array $modalData): void
+    {
+        $productData = $this->form->getState();
+        
+        if (empty($productData['product_id'])) {
             Notification::make()
                 ->danger()
                 ->title('Error')
@@ -87,16 +201,7 @@ class BulkCreateInventory extends Page
             return;
         }
 
-        if (empty($data['inventory_data']['variations'])) {
-            Notification::make()
-                ->warning()
-                ->title('No Data')
-                ->body('Please enter inventory quantities for at least one price variation.')
-                ->send();
-            return;
-        }
-
-        $product = Product::find($data['product_id']);
+        $product = Product::find($productData['product_id']);
         if (!$product) {
             Notification::make()
                 ->danger()
@@ -106,8 +211,7 @@ class BulkCreateInventory extends Page
             return;
         }
 
-        $inventoryData = $data['inventory_data'];
-        $variationsWithQuantity = collect($inventoryData['variations'])
+        $variationsWithQuantity = collect($modalData['variations'])
             ->filter(function ($variation) {
                 return !empty($variation['quantity']) && $variation['quantity'] > 0;
             });
@@ -129,7 +233,7 @@ class BulkCreateInventory extends Page
         try {
             foreach ($variationsWithQuantity as $index => $variationData) {
                 // Find the actual price variation
-                $priceVariation = $product->priceVariations()->find($variationData['id']);
+                $priceVariation = $product->priceVariations()->find($variationData['price_variation_id']);
                 
                 if (!$priceVariation) {
                     $errors[] = "Price variation not found for index {$index}";
@@ -137,7 +241,7 @@ class BulkCreateInventory extends Page
                 }
 
                 // Generate batch number for this variation
-                $batchNumber = $inventoryData['batch_number'] ?? $product->getNextBatchNumber();
+                $batchNumber = $modalData['batch_number'] ?? $product->getNextBatchNumber();
                 if (count($variationsWithQuantity) > 1) {
                     // Append variation identifier if multiple variations
                     $batchNumber .= '-' . strtoupper(substr($priceVariation->name, 0, 3));
@@ -152,9 +256,9 @@ class BulkCreateInventory extends Page
                     'quantity' => $variationData['quantity'],
                     'reserved_quantity' => 0,
                     'cost_per_unit' => $variationData['cost_per_unit'] ?? 0,
-                    'production_date' => $inventoryData['production_date'] ?? now(),
+                    'production_date' => $modalData['production_date'] ?? now(),
                     'expiration_date' => $variationData['expiration_date'] ?? null,
-                    'location' => $inventoryData['location'] ?? null,
+                    'location' => $modalData['location'] ?? null,
                     'status' => 'active',
                     'notes' => "Bulk created for {$priceVariation->name} variation",
                 ]);

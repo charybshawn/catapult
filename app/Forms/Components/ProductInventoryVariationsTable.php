@@ -2,22 +2,17 @@
 
 namespace App\Forms\Components;
 
-use Filament\Forms\Components\Field;
-use Filament\Forms\Components\Concerns\HasState;
+use Filament\Forms\Components\ViewField;
 use App\Models\Product;
 use App\Models\PriceVariation;
 
-class ProductInventoryVariationsTable extends Field
+class ProductInventoryVariationsTable extends ViewField
 {
-    use HasState;
-
     protected string $view = 'forms.components.product-inventory-variations-table';
 
     public static function make(string $name): static
     {
-        $static = app(static::class, ['name' => $name]);
-        $static->configure();
-
+        $static = parent::make($name);
         return $static;
     }
 
