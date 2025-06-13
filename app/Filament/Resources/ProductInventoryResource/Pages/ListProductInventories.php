@@ -14,13 +14,7 @@ class ListProductInventories extends ListRecords
     {
         return [
             Actions\CreateAction::make()
-                ->label('Create Single Entry'),
-            Actions\Action::make('bulk_create')
-                ->label('Bulk Create')
-                ->icon('heroicon-o-squares-plus')
-                ->color('success')
-                ->url(fn (): string => ProductInventoryResource::getUrl('bulk-create'))
-                ->tooltip('Create inventory for all price variations of a product'),
+                ->label('Add Inventory'),
         ];
     }
 }

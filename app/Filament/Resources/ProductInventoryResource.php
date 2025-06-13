@@ -154,9 +154,11 @@ class ProductInventoryResource extends Resource
                     ->searchable()
                     ->copyable()
                     ->copyMessage('Batch number copied'),
-                Tables\Columns\TextColumn::make('quantity')
+                Tables\Columns\TextInputColumn::make('quantity')
                     ->label('Total Qty')
-                    ->numeric(2)
+                    ->type('number')
+                    ->step(0.01)
+                    ->rules(['numeric', 'min:0'])
                     ->sortable()
                     ->alignEnd(),
                 Tables\Columns\TextColumn::make('reserved_quantity')
@@ -224,60 +226,62 @@ class ProductInventoryResource extends Resource
                     ->label('Expiring Soon (30 days)'),
             ])
             ->actions([
+                Action::make('quick_add')
+                    ->label('+10')
+                    ->icon('heroicon-o-plus')
+                    ->color('success')
+                    ->size('sm')
+                    ->action(function (ProductInventory $record) {
+                        $record->update(['quantity' => $record->quantity + 10]);
+                        Notification::make()
+                            ->title('Stock Added')
+                            ->body("Added 10 units to {$record->batch_number}")
+                            ->success()
+                            ->send();
+                    }),
+                Action::make('quick_subtract')
+                    ->label('-10')
+                    ->icon('heroicon-o-minus')
+                    ->color('warning')
+                    ->size('sm')
+                    ->action(function (ProductInventory $record) {
+                        $newQuantity = max(0, $record->quantity - 10);
+                        $record->update(['quantity' => $newQuantity]);
+                        Notification::make()
+                            ->title('Stock Removed')
+                            ->body("Removed 10 units from {$record->batch_number}")
+                            ->success()
+                            ->send();
+                    }),
                 Action::make('adjust')
                     ->label('Adjust')
                     ->icon('heroicon-o-adjustments-horizontal')
-                    ->color('warning')
+                    ->color('gray')
+                    ->size('sm')
                     ->form([
-                        Forms\Components\Radio::make('adjustment_type')
-                            ->label('Adjustment Type')
-                            ->options([
-                                'add' => 'Add Stock',
-                                'remove' => 'Remove Stock',
-                            ])
-                            ->required()
-                            ->reactive(),
-                        Forms\Components\TextInput::make('quantity')
-                            ->label('Quantity')
+                        Forms\Components\TextInput::make('new_quantity')
+                            ->label('Set Quantity To')
                             ->numeric()
                             ->required()
-                            ->minValue(0.01)
-                            ->step(0.01),
+                            ->minValue(0)
+                            ->step(0.01)
+                            ->default(fn (ProductInventory $record) => $record->quantity),
                         Forms\Components\Textarea::make('reason')
-                            ->label('Reason')
-                            ->required()
+                            ->label('Reason (Optional)')
                             ->rows(2),
                     ])
                     ->action(function (ProductInventory $record, array $data) {
-                        try {
-                            if ($data['adjustment_type'] === 'add') {
-                                $record->addStock($data['quantity'], [
-                                    'type' => 'adjustment',
-                                    'notes' => $data['reason'],
-                                ]);
-                                Notification::make()
-                                    ->title('Stock Added')
-                                    ->body("Added {$data['quantity']} units to batch {$record->batch_number}")
-                                    ->success()
-                                    ->send();
-                            } else {
-                                $record->removeStock($data['quantity'], [
-                                    'type' => 'adjustment',
-                                    'notes' => $data['reason'],
-                                ]);
-                                Notification::make()
-                                    ->title('Stock Removed')
-                                    ->body("Removed {$data['quantity']} units from batch {$record->batch_number}")
-                                    ->success()
-                                    ->send();
-                            }
-                        } catch (\Exception $e) {
-                            Notification::make()
-                                ->title('Adjustment Failed')
-                                ->body($e->getMessage())
-                                ->danger()
-                                ->send();
-                        }
+                        $oldQuantity = $record->quantity;
+                        $record->update(['quantity' => $data['new_quantity']]);
+                        
+                        $change = $data['new_quantity'] - $oldQuantity;
+                        $changeText = $change > 0 ? "Added " . abs($change) : "Removed " . abs($change);
+                        
+                        Notification::make()
+                            ->title('Quantity Updated')
+                            ->body("{$changeText} units for {$record->batch_number}")
+                            ->success()
+                            ->send();
                     }),
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
@@ -310,7 +314,6 @@ class ProductInventoryResource extends Resource
         return [
             'index' => Pages\ListProductInventories::route('/'),
             'create' => Pages\CreateProductInventory::route('/create'),
-            'bulk-create' => Pages\BulkCreateInventory::route('/bulk-create'),
             'view' => Pages\ViewProductInventory::route('/{record}'),
             'edit' => Pages\EditProductInventory::route('/{record}/edit'),
         ];
