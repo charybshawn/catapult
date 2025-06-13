@@ -149,6 +149,27 @@ class ProductInventoryResource extends Resource
                     ->searchable()
                     ->sortable()
                     ->weight(FontWeight::Bold),
+                Tables\Columns\TextColumn::make('priceVariation.name')
+                    ->label('Variation')
+                    ->searchable()
+                    ->sortable()
+                    ->formatStateUsing(function ($state, $record) {
+                        if (!$record->priceVariation) {
+                            return '-';
+                        }
+                        
+                        $variation = $record->priceVariation;
+                        $packaging = $variation->packagingType?->display_name ?? 'Package-Free';
+                        $weight = $variation->fill_weight_grams ? $variation->fill_weight_grams . 'g' : '';
+                        
+                        return $variation->name . ($packaging !== 'Package-Free' ? " ({$packaging})" : '') . ($weight ? " - {$weight}" : '');
+                    })
+                    ->tooltip(function ($record) {
+                        if (!$record->priceVariation) {
+                            return null;
+                        }
+                        return "Price: $" . number_format($record->priceVariation->price, 2);
+                    }),
                 Tables\Columns\TextColumn::make('batch_number')
                     ->label('Batch #')
                     ->searchable()

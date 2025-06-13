@@ -88,6 +88,9 @@ class Product extends Model
                 $product->createDefaultPriceVariation();
             }
             
+            // Ensure inventory entries exist for all price variations
+            $product->ensureInventoryEntriesExist();
+            
             // Update the default price variation if base_price was changed
             if ($product->wasChanged('base_price') && $product->base_price) {
                 $defaultVariation = $product->priceVariations()->where('is_default', true)->first();
@@ -774,5 +777,38 @@ class Product extends Model
         }
 
         $this->update(['stock_status' => $status]);
+    }
+
+    /**
+     * Ensure inventory entries exist for all active price variations
+     */
+    public function ensureInventoryEntriesExist(): void
+    {
+        $activeVariations = $this->priceVariations()
+            ->where('is_active', true)
+            ->get();
+
+        foreach ($activeVariations as $variation) {
+            // Check if inventory entry already exists for this variation
+            $existingInventory = $this->inventories()
+                ->where('price_variation_id', $variation->id)
+                ->first();
+
+            if (!$existingInventory) {
+                // Create new inventory entry with zero quantity
+                $this->inventories()->create([
+                    'price_variation_id' => $variation->id,
+                    'batch_number' => $this->getNextBatchNumber() . '-' . strtoupper(substr($variation->name, 0, 3)),
+                    'quantity' => 0,
+                    'reserved_quantity' => 0,
+                    'cost_per_unit' => 0,
+                    'production_date' => now(),
+                    'expiration_date' => null,
+                    'location' => null,
+                    'status' => 'active',
+                    'notes' => "Auto-created for {$variation->name} variation",
+                ]);
+            }
+        }
     }
 } 
