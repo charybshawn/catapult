@@ -310,6 +310,7 @@ class ProductInventoryResource extends Resource
         return [
             'index' => Pages\ListProductInventories::route('/'),
             'create' => Pages\CreateProductInventory::route('/create'),
+            'bulk-create' => Pages\BulkCreateInventory::route('/bulk-create'),
             'view' => Pages\ViewProductInventory::route('/{record}'),
             'edit' => Pages\EditProductInventory::route('/{record}/edit'),
         ];

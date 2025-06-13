@@ -13,7 +13,14 @@ class ListProductInventories extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            Actions\CreateAction::make()
+                ->label('Create Single Entry'),
+            Actions\Action::make('bulk_create')
+                ->label('Bulk Create')
+                ->icon('heroicon-o-squares-plus')
+                ->color('success')
+                ->url(fn (): string => ProductInventoryResource::getUrl('bulk-create'))
+                ->tooltip('Create inventory for all price variations of a product'),
         ];
     }
 }
