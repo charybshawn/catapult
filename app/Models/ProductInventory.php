@@ -42,6 +42,13 @@ class ProductInventory extends Model
      */
     protected static function booted()
     {
+        // Prevent deletion of inventory with quantities
+        static::deleting(function ($inventory) {
+            if ($inventory->quantity > 0 || $inventory->reserved_quantity > 0) {
+                throw new \Exception("Cannot delete inventory batch '{$inventory->batch_number}' because it has {$inventory->quantity} units ({$inventory->reserved_quantity} reserved). Please reduce quantities to zero first.");
+            }
+        });
+
         // Automatically update product totals when inventory changes
         static::saved(function ($inventory) {
             $inventory->updateProductTotals();

@@ -125,6 +125,19 @@ class PriceVariation extends Model
             }
         });
 
+        // Prevent deletion of price variations that have inventory
+        static::deleting(function ($priceVariation) {
+            if (!$priceVariation->is_global && $priceVariation->product_id) {
+                $inventory = \App\Models\ProductInventory::where('product_id', $priceVariation->product_id)
+                    ->where('price_variation_id', $priceVariation->id)
+                    ->first();
+                    
+                if ($inventory && ($inventory->quantity > 0 || $inventory->reserved_quantity > 0)) {
+                    throw new \Exception("Cannot delete price variation '{$priceVariation->name}' because it has inventory ({$inventory->quantity} units, {$inventory->reserved_quantity} reserved). Please reduce inventory to zero first.");
+                }
+            }
+        });
+
         // Handle inventory when price variation is deleted
         static::deleted(function ($priceVariation) {
             if (!$priceVariation->is_global && $priceVariation->product_id) {

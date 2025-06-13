@@ -72,6 +72,25 @@ class Product extends Model
                 throw new \Exception('A product cannot have both a single variety and a product mix assigned.');
             }
         });
+
+        // Prevent deletion of products that have inventory
+        static::deleting(function ($product) {
+            $totalInventory = $product->inventories()
+                ->where('quantity', '>', 0)
+                ->sum('quantity');
+                
+            if ($totalInventory > 0) {
+                throw new \Exception("Cannot delete product '{$product->name}' because it has {$totalInventory} units in inventory. Please reduce inventory to zero first.");
+            }
+            
+            $reservedInventory = $product->inventories()
+                ->where('reserved_quantity', '>', 0)
+                ->sum('reserved_quantity');
+                
+            if ($reservedInventory > 0) {
+                throw new \Exception("Cannot delete product '{$product->name}' because it has {$reservedInventory} reserved units. Please clear reservations first.");
+            }
+        });
         
         // After a product is saved, handle setting the default photo if needed
         static::saved(function ($product) {
@@ -88,8 +107,11 @@ class Product extends Model
                 $product->createDefaultPriceVariation();
             }
             
-            // Ensure inventory entries exist for all price variations
-            $product->ensureInventoryEntriesExist();
+            // Only ensure inventory entries exist for new products or when explicitly needed
+            // This prevents unnecessary calls on every save
+            if ($product->wasRecentlyCreated || $product->shouldUpdateInventoryEntries()) {
+                $product->ensureInventoryEntriesExist();
+            }
             
             // Update the default price variation if base_price was changed
             if ($product->wasChanged('base_price') && $product->base_price) {
@@ -780,13 +802,26 @@ class Product extends Model
     }
 
     /**
+     * Check if inventory entries should be updated based on what changed
+     */
+    public function shouldUpdateInventoryEntries(): bool
+    {
+        // Update inventory entries if the product was activated/deactivated
+        // or if other significant changes were made
+        return $this->wasChanged('active') && $this->active;
+    }
+
+    /**
      * Ensure inventory entries exist for all active price variations
+     * This method only CREATES missing entries, never modifies existing ones
      */
     public function ensureInventoryEntriesExist(): void
     {
         $activeVariations = $this->priceVariations()
             ->where('is_active', true)
             ->get();
+
+        $createdCount = 0;
 
         foreach ($activeVariations as $variation) {
             // Check if inventory entry already exists for this variation
@@ -808,7 +843,13 @@ class Product extends Model
                     'status' => 'active',
                     'notes' => "Auto-created for {$variation->name} variation",
                 ]);
+                $createdCount++;
             }
+        }
+
+        // Log if any entries were created (for debugging)
+        if ($createdCount > 0) {
+            \Log::info("Created {$createdCount} inventory entries for product: {$this->name}");
         }
     }
 } 
