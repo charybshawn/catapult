@@ -80,6 +80,18 @@ class PriceVariation extends Model
                 $priceVariation->is_default = false;
             }
             
+            // Auto-set name based on packaging type if not provided
+            if (empty($priceVariation->name) || $priceVariation->name === 'New Variation') {
+                if ($priceVariation->packaging_type_id) {
+                    $packagingType = PackagingType::find($priceVariation->packaging_type_id);
+                    if ($packagingType) {
+                        $priceVariation->name = $packagingType->name;
+                    }
+                } else {
+                    $priceVariation->name = 'Default';
+                }
+            }
+            
             // Handle default pricing for product-specific variations
             if ($priceVariation->is_default && !$priceVariation->is_global) {
                 static::where('product_id', $priceVariation->product_id)
@@ -94,6 +106,18 @@ class PriceVariation extends Model
                 $priceVariation->product_id = null;
                 // Global templates can't be default
                 $priceVariation->is_default = false;
+            }
+            
+            // Auto-update name when packaging type changes
+            if ($priceVariation->isDirty('packaging_type_id')) {
+                if ($priceVariation->packaging_type_id) {
+                    $packagingType = PackagingType::find($priceVariation->packaging_type_id);
+                    if ($packagingType) {
+                        $priceVariation->name = $packagingType->name;
+                    }
+                } else {
+                    $priceVariation->name = 'Default';
+                }
             }
             
             // Handle default pricing for product-specific variations
@@ -231,7 +255,6 @@ class PriceVariation extends Model
             \App\Models\ProductInventory::create([
                 'product_id' => $this->product_id,
                 'price_variation_id' => $this->id,
-                'batch_number' => $this->product->getNextBatchNumber() . '-' . strtoupper(substr($this->name, 0, 3)),
                 'quantity' => 0,
                 'reserved_quantity' => 0,
                 'cost_per_unit' => 0,

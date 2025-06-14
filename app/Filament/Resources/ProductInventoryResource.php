@@ -47,15 +47,7 @@ class ProductInventoryResource extends Resource
                             ->searchable()
                             ->preload()
                             ->required()
-                            ->reactive()
-                            ->afterStateUpdated(function ($state, Forms\Set $set) {
-                                if ($state) {
-                                    $product = Product::find($state);
-                                    if ($product) {
-                                        $set('batch_number', $product->getNextBatchNumber());
-                                    }
-                                }
-                            }),
+                            ->reactive(),
                         Forms\Components\Select::make('price_variation_id')
                             ->label('Price Variation')
                             ->relationship('priceVariation', 'name', function ($query, Forms\Get $get) {
@@ -70,13 +62,10 @@ class ProductInventoryResource extends Resource
                     ])
                     ->columns(2),
 
-                Section::make('Batch Information')
+                Section::make('Inventory Information')
                     ->schema([
-                        Grid::make(3)
+                        Grid::make(2)
                             ->schema([
-                                Forms\Components\TextInput::make('batch_number')
-                                    ->label('Batch Number')
-                                    ->helperText('Auto-generated or enter custom'),
                                 Forms\Components\TextInput::make('lot_number')
                                     ->label('Lot Number')
                                     ->helperText('Optional supplier lot number'),
@@ -105,8 +94,25 @@ class ProductInventoryResource extends Resource
                                     ->numeric()
                                     ->default(0)
                                     ->minValue(0)
-                                    ->step(0.01)
-                                    ->suffix('units'),
+                                    ->step(function (Forms\Get $get) {
+                                        $priceVariationId = $get('price_variation_id');
+                                        if ($priceVariationId) {
+                                            $priceVariation = \App\Models\PriceVariation::find($priceVariationId);
+                                            $packagingType = $priceVariation?->packagingType;
+                                            return $packagingType && $packagingType->allowsDecimalQuantity() ? 0.01 : 1;
+                                        }
+                                        return 1;
+                                    })
+                                    ->suffix(function (Forms\Get $get) {
+                                        $priceVariationId = $get('price_variation_id');
+                                        if ($priceVariationId) {
+                                            $priceVariation = \App\Models\PriceVariation::find($priceVariationId);
+                                            $packagingType = $priceVariation?->packagingType;
+                                            return $packagingType ? $packagingType->getQuantityUnit() : 'units';
+                                        }
+                                        return 'units';
+                                    })
+                                    ->reactive(),
                                 Forms\Components\TextInput::make('cost_per_unit')
                                     ->label('Cost per Unit')
                                     ->numeric()
@@ -158,11 +164,8 @@ class ProductInventoryResource extends Resource
                             return '-';
                         }
                         
-                        $variation = $record->priceVariation;
-                        $packaging = $variation->packagingType?->display_name ?? 'Package-Free';
-                        $weight = $variation->fill_weight_grams ? $variation->fill_weight_grams . 'g' : '';
-                        
-                        return $variation->name . ($packaging !== 'Package-Free' ? " ({$packaging})" : '') . ($weight ? " - {$weight}" : '');
+                        // Just show the variation name
+                        return $record->priceVariation->name;
                     })
                     ->tooltip(function ($record) {
                         if (!$record->priceVariation) {
@@ -170,16 +173,20 @@ class ProductInventoryResource extends Resource
                         }
                         return "Price: $" . number_format($record->priceVariation->price, 2);
                     }),
-                Tables\Columns\TextColumn::make('batch_number')
-                    ->label('Batch #')
-                    ->searchable()
-                    ->copyable()
-                    ->copyMessage('Batch number copied'),
                 Tables\Columns\TextInputColumn::make('quantity')
                     ->label('Total Qty')
                     ->type('number')
-                    ->step(0.01)
-                    ->rules(['numeric', 'min:0'])
+                    ->step(function ($record) {
+                        $packagingType = $record->priceVariation?->packagingType;
+                        return $packagingType && $packagingType->allowsDecimalQuantity() ? 0.01 : 1;
+                    })
+                    ->rules(function ($record) {
+                        $packagingType = $record->priceVariation?->packagingType;
+                        if ($packagingType && $packagingType->allowsDecimalQuantity()) {
+                            return ['numeric', 'min:0'];
+                        }
+                        return ['integer', 'min:0'];
+                    })
                     ->sortable()
                     ->alignEnd(),
                 Tables\Columns\TextColumn::make('reserved_quantity')
@@ -248,29 +255,49 @@ class ProductInventoryResource extends Resource
             ])
             ->actions([
                 Action::make('quick_add')
-                    ->label('+10')
+                    ->label(function (ProductInventory $record) {
+                        $packagingType = $record->priceVariation?->packagingType;
+                        if ($packagingType && $packagingType->allowsDecimalQuantity()) {
+                            return '+100g';
+                        }
+                        return '+10';
+                    })
                     ->icon('heroicon-o-plus')
                     ->color('success')
                     ->size('sm')
                     ->action(function (ProductInventory $record) {
-                        $record->update(['quantity' => $record->quantity + 10]);
+                        $packagingType = $record->priceVariation?->packagingType;
+                        $increment = ($packagingType && $packagingType->allowsDecimalQuantity()) ? 100 : 10;
+                        $unit = ($packagingType && $packagingType->allowsDecimalQuantity()) ? 'grams' : 'units';
+                        
+                        $record->update(['quantity' => $record->quantity + $increment]);
                         Notification::make()
                             ->title('Stock Added')
-                            ->body("Added 10 units to {$record->batch_number}")
+                            ->body("Added {$increment} {$unit} to inventory")
                             ->success()
                             ->send();
                     }),
                 Action::make('quick_subtract')
-                    ->label('-10')
+                    ->label(function (ProductInventory $record) {
+                        $packagingType = $record->priceVariation?->packagingType;
+                        if ($packagingType && $packagingType->allowsDecimalQuantity()) {
+                            return '-100g';
+                        }
+                        return '-10';
+                    })
                     ->icon('heroicon-o-minus')
                     ->color('warning')
                     ->size('sm')
                     ->action(function (ProductInventory $record) {
-                        $newQuantity = max(0, $record->quantity - 10);
+                        $packagingType = $record->priceVariation?->packagingType;
+                        $decrement = ($packagingType && $packagingType->allowsDecimalQuantity()) ? 100 : 10;
+                        $unit = ($packagingType && $packagingType->allowsDecimalQuantity()) ? 'grams' : 'units';
+                        
+                        $newQuantity = max(0, $record->quantity - $decrement);
                         $record->update(['quantity' => $newQuantity]);
                         Notification::make()
                             ->title('Stock Removed')
-                            ->body("Removed 10 units from {$record->batch_number}")
+                            ->body("Removed {$decrement} {$unit} from inventory")
                             ->success()
                             ->send();
                     }),
@@ -285,7 +312,14 @@ class ProductInventoryResource extends Resource
                             ->numeric()
                             ->required()
                             ->minValue(0)
-                            ->step(0.01)
+                            ->step(function (ProductInventory $record) {
+                                $packagingType = $record->priceVariation?->packagingType;
+                                return $packagingType && $packagingType->allowsDecimalQuantity() ? 0.01 : 1;
+                            })
+                            ->suffix(function (ProductInventory $record) {
+                                $packagingType = $record->priceVariation?->packagingType;
+                                return $packagingType ? $packagingType->getQuantityUnit() : 'units';
+                            })
                             ->default(fn (ProductInventory $record) => $record->quantity),
                         Forms\Components\Textarea::make('reason')
                             ->label('Reason (Optional)')
@@ -300,7 +334,7 @@ class ProductInventoryResource extends Resource
                         
                         Notification::make()
                             ->title('Quantity Updated')
-                            ->body("{$changeText} units for {$record->batch_number}")
+                            ->body("{$changeText} units in inventory")
                             ->success()
                             ->send();
                     }),
@@ -348,7 +382,7 @@ class ProductInventoryResource extends Resource
 
     public static function getGloballySearchableAttributes(): array
     {
-        return ['batch_number', 'lot_number', 'product.name'];
+        return ['lot_number', 'product.name'];
     }
 
     public static function getNavigationBadge(): ?string

@@ -11,6 +11,8 @@ use Filament\Notifications\Notification;
 class EditProduct extends BaseEditRecord
 {
     protected static string $resource = ProductResource::class;
+    
+    protected $listeners = ['updateVariation', 'deleteVariation', 'setAsDefault', 'addCustomVariation'];
 
     protected function getHeaderActions(): array
     {
@@ -85,8 +87,18 @@ class EditProduct extends BaseEditRecord
             if ($currentTemplateVariations->has($templateId)) {
                 // Update existing variation
                 $variation = $currentTemplateVariations->get($templateId);
+                
+                // Determine name based on packaging type
+                $name = 'Default';
+                if (!empty($templateData['packaging_type_id'])) {
+                    $packagingType = \App\Models\PackagingType::find($templateData['packaging_type_id']);
+                    if ($packagingType) {
+                        $name = $packagingType->name;
+                    }
+                }
+                
                 $variation->update([
-                    'name' => $templateData['name'],
+                    'name' => $name,
                     'price' => $templateData['price'],
                     'packaging_type_id' => $templateData['packaging_type_id'],
                     'fill_weight_grams' => $templateData['fill_weight_grams'],
@@ -96,11 +108,21 @@ class EditProduct extends BaseEditRecord
                 $updatedCount++;
             } else {
                 // Create new variation from template
+                
+                // Determine name based on packaging type
+                $name = 'Default';
+                if (!empty($templateData['packaging_type_id'])) {
+                    $packagingType = \App\Models\PackagingType::find($templateData['packaging_type_id']);
+                    if ($packagingType) {
+                        $name = $packagingType->name;
+                    }
+                }
+                
                 PriceVariation::create([
                     'product_id' => $product->id,
                     'template_id' => $templateId,
                     'packaging_type_id' => $templateData['packaging_type_id'],
-                    'name' => $templateData['name'],
+                    'name' => $name,
                     'sku' => $templateData['sku'] ?? null,
                     'fill_weight_grams' => $templateData['fill_weight_grams'],
                     'price' => $templateData['price'],
@@ -205,6 +227,8 @@ class EditProduct extends BaseEditRecord
      */
     public function updateVariation($variationId, array $data)
     {
+        \Log::info('updateVariation called', ['variationId' => $variationId, 'data' => $data]);
+        
         $variation = PriceVariation::findOrFail($variationId);
         
         // Ensure the variation belongs to this product
@@ -212,8 +236,17 @@ class EditProduct extends BaseEditRecord
             return;
         }
         
+        // Determine the name based on packaging type
+        $name = 'Default';
+        if (!empty($data['packaging_type_id'])) {
+            $packagingType = \App\Models\PackagingType::find($data['packaging_type_id']);
+            if ($packagingType) {
+                $name = $packagingType->name;
+            }
+        }
+        
         $variation->update([
-            'name' => $data['name'],
+            'name' => $name,
             'packaging_type_id' => $data['packaging_type_id'] ?: null,
             'sku' => $data['sku'] ?: null,
             'fill_weight_grams' => $data['fill_weight_grams'] ?: null,
@@ -227,6 +260,9 @@ class EditProduct extends BaseEditRecord
             ->title('Price variation updated')
             ->success()
             ->send();
+        
+        // Dispatch event to refresh the form
+        $this->dispatch('$refresh');
     }
     
     /**
@@ -327,7 +363,7 @@ class EditProduct extends BaseEditRecord
     {
         $variation = PriceVariation::create([
             'product_id' => $this->record->id,
-            'name' => 'New Variation',
+            'name' => 'Default',
             'price' => 0,
             'is_default' => $this->record->priceVariations()->count() === 0,
             'is_active' => true,

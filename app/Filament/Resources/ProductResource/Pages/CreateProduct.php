@@ -7,17 +7,75 @@ use App\Filament\Pages\Base\BaseCreateRecord;
 use App\Models\PriceVariation;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 
 class CreateProduct extends BaseCreateRecord
 {
     protected static string $resource = ProductResource::class;
+    
+    protected $listeners = ['updateVariation', 'deleteVariation', 'setAsDefault', 'addCustomVariation'];
+    
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
+    
+    public function create(bool $another = false): void
+    {
+        try {
+            Log::info('CreateProduct: Create method called');
+            Log::info('Form state:', $this->form->getState());
+            parent::create($another);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('CreateProduct: Validation error', [
+                'errors' => $e->errors(),
+                'validator' => $e->validator ? $e->validator->failed() : 'no validator'
+            ]);
+            
+            // Show the validation errors to the user
+            foreach ($e->errors() as $field => $messages) {
+                foreach ($messages as $message) {
+                    \Filament\Notifications\Notification::make()
+                        ->danger()
+                        ->title('Validation Error')
+                        ->body($field . ': ' . $message)
+                        ->persistent()
+                        ->send();
+                }
+            }
+            
+            throw $e;
+        } catch (\Exception $e) {
+            Log::error('CreateProduct: Error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            // Show the error to the user
+            \Filament\Notifications\Notification::make()
+                ->danger()
+                ->title('Error Creating Product')
+                ->body($e->getMessage())
+                ->persistent()
+                ->send();
+                
+            throw $e;
+        }
+    }
     
     /**
      * Handle before the record is created
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        // Store selected templates and custom variations for after creation
+        Log::info('CreateProduct: Form data before create', $data);
+        // Store pending template IDs for after creation
+        if (isset($data['pending_template_ids'])) {
+            session()->flash('pending_template_ids', $data['pending_template_ids']);
+            unset($data['pending_template_ids']);
+        }
+        
+        // Store selected templates and custom variations for after creation (legacy support)
         if (isset($data['selected_templates'])) {
             session()->flash('selected_templates', json_decode($data['selected_templates'], true));
             unset($data['selected_templates']);
@@ -42,8 +100,18 @@ class CreateProduct extends BaseCreateRecord
      */
     protected function afterCreate(): void
     {
-        $this->createPriceVariationsFromTemplates();
-        $this->createProductPhoto();
+        try {
+            $this->createPriceVariationsFromTemplates();
+            $this->createProductPhoto();
+        } catch (\Exception $e) {
+            Log::error('Error in afterCreate', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            // Don't throw the exception, just log it
+            // This allows the redirect to happen
+        }
     }
     
     /**
@@ -52,18 +120,63 @@ class CreateProduct extends BaseCreateRecord
     protected function createPriceVariationsFromTemplates(): void
     {
         $product = $this->record;
+        $pendingTemplateIds = session()->get('pending_template_ids', []);
         $selectedTemplates = session()->get('selected_templates', []);
         $customVariations = session()->get('custom_variations', []);
         
         $createdCount = 0;
         
-        // Create variations from selected templates
+        // Create variations from pending template IDs (new method)
+        if (!empty($pendingTemplateIds)) {
+            $templates = \App\Models\PriceVariation::whereIn('id', $pendingTemplateIds)
+                ->where('is_global', true)
+                ->where('is_active', true)
+                ->get();
+                
+            $hasDefault = false;
+            foreach ($templates as $template) {
+                // Determine name based on packaging type
+                $name = 'Default';
+                if ($template->packaging_type_id) {
+                    $packagingType = \App\Models\PackagingType::find($template->packaging_type_id);
+                    if ($packagingType) {
+                        $name = $packagingType->name;
+                    }
+                }
+                
+                $variation = \App\Models\PriceVariation::create([
+                    'product_id' => $product->id,
+                    'template_id' => $template->id,
+                    'packaging_type_id' => $template->packaging_type_id,
+                    'name' => $name,
+                    'sku' => $template->sku,
+                    'fill_weight_grams' => $template->fill_weight_grams,
+                    'price' => $template->price,
+                    'is_default' => !$hasDefault, // First one becomes default
+                    'is_global' => false, // Product-specific
+                    'is_active' => true,
+                ]);
+                $createdCount++;
+                $hasDefault = true;
+            }
+        }
+        
+        // Create variations from selected templates (legacy method)
         foreach ($selectedTemplates as $templateData) {
+            // Determine name based on packaging type
+            $name = 'Default';
+            if (!empty($templateData['packaging_type_id'])) {
+                $packagingType = \App\Models\PackagingType::find($templateData['packaging_type_id']);
+                if ($packagingType) {
+                    $name = $packagingType->name;
+                }
+            }
+            
             $variation = PriceVariation::create([
                 'product_id' => $product->id,
                 'template_id' => $templateData['id'], // Store the template ID
                 'packaging_type_id' => $templateData['packaging_type_id'],
-                'name' => $templateData['name'],
+                'name' => $name,
                 'sku' => $templateData['sku'] ?? null,
                 'fill_weight_grams' => $templateData['fill_weight_grams'],
                 'price' => $templateData['price'],
@@ -76,10 +189,19 @@ class CreateProduct extends BaseCreateRecord
         
         // Create custom variations
         foreach ($customVariations as $variationData) {
+            // Determine name based on packaging type
+            $name = 'Default';
+            if (!empty($variationData['packaging_type_id'])) {
+                $packagingType = \App\Models\PackagingType::find($variationData['packaging_type_id']);
+                if ($packagingType) {
+                    $name = $packagingType->name;
+                }
+            }
+            
             $variation = PriceVariation::create([
                 'product_id' => $product->id,
                 'packaging_type_id' => $variationData['packaging_type_id'] ?? null,
-                'name' => $variationData['name'],
+                'name' => $name,
                 'sku' => $variationData['sku'] ?? null,
                 'fill_weight_grams' => $variationData['fill_weight_grams'] ?? null,
                 'price' => $variationData['price'],
@@ -101,7 +223,7 @@ class CreateProduct extends BaseCreateRecord
         }
         
         // Clear session data
-        session()->forget(['selected_templates', 'custom_variations']);
+        session()->forget(['pending_template_ids', 'selected_templates', 'custom_variations']);
     }
     
     /**
@@ -135,8 +257,17 @@ class CreateProduct extends BaseCreateRecord
             return;
         }
         
+        // Determine the name based on packaging type
+        $name = 'Default';
+        if (!empty($data['packaging_type_id'])) {
+            $packagingType = \App\Models\PackagingType::find($data['packaging_type_id']);
+            if ($packagingType) {
+                $name = $packagingType->name;
+            }
+        }
+        
         $variation->update([
-            'name' => $data['name'],
+            'name' => $name,
             'packaging_type_id' => $data['packaging_type_id'] ?: null,
             'sku' => $data['sku'] ?: null,
             'fill_weight_grams' => $data['fill_weight_grams'] ?: null,
@@ -224,7 +355,7 @@ class CreateProduct extends BaseCreateRecord
     {
         $variation = PriceVariation::create([
             'product_id' => $this->record->id,
-            'name' => 'New Variation',
+            'name' => 'Default',
             'price' => 0,
             'is_default' => $this->record->priceVariations()->count() === 0,
             'is_active' => true,

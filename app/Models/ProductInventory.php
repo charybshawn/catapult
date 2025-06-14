@@ -15,7 +15,6 @@ class ProductInventory extends Model
     protected $fillable = [
         'product_id',
         'price_variation_id',
-        'batch_number',
         'lot_number',
         'quantity',
         'reserved_quantity',

@@ -22,6 +22,7 @@ use Filament\Notifications\Notification;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\ViewField;
 use Filament\Forms\Components\Component;
+use Filament\Forms\Components\Wizard\Step;
 use App\Http\Livewire\ProductPriceCalculator;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Forms\Components\Common as FormCommon;
@@ -80,7 +81,7 @@ class ProductResource extends BaseResource
                     ->label('Packaging')
                     ->html()
                     ->getStateUsing(function ($record): string {
-                        // Get product-specific price variations with packaging
+                        // Get only product-specific price variations with packaging
                         $productPackaging = $record->priceVariations()
                             ->whereNotNull('packaging_type_id')
                             ->with('packagingType')
@@ -88,47 +89,17 @@ class ProductResource extends BaseResource
                             ->pluck('packagingType.display_name')
                             ->unique();
                         
-                        // Get global price variations with packaging (templates that could be applied)
-                        $globalPackaging = \App\Models\PriceVariation::where('is_global', true)
-                            ->where('is_active', true)
-                            ->whereNotNull('packaging_type_id')
-                            ->with('packagingType')
-                            ->get()
-                            ->pluck('packagingType.display_name')
-                            ->unique();
-                        
-                        // Combine and deduplicate packaging options
-                        $packaging = $productPackaging->concat($globalPackaging)->unique()->take(3);
+                        // Only show actual product packaging, not potential templates
+                        $packaging = $productPackaging;
                         
                         if ($packaging->isEmpty()) {
                             return '<span class="text-gray-400">No packaging</span>';
                         }
                         
-                        // Separate product-specific and global packaging for different styling
-                        $badges = $packaging->map(function ($name) use ($productPackaging) {
-                            $isProductSpecific = $productPackaging->contains($name);
-                            $colorClass = $isProductSpecific 
-                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                                : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
-                            
-                            return '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ' . $colorClass . '">' . $name . '</span>';
+                        // Create badges for actual product packaging
+                        $badges = $packaging->map(function ($name) {
+                            return '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">' . $name . '</span>';
                         })->join(' ');
-                        
-                        $totalProduct = $record->priceVariations()->whereNotNull('packaging_type_id')->count();
-                        $totalGlobal = \App\Models\PriceVariation::where('is_global', true)
-                            ->where('is_active', true)
-                            ->whereNotNull('packaging_type_id')
-                            ->count();
-                        $totalUnique = $productPackaging->concat($globalPackaging)->unique()->count();
-                        
-                        if ($totalUnique > 3) {
-                            $badges .= ' <span class="text-xs text-gray-500">+' . ($totalUnique - 3) . ' more</span>';
-                        }
-                        
-                        // Add a small indicator if global templates are shown
-                        if ($globalPackaging->isNotEmpty() && $productPackaging->isEmpty()) {
-                            $badges .= ' <span class="text-xs text-gray-400 ml-1" title="Available as global templates">(templates)</span>';
-                        }
                         
                         return $badges;
                     })
@@ -158,10 +129,68 @@ class ProductResource extends BaseResource
                 Tables\Filters\TernaryFilter::make('is_visible_in_store')
                     ->label('Visible in Store'),
             ])
-            ->actions(static::getDefaultTableActions())
+            ->actions([
+                Tables\Actions\ViewAction::make()
+                    ->tooltip('View record'),
+                Tables\Actions\EditAction::make()
+                    ->tooltip('Edit record'),
+                Tables\Actions\DeleteAction::make()
+                    ->tooltip('Delete record')
+                    ->before(function (Product $record) {
+                        $deleteCheck = $record->canBeDeleted();
+                        
+                        if (!$deleteCheck['canDelete']) {
+                            Notification::make()
+                                ->title('Cannot Delete Product')
+                                ->body("Product '{$record->name}' cannot be deleted:\n" . implode("\n", $deleteCheck['errors']))
+                                ->danger()
+                                ->send();
+                            
+                            // Cancel the deletion
+                            return false;
+                        }
+                    }),
+            ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    ...static::getDefaultBulkActions(),
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->before(function ($records) {
+                            // Check each record for inventory
+                            foreach ($records as $record) {
+                                $deleteCheck = $record->canBeDeleted();
+                                
+                                if (!$deleteCheck['canDelete']) {
+                                    Notification::make()
+                                        ->title('Cannot Delete Products')
+                                        ->body("Product '{$record->name}' cannot be deleted:\n" . implode("\n", $deleteCheck['errors']) . "\n\nPlease resolve issues for all selected products first.")
+                                        ->danger()
+                                        ->send();
+                                    
+                                    // Cancel the deletion
+                                    return false;
+                                }
+                            }
+                        }),
+                    Tables\Actions\BulkAction::make('activate')
+                        ->label('Activate')
+                        ->icon('heroicon-o-check-circle')
+                        ->action(function ($records) {
+                            foreach ($records as $record) {
+                                $record->update(['is_active' => true]);
+                            }
+                        })
+                        ->requiresConfirmation()
+                        ->color('success'),
+                    Tables\Actions\BulkAction::make('deactivate')
+                        ->label('Deactivate')
+                        ->icon('heroicon-o-x-circle')
+                        ->action(function ($records) {
+                            foreach ($records as $record) {
+                                $record->update(['is_active' => false]);
+                            }
+                        })
+                        ->requiresConfirmation()
+                        ->color('danger'),
                     Tables\Actions\BulkAction::make('show_in_store')
                         ->label('Show in Store')
                         ->icon('heroicon-o-eye')
@@ -393,10 +422,32 @@ class ProductResource extends BaseResource
                             Forms\Components\TextInput::make('name')
                                 ->required()
                                 ->maxLength(255)
+                                ->unique(
+                                    table: 'products',
+                                    column: 'name',
+                                    ignoreRecord: true,
+                                    modifyRuleUsing: function (\Illuminate\Validation\Rules\Unique $rule) {
+                                        return $rule->whereNull('deleted_at');
+                                    }
+                                )
+                                ->validationMessages([
+                                    'unique' => 'A product with this name already exists. Please choose a different name.',
+                                ])
                                 ->columnSpan(2),
                             Forms\Components\TextInput::make('sku')
                                 ->label('Product SKU')
                                 ->maxLength(255)
+                                ->unique(
+                                    table: 'products',
+                                    column: 'sku',
+                                    ignoreRecord: true,
+                                    modifyRuleUsing: function (\Illuminate\Validation\Rules\Unique $rule) {
+                                        return $rule->whereNull('deleted_at');
+                                    }
+                                )
+                                ->validationMessages([
+                                    'unique' => 'This SKU is already in use. Please enter a different SKU.',
+                                ])
                                 ->helperText('Optional unique identifier'),
                         ]),
                     Forms\Components\Textarea::make('description')
@@ -481,10 +532,59 @@ class ProductResource extends BaseResource
                 ])
                 ->columns(1),
             
+            Forms\Components\Section::make('Pricing Strategy')
+                ->description('Set retail prices in price variations, then configure wholesale discount here.')
+                ->schema([
+                    Forms\Components\Grid::make(2)
+                        ->schema([
+                            Forms\Components\TextInput::make('wholesale_discount_percentage')
+                                ->label('Wholesale Discount %')
+                                ->numeric()
+                                ->suffix('%')
+                                ->minValue(0)
+                                ->maxValue(100)
+                                ->step(0.01)
+                                ->default(25.00)
+                                ->helperText('Percentage discount applied to retail prices for wholesale customers'),
+                            Forms\Components\Placeholder::make('pricing_explanation')
+                                ->label('How it works')
+                                ->content('Price variations below show retail prices. When customers are marked as wholesale, they automatically receive this percentage discount off the retail price. No need for separate wholesale variations!')
+                                ->extraAttributes(['class' => 'text-sm text-gray-600']),
+                        ]),
+                ])
+                ->collapsible()
+                ->columnSpanFull(),
+            
             Forms\Components\Section::make('Price Variations')
                 ->description('Select global templates to apply to this product, or create custom variations.')
                 ->schema([
-                    static::getPriceVariationSelectionField(),
+                    // Show different UI for create vs edit
+                    Forms\Components\Group::make([
+                        // For create mode: show template selector
+                        Forms\Components\CheckboxList::make('pending_template_ids')
+                            ->label('Select Price Variation Templates')
+                            ->helperText('Choose templates to apply when the product is created')
+                            ->options(function () {
+                                return \App\Models\PriceVariation::where('is_global', true)
+                                    ->where('is_active', true)
+                                    ->with('packagingType')
+                                    ->get()
+                                    ->mapWithKeys(function ($template) {
+                                        $packagingName = $template->packagingType?->display_name ?? 'No packaging';
+                                        $price = '$' . number_format($template->price, 2);
+                                        $weight = $template->fill_weight_grams ? ' - ' . $template->fill_weight_grams . 'g' : '';
+                                        
+                                        return [$template->id => "{$template->name} ({$packagingName}){$weight} - {$price}"];
+                                    });
+                            })
+                            ->columns(1)
+                            ->visible(fn ($livewire) => !($livewire instanceof Pages\EditProduct)),
+                            
+                        // For edit mode: show the full price variation management
+                        Forms\Components\Group::make([
+                            static::getPriceVariationSelectionField(),
+                        ])->visible(fn ($livewire) => $livewire instanceof Pages\EditProduct),
+                    ])
                 ])
                 ->collapsible()
                 ->columnSpanFull(),
@@ -506,23 +606,68 @@ class ProductResource extends BaseResource
                     ->modalHeading('Select Price Variation Templates')
                     ->modalDescription('Choose global price variation templates to apply to this product.')
                     ->modalWidth('4xl')
+                    ->before(function ($livewire) {
+                        // If we're creating a new product, save it first
+                        $product = null;
+                        if (method_exists($livewire, 'getRecord')) {
+                            $product = $livewire->getRecord();
+                        } elseif (property_exists($livewire, 'record')) {
+                            $product = $livewire->record;
+                        }
+                        
+                        if (!$product || !$product->exists) {
+                            // We're in creation mode - save the product now
+                            try {
+                                // Validate and create the product
+                                $livewire->form->validate();
+                                $data = $livewire->form->getState();
+                                
+                                // Create the product
+                                $product = $livewire->getModel()::create($data);
+                                $livewire->record = $product;
+                                
+                                \Filament\Notifications\Notification::make()
+                                    ->success()
+                                    ->title('Product Saved')
+                                    ->body('Product created successfully. Now select templates to add.')
+                                    ->send();
+                                    
+                            } catch (\Exception $e) {
+                                \Filament\Notifications\Notification::make()
+                                    ->danger()
+                                    ->title('Cannot Save Product')
+                                    ->body('Please fill in all required fields before adding templates: ' . $e->getMessage())
+                                    ->send();
+                                    
+                                // Cancel the action
+                                return false;
+                            }
+                        }
+                    })
                     ->form([
-                        Forms\Components\Hidden::make('selected_template_ids')
-                            ->default('[]'),
-                        Forms\Components\ViewField::make('template_selector')
-                            ->view('filament.forms.template-selector')
+                        Forms\Components\CheckboxList::make('selected_template_ids')
                             ->label('Available Templates')
-                            ->columnSpanFull(),
+                            ->options(function () {
+                                return \App\Models\PriceVariation::where('is_global', true)
+                                    ->where('is_active', true)
+                                    ->with('packagingType')
+                                    ->get()
+                                    ->mapWithKeys(function ($template) {
+                                        $packagingName = $template->packagingType?->display_name ?? 'No packaging';
+                                        $price = '$' . number_format($template->price, 2);
+                                        $weight = $template->fill_weight_grams ? ' - ' . $template->fill_weight_grams . 'g' : '';
+                                        
+                                        return [$template->id => "{$template->name} ({$packagingName}){$weight} - {$price}"];
+                                    });
+                            })
+                            ->columns(1)
+                            ->gridDirection('row'),
                     ])
                     ->action(function (array $data, $livewire) {
-                        // Debug: Log what data we receive
-                        \Illuminate\Support\Facades\Log::info('Modal action data received:', $data);
+                        // Get the selected template IDs directly from the checkbox list
+                        $selectedIds = $data['selected_template_ids'] ?? [];
                         
-                        // Parse the JSON data from the custom view
-                        $selectedIdsJson = $data['selected_template_ids'] ?? '[]';
-                        $selectedIds = json_decode($selectedIdsJson, true) ?? [];
-                        
-                        \Illuminate\Support\Facades\Log::info('Parsed selected IDs:', $selectedIds);
+                        \Illuminate\Support\Facades\Log::info('Selected template IDs:', $selectedIds);
                         
                         if (empty($selectedIds)) {
                             \Filament\Notifications\Notification::make()
@@ -533,7 +678,7 @@ class ProductResource extends BaseResource
                             return;
                         }
                         
-                        // Get the product record
+                        // Get the product record (should exist now due to before() method)
                         $product = null;
                         if (method_exists($livewire, 'getRecord')) {
                             $product = $livewire->getRecord();
@@ -545,7 +690,7 @@ class ProductResource extends BaseResource
                             \Filament\Notifications\Notification::make()
                                 ->danger()
                                 ->title('Error')
-                                ->body('Product not found. Please save the product first.')
+                                ->body('Product not found. Please try again.')
                                 ->send();
                             return;
                         }
@@ -605,13 +750,19 @@ class ProductResource extends BaseResource
                             ->title('Templates Added')
                             ->body($message)
                             ->send();
+                            
+                        // If we're in create mode and just saved, redirect to edit page
+                        if (str_contains(request()->url(), '/create')) {
+                            return redirect()->to(static::getUrl('edit', ['record' => $product]));
+                        }
                     }),
             ]),
             
             // Display selected price variations as editable table
             Forms\Components\ViewField::make('priceVariations')
                 ->view('filament.forms.price-variations-table')
-                ->columnSpanFull(),
+                ->columnSpanFull()
+                ->visible(fn ($livewire) => $livewire instanceof Pages\EditProduct),
         ]);
     }
 
@@ -740,7 +891,7 @@ class ProductResource extends BaseResource
                 ->icon('heroicon-o-currency-dollar')
                 ->schema([
                     Forms\Components\Section::make('Price Variations')
-                        ->description('Create flexible pricing variations for different customer types, units, weights, and packaging options.')
+                        ->description('Create pricing variations for different packaging types, units, and weights.')
                         ->schema([
                             Forms\Components\ViewField::make('priceVariations')
                                 ->view('filament.forms.price-variations-table')
@@ -748,19 +899,9 @@ class ProductResource extends BaseResource
                         ]),
                     
                     Forms\Components\Section::make('Quick Setup')
-                        ->description('Use these templates to quickly create common pricing variations.')
+                        ->description('Use these templates to quickly create common packaging variations.')
                         ->schema([
                             Forms\Components\Actions::make([
-                                Forms\Components\Actions\Action::make('add_retail_wholesale')
-                                    ->label('Add Retail + Wholesale')
-                                    ->icon('heroicon-o-plus')
-                                    ->color('primary')
-                                    ->action(function ($livewire) {
-                                        $variations = $livewire->data['priceVariations'] ?? [];
-                                        $variations[] = ['name' => 'Retail', 'price' => 0, 'is_default' => true, 'is_active' => true];
-                                        $variations[] = ['name' => 'Wholesale', 'price' => 0, 'is_default' => false, 'is_active' => true];
-                                        $livewire->data['priceVariations'] = $variations;
-                                    }),
                                 Forms\Components\Actions\Action::make('add_packaging_based')
                                     ->label('Add Common Packaging Sizes')
                                     ->icon('heroicon-o-archive-box')

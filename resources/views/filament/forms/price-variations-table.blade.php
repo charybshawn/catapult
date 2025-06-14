@@ -1,6 +1,6 @@
 @php
     // Get the Livewire component and product record
-    $livewire = $this ?? null;
+    $livewire = $this;
     $product = null;
     
     if ($livewire && method_exists($livewire, 'getRecord')) {
@@ -53,15 +53,13 @@
                     @foreach($variations as $variation)
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-800" x-data="{ editing: false }">
                             <td class="px-4 py-4 whitespace-nowrap">
-                                <div x-show="!editing" class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                    {{ $variation->name }}
+                                <div class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                    @php
+                                        // Generate name from packaging type or use 'Default' for no packaging
+                                        $displayName = $variation->packagingType ? $variation->packagingType->name : 'Default';
+                                    @endphp
+                                    {{ $displayName }}
                                 </div>
-                                <input x-show="editing" 
-                                       x-model="name" 
-                                       type="text" 
-                                       class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                                       x-init="name = '{{ $variation->name }}'"
-                                       x-cloak>
                             </td>
                             <td class="px-4 py-4 whitespace-nowrap">
                                 <div x-show="!editing" class="text-sm text-gray-900 dark:text-gray-100">
@@ -122,7 +120,7 @@
                                         </span>
                                     @else
                                         <button type="button" 
-                                                wire:click="setAsDefault({{ $variation->id }})"
+                                                @click="Livewire.find('{{ $livewire->getId() }}').setAsDefault({{ $variation->id }})"
                                                 class="text-sm text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300">
                                             Set as default
                                         </button>
@@ -144,30 +142,36 @@
                             </td>
                             <td class="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
                                 <div class="flex items-center justify-end space-x-2">
-                                    <button x-show="!editing" 
+                                    <button type="button"
+                                            x-show="!editing" 
                                             @click="editing = true"
                                             class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300">
                                         Edit
                                     </button>
-                                    <button x-show="editing" 
-                                            @click="$wire.updateVariation({{ $variation->id }}, { 
-                                                name: name, 
-                                                packaging_type_id: packaging_type_id, 
-                                                sku: sku, 
-                                                fill_weight_grams: fill_weight_grams, 
-                                                price: price 
-                                            }).then(() => editing = false)"
+                                    <button type="button"
+                                            x-show="editing" 
+                                            @click="
+                                                Livewire.find('{{ $livewire->getId() }}').updateVariation({{ $variation->id }}, {
+                                                    packaging_type_id: packaging_type_id,
+                                                    sku: sku,
+                                                    fill_weight_grams: fill_weight_grams,
+                                                    price: price
+                                                });
+                                                editing = false;
+                                            "
                                             class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
                                             x-cloak>
                                         Save
                                     </button>
-                                    <button x-show="editing" 
+                                    <button type="button"
+                                            x-show="editing" 
                                             @click="editing = false"
                                             class="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
                                             x-cloak>
                                         Cancel
                                     </button>
-                                    <button @click="if (confirm('Are you sure you want to delete this price variation?')) { $wire.deleteVariation({{ $variation->id }}) }"
+                                    <button type="button"
+                                            @click="if (confirm('Are you sure you want to delete this price variation?')) { Livewire.find('{{ $livewire->getId() }}').deleteVariation({{ $variation->id }}) }"
                                             class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
                                         Delete
                                     </button>
@@ -191,7 +195,7 @@
     
     <div class="flex justify-between items-center">
         <button type="button" 
-                wire:click="addCustomVariation"
+                @click="Livewire.find('{{ $livewire->getId() }}').addCustomVariation()"
                 class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-600">
             <svg class="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>

@@ -26,7 +26,7 @@ class ProductFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => $this->faker->word,
+            'name' => $this->faker->unique()->words(3, true) . ' ' . $this->faker->randomNumber(3),
             'description' => $this->faker->sentence,
             'active' => true,
             'is_visible_in_store' => true,

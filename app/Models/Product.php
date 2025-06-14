@@ -44,6 +44,7 @@ class Product extends Model
         'reorder_threshold',
         'track_inventory',
         'stock_status',
+        'wholesale_discount_percentage',
     ];
     
     /**
@@ -62,7 +63,38 @@ class Product extends Model
         'reserved_stock' => 'decimal:2',
         'reorder_threshold' => 'decimal:2',
         'track_inventory' => 'boolean',
+        'wholesale_discount_percentage' => 'decimal:2',
     ];
+    
+    /**
+     * Get the validation rules for the model.
+     *
+     * @return array<string, mixed>
+     */
+    public static function rules($id = null): array
+    {
+        return [
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                'unique:products,name' . ($id ? ',' . $id : '') . ',id,deleted_at,NULL',
+            ],
+            'description' => ['nullable', 'string'],
+            'sku' => ['nullable', 'string', 'max:255', 'unique:products,sku' . ($id ? ',' . $id : '') . ',id,deleted_at,NULL'],
+            'active' => ['boolean'],
+            'is_visible_in_store' => ['boolean'],
+            'category_id' => ['nullable', 'exists:categories,id'],
+            'product_mix_id' => ['nullable', 'exists:product_mixes,id'],
+            'master_seed_catalog_id' => ['nullable', 'exists:master_seed_catalogs,id'],
+            'image' => ['nullable', 'string'],
+            'base_price' => ['nullable', 'numeric', 'min:0'],
+            'wholesale_price' => ['nullable', 'numeric', 'min:0'],
+            'bulk_price' => ['nullable', 'numeric', 'min:0'],
+            'special_price' => ['nullable', 'numeric', 'min:0'],
+            'wholesale_discount_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
+        ];
+    }
     
     protected static function booted()
     {
@@ -71,25 +103,53 @@ class Product extends Model
             if ($product->master_seed_catalog_id && $product->product_mix_id) {
                 throw new \Exception('A product cannot have both a single variety and a product mix assigned.');
             }
-        });
-
-        // Prevent deletion of products that have inventory
-        static::deleting(function ($product) {
-            $totalInventory = $product->inventories()
-                ->where('quantity', '>', 0)
-                ->sum('quantity');
-                
-            if ($totalInventory > 0) {
-                throw new \Exception("Cannot delete product '{$product->name}' because it has {$totalInventory} units in inventory. Please reduce inventory to zero first.");
+            
+            // Validate unique product name
+            $query = static::where('name', $product->name)
+                ->whereNull('deleted_at');
+            
+            if ($product->exists) {
+                $query->where('id', '!=', $product->id);
             }
             
-            $reservedInventory = $product->inventories()
-                ->where('reserved_quantity', '>', 0)
-                ->sum('reserved_quantity');
-                
-            if ($reservedInventory > 0) {
-                throw new \Exception("Cannot delete product '{$product->name}' because it has {$reservedInventory} reserved units. Please clear reservations first.");
+            if ($query->exists()) {
+                throw new \Illuminate\Validation\ValidationException(
+                    \Illuminate\Support\Facades\Validator::make(
+                        ['name' => $product->name],
+                        ['name' => 'unique:products,name'],
+                        ['name.unique' => 'A product with this name already exists. Please choose a different name.']
+                    )
+                );
             }
+        });
+
+        // Note: Inventory deletion prevention is handled in the UI layer (ProductResource)
+        // to provide better user experience with notifications instead of exceptions
+        
+        // Clean up related records when a product is soft deleted
+        // (Hard deletes are handled by database CASCADE DELETE)
+        static::deleting(function ($product) {
+            // Only clean up if this is a soft delete
+            if ($product->isForceDeleting()) {
+                // This is a hard delete - let the database CASCADE handle it
+                return;
+            }
+            
+            // For soft deletes, we need to manually clean up
+            // Delete all inventory entries for this product
+            $product->inventories()->delete();
+            
+            // Delete all price variations for this product
+            $product->priceVariations()->delete();
+            
+            // Delete all inventory transactions
+            $product->inventoryTransactions()->delete();
+            
+            // Delete all inventory reservations
+            $product->inventoryReservations()->delete();
+            
+            // Delete all product photos
+            $product->photos()->delete();
         });
         
         // After a product is saved, handle setting the default photo if needed
@@ -276,6 +336,60 @@ class Product extends Model
     }
 
     /**
+     * Get the retail price for a price variation (base price).
+     */
+    public function getRetailPrice(?int $priceVariationId = null, ?int $packagingTypeId = null): float
+    {
+        if ($priceVariationId) {
+            $variation = $this->priceVariations()->find($priceVariationId);
+            return $variation ? $variation->price : 0;
+        }
+        
+        return $this->getPrice($packagingTypeId);
+    }
+
+    /**
+     * Get the wholesale price for a price variation (with discount applied).
+     */
+    public function getWholesalePrice(?int $priceVariationId = null, ?int $packagingTypeId = null): float
+    {
+        $retailPrice = $this->getRetailPrice($priceVariationId, $packagingTypeId);
+        
+        if (!$this->wholesale_discount_percentage || $this->wholesale_discount_percentage <= 0) {
+            return $retailPrice;
+        }
+        
+        $discountAmount = $retailPrice * ($this->wholesale_discount_percentage / 100);
+        return $retailPrice - $discountAmount;
+    }
+
+    /**
+     * Get price for customer type using new wholesale discount system.
+     */
+    public function getPriceForCustomer(string $customerType = 'retail', ?int $priceVariationId = null, ?int $packagingTypeId = null): float
+    {
+        switch (strtolower($customerType)) {
+            case 'wholesale':
+                return $this->getWholesalePrice($priceVariationId, $packagingTypeId);
+            case 'retail':
+            default:
+                return $this->getRetailPrice($priceVariationId, $packagingTypeId);
+        }
+    }
+
+    /**
+     * Get the wholesale discount amount for a given price.
+     */
+    public function getWholesaleDiscountAmount(float $retailPrice): float
+    {
+        if (!$this->wholesale_discount_percentage || $this->wholesale_discount_percentage <= 0) {
+            return 0;
+        }
+        
+        return $retailPrice * ($this->wholesale_discount_percentage / 100);
+    }
+
+    /**
      * Configure the activity log options for this model.
      */
     public function getActivitylogOptions(): LogOptions
@@ -294,6 +408,7 @@ class Product extends Model
                 'wholesale_price',
                 'bulk_price',
                 'special_price',
+                'wholesale_discount_percentage',
             ])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
@@ -683,7 +798,6 @@ class Product extends Model
     public function addInventory(array $data): ProductInventory
     {
         $inventory = $this->inventories()->create([
-            'batch_number' => $data['batch_number'] ?? null,
             'lot_number' => $data['lot_number'] ?? null,
             'quantity' => $data['quantity'],
             'cost_per_unit' => $data['cost_per_unit'] ?? null,
@@ -745,30 +859,6 @@ class Product extends Model
         return $reservations;
     }
 
-    /**
-     * Get the next batch number for this product.
-     */
-    public function getNextBatchNumber(): string
-    {
-        $lastBatch = $this->inventories()
-            ->whereNotNull('batch_number')
-            ->orderByRaw('LENGTH(batch_number) DESC')
-            ->orderBy('batch_number', 'desc')
-            ->first();
-
-        if (!$lastBatch || !$lastBatch->batch_number) {
-            return $this->sku . '-001';
-        }
-
-        // Extract number from batch number
-        if (preg_match('/(\d+)$/', $lastBatch->batch_number, $matches)) {
-            $number = intval($matches[1]) + 1;
-            $prefix = substr($lastBatch->batch_number, 0, -strlen($matches[1]));
-            return $prefix . str_pad($number, strlen($matches[1]), '0', STR_PAD_LEFT);
-        }
-
-        return $this->sku . '-001';
-    }
 
     /**
      * Get inventory value for this product.
@@ -776,6 +866,35 @@ class Product extends Model
     public function getInventoryValue(): float
     {
         return $this->activeInventories()->sum(\DB::raw('quantity * COALESCE(cost_per_unit, 0)'));
+    }
+
+    /**
+     * Check if this product can be safely deleted.
+     */
+    public function canBeDeleted(): array
+    {
+        $errors = [];
+        
+        $totalInventory = $this->inventories()
+            ->where('quantity', '>', 0)
+            ->sum('quantity');
+            
+        if ($totalInventory > 0) {
+            $errors[] = "Product has {$totalInventory} units in inventory. Please reduce inventory to zero first.";
+        }
+        
+        $reservedInventory = $this->inventories()
+            ->where('reserved_quantity', '>', 0)
+            ->sum('reserved_quantity');
+            
+        if ($reservedInventory > 0) {
+            $errors[] = "Product has {$reservedInventory} reserved units. Please clear reservations first.";
+        }
+        
+        return [
+            'canDelete' => empty($errors),
+            'errors' => $errors
+        ];
     }
 
     /**
@@ -833,7 +952,6 @@ class Product extends Model
                 // Create new inventory entry with zero quantity
                 $this->inventories()->create([
                     'price_variation_id' => $variation->id,
-                    'batch_number' => $this->getNextBatchNumber() . '-' . strtoupper(substr($variation->name, 0, 3)),
                     'quantity' => 0,
                     'reserved_quantity' => 0,
                     'cost_per_unit' => 0,
