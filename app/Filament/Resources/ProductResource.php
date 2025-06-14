@@ -134,6 +134,35 @@ class ProductResource extends BaseResource
                     ->tooltip('View record'),
                 Tables\Actions\EditAction::make()
                     ->tooltip('Edit record'),
+                Tables\Actions\Action::make('clone')
+                    ->label('Clone')
+                    ->icon('heroicon-o-document-duplicate')
+                    ->tooltip('Clone this product')
+                    ->color('info')
+                    ->requiresConfirmation()
+                    ->modalHeading('Clone Product')
+                    ->modalDescription('This will create a copy of the product with all its price variations and photos. Inventory will not be copied.')
+                    ->modalSubmitActionLabel('Clone Product')
+                    ->action(function (Product $record) {
+                        try {
+                            $newProduct = $record->cloneProduct();
+                            
+                            Notification::make()
+                                ->title('Product Cloned Successfully')
+                                ->body("Created: {$newProduct->name}")
+                                ->success()
+                                ->send();
+                                
+                            // Redirect to the edit page of the new product
+                            return redirect()->to(ProductResource::getUrl('edit', ['record' => $newProduct]));
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Clone Failed')
+                                ->body('Failed to clone product: ' . $e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
                 Tables\Actions\DeleteAction::make()
                     ->tooltip('Delete record')
                     ->before(function (Product $record) {
@@ -348,20 +377,27 @@ class ProductResource extends BaseResource
                                         ->content(fn ($record) => $record->productMix->name ?? 'Unknown'),
                                     Forms\Components\Placeholder::make('variety_count')
                                         ->label('Number of Varieties')
-                                        ->content(fn ($record) => $record->productMix->seedEntries->count() ?? 0),
+                                        ->content(fn ($record) => $record->productMix->masterSeedCatalogs->count() ?? 0),
                                 ]),
                             Forms\Components\Placeholder::make('varieties')
                                 ->label('Varieties in Mix')
                                 ->content(function ($record) {
-                                    $varieties = $record->productMix->seedEntries;
+                                    $varieties = $record->productMix->masterSeedCatalogs;
                                     if ($varieties->isEmpty()) {
                                         return 'No varieties in this mix';
                                     }
                                     
                                     $content = '<ul class="list-disc list-inside space-y-1">';
-                                    foreach ($varieties as $variety) {
-                                        $percentage = $variety->pivot->percentage ?? 0;
-                                        $content .= "<li><strong>{$variety->cultivar_name}</strong> ({$percentage}%)</li>";
+                                    foreach ($varieties as $catalog) {
+                                        $percentage = $catalog->pivot->percentage ?? 0;
+                                        $cultivar = $catalog->pivot->cultivar ?? '';
+                                        
+                                        $displayName = $catalog->common_name;
+                                        if ($cultivar) {
+                                            $displayName .= " ({$cultivar})";
+                                        }
+                                        
+                                        $content .= "<li><strong>{$displayName}</strong> - {$percentage}%</li>";
                                     }
                                     $content .= '</ul>';
                                     
