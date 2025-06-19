@@ -8,6 +8,11 @@ use Illuminate\Support\Facades\Process;
 use Carbon\Carbon;
 use Exception;
 
+/**
+ * @deprecated Use SimpleBackupService instead
+ * This service is kept for backward compatibility with existing console commands
+ */
+
 class DatabaseBackupService
 {
     protected string $backupPath = 'backups/database';

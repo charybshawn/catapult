@@ -2,7 +2,7 @@
 
 namespace App\Filament\Pages;
 
-use App\Services\DatabaseBackupService;
+use App\Services\SimpleBackupService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
 use Filament\Notifications\Notification;
@@ -24,21 +24,20 @@ class DatabaseManagement extends Page
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('success')
                 ->action(function () {
-                    $backupService = new DatabaseBackupService();
-                    $result = $backupService->createBackup();
-
-                    if ($result['success']) {
-                        $method = isset($result['method']) ? " ({$result['method']})" : '';
+                    try {
+                        $backupService = new SimpleBackupService();
+                        $filename = $backupService->createBackup();
+                        
                         Notification::make()
                             ->success()
                             ->title('Backup Created Successfully')
-                            ->body("Backup file: {$result['filename']} ({$result['size']}){$method}")
+                            ->body("Backup file: {$filename}")
                             ->send();
-                    } else {
+                    } catch (\Exception $e) {
                         Notification::make()
                             ->danger()
                             ->title('Backup Failed')
-                            ->body($result['error'])
+                            ->body($e->getMessage())
                             ->send();
                     }
                 }),
@@ -76,26 +75,27 @@ class DatabaseManagement extends Page
 
     public function getBackups(): array
     {
-        $backupService = new DatabaseBackupService();
-        return $backupService->listBackups();
+        $backupService = new SimpleBackupService();
+        return $backupService->listBackups()->toArray();
     }
 
     public function restoreBackup(string $backupPath): void
     {
-        $backupService = new DatabaseBackupService();
-        $result = $backupService->restoreBackup($backupPath);
-
-        if ($result['success']) {
+        try {
+            $backupService = new SimpleBackupService();
+            $filename = basename($backupPath);
+            $backupService->restoreBackup($filename);
+            
             Notification::make()
                 ->success()
                 ->title('Database Restored Successfully')
                 ->body('The database has been restored from the backup.')
                 ->send();
-        } else {
+        } catch (\Exception $e) {
             Notification::make()
                 ->danger()
                 ->title('Restore Failed')
-                ->body($result['error'])
+                ->body($e->getMessage())
                 ->send();
         }
     }
@@ -220,16 +220,16 @@ class DatabaseManagement extends Page
 
     public function deleteBackup(string $filename): void
     {
-        $backupService = new DatabaseBackupService();
-        $deleted = $backupService->deleteBackup($filename);
-
-        if ($deleted) {
+        try {
+            $backupService = new SimpleBackupService();
+            $backupService->deleteBackup($filename);
+            
             Notification::make()
                 ->success()
                 ->title('Backup Deleted')
                 ->body('Backup file has been deleted successfully.')
                 ->send();
-        } else {
+        } catch (\Exception $e) {
             Notification::make()
                 ->danger()
                 ->title('Delete Failed')

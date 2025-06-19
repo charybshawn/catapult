@@ -41,8 +41,8 @@
                 </h3>
                 
                 @php 
-                    $backupService = new \App\Services\DatabaseBackupService();
-                    $backups = $backupService->listBackups(); 
+                    $backupService = new \App\Services\SimpleBackupService();
+                    $backups = $backupService->listBackups()->toArray(); 
                 @endphp
                 
                 @if(count($backups) > 0)
@@ -68,21 +68,37 @@
                                 @foreach($backups as $backup)
                                     <tr>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                                            {{ $backup['filename'] }}
+                                            {{ $backup['name'] }}
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                             {{ $backup['size'] }}
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                            {{ \Carbon\Carbon::parse($backup['created_at'])->format('M j, Y g:i A') }}
+                                            {{ $backup['created_at']->format('M j, Y g:i A') }}
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
+                                            <button 
+                                                wire:click="restoreBackup('{{ $backup['path'] }}')"
+                                                wire:confirm="Are you sure you want to restore this backup? This will completely replace your current database and cannot be undone."
+                                                class="text-amber-600 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-300"
+                                            >
+                                                Restore
+                                            </button>
+                                            
                                             <a 
-                                                href="{{ route('database.backup.download', ['filename' => $backup['filename']]) }}"
-                                                class="text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300 mr-3"
+                                                href="{{ route('database.backup.download', ['filename' => $backup['name']]) }}"
+                                                class="text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300"
                                             >
                                                 Download
                                             </a>
+                                            
+                                            <button 
+                                                wire:click="deleteBackup('{{ $backup['name'] }}')"
+                                                wire:confirm="Are you sure you want to delete this backup? This action cannot be undone."
+                                                class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                                            >
+                                                Delete
+                                            </button>
                                         </td>
                                     </tr>
                                 @endforeach

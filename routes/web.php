@@ -28,26 +28,14 @@ Route::middleware('auth')->group(function () {
     
     // Database backup download route
     Route::get('/admin/database/backup/download/{filename}', function (string $filename) {
-        $backupService = new \App\Services\DatabaseBackupService();
-        $filePath = $backupService->downloadBackup($filename);
-        
-        if ($filePath && file_exists($filePath)) {
-            return response()->download($filePath, $filename, [
-                'Content-Type' => 'application/sql',
-            ]);
+        try {
+            $backupService = new \App\Services\SimpleBackupService();
+            return $backupService->downloadBackup($filename);
+        } catch (\Exception $e) {
+            abort(404, 'Backup file not found');
         }
-        
-        abort(404, 'Backup file not found');
     })->name('database.backup.download');
     
-    // Data export download route
-    Route::get('/admin/data-export/{export}/download', function (\App\Models\DataExport $export) {
-        if (!$export->fileExists()) {
-            abort(404, 'Export file not found');
-        }
-        
-        return response()->download($export->filepath);
-    })->name('filament.admin.data-export.download');
 });
 
 require __DIR__.'/auth.php';
