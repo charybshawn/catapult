@@ -120,7 +120,7 @@ class ListDataExports extends ListRecords
                         return;
                     }
                     
-                    \Log::info('Using file path:', ['path' => $filepath]);
+                    \Illuminate\Support\Facades\Log::info('Using file path:', ['path' => $filepath]);
                     
                     try {
                         $importService = new \App\Services\ImportExport\ResourceImportService();
