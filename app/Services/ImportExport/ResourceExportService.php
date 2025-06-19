@@ -55,24 +55,8 @@ class ResourceExportService
                 $commandOptions['--with-timestamps'] = true;
             }
             
-            // Add WHERE conditions for dependent tables
-            if (isset($definition['tables'][$table]['foreign_key']) && !empty($whereConditions)) {
-                $foreignKey = $definition['tables'][$table]['foreign_key'];
-                
-                // Get IDs from primary table
-                $primaryTable = array_key_first(array_filter($definition['tables'], fn($t) => $t['primary'] ?? false));
-                if ($primaryTable && isset($whereConditions[$primaryTable])) {
-                    foreach ($whereConditions[$primaryTable] as $condition) {
-                        if (str_contains($condition, ':')) {
-                            [$column, $value] = explode(':', $condition, 2);
-                            $ids = DB::table($primaryTable)->where($column, $value)->pluck('id')->toArray();
-                            if (!empty($ids)) {
-                                $commandOptions['--where'][] = "{$foreignKey}:" . implode(',', $ids);
-                            }
-                        }
-                    }
-                }
-            } elseif (isset($whereConditions[$table])) {
+            // Add WHERE conditions
+            if (isset($whereConditions[$table])) {
                 foreach ($whereConditions[$table] as $condition) {
                     $commandOptions['--where'][] = $condition;
                 }
@@ -107,20 +91,30 @@ class ResourceExportService
         $zipPath = storage_path("app/exports/{$resource}_{$timestamp}.zip");
         $zip = new ZipArchive();
         
-        if ($zip->open($zipPath, ZipArchive::CREATE) === true) {
-            // Add all exported files
-            foreach (Storage::files($exportDir) as $file) {
-                $zip->addFile(storage_path("app/{$file}"), basename($file));
-            }
-            $zip->close();
-            
-            // Clean up individual files
-            Storage::deleteDirectory($exportDir);
-            
-            return $zipPath;
+        $result = $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        if ($result !== true) {
+            throw new \Exception("Failed to create ZIP archive: " . $this->getZipError($result));
         }
         
-        throw new \Exception("Failed to create ZIP archive");
+        // Add all exported files
+        foreach (Storage::files($exportDir) as $file) {
+            $localPath = storage_path("app/{$file}");
+            if (file_exists($localPath)) {
+                $zip->addFile($localPath, basename($file));
+            }
+        }
+        
+        $zip->close();
+        
+        // Verify ZIP was created
+        if (!file_exists($zipPath) || filesize($zipPath) === 0) {
+            throw new \Exception("ZIP file was not created properly");
+        }
+        
+        // Clean up individual files
+        Storage::deleteDirectory($exportDir);
+        
+        return $zipPath;
     }
     
     /**
@@ -129,5 +123,39 @@ class ResourceExportService
     public static function getAvailableResources(): array
     {
         return array_keys(ResourceDefinitions::getResourceDependencies());
+    }
+    
+    /**
+     * Get ZIP error message
+     */
+    private function getZipError($code): string
+    {
+        return match($code) {
+            ZipArchive::ER_OK => 'No error',
+            ZipArchive::ER_MULTIDISK => 'Multi-disk zip archives not supported',
+            ZipArchive::ER_RENAME => 'Renaming temporary file failed',
+            ZipArchive::ER_CLOSE => 'Closing zip archive failed',
+            ZipArchive::ER_SEEK => 'Seek error',
+            ZipArchive::ER_READ => 'Read error',
+            ZipArchive::ER_WRITE => 'Write error',
+            ZipArchive::ER_CRC => 'CRC error',
+            ZipArchive::ER_ZIPCLOSED => 'Containing zip archive was closed',
+            ZipArchive::ER_NOENT => 'No such file',
+            ZipArchive::ER_EXISTS => 'File already exists',
+            ZipArchive::ER_OPEN => 'Cannot open file',
+            ZipArchive::ER_TMPOPEN => 'Failure to create temporary file',
+            ZipArchive::ER_ZLIB => 'Zlib error',
+            ZipArchive::ER_MEMORY => 'Memory allocation failure',
+            ZipArchive::ER_CHANGED => 'Entry has been changed',
+            ZipArchive::ER_COMPNOTSUPP => 'Compression method not supported',
+            ZipArchive::ER_EOF => 'Premature EOF',
+            ZipArchive::ER_INVAL => 'Invalid argument',
+            ZipArchive::ER_NOZIP => 'Not a zip archive',
+            ZipArchive::ER_INTERNAL => 'Internal error',
+            ZipArchive::ER_INCONS => 'Zip archive inconsistent',
+            ZipArchive::ER_REMOVE => 'Cannot remove file',
+            ZipArchive::ER_DELETED => 'Entry has been deleted',
+            default => 'Unknown error'
+        };
     }
 }

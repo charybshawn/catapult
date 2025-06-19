@@ -76,11 +76,11 @@ class ListOrders extends ListRecords
                         }
                         
                         if ($data['date_from']) {
-                            $options['where']['orders'][] = 'created_at:>=' . $data['date_from'];
+                            $options['where']['orders'][] = '>=created_at:' . $data['date_from'];
                         }
                         
                         if ($data['date_to']) {
-                            $options['where']['orders'][] = 'created_at:<=' . $data['date_to'];
+                            $options['where']['orders'][] = '<=created_at:' . $data['date_to'];
                         }
                         
                         $zipPath = $exportService->exportResource('orders', $options);

@@ -68,8 +68,30 @@ class ExportTable extends Command
         // Apply where conditions
         foreach ($whereConditions as $condition) {
             if (str_contains($condition, ':')) {
-                [$column, $value] = explode(':', $condition, 2);
-                $query->where($column, $value);
+                $parts = explode(':', $condition, 2);
+                if (count($parts) === 2) {
+                    [$column, $value] = $parts;
+                    
+                    // Handle operators
+                    if (str_starts_with($column, '>=')) {
+                        $column = substr($column, 2);
+                        $query->where($column, '>=', $value);
+                    } elseif (str_starts_with($column, '<=')) {
+                        $column = substr($column, 2);
+                        $query->where($column, '<=', $value);
+                    } elseif (str_starts_with($column, '>')) {
+                        $column = substr($column, 1);
+                        $query->where($column, '>', $value);
+                    } elseif (str_starts_with($column, '<')) {
+                        $column = substr($column, 1);
+                        $query->where($column, '<', $value);
+                    } elseif (str_contains($value, ',')) {
+                        // Handle IN clause for comma-separated values
+                        $query->whereIn($column, explode(',', $value));
+                    } else {
+                        $query->where($column, $value);
+                    }
+                }
             }
         }
         
