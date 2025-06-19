@@ -24,9 +24,9 @@ class DatabaseBackupCommand extends Command
      */
     protected $description = 'Create, list, or delete database backups';
 
-    protected DatabaseBackupService $backupService;
+    protected SimpleBackupService $backupService;
 
-    public function __construct(DatabaseBackupService $backupService)
+    public function __construct(SimpleBackupService $backupService)
     {
         parent::__construct();
         $this->backupService = $backupService;
@@ -54,20 +54,19 @@ class DatabaseBackupCommand extends Command
     {
         $this->info('Creating database backup...');
         
-        $result = $this->backupService->createBackup();
-
-        if ($result['success']) {
+        try {
+            $filename = $this->backupService->createBackup();
+            
             $this->info("✅ Backup created successfully!");
-            $this->line("📁 File: {$result['filename']}");
-            $this->line("💾 Size: {$result['size']}");
-            $this->line("📍 Path: {$result['path']}");
+            $this->line("📁 File: {$filename}");
             
             // Handle custom output path
             if ($customPath = $this->option('output')) {
-                $this->copyToCustomPath($result['path'], $customPath);
+                $backupPath = storage_path('app/backups/database/' . $filename);
+                $this->copyToCustomPath($backupPath, $customPath);
             }
-        } else {
-            $this->error("❌ Backup failed: {$result['error']}");
+        } catch (\Exception $e) {
+            $this->error("❌ Backup failed: {$e->getMessage()}");
         }
     }
 
@@ -75,7 +74,7 @@ class DatabaseBackupCommand extends Command
     {
         $backups = $this->backupService->listBackups();
 
-        if (empty($backups)) {
+        if ($backups->isEmpty()) {
             $this->info('No backups found.');
             return;
         }
@@ -88,9 +87,9 @@ class DatabaseBackupCommand extends Command
 
         foreach ($backups as $backup) {
             $rows[] = [
-                $backup['filename'],
+                $backup['name'],
                 $backup['size'],
-                $backup['created_at'],
+                $backup['created_at']->format('M j, Y g:i A'),
             ];
         }
 
@@ -104,12 +103,11 @@ class DatabaseBackupCommand extends Command
             return;
         }
 
-        $deleted = $this->backupService->deleteBackup($filename);
-
-        if ($deleted) {
+        try {
+            $this->backupService->deleteBackup($filename);
             $this->info("✅ Backup '{$filename}' deleted successfully.");
-        } else {
-            $this->error("❌ Failed to delete backup '{$filename}'. File may not exist.");
+        } catch (\Exception $e) {
+            $this->error("❌ Failed to delete backup '{$filename}': {$e->getMessage()}");
         }
     }
 
