@@ -79,11 +79,10 @@ class DatabaseManagement extends Page
         return $backupService->listBackups()->toArray();
     }
 
-    public function restoreBackup(string $backupPath): void
+    public function restoreBackup(string $filename): void
     {
         try {
             $backupService = new SimpleBackupService();
-            $filename = basename($backupPath);
             $backupService->restoreBackup($filename);
             
             Notification::make()
@@ -98,6 +97,105 @@ class DatabaseManagement extends Page
                 ->body($e->getMessage())
                 ->send();
         }
+    }
+
+    public function restoreFromFilePath(string $filePath): void
+    {
+        try {
+            $sqlContent = file_get_contents($filePath);
+            if (empty($sqlContent)) {
+                throw new \Exception("Backup file is empty or corrupted");
+            }
+
+            // Get database connection
+            $config = config('database.connections.mysql');
+            $pdo = new \PDO(
+                "mysql:host={$config['host']};port={$config['port']};dbname={$config['database']};charset={$config['charset']}",
+                $config['username'],
+                $config['password'],
+                [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
+            );
+
+            // Disable foreign key checks
+            $pdo->exec('SET FOREIGN_KEY_CHECKS=0');
+            $pdo->exec('SET SQL_MODE="NO_AUTO_VALUE_ON_ZERO"');
+            $pdo->exec('SET AUTOCOMMIT=0');
+            $pdo->exec('START TRANSACTION');
+
+            // Split SQL into individual statements
+            $statements = $this->splitSqlStatements($sqlContent);
+            
+            foreach ($statements as $statement) {
+                $statement = trim($statement);
+                if (!empty($statement) && $statement !== ';') {
+                    try {
+                        $pdo->exec($statement);
+                    } catch (\Exception $e) {
+                        // Log individual statement errors but continue
+                        \Log::warning("SQL statement failed during restore: " . $e->getMessage());
+                    }
+                }
+            }
+
+            // Commit transaction and re-enable foreign key checks
+            $pdo->exec('COMMIT');
+            $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
+            
+            Notification::make()
+                ->success()
+                ->title('Database Restored Successfully')
+                ->body('The database has been restored from the uploaded backup.')
+                ->send();
+        } catch (\Exception $e) {
+            Notification::make()
+                ->danger()
+                ->title('Restore Failed')
+                ->body($e->getMessage())
+                ->send();
+        }
+    }
+
+    private function splitSqlStatements(string $sql): array
+    {
+        // Remove comments and split by semicolons
+        $sql = preg_replace('/--.*$/m', '', $sql); // Remove single-line comments
+        $sql = preg_replace('/\/\*.*?\*\//s', '', $sql); // Remove multi-line comments
+        
+        // Split by semicolons, but be careful with quoted strings
+        $statements = [];
+        $current = '';
+        $inQuotes = false;
+        $quoteChar = '';
+        
+        for ($i = 0; $i < strlen($sql); $i++) {
+            $char = $sql[$i];
+            
+            if (!$inQuotes && ($char === '"' || $char === "'")) {
+                $inQuotes = true;
+                $quoteChar = $char;
+            } elseif ($inQuotes && $char === $quoteChar) {
+                // Check if it's escaped
+                if ($i > 0 && $sql[$i-1] !== '\\') {
+                    $inQuotes = false;
+                    $quoteChar = '';
+                }
+            } elseif (!$inQuotes && $char === ';') {
+                $statements[] = trim($current);
+                $current = '';
+                continue;
+            }
+            
+            $current .= $char;
+        }
+        
+        // Add the last statement if it exists
+        if (!empty(trim($current))) {
+            $statements[] = trim($current);
+        }
+        
+        return array_filter($statements, function($stmt) {
+            return !empty(trim($stmt));
+        });
     }
 
     /**
@@ -129,7 +227,7 @@ class DatabaseManagement extends Page
             return;
         }
         
-        $this->restoreBackup($filePath);
+        $this->restoreFromFilePath($filePath);
         
         // Clean up uploaded file (only if we have a relative path, not a tmp file already managed by Livewire)
         if (isset($uploadedFile) && !($uploadedFile instanceof \Livewire\Features\SupportFileUploads\TemporaryUploadedFile) && file_exists($filePath)) {
