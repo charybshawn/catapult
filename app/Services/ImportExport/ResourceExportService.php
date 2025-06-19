@@ -68,18 +68,28 @@ class ResourceExportService
             if ($exitCode === 0 && file_exists($filepath)) {
                 $exportedFiles[] = $filename;
                 
-                // Get statistics
-                $count = DB::table($table)->count();
+                // Get actual record count from the exported file
+                $recordCount = 0;
+                if ($format === 'json') {
+                    $content = file_get_contents($filepath);
+                    $data = json_decode($content, true);
+                    $recordCount = is_array($data) ? count($data) : 0;
+                } else {
+                    // For CSV, count lines minus header
+                    $lineCount = count(file($filepath));
+                    $recordCount = max(0, $lineCount - 1);
+                }
+                
                 $fileSize = filesize($filepath);
                 
                 $manifest['tables'][] = [
                     'name' => $table,
                     'file' => $filename,
-                    'records' => $count,
+                    'records' => $recordCount,
                     'size' => $fileSize
                 ];
                 
-                $manifest['statistics'][$table] = $count;
+                $manifest['statistics'][$table] = $recordCount;
             }
         }
         
@@ -89,22 +99,46 @@ class ResourceExportService
         
         // Create ZIP archive
         $zipPath = storage_path("app/exports/{$resource}_{$timestamp}.zip");
-        $zip = new ZipArchive();
         
-        $result = $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
-        if ($result !== true) {
-            throw new \Exception("Failed to create ZIP archive: " . $this->getZipError($result));
-        }
+        // Get all files to add
+        $filesToAdd = [];
+        $exportDirPath = storage_path("app/{$exportDir}");
         
-        // Add all exported files
-        foreach (Storage::files($exportDir) as $file) {
-            $localPath = storage_path("app/{$file}");
-            if (file_exists($localPath)) {
-                $zip->addFile($localPath, basename($file));
+        if (is_dir($exportDirPath)) {
+            $files = scandir($exportDirPath);
+            foreach ($files as $file) {
+                if ($file !== '.' && $file !== '..') {
+                    $localPath = $exportDirPath . '/' . $file;
+                    if (is_file($localPath)) {
+                        $filesToAdd[$file] = $localPath;
+                    }
+                }
             }
         }
         
-        $zip->close();
+        if (empty($filesToAdd)) {
+            throw new \Exception("No files to add to ZIP archive");
+        }
+        
+        // Create ZIP using shell command as fallback
+        $zip = new ZipArchive();
+        $result = $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        
+        if ($result === true) {
+            foreach ($filesToAdd as $name => $path) {
+                $zip->addFile($path, $name);
+            }
+            $zip->close();
+        } else {
+            // Fallback to shell command
+            $exportDirPath = storage_path("app/{$exportDir}");
+            $command = "cd " . escapeshellarg($exportDirPath) . " && zip -r " . escapeshellarg($zipPath) . " .";
+            exec($command, $output, $returnCode);
+            
+            if ($returnCode !== 0) {
+                throw new \Exception("Failed to create ZIP archive using both ZipArchive and shell command");
+            }
+        }
         
         // Verify ZIP was created
         if (!file_exists($zipPath) || filesize($zipPath) === 0) {

@@ -36,6 +36,7 @@ class DataExportResource extends Resource
                                 return array_combine($resources, array_map('ucfirst', $resources));
                             })
                             ->required()
+                            ->reactive()
                             ->disabled(fn ($record) => $record !== null),
                             
                         Forms\Components\Select::make('format')
@@ -55,6 +56,115 @@ class DataExportResource extends Resource
                             ->disabled(fn ($record) => $record !== null),
                     ])
                     ->columns(2),
+                    
+                Forms\Components\Section::make('Export Filters')
+                    ->description('Optionally filter data to export')
+                    ->schema(function (Forms\Get $get) {
+                        $resource = $get('resource');
+                        
+                        // Return resource-specific filters
+                        return match($resource) {
+                            'orders' => [
+                                Forms\Components\Select::make('filters.status')
+                                    ->label('Order Status')
+                                    ->options([
+                                        '' => 'All Orders',
+                                        'pending' => 'Pending',
+                                        'confirmed' => 'Confirmed',
+                                        'processing' => 'Processing',
+                                        'completed' => 'Completed',
+                                        'cancelled' => 'Cancelled',
+                                    ])
+                                    ->default(''),
+                                    
+                                Forms\Components\DatePicker::make('filters.date_from')
+                                    ->label('From Date'),
+                                    
+                                Forms\Components\DatePicker::make('filters.date_to')
+                                    ->label('To Date'),
+                                    
+                                Forms\Components\Select::make('filters.customer_type')
+                                    ->label('Customer Type')
+                                    ->options([
+                                        '' => 'All Customers',
+                                        'retail' => 'Retail',
+                                        'wholesale' => 'Wholesale',
+                                    ])
+                                    ->default(''),
+                            ],
+                            
+                            'products' => [
+                                Forms\Components\Toggle::make('filters.active_only')
+                                    ->label('Active Products Only')
+                                    ->default(true),
+                                    
+                                Forms\Components\Select::make('filters.category_id')
+                                    ->label('Category')
+                                    ->options(function () {
+                                        return ['' => 'All Categories'] + \App\Models\Category::pluck('name', 'id')->toArray();
+                                    })
+                                    ->default(''),
+                                    
+                                Forms\Components\Toggle::make('filters.in_stock_only')
+                                    ->label('In Stock Only')
+                                    ->default(false),
+                            ],
+                            
+                            'users' => [
+                                Forms\Components\Select::make('filters.customer_type')
+                                    ->label('Customer Type')
+                                    ->options([
+                                        '' => 'All Users',
+                                        'retail' => 'Retail',
+                                        'wholesale' => 'Wholesale',
+                                    ])
+                                    ->default(''),
+                                    
+                                Forms\Components\Toggle::make('filters.with_orders')
+                                    ->label('Only Users with Orders')
+                                    ->default(false),
+                            ],
+                            
+                            'recipes' => [
+                                Forms\Components\Toggle::make('filters.active_only')
+                                    ->label('Active Recipes Only')
+                                    ->default(true),
+                                    
+                                Forms\Components\Select::make('filters.common_name')
+                                    ->label('Crop Type')
+                                    ->options(function () {
+                                        return ['' => 'All Crops'] + \App\Models\Recipe::distinct()->pluck('common_name', 'common_name')->toArray();
+                                    })
+                                    ->default(''),
+                            ],
+                            
+                            'consumables' => [
+                                Forms\Components\Select::make('filters.type')
+                                    ->label('Consumable Type')
+                                    ->options([
+                                        '' => 'All Types',
+                                        'seed' => 'Seeds',
+                                        'soil' => 'Soil',
+                                        'packaging' => 'Packaging',
+                                        'label' => 'Labels',
+                                        'other' => 'Other',
+                                    ])
+                                    ->default(''),
+                                    
+                                Forms\Components\Toggle::make('filters.needs_restock')
+                                    ->label('Needs Restock Only')
+                                    ->default(false),
+                            ],
+                            
+                            default => [
+                                Forms\Components\Placeholder::make('no_filters')
+                                    ->label('')
+                                    ->content('No filters available for this resource'),
+                            ],
+                        };
+                    })
+                    ->columns(3)
+                    ->visible(fn ($record) => $record === null),
                     
                 Forms\Components\Section::make('Export Information')
                     ->schema([
