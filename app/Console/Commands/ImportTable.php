@@ -19,9 +19,11 @@ class ImportTable extends Command
                             {table : The table name to import into}
                             {file : Path to the file to import}
                             {--format= : Import format (json or csv) - auto-detected if not specified}
-                            {--truncate : Truncate table before import}
+                            {--mode=insert : Import mode: replace (truncate first), insert (add new only), upsert (update existing and add new)}
+                            {--truncate : Truncate table before import (deprecated - use --mode=replace)}
                             {--validate : Validate data without importing}
                             {--chunk=1000 : Number of records to insert per chunk}
+                            {--unique-by=* : Column(s) to determine uniqueness for insert/upsert modes}
                             {--map=* : Column mappings in format source:destination}';
 
     /**
@@ -38,10 +40,24 @@ class ImportTable extends Command
     {
         $table = $this->argument('table');
         $file = $this->argument('file');
+        $mode = $this->option('mode');
         $truncate = $this->option('truncate');
         $validateOnly = $this->option('validate');
         $chunkSize = (int) $this->option('chunk');
+        $uniqueBy = $this->option('unique-by');
         $mappings = $this->parseMappings($this->option('map'));
+        
+        // Handle deprecated truncate option
+        if ($truncate) {
+            $this->warn("The --truncate option is deprecated. Use --mode=replace instead.");
+            $mode = 'replace';
+        }
+        
+        // Validate mode
+        if (!in_array($mode, ['replace', 'insert', 'upsert'])) {
+            $this->error("Invalid mode. Use 'replace', 'insert', or 'upsert'.");
+            return 1;
+        }
         
         // Validate file exists
         if (!file_exists($file)) {
@@ -76,6 +92,7 @@ class ImportTable extends Command
         $this->info("Importing from: {$file}");
         $this->info("Target table: {$table}");
         $this->info("Format: {$format}");
+        $this->info("Mode: {$mode}");
         
         // Get table columns
         $tableColumns = Schema::getColumnListing($table);
@@ -123,8 +140,8 @@ class ImportTable extends Command
             return 0;
         }
         
-        // Confirm before truncating
-        if ($truncate) {
+        // Handle different import modes
+        if ($mode === 'replace') {
             if (!$this->confirm("This will DELETE ALL existing data in '{$table}'. Continue?")) {
                 $this->info("Import cancelled.");
                 return 0;
@@ -134,18 +151,78 @@ class ImportTable extends Command
             $this->info("Table truncated.");
         }
         
+        // Determine unique columns for insert/upsert modes
+        $uniqueColumns = [];
+        if (in_array($mode, ['insert', 'upsert'])) {
+            if (!empty($uniqueBy)) {
+                $uniqueColumns = $uniqueBy;
+            } else {
+                // Try to auto-detect unique columns
+                $uniqueColumns = $this->detectUniqueColumns($table);
+                if (empty($uniqueColumns)) {
+                    $this->warn("No unique columns specified or detected. Using 'id' column.");
+                    $uniqueColumns = ['id'];
+                } else {
+                    $this->info("Using unique columns: " . implode(', ', $uniqueColumns));
+                }
+            }
+        }
+        
         // Import data
         $this->info("Importing data...");
         $progressBar = $this->output->createProgressBar(count($data));
         $progressBar->start();
         
         $imported = 0;
+        $skipped = 0;
+        $updated = 0;
         $failed = 0;
         
         foreach (array_chunk($data, $chunkSize) as $chunk) {
             try {
-                DB::table($table)->insert($chunk);
-                $imported += count($chunk);
+                switch ($mode) {
+                    case 'replace':
+                        DB::table($table)->insert($chunk);
+                        $imported += count($chunk);
+                        break;
+                        
+                    case 'insert':
+                        foreach ($chunk as $record) {
+                            $exists = $this->recordExists($table, $record, $uniqueColumns);
+                            if (!$exists) {
+                                DB::table($table)->insert($record);
+                                $imported++;
+                            } else {
+                                $skipped++;
+                            }
+                        }
+                        break;
+                        
+                    case 'upsert':
+                        foreach ($chunk as $record) {
+                            $where = [];
+                            foreach ($uniqueColumns as $col) {
+                                if (isset($record[$col])) {
+                                    $where[$col] = $record[$col];
+                                }
+                            }
+                            
+                            if (!empty($where)) {
+                                $existing = DB::table($table)->where($where)->exists();
+                                if ($existing) {
+                                    DB::table($table)->where($where)->update($record);
+                                    $updated++;
+                                } else {
+                                    DB::table($table)->insert($record);
+                                    $imported++;
+                                }
+                            } else {
+                                DB::table($table)->insert($record);
+                                $imported++;
+                            }
+                        }
+                        break;
+                }
             } catch (\Exception $e) {
                 $failed += count($chunk);
                 $this->newLine();
@@ -159,7 +236,20 @@ class ImportTable extends Command
         $this->newLine(2);
         
         $this->info("Import complete!");
-        $this->info("Successfully imported: {$imported} records");
+        $this->info("Mode: {$mode}");
+        
+        if ($mode === 'replace' || $imported > 0) {
+            $this->info("Successfully imported: {$imported} records");
+        }
+        
+        if ($mode === 'insert' && $skipped > 0) {
+            $this->info("Skipped existing: {$skipped} records");
+        }
+        
+        if ($mode === 'upsert' && $updated > 0) {
+            $this->info("Updated existing: {$updated} records");
+        }
+        
         if ($failed > 0) {
             $this->warn("Failed to import: {$failed} records");
         }
@@ -318,5 +408,43 @@ class ImportTable extends Command
         }
         
         return ['valid' => $valid, 'errors' => $errors];
+    }
+    
+    /**
+     * Check if a record exists based on unique columns
+     */
+    protected function recordExists($table, $record, $uniqueColumns)
+    {
+        $query = DB::table($table);
+        
+        foreach ($uniqueColumns as $column) {
+            if (isset($record[$column])) {
+                $query->where($column, $record[$column]);
+            }
+        }
+        
+        return $query->exists();
+    }
+    
+    /**
+     * Try to detect unique columns for a table
+     */
+    protected function detectUniqueColumns($table)
+    {
+        $uniqueColumns = [];
+        
+        // Common unique column names
+        $commonUnique = ['id', 'uuid', 'email', 'username', 'slug', 'sku', 'code'];
+        
+        $tableColumns = Schema::getColumnListing($table);
+        
+        foreach ($commonUnique as $column) {
+            if (in_array($column, $tableColumns)) {
+                $uniqueColumns[] = $column;
+                break; // Use first found
+            }
+        }
+        
+        return $uniqueColumns;
     }
 }

@@ -20,6 +20,12 @@ class ListDataExports extends ListRecords
                 ->label('Import Data')
                 ->icon('heroicon-o-arrow-up-tray')
                 ->color('success')
+                ->requiresConfirmation(function (array $data) {
+                    return !($data['validate_only'] ?? false) && ($data['import_mode'] ?? 'insert') === 'replace';
+                })
+                ->modalHeading('Confirm Data Replacement')
+                ->modalDescription('This will permanently DELETE ALL existing data before importing. This action cannot be undone.')
+                ->modalSubmitActionLabel('Yes, replace all data')
                 ->form([
                     \Filament\Forms\Components\FileUpload::make('file')
                         ->label('Import File')
@@ -35,11 +41,27 @@ class ListDataExports extends ListRecords
                         ->helperText('Check data compatibility without importing')
                         ->default(true),
                         
-                    \Filament\Forms\Components\Toggle::make('truncate')
-                        ->label('Replace Existing Data')
-                        ->helperText('WARNING: This will delete existing data before importing')
-                        ->default(false)
-                        ->visible(fn ($get) => !$get('validate_only')),
+                    \Filament\Forms\Components\Select::make('import_mode')
+                        ->label('Import Mode')
+                        ->options([
+                            'insert' => 'Add New Records Only',
+                            'replace' => 'Replace All Data (Delete existing first)',
+                            'upsert' => 'Update Existing & Add New Records',
+                        ])
+                        ->default('insert')
+                        ->helperText('Choose how to handle existing data')
+                        ->visible(fn ($get) => !$get('validate_only'))
+                        ->reactive(),
+                        
+                    \Filament\Forms\Components\Placeholder::make('replace_warning')
+                        ->content('⚠️ WARNING: This will permanently DELETE ALL existing data before importing!')
+                        ->visible(fn ($get) => !$get('validate_only') && $get('import_mode') === 'replace'),
+                        
+                    \Filament\Forms\Components\TextInput::make('unique_columns')
+                        ->label('Unique Columns')
+                        ->helperText('Comma-separated column names to identify unique records (e.g., id,email)')
+                        ->placeholder('Leave empty to auto-detect')
+                        ->visible(fn ($get) => !$get('validate_only') && in_array($get('import_mode'), ['insert', 'upsert'])),
                 ])
                 ->action(function (array $data) {
                     $filepath = storage_path('app/' . $data['file']);
@@ -49,7 +71,10 @@ class ListDataExports extends ListRecords
                         
                         $options = [
                             'validate_only' => $data['validate_only'],
-                            'truncate' => $data['truncate'] ?? false,
+                            'mode' => $data['import_mode'] ?? 'insert',
+                            'unique_columns' => !empty($data['unique_columns']) 
+                                ? array_map('trim', explode(',', $data['unique_columns'])) 
+                                : [],
                         ];
                         
                         $results = $importService->importResource($filepath, $options);
@@ -69,9 +94,35 @@ class ListDataExports extends ListRecords
                                     ->send();
                             }
                         } else {
+                            // Parse the import results to show statistics
+                            $stats = [];
+                            foreach ($results['tables'] as $tableResult) {
+                                if (isset($tableResult['message'])) {
+                                    // Extract numbers from the output message
+                                    if (preg_match('/imported: (\d+)/', $tableResult['message'], $matches)) {
+                                        $stats['imported'] = ($stats['imported'] ?? 0) + (int)$matches[1];
+                                    }
+                                    if (preg_match('/Skipped existing: (\d+)/', $tableResult['message'], $matches)) {
+                                        $stats['skipped'] = ($stats['skipped'] ?? 0) + (int)$matches[1];
+                                    }
+                                    if (preg_match('/Updated existing: (\d+)/', $tableResult['message'], $matches)) {
+                                        $stats['updated'] = ($stats['updated'] ?? 0) + (int)$matches[1];
+                                    }
+                                }
+                            }
+                            
+                            $message = "Successfully processed {$results['resource']} import.";
+                            if (!empty($stats)) {
+                                $parts = [];
+                                if (isset($stats['imported'])) $parts[] = "Imported: {$stats['imported']}";
+                                if (isset($stats['updated'])) $parts[] = "Updated: {$stats['updated']}";
+                                if (isset($stats['skipped'])) $parts[] = "Skipped: {$stats['skipped']}";
+                                $message .= "\n" . implode(', ', $parts);
+                            }
+                            
                             \Filament\Notifications\Notification::make()
                                 ->title('Import Successful')
-                                ->body("Successfully imported data for {$results['resource']} resource.")
+                                ->body($message)
                                 ->success()
                                 ->send();
                         }

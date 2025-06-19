@@ -14,8 +14,9 @@ class ResourceImportService
      */
     public function importResource(string $zipPath, array $options = []): array
     {
-        $truncate = $options['truncate'] ?? false;
+        $mode = $options['mode'] ?? 'insert';
         $validateOnly = $options['validate_only'] ?? false;
+        $uniqueColumns = $options['unique_columns'] ?? [];
         
         // Extract ZIP to temporary directory
         $tempDir = 'imports/temp_' . uniqid();
@@ -79,23 +80,17 @@ class ResourceImportService
                 $commandOptions = [
                     'table' => $table,
                     'file' => $filepath,
+                    '--mode' => $mode,
                 ];
                 
                 if ($validateOnly) {
                     $commandOptions['--validate'] = true;
                 }
                 
-                if ($truncate && !$validateOnly) {
-                    // Only truncate lookup tables and primary tables
-                    $definition = ResourceDefinitions::getResourceDependencies()[$resource];
-                    $isPrimary = isset($definition['tables'][$table]) && ($definition['tables'][$table]['primary'] ?? false);
-                    $isLookup = isset($definition['related_lookups'][$table]);
-                    
-                    if ($isPrimary || $isLookup) {
-                        // Disable foreign key checks temporarily
-                        DB::statement('SET FOREIGN_KEY_CHECKS=0');
-                        DB::table($table)->truncate();
-                        DB::statement('SET FOREIGN_KEY_CHECKS=1');
+                // Add unique columns if specified
+                if (!empty($uniqueColumns)) {
+                    foreach ($uniqueColumns as $col) {
+                        $commandOptions['--unique-by'][] = $col;
                     }
                 }
                 
