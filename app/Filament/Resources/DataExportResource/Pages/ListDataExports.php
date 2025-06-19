@@ -21,11 +21,13 @@ class ListDataExports extends ListRecords
                 ->icon('heroicon-o-arrow-up-tray')
                 ->color('success')
                 ->requiresConfirmation(function (array $data) {
-                    return !($data['validate_only'] ?? false) && ($data['import_mode'] ?? 'insert') === 'replace';
+                    return ($data['action_type'] ?? 'validate') === 'import' && ($data['import_mode'] ?? 'insert') === 'replace';
                 })
-                ->modalHeading('Confirm Data Replacement')
-                ->modalDescription('This will permanently DELETE ALL existing data before importing. This action cannot be undone.')
-                ->modalSubmitActionLabel('Yes, replace all data')
+                ->modalHeading('⚠️ Confirm Destructive Import')
+                ->modalDescription('You have selected REPLACE mode. This will permanently DELETE ALL existing data in the affected tables before importing new data. This action cannot be undone. Are you absolutely sure?')
+                ->modalSubmitActionLabel('Yes, DELETE all data and import')
+                ->modalCancelActionLabel('Cancel')
+                ->modalWidth('2xl')
                 ->form([
                     \Filament\Forms\Components\FileUpload::make('file')
                         ->label('Import File')
@@ -39,32 +41,103 @@ class ListDataExports extends ListRecords
                         ->visibility('private')
                         ->storeFileNamesIn('original_file_name'),
                         
-                    \Filament\Forms\Components\Toggle::make('validate_only')
-                        ->label('Validate Only')
-                        ->helperText('Check data compatibility without importing')
-                        ->default(true),
-                        
-                    \Filament\Forms\Components\Select::make('import_mode')
-                        ->label('Import Mode')
+                    \Filament\Forms\Components\Radio::make('action_type')
+                        ->label('What would you like to do?')
                         ->options([
-                            'insert' => 'Add New Records Only',
-                            'replace' => 'Replace All Data (Delete existing first)',
-                            'upsert' => 'Update Existing & Add New Records',
+                            'validate' => 'Validate Only - Check if data is compatible',
+                            'import' => 'Import Data - Process the import',
                         ])
-                        ->default('insert')
-                        ->helperText('Choose how to handle existing data')
-                        ->visible(fn ($get) => !$get('validate_only'))
-                        ->reactive(),
+                        ->default('validate')
+                        ->reactive()
+                        ->columnSpanFull(),
                         
-                    \Filament\Forms\Components\Placeholder::make('replace_warning')
-                        ->content('⚠️ WARNING: This will permanently DELETE ALL existing data before importing!')
-                        ->visible(fn ($get) => !$get('validate_only') && $get('import_mode') === 'replace'),
+                    \Filament\Forms\Components\Section::make('Import Options')
+                        ->description('Choose how to handle existing data')
+                        ->schema([
+                            \Filament\Forms\Components\Radio::make('import_mode')
+                                ->label('Import Mode')
+                                ->options([
+                                    'insert' => 'Add New Records Only - Skip records that already exist',
+                                    'upsert' => 'Update & Add - Update existing records and add new ones',
+                                    'replace' => 'Replace All - DELETE all existing data and import fresh',
+                                ])
+                                ->default('insert')
+                                ->reactive()
+                                ->columnSpanFull()
+                                ->descriptions([
+                                    'insert' => 'Safe option: Only adds records that don\'t exist based on unique columns',
+                                    'upsert' => 'Updates matching records and adds new ones',
+                                    'replace' => '⚠️ DANGER: Permanently deletes ALL existing data first!',
+                                ]),
+                                
+                            \Filament\Forms\Components\Placeholder::make('replace_warning')
+                                ->label('')
+                                ->content(new \Illuminate\Support\HtmlString('
+                                    <div class="p-4 bg-warning-50 dark:bg-warning-900/50 rounded-lg border border-warning-200 dark:border-warning-800">
+                                        <div class="flex">
+                                            <div class="flex-shrink-0">
+                                                <svg class="h-5 w-5 text-warning-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                                </svg>
+                                            </div>
+                                            <div class="ml-3">
+                                                <h3 class="text-sm font-medium text-warning-800 dark:text-warning-200">
+                                                    Destructive Operation Warning
+                                                </h3>
+                                                <div class="mt-2 text-sm text-warning-700 dark:text-warning-300">
+                                                    This will PERMANENTLY DELETE ALL existing data in the related tables before importing. This action cannot be undone!
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                '))
+                                ->visible(fn ($get) => $get('import_mode') === 'replace'),
+                                
+                            \Filament\Forms\Components\TextInput::make('unique_columns')
+                                ->label('Unique Columns (Optional)')
+                                ->helperText('Comma-separated column names to identify unique records (e.g., id,email)')
+                                ->placeholder('Leave empty to auto-detect (id, email, username, etc.)')
+                                ->visible(fn ($get) => in_array($get('import_mode'), ['insert', 'upsert'])),
+                        ])
+                        ->visible(fn ($get) => $get('action_type') === 'import')
+                        ->columnSpanFull(),
                         
-                    \Filament\Forms\Components\TextInput::make('unique_columns')
-                        ->label('Unique Columns')
-                        ->helperText('Comma-separated column names to identify unique records (e.g., id,email)')
-                        ->placeholder('Leave empty to auto-detect')
-                        ->visible(fn ($get) => !$get('validate_only') && in_array($get('import_mode'), ['insert', 'upsert'])),
+                    \Filament\Forms\Components\Section::make('Summary')
+                        ->description(function ($get) {
+                            $action = $get('action_type');
+                            $mode = $get('import_mode') ?? 'insert';
+                            
+                            if ($action === 'validate') {
+                                return 'The import file will be checked for compatibility without making any changes to your database.';
+                            }
+                            
+                            return match($mode) {
+                                'insert' => 'New records will be added. Existing records will be skipped.',
+                                'upsert' => 'Existing records will be updated and new records will be added.',
+                                'replace' => '⚠️ ALL existing data will be DELETED and replaced with the imported data.',
+                                default => ''
+                            };
+                        })
+                        ->schema([
+                            \Filament\Forms\Components\Placeholder::make('action_summary')
+                                ->label('')
+                                ->content(function ($get) {
+                                    $action = $get('action_type');
+                                    $mode = $get('import_mode') ?? 'insert';
+                                    
+                                    if ($action === 'validate') {
+                                        return '✓ No data will be modified - validation only';
+                                    }
+                                    
+                                    return match($mode) {
+                                        'insert' => '✓ Safe import - only new records will be added',
+                                        'upsert' => '✓ Update and add - existing records updated, new ones added',
+                                        'replace' => '⚠️ DESTRUCTIVE - all data will be deleted first',
+                                        default => ''
+                                    };
+                                }),
+                        ])
+                        ->columnSpanFull(),
                 ])
                 ->action(function (array $data) {
                     // Ensure imports directory exists
@@ -125,8 +198,10 @@ class ListDataExports extends ListRecords
                     try {
                         $importService = new \App\Services\ImportExport\ResourceImportService();
                         
+                        $validateOnly = $data['action_type'] === 'validate';
+                        
                         $options = [
-                            'validate_only' => $data['validate_only'],
+                            'validate_only' => $validateOnly,
                             'mode' => $data['import_mode'] ?? 'insert',
                             'unique_columns' => !empty($data['unique_columns']) 
                                 ? array_map('trim', explode(',', $data['unique_columns'])) 
@@ -135,7 +210,7 @@ class ListDataExports extends ListRecords
                         
                         $results = $importService->importResource($filepath, $options);
                         
-                        if ($data['validate_only']) {
+                        if ($validateOnly) {
                             if (empty($results['errors'])) {
                                 \Filament\Notifications\Notification::make()
                                     ->title('Validation Successful')
