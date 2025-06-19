@@ -5,10 +5,31 @@ namespace App\Filament\Resources\ProductMixResource\Pages;
 use App\Filament\Resources\ProductMixResource;
 use App\Filament\Pages\Base\BaseEditRecord;
 use Filament\Actions;
+use Filament\Notifications\Notification;
 
 class EditProductMix extends BaseEditRecord
 {
     protected static string $resource = ProductMixResource::class;
+
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        // Explicitly load the masterSeedCatalogs relationship data
+        $components = $this->record->masterSeedCatalogs()
+            ->withPivot('percentage', 'cultivar')
+            ->get();
+            
+        $data['masterSeedCatalogs'] = $components->map(function ($catalog) {
+            $cultivar = $catalog->pivot->cultivar ?: 'Unknown';
+            return [
+                'master_seed_catalog_id' => $catalog->id,
+                'cultivar' => $cultivar,
+                'percentage' => floatval($catalog->pivot->percentage),
+                'variety_selection' => $catalog->id . '|' . $cultivar,
+            ];
+        })->toArray();
+        
+        return $data;
+    }
 
     protected function getHeaderActions(): array
     {
@@ -18,48 +39,64 @@ class EditProductMix extends BaseEditRecord
         ];
     }
     
-    protected function mutateFormDataBeforeFill(array $data): array
+    protected function mutateFormDataBeforeSave(array $data): array
     {
-        $components = [];
+        // Log the data to debug
+        \Illuminate\Support\Facades\Log::info('ProductMix save data:', [
+            'data' => $data,
+            'masterSeedCatalogs' => $this->data['masterSeedCatalogs'] ?? []
+        ]);
         
-        // Get the product mix record with its seedVarieties
-        $productMix = $this->getRecord();
-        $seedVarieties = $productMix->seedVarieties;
-        
-        // Build the components array for the repeater
-        foreach ($seedVarieties as $variety) {
-            $components[] = [
-                'seed_variety_id' => $variety->id, 
-                'percentage' => $variety->pivot->percentage,
-            ];
-        }
-        
-        $data['components'] = $components;
+        // Validate the percentages add up to 100
+        $this->validatePercentages();
         
         return $data;
     }
     
     protected function afterSave(): void
     {
-        // Get the record being edited
-        $record = $this->record;
+        // Manually sync the relationship with cultivar data
+        $components = $this->data['masterSeedCatalogs'] ?? [];
+        $syncData = [];
         
-        // Get the form data
-        $data = $this->data;
-        
-        // Handle components if they exist
-        if (isset($data['components']) && is_array($data['components'])) {
-            // First detach all existing relationships
-            $record->seedVarieties()->detach();
-            
-            // Then reattach with updated data
-            foreach ($data['components'] as $component) {
-                if (isset($component['seed_variety_id']) && isset($component['percentage'])) {
-                    $record->seedVarieties()->attach($component['seed_variety_id'], [
-                        'percentage' => $component['percentage'],
-                    ]);
-                }
+        foreach ($components as $component) {
+            if (isset($component['master_seed_catalog_id']) && isset($component['percentage'])) {
+                $syncData[$component['master_seed_catalog_id']] = [
+                    'percentage' => $component['percentage'],
+                    'cultivar' => $component['cultivar'] ?? null,
+                ];
             }
+        }
+        
+        \Illuminate\Support\Facades\Log::info('Syncing components:', $syncData);
+        
+        $this->record->masterSeedCatalogs()->sync($syncData);
+    }
+    
+    protected function validatePercentages(): void
+    {
+        $components = $this->data['masterSeedCatalogs'] ?? [];
+        $total = 0;
+        
+        foreach ($components as $component) {
+            if (isset($component['percentage']) && is_numeric($component['percentage'])) {
+                $total += floatval($component['percentage']);
+            }
+        }
+        
+        // Round to 2 decimal places to match database precision
+        $total = round($total, 2);
+        
+        // Allow for very small floating point differences
+        if (abs($total - 100) > 0.01) {
+            Notification::make()
+                ->title('Invalid Mix Percentages')
+                ->body('The total percentage must equal 100%. Current total: ' . number_format($total, 2) . '%')
+                ->danger()
+                ->persistent()
+                ->send();
+                
+            $this->halt();
         }
     }
 } 

@@ -44,17 +44,26 @@
     },
     
     updateHiddenInput() {
-        // Update the Livewire model directly - try different possible paths
+        // Update the hidden input field directly
+        const hiddenInput = document.querySelector('input[wire\\:model\*=\"selected_template_ids\"]');
+        if (hiddenInput) {
+            hiddenInput.value = JSON.stringify(this.selectedTemplates);
+            // Trigger change event to notify Livewire
+            hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+            console.log('Updated hidden input with:', JSON.stringify(this.selectedTemplates));
+        } else {
+            console.error('Hidden input field not found');
+        }
+        
+        // Also try to update Livewire directly as fallback
         try {
-            $wire.set('data.selected_template_ids', JSON.stringify(this.selectedTemplates));
-            console.log('Updated Livewire data.selected_template_ids with:', JSON.stringify(this.selectedTemplates));
-        } catch (e) {
-            try {
-                $wire.set('mountedFormComponentActionsData.0.selected_template_ids', JSON.stringify(this.selectedTemplates));
-                console.log('Updated Livewire mountedFormComponentActionsData with:', JSON.stringify(this.selectedTemplates));
-            } catch (e2) {
-                console.error('Failed to update Livewire:', e, e2);
+            // Try to find the correct path for modal action data
+            if (typeof $wire !== 'undefined') {
+                $wire.set('mountedActionsData.0.selected_template_ids', JSON.stringify(this.selectedTemplates));
+                console.log('Updated Livewire mountedActionsData with:', JSON.stringify(this.selectedTemplates));
             }
+        } catch (e) {
+            console.log('Livewire update failed (this is expected):', e);
         }
     },
     

@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\ProductMixResource\Pages;
 use App\Models\ProductMix;
 use App\Models\SeedEntry;
+use App\Forms\Components\CompactRepeater;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -45,42 +46,167 @@ class ProductMixResource extends Resource
                 
                 Forms\Components\Section::make('Mix Components')
                     ->schema([
-                        Forms\Components\Repeater::make('components')
+                        // Total percentage display
+                        Forms\Components\Placeholder::make('percentage_total')
+                            ->label('')
+                            ->content(function ($get) {
+                                $components = $get('masterSeedCatalogs') ?? [];
+                                $total = 0;
+                                
+                                foreach ($components as $component) {
+                                    if (isset($component['percentage']) && is_numeric($component['percentage'])) {
+                                        $total += floatval($component['percentage']);
+                                    }
+                                }
+                                
+                                // Round to 2 decimal places to match database precision
+                                $total = round($total, 2);
+                                // Format to show only needed decimal places
+                                $totalFormatted = number_format($total, 2);
+                                
+                                if ($total == 0) {
+                                    return new \Illuminate\Support\HtmlString('
+                                        <div class="text-center p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                                            <p class="text-sm text-gray-600 dark:text-gray-400">Add varieties to see total percentage</p>
+                                        </div>
+                                    ');
+                                } elseif ($total == 100) {
+                                    return new \Illuminate\Support\HtmlString('
+                                        <div class="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border-2 border-green-500">
+                                            <p class="text-2xl font-bold text-green-600 dark:text-green-400">✓ ' . $totalFormatted . '%</p>
+                                            <p class="text-sm text-green-600 dark:text-green-400">Perfect mix!</p>
+                                        </div>
+                                    ');
+                                } else {
+                                    $difference = 100 - $total;
+                                    $differenceText = $difference > 0 
+                                        ? 'Add ' . number_format($difference, 2) . '% more'
+                                        : 'Remove ' . number_format(abs($difference), 2) . '%';
+                                    
+                                    return new \Illuminate\Support\HtmlString('
+                                        <div class="text-center p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border-2 border-amber-500">
+                                            <p class="text-2xl font-bold text-amber-600 dark:text-amber-400">⚠️ ' . $totalFormatted . '%</p>
+                                            <p class="text-sm text-amber-600 dark:text-amber-400">' . $differenceText . ' to reach 100%</p>
+                                        </div>
+                                    ');
+                                }
+                            })
+                            ->extraAttributes(['class' => 'w-full'])
+                            ->reactive(),
+                            
+                        CompactRepeater::make('mixComponents')
                             ->label('Varieties')
+                            ->statePath('masterSeedCatalogs')
                             ->schema([
-                                Forms\Components\Select::make('seed_entry_id')
-                                    ->label('Cultivar')
-                                    ->options(SeedEntry::all()->pluck('cultivar_name', 'id'))
-                                    ->createOptionForm([
-                                        Forms\Components\TextInput::make('cultivar_name')
-                                            ->required()
-                                            ->maxLength(255),
-                                        Forms\Components\TextInput::make('common_name')
-                                            ->maxLength(255),
-                                        Forms\Components\Textarea::make('description')
-                                            ->maxLength(500),
-                                    ])
-                                    ->createOptionUsing(function (array $data) {
-                                        return SeedEntry::create([
-                                            'cultivar_name' => $data['cultivar_name'],
-                                            'common_name' => $data['common_name'] ?? null,
-                                            'description' => $data['description'] ?? null,
-                                        ])->id;
+                                Forms\Components\Select::make('variety_selection')
+                                    ->label('Variety')
+                                    ->options(function () {
+                                        $options = [];
+                                        
+                                        // Get all consumables with available seed inventory
+                                        $consumables = \App\Models\Consumable::where('type', 'seed')
+                                            ->where('is_active', true)
+                                            ->whereRaw('(total_quantity - consumed_quantity) > 0')
+                                            ->whereNotNull('master_seed_catalog_id')
+                                            ->with('masterSeedCatalog')
+                                            ->orderBy('master_seed_catalog_id')
+                                            ->orderBy('cultivar')
+                                            ->get();
+                                        
+                                        foreach ($consumables as $consumable) {
+                                            if (!$consumable->masterSeedCatalog || !$consumable->masterSeedCatalog->is_active) {
+                                                continue;
+                                            }
+                                            
+                                            $catalog = $consumable->masterSeedCatalog;
+                                            $cultivar = $consumable->cultivar ?: 'Unknown';
+                                            $available = $consumable->total_quantity - $consumable->consumed_quantity;
+                                            $unit = $consumable->quantity_unit ?: $consumable->unit;
+                                            
+                                            // Create a composite key that includes both catalog ID and cultivar
+                                            $key = $catalog->id . '|' . $cultivar;
+                                            $label = $catalog->common_name . ' (' . $cultivar . ') - ' . 
+                                                    number_format($available, 2) . ' ' . $unit;
+                                            
+                                            $options[$key] = $label;
+                                        }
+                                        
+                                        return $options;
                                     })
-                                    ->preload()
+                                    ->reactive()
+                                    ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                        if ($state) {
+                                            // Parse the composite key
+                                            [$catalogId, $cultivar] = explode('|', $state);
+                                            $set('master_seed_catalog_id', $catalogId);
+                                            $set('cultivar', $cultivar);
+                                        }
+                                    })
+                                    ->dehydrated(false) // Don't save this field directly
                                     ->searchable()
-                                    ->required(),
+                                    ->required()
+                                    ->columnSpan(3),
+                                
+                                // Hidden fields to store the actual values
+                                Forms\Components\Hidden::make('master_seed_catalog_id'),
+                                Forms\Components\Hidden::make('cultivar'),
                                 
                                 Forms\Components\TextInput::make('percentage')
                                     ->label('Percentage (%)')
                                     ->numeric()
-                                    ->minValue(1)
+                                    ->minValue(0.01)
                                     ->maxValue(100)
                                     ->required()
-                                    ->default(25),
+                                    ->default(25)
+                                    ->suffix('%')
+                                    ->step(0.01)
+                                    ->inputMode('decimal')
+                                    ->reactive()
+                                    ->columnSpan(1),
                             ])
-                            ->columns(2)
-                            ->defaultItems(1)
+                            ->mutateRelationshipDataBeforeCreateUsing(function (array $data) {
+                                // Remove the variety_selection field as it's not part of the database
+                                unset($data['variety_selection']);
+                                
+                                // Ensure we have the required fields
+                                if (!isset($data['master_seed_catalog_id']) || !isset($data['percentage'])) {
+                                    throw new \Exception('Missing required fields');
+                                }
+                                
+                                return $data;
+                            })
+                            ->mutateRelationshipDataBeforeSaveUsing(function (array $data) {
+                                // Remove the variety_selection field as it's not part of the database
+                                unset($data['variety_selection']);
+                                
+                                // Ensure we have the required fields
+                                if (!isset($data['master_seed_catalog_id']) || !isset($data['percentage'])) {
+                                    throw new \Exception('Missing required fields');
+                                }
+                                
+                                return $data;
+                            })
+                            ->mutateRelationshipDataBeforeFillUsing(function (array $data) {
+                                // When loading existing data, create the composite key for the select
+                                if (isset($data['master_seed_catalog_id']) && isset($data['cultivar'])) {
+                                    $data['variety_selection'] = $data['master_seed_catalog_id'] . '|' . $data['cultivar'];
+                                }
+                                // Ensure percentage is properly cast
+                                if (isset($data['percentage'])) {
+                                    $data['percentage'] = floatval($data['percentage']);
+                                }
+                                return $data;
+                            })
+                            ->columnWidths([
+                                'master_cultivar_id' => '70%',
+                                'percentage' => '30%',
+                            ])
+                            ->defaultItems(2)
+                            ->minItems(2)
+                            ->addActionLabel('Add Variety')
+                            ->reorderable(true)
+                            ->compact(true)
+                            ->itemLabel('variety')
                     ])
             ]);
     }
@@ -104,12 +230,14 @@ class ProductMixResource extends Resource
                     ->label('Mix Components')
                     ->html()
                     ->getStateUsing(function (ProductMix $record): string {
-                        $components = $record->seedCultivars()
-                            ->withPivot('percentage')
+                        $components = $record->masterSeedCatalogs()
+                            ->withPivot('percentage', 'cultivar')
                             ->get()
-                            ->map(fn ($variety) => 
+                            ->map(fn ($catalog) => 
                                 "<span class='inline-flex items-center px-2 py-1 mr-1 mb-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full dark:bg-gray-700 dark:text-gray-300'>" .
-                                "{$variety->name} ({$variety->pivot->percentage}%)" .
+                                "{$catalog->common_name}" . 
+                                ($catalog->pivot->cultivar ? " ({$catalog->pivot->cultivar})" : "") .
+                                " - " . number_format($catalog->pivot->percentage, 2) . "%" .
                                 "</span>"
                             )
                             ->join('');
@@ -154,11 +282,9 @@ class ProductMixResource extends Resource
                     ->query(fn (Builder $query) => $query->whereDoesntHave('products')),
                 Tables\Filters\Filter::make('incomplete')
                     ->label('Incomplete Mixes')
-                    ->query(fn (Builder $query) => $query->whereDoesntHave('seedCultivars')),
+                    ->query(fn (Builder $query) => $query->whereDoesntHave('masterSeedCatalogs')),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make()
-                    ->tooltip('View mix details'),
                 Tables\Actions\EditAction::make()
                     ->tooltip('Edit mix'),
                 Tables\Actions\Action::make('duplicate')
@@ -172,9 +298,10 @@ class ProductMixResource extends Resource
                         $newMix->save();
                         
                         // Copy the seed varieties
-                        foreach ($record->seedCultivars as $variety) {
-                            $newMix->seedCultivars()->attach($variety->id, [
-                                'percentage' => $variety->pivot->percentage,
+                        foreach ($record->masterSeedCatalogs as $catalog) {
+                            $newMix->masterSeedCatalogs()->attach($catalog->id, [
+                                'percentage' => $catalog->pivot->percentage,
+                                'cultivar' => $catalog->pivot->cultivar,
                             ]);
                         }
                         
@@ -206,8 +333,7 @@ class ProductMixResource extends Resource
         return [
             'index' => Pages\ListProductMixes::route('/'),
             'create' => Pages\CreateProductMix::route('/create'),
-            'view' => Pages\ViewProductMix::route('/{record}'),
-            'edit' => Pages\EditProductMix::route('/{record}/edit'),
+            'edit' => Pages\EditProductMix::route('/{record}'),
         ];
     }
 } 

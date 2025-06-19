@@ -24,12 +24,35 @@ class ProductMix extends Model
     ];
     
     /**
+     * The "booted" method of the model.
+     */
+    protected static function booted()
+    {
+        // Validate mix percentages after saving relationships
+        static::saved(function ($productMix) {
+            // This will run after the mix is saved, giving time for relationships to be updated
+            // We'll handle validation in the form instead to provide better UX
+        });
+    }
+    
+    /**
      * Get the seed entries that make up this mix.
+     * @deprecated Use masterSeedCatalogs() instead
      */
     public function seedEntries(): BelongsToMany
     {
         return $this->belongsToMany(SeedEntry::class, 'product_mix_components', 'product_mix_id', 'seed_entry_id')
             ->withPivot('percentage')
+            ->withTimestamps();
+    }
+    
+    /**
+     * Get the master seed catalog entries that make up this mix.
+     */
+    public function masterSeedCatalogs(): BelongsToMany
+    {
+        return $this->belongsToMany(MasterSeedCatalog::class, 'product_mix_components', 'product_mix_id', 'master_seed_catalog_id')
+            ->withPivot('percentage', 'cultivar')
             ->withTimestamps();
     }
     
@@ -51,10 +74,10 @@ class ProductMix extends Model
     {
         $cultivarTrays = [];
         
-        foreach ($this->seedEntries as $cultivar) {
-            $percentage = $cultivar->pivot->percentage;
+        foreach ($this->masterSeedCatalogs as $catalog) {
+            $percentage = $catalog->pivot->percentage;
             $trays = ceil(($percentage / 100) * $totalTrays);
-            $cultivarTrays[$cultivar->id] = $trays;
+            $cultivarTrays[$catalog->id] = $trays;
         }
         
         return $cultivarTrays;
@@ -69,5 +92,27 @@ class ProductMix extends Model
             ->logOnly(['name', 'description', 'is_active'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
+    }
+    
+    /**
+     * Validate that the mix percentages add up to 100%
+     */
+    public function validatePercentages(): bool
+    {
+        $total = $this->masterSeedCatalogs()->sum('percentage');
+        
+        // Round to 2 decimal places to match database precision
+        $total = round($total, 2);
+        
+        // Allow for very small floating point differences
+        return abs($total - 100) < 0.01;
+    }
+    
+    /**
+     * Get the total percentage of the mix
+     */
+    public function getTotalPercentageAttribute(): float
+    {
+        return $this->masterSeedCatalogs()->sum('percentage');
     }
 } 

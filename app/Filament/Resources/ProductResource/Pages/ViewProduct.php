@@ -17,14 +17,9 @@ class ViewProduct extends ViewRecord
 
     public function form(Form $form): Form
     {
+        // Use the standard resource form schema to show all sections including price variations
         try {
-            // Log that we're entering the form method
-            Log::info('ViewProduct: Entering form method');
-            
-            // Get only the record data part of the form schema from the resource
-            $formSchema = $this->getSafeFormSchema();
-            
-            return $form->schema($formSchema);
+            return parent::form($form);
         } catch (Throwable $e) {
             // Log the error with our debug service
             DebugService::logError($e, 'ViewProduct::form');

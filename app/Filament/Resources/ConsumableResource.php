@@ -179,18 +179,22 @@ class ConsumableResource extends BaseResource
                                                                 $catalog = \App\Models\MasterSeedCatalog::find($catalogId);
                                                                 if ($catalog) {
                                                                     $cultivars = is_array($catalog->cultivars) ? $catalog->cultivars : [];
-                                                                    $cultivarName = isset($cultivars[$cultivarIndex]) ? ucwords(strtolower($cultivars[$cultivarIndex])) : 'Unknown Cultivar';
+                                                                    $cultivarName = isset($cultivars[$cultivarIndex]) ? $cultivars[$cultivarIndex] : 'Unknown Cultivar';
                                                                     $commonName = ucwords(strtolower($catalog->common_name));
-                                                                    $set('name', $commonName . ' (' . $cultivarName . ')');
+                                                                    $set('name', $commonName . ' (' . ucwords(strtolower($cultivarName)) . ')');
+                                                                    $set('cultivar', $cultivarName); // Set the cultivar field
+                                                                    $set('master_seed_catalog_id', $catalogId); // Set the actual catalog ID
                                                                 }
                                                             } else {
                                                                 // Fallback for simple catalog ID
                                                                 $catalog = \App\Models\MasterSeedCatalog::find($state);
                                                                 if ($catalog) {
                                                                     $cultivars = is_array($catalog->cultivars) ? $catalog->cultivars : [];
-                                                                    $cultivarName = !empty($cultivars) ? ucwords(strtolower($cultivars[0])) : 'No Cultivar';
+                                                                    $cultivarName = !empty($cultivars) ? $cultivars[0] : 'No Cultivar';
                                                                     $commonName = ucwords(strtolower($catalog->common_name));
-                                                                    $set('name', $commonName . ' (' . $cultivarName . ')');
+                                                                    $set('name', $commonName . ' (' . ucwords(strtolower($cultivarName)) . ')');
+                                                                    $set('cultivar', $cultivarName); // Set the cultivar field
+                                                                    $set('master_seed_catalog_id', $state); // Keep the catalog ID as is
                                                                 }
                                                             }
                                                         }
@@ -200,8 +204,9 @@ class ConsumableResource extends BaseResource
                                             ])
                                             ->columnSpanFull(),
                                         
-                                        // Hidden name field - will be set from the master catalog
+                                        // Hidden fields - will be set from the master catalog
                                         Forms\Components\Hidden::make('name'),
+                                        Forms\Components\Hidden::make('cultivar'),
                                     ];
                                 } else if ($get('type') === 'mix') {
                                     // Product mix selection

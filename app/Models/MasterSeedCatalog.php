@@ -55,25 +55,46 @@ class MasterSeedCatalog extends Model
         }
 
         // Get current cultivar names from the cultivars field
+        // Normalize to prevent duplicates (trim whitespace and remove case-sensitive duplicates)
         $cultivarNames = array_filter($this->cultivars);
+        $cultivarNames = array_unique(array_map('trim', $cultivarNames));
+        
+        // Remove any duplicate values that differ only in case
+        $uniqueCultivars = [];
+        $lowerCaseTracker = [];
+        foreach ($cultivarNames as $cultivar) {
+            $lowerCase = strtolower($cultivar);
+            if (!isset($lowerCaseTracker[$lowerCase])) {
+                $uniqueCultivars[] = $cultivar;
+                $lowerCaseTracker[$lowerCase] = true;
+            }
+        }
+        $cultivarNames = $uniqueCultivars;
 
         // Get existing cultivars for this catalog
         $existingCultivars = $this->cultivars()->pluck('cultivar_name')->toArray();
 
         // Create new cultivars that don't exist
         foreach ($cultivarNames as $cultivarName) {
-            if (!in_array($cultivarName, $existingCultivars)) {
-                $this->cultivars()->create([
-                    'cultivar_name' => $cultivarName,
-                    'is_active' => true,
-                ]);
+            if (!empty($cultivarName) && !in_array($cultivarName, $existingCultivars)) {
+                try {
+                    $this->cultivars()->create([
+                        'cultivar_name' => $cultivarName,
+                        'is_active' => true,
+                    ]);
+                } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+                    // Skip if already exists (race condition or case sensitivity issue)
+                    \Log::warning("Cultivar '{$cultivarName}' already exists for catalog ID {$this->id}");
+                }
             }
         }
 
         // Remove cultivars that are no longer in the list
-        $this->cultivars()
-            ->whereNotIn('cultivar_name', $cultivarNames)
-            ->delete();
+        if (!empty($cultivarNames)) {
+            $this->cultivars()
+                ->whereNotIn('cultivar_name', $cultivarNames)
+                ->delete();
+        }
     }
 
     protected static function booted()

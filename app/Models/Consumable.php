@@ -31,6 +31,7 @@ class Consumable extends Model
         'packaging_type_id', // For packaging consumables only
         'seed_entry_id', // For seed consumables only (deprecated, use master_seed_catalog_id)
         'master_seed_catalog_id', // For seed consumables - references master catalog
+        'cultivar', // For seed consumables - specific cultivar name
         'initial_stock',
         'consumed_quantity',
         'unit', // pieces, rolls, bags, etc.
@@ -244,6 +245,7 @@ class Consumable extends Model
                 'packaging_type_id',
                 'seed_entry_id',
                 'master_seed_catalog_id',
+                'cultivar',
                 'initial_stock',
                 'consumed_quantity',
                 'unit',

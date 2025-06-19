@@ -80,6 +80,18 @@ class PriceVariation extends Model
                 $priceVariation->is_default = false;
             }
             
+            // Auto-set name based on packaging type if not provided
+            if (empty($priceVariation->name) || $priceVariation->name === 'New Variation') {
+                if ($priceVariation->packaging_type_id) {
+                    $packagingType = PackagingType::find($priceVariation->packaging_type_id);
+                    if ($packagingType) {
+                        $priceVariation->name = $packagingType->name;
+                    }
+                } else {
+                    $priceVariation->name = 'Default';
+                }
+            }
+            
             // Handle default pricing for product-specific variations
             if ($priceVariation->is_default && !$priceVariation->is_global) {
                 static::where('product_id', $priceVariation->product_id)
@@ -96,6 +108,18 @@ class PriceVariation extends Model
                 $priceVariation->is_default = false;
             }
             
+            // Auto-update name when packaging type changes
+            if ($priceVariation->isDirty('packaging_type_id')) {
+                if ($priceVariation->packaging_type_id) {
+                    $packagingType = PackagingType::find($priceVariation->packaging_type_id);
+                    if ($packagingType) {
+                        $priceVariation->name = $packagingType->name;
+                    }
+                } else {
+                    $priceVariation->name = 'Default';
+                }
+            }
+            
             // Handle default pricing for product-specific variations
             if ($priceVariation->is_default && $priceVariation->isDirty('is_default') && !$priceVariation->is_global) {
                 static::where('product_id', $priceVariation->product_id)
@@ -105,8 +129,47 @@ class PriceVariation extends Model
             }
         });
         
-        // Ensure there's always a default price if possible (only for product-specific variations)
+        // Create inventory entry when price variation is created
+        static::created(function ($priceVariation) {
+            if (!$priceVariation->is_global && $priceVariation->product_id && $priceVariation->is_active) {
+                $priceVariation->ensureInventoryEntryExists();
+            }
+        });
+
+        // Update inventory when price variation is activated/deactivated
+        static::updated(function ($priceVariation) {
+            if (!$priceVariation->is_global && $priceVariation->product_id) {
+                if ($priceVariation->is_active && $priceVariation->wasChanged('is_active')) {
+                    // Price variation was just activated - ensure inventory exists
+                    $priceVariation->ensureInventoryEntryExists();
+                } elseif (!$priceVariation->is_active && $priceVariation->wasChanged('is_active')) {
+                    // Price variation was deactivated - optionally mark inventory as inactive
+                    $priceVariation->deactivateInventoryEntry();
+                }
+            }
+        });
+
+        // Prevent deletion of price variations that have inventory
+        static::deleting(function ($priceVariation) {
+            if (!$priceVariation->is_global && $priceVariation->product_id) {
+                $inventory = \App\Models\ProductInventory::where('product_id', $priceVariation->product_id)
+                    ->where('price_variation_id', $priceVariation->id)
+                    ->first();
+                    
+                if ($inventory && ($inventory->quantity > 0 || $inventory->reserved_quantity > 0)) {
+                    throw new \Exception("Cannot delete price variation '{$priceVariation->name}' because it has inventory ({$inventory->quantity} units, {$inventory->reserved_quantity} reserved). Please reduce inventory to zero first.");
+                }
+            }
+        });
+
+        // Handle inventory when price variation is deleted
         static::deleted(function ($priceVariation) {
+            if (!$priceVariation->is_global && $priceVariation->product_id) {
+                // Mark associated inventory as inactive rather than deleting
+                $priceVariation->deactivateInventoryEntry();
+            }
+
+            // Ensure there's always a default price if possible (only for product-specific variations)
             if ($priceVariation->is_default && !$priceVariation->is_global) {
                 $firstVariation = static::where('product_id', $priceVariation->product_id)
                     ->where('is_global', false)
@@ -173,5 +236,48 @@ class PriceVariation extends Model
             ])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
+    }
+
+    /**
+     * Ensure inventory entry exists for this price variation
+     */
+    public function ensureInventoryEntryExists(): void
+    {
+        if ($this->is_global || !$this->product_id) {
+            return;
+        }
+
+        $existingInventory = \App\Models\ProductInventory::where('product_id', $this->product_id)
+            ->where('price_variation_id', $this->id)
+            ->first();
+
+        if (!$existingInventory) {
+            \App\Models\ProductInventory::create([
+                'product_id' => $this->product_id,
+                'price_variation_id' => $this->id,
+                'quantity' => 0,
+                'reserved_quantity' => 0,
+                'cost_per_unit' => 0,
+                'production_date' => now(),
+                'expiration_date' => null,
+                'location' => null,
+                'status' => 'active',
+                'notes' => "Auto-created for {$this->name} variation",
+            ]);
+        }
+    }
+
+    /**
+     * Deactivate inventory entry for this price variation
+     */
+    public function deactivateInventoryEntry(): void
+    {
+        if ($this->is_global || !$this->product_id) {
+            return;
+        }
+
+        \App\Models\ProductInventory::where('product_id', $this->product_id)
+            ->where('price_variation_id', $this->id)
+            ->update(['status' => 'inactive']);
     }
 }

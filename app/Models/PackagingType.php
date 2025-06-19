@@ -82,6 +82,30 @@ class PackagingType extends Model
     }
 
     /**
+     * Check if this packaging type allows decimal quantities (weight-based).
+     *
+     * @return bool
+     */
+    public function allowsDecimalQuantity(): bool
+    {
+        return in_array(strtolower($this->name), ['bulk']);
+    }
+
+    /**
+     * Get the appropriate quantity unit for this packaging type.
+     *
+     * @return string
+     */
+    public function getQuantityUnit(): string
+    {
+        if ($this->allowsDecimalQuantity()) {
+            return 'grams';
+        }
+        
+        return 'units';
+    }
+
+    /**
      * Configure the activity log options for this model.
      */
     public function getActivitylogOptions(): LogOptions

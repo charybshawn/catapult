@@ -127,6 +127,20 @@ abstract class BaseResource extends Resource
     }
 
     /**
+     * Configure table with default settings
+     */
+    protected static function configureTableDefaults(Tables\Table $table): Tables\Table
+    {
+        return $table
+            ->defaultSort('created_at', 'desc')
+            ->striped()
+            ->persistFiltersInSession()
+            ->persistSortInSession()
+            ->persistColumnSearchesInSession()
+            ->persistSearchInSession();
+    }
+
+    /**
      * Get standard table configuration
      */
     public static function getStandardTableConfiguration(): array
