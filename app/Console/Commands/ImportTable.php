@@ -2,8 +2,13 @@
 
 namespace App\Console\Commands;
 
+if (!defined('STDIN')) {
+    define('STDIN', fopen('php://input', 'r'));
+}
+
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use League\Csv\Reader;
@@ -24,7 +29,8 @@ class ImportTable extends Command
                             {--validate : Validate data without importing}
                             {--chunk=1000 : Number of records to insert per chunk}
                             {--unique-by=* : Column(s) to determine uniqueness for insert/upsert modes}
-                            {--map=* : Column mappings in format source:destination}';
+                            {--map=* : Column mappings in format source:destination}
+                            {--force : Skip confirmation prompts}';
 
     /**
      * The console command description.
@@ -71,6 +77,17 @@ class ImportTable extends Command
             return 1;
         }
         
+        // Handle ZIP files
+        $originalFile = $file;
+        $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+        if ($extension === 'zip') {
+            $file = $this->extractZipFile($file);
+            if (!$file) {
+                $this->error("Failed to extract ZIP file or no suitable files found inside.");
+                return 1;
+            }
+        }
+        
         // Auto-detect format if not specified
         $format = $this->option('format');
         if (!$format) {
@@ -100,22 +117,44 @@ class ImportTable extends Command
         
         // Load data
         try {
+            Log::info("Loading data from file: {$file}, format: {$format}");
             if ($format === 'json') {
                 $data = $this->loadJsonData($file);
             } else {
                 $data = $this->loadCsvData($file);
             }
+            Log::info("Loaded data successfully", ['count' => count($data), 'sample' => array_slice($data, 0, 2)]);
         } catch (\Exception $e) {
+            Log::error("Error loading file: " . $e->getMessage());
             $this->error("Error loading file: " . $e->getMessage());
             return 1;
         }
         
         if (empty($data)) {
+            Log::warning("No data found in file");
             $this->warn("No data found in file.");
             return 0;
         }
         
         $this->info("Found " . count($data) . " records to import.");
+        Log::info("Ready to import", ['record_count' => count($data)]);
+        
+        // Special protection for users table - get admin users early
+        $preservedUsers = [];
+        if ($table === 'users') {
+            $preservedUsers = DB::table('users')
+                ->where('email', 'like', '%@gmail.com')
+                ->where(function($query) {
+                    $query->where('name', 'like', '%admin%')
+                          ->orWhere('email', 'charybshawn@gmail.com');
+                })
+                ->get()
+                ->toArray();
+            
+            if (!empty($preservedUsers)) {
+                $this->info("Will preserve " . count($preservedUsers) . " admin user(s) during import.");
+            }
+        }
         
         // Apply column mappings
         if (!empty($mappings)) {
@@ -142,13 +181,40 @@ class ImportTable extends Command
         
         // Handle different import modes
         if ($mode === 'replace') {
-            if (!$this->confirm("This will DELETE ALL existing data in '{$table}'. Continue?")) {
+            if (!$this->option('force') && !$this->confirm("This will DELETE ALL existing data in '{$table}'. Continue?")) {
                 $this->info("Import cancelled.");
                 return 0;
             }
             
-            DB::table($table)->truncate();
-            $this->info("Table truncated.");
+            // Admin users protection is handled globally above
+            
+            try {
+                // Try to truncate first (faster if no foreign key constraints)
+                if ($table === 'users' && !empty($preservedUsers)) {
+                    // For users table with preserved users, use selective delete
+                    $preservedIds = array_column($preservedUsers, 'id');
+                    DB::table($table)->whereNotIn('id', $preservedIds)->delete();
+                    $this->info("Table data deleted (preserving admin users).");
+                } else {
+                    DB::table($table)->truncate();
+                    $this->info("Table truncated.");
+                }
+            } catch (\Exception $e) {
+                // If truncate fails due to foreign key constraints, use delete instead
+                if (strpos($e->getMessage(), 'foreign key constraint') !== false || strpos($e->getMessage(), '1701') !== false) {
+                    $this->info("Cannot truncate due to foreign key constraints. Using delete instead...");
+                    if ($table === 'users' && !empty($preservedUsers)) {
+                        $preservedIds = array_column($preservedUsers, 'id');
+                        DB::table($table)->whereNotIn('id', $preservedIds)->delete();
+                        $this->info("Table data deleted (preserving admin users).");
+                    } else {
+                        DB::table($table)->delete();
+                        $this->info("Table data deleted.");
+                    }
+                } else {
+                    throw $e; // Re-throw if it's a different error
+                }
+            }
         }
         
         // Determine unique columns for insert/upsert modes
@@ -167,6 +233,16 @@ class ImportTable extends Command
             }
         }
         
+        // Detect and exclude generated columns
+        $generatedColumns = $this->getGeneratedColumns($table);
+        if (!empty($generatedColumns)) {
+            $this->info("Excluding generated columns: " . implode(', ', $generatedColumns));
+            // Remove generated columns from all data records
+            $data = array_map(function($record) use ($generatedColumns) {
+                return array_diff_key($record, array_flip($generatedColumns));
+            }, $data);
+        }
+
         // Import data
         $this->info("Importing data...");
         $progressBar = $this->output->createProgressBar(count($data));
@@ -177,22 +253,64 @@ class ImportTable extends Command
         $updated = 0;
         $failed = 0;
         
-        foreach (array_chunk($data, $chunkSize) as $chunk) {
+        foreach (array_chunk($data, $chunkSize) as $chunkIndex => $chunk) {
             try {
+                Log::info("Processing chunk {$chunkIndex}", ['chunk_size' => count($chunk), 'mode' => $mode]);
                 switch ($mode) {
                     case 'replace':
-                        DB::table($table)->insert($chunk);
-                        $imported += count($chunk);
+                        if ($table === 'users') {
+                            // Filter out records that would conflict with preserved admin users
+                            $preservedEmails = [];
+                            if (isset($preservedUsers) && !empty($preservedUsers)) {
+                                $preservedEmails = array_column($preservedUsers, 'email');
+                            }
+                            
+                            $filteredChunk = array_filter($chunk, function($record) use ($preservedEmails) {
+                                return !in_array($record['email'] ?? '', $preservedEmails);
+                            });
+                            
+                            if (count($filteredChunk) < count($chunk)) {
+                                $skippedCount = count($chunk) - count($filteredChunk);
+                                $this->info("Skipped {$skippedCount} user(s) to preserve admin accounts.");
+                                $skipped += $skippedCount;
+                            }
+                            
+                            if (!empty($filteredChunk)) {
+                                try {
+                                    DB::table($table)->insert(array_values($filteredChunk));
+                                    $imported += count($filteredChunk);
+                                } catch (\Exception $e) {
+                                    $this->error("Failed to insert chunk: " . $e->getMessage());
+                                    $failed += count($filteredChunk);
+                                }
+                            }
+                        } else {
+                            try {
+                                DB::table($table)->insert($chunk);
+                                $imported += count($chunk);
+                            } catch (\Exception $e) {
+                                $this->error("Failed to insert chunk: " . $e->getMessage());
+                                $failed += count($chunk);
+                            }
+                        }
+                        Log::info("Inserted chunk via replace mode", ['records' => count($chunk)]);
                         break;
                         
                     case 'insert':
-                        foreach ($chunk as $record) {
+                        foreach ($chunk as $recordIndex => $record) {
                             $exists = $this->recordExists($table, $record, $uniqueColumns);
                             if (!$exists) {
-                                DB::table($table)->insert($record);
-                                $imported++;
+                                try {
+                                    DB::table($table)->insert($record);
+                                    $imported++;
+                                    Log::debug("Inserted record {$recordIndex}");
+                                } catch (\Exception $e) {
+                                    $this->error("Failed to insert record {$recordIndex}: " . $e->getMessage());
+                                    $failed++;
+                                }
                             } else {
                                 $skipped++;
+                                Log::debug("Skipped existing record {$recordIndex}");
                             }
                         }
                         break;
@@ -207,23 +325,38 @@ class ImportTable extends Command
                             }
                             
                             if (!empty($where)) {
-                                $existing = DB::table($table)->where($where)->exists();
-                                if ($existing) {
-                                    DB::table($table)->where($where)->update($record);
-                                    $updated++;
-                                } else {
-                                    DB::table($table)->insert($record);
-                                    $imported++;
+                                try {
+                                    $existing = DB::table($table)->where($where)->exists();
+                                    if ($existing) {
+                                        DB::table($table)->where($where)->update($record);
+                                        $updated++;
+                                    } else {
+                                        DB::table($table)->insert($record);
+                                        $imported++;
+                                    }
+                                } catch (\Exception $e) {
+                                    $this->error("Failed to upsert record: " . $e->getMessage());
+                                    $failed++;
                                 }
                             } else {
-                                DB::table($table)->insert($record);
-                                $imported++;
+                                try {
+                                    DB::table($table)->insert($record);
+                                    $imported++;
+                                } catch (\Exception $e) {
+                                    $this->error("Failed to insert record: " . $e->getMessage());
+                                    $failed++;
+                                }
                             }
                         }
                         break;
                 }
             } catch (\Exception $e) {
                 $failed += count($chunk);
+                Log::error("Error importing chunk {$chunkIndex}: " . $e->getMessage(), [
+                    'chunk_size' => count($chunk),
+                    'sample_record' => isset($chunk[0]) ? $chunk[0] : null,
+                    'stack_trace' => $e->getTraceAsString()
+                ]);
                 $this->newLine();
                 $this->error("Error importing chunk: " . $e->getMessage());
             }
@@ -234,26 +367,42 @@ class ImportTable extends Command
         $progressBar->finish();
         $this->newLine(2);
         
-        $this->info("Import complete!");
+        $this->info("Import complete for table: {$table}");
         $this->info("Mode: {$mode}");
         
-        if ($mode === 'replace' || $imported > 0) {
-            $this->info("Successfully imported: {$imported} records");
+        Log::info("Import completed", [
+            'mode' => $mode,
+            'imported' => $imported,
+            'skipped' => $skipped,
+            'updated' => $updated,
+            'failed' => $failed,
+            'table' => $table
+        ]);
+        
+        if ($imported > 0) {
+            $this->info("Successfully imported: {$imported} records to {$table}");
         }
         
-        if ($mode === 'insert' && $skipped > 0) {
-            $this->info("Skipped existing: {$skipped} records");
+        if ($skipped > 0) {
+            $this->info("Skipped existing: {$skipped} records in {$table}");
         }
         
-        if ($mode === 'upsert' && $updated > 0) {
-            $this->info("Updated existing: {$updated} records");
+        if ($updated > 0) {
+            $this->info("Updated existing: {$updated} records in {$table}");
         }
         
         if ($failed > 0) {
-            $this->warn("Failed to import: {$failed} records");
+            $this->error("Failed to import: {$failed} records to {$table}");
         }
         
-        return 0;
+        // Clean up extracted files if we extracted from ZIP
+        if ($originalFile !== $file && strpos($file, sys_get_temp_dir()) === 0) {
+            $extractDir = dirname($file);
+            $this->deleteDirectory($extractDir);
+        }
+        
+        // Return non-zero exit code if there were failures
+        return $failed > 0 ? 1 : 0;
     }
     
     /**
@@ -506,5 +655,86 @@ class ImportTable extends Command
         }
         
         return $uniqueColumns;
+    }
+    
+    /**
+     * Extract ZIP file and return the path to the first JSON/CSV file found
+     */
+    protected function extractZipFile($zipPath)
+    {
+        if (!class_exists('ZipArchive')) {
+            throw new \Exception("ZipArchive class not available. Please enable the zip extension.");
+        }
+        
+        $zip = new \ZipArchive;
+        $result = $zip->open($zipPath);
+        
+        if ($result !== TRUE) {
+            throw new \Exception("Cannot open ZIP file: " . $zipPath);
+        }
+        
+        $extractPath = sys_get_temp_dir() . '/import_' . uniqid();
+        mkdir($extractPath, 0755, true);
+        
+        $zip->extractTo($extractPath);
+        $zip->close();
+        
+        // Find the first JSON or CSV file
+        $files = glob($extractPath . '/*');
+        foreach ($files as $file) {
+            if (is_file($file)) {
+                $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+                if (in_array($ext, ['json', 'csv'])) {
+                    $this->info("Extracted file: " . basename($file));
+                    return $file;
+                }
+            }
+        }
+        
+        // Clean up
+        $this->deleteDirectory($extractPath);
+        return null;
+    }
+    
+    /**
+     * Get generated/virtual columns for a table
+     */
+    protected function getGeneratedColumns($table)
+    {
+        try {
+            $columns = DB::select("SHOW COLUMNS FROM `{$table}`");
+            $generatedColumns = [];
+            
+            foreach ($columns as $column) {
+                // Check if the column has VIRTUAL or STORED in the Extra field
+                if (isset($column->Extra) && 
+                    (str_contains(strtoupper($column->Extra), 'VIRTUAL') || 
+                     str_contains(strtoupper($column->Extra), 'STORED'))) {
+                    $generatedColumns[] = $column->Field;
+                }
+            }
+            
+            return $generatedColumns;
+        } catch (\Exception $e) {
+            $this->warn("Could not detect generated columns for table {$table}: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Recursively delete a directory
+     */
+    protected function deleteDirectory($dir)
+    {
+        if (!is_dir($dir)) {
+            return;
+        }
+        
+        $files = array_diff(scandir($dir), ['.', '..']);
+        foreach ($files as $file) {
+            $path = $dir . '/' . $file;
+            is_dir($path) ? $this->deleteDirectory($path) : unlink($path);
+        }
+        rmdir($dir);
     }
 }
