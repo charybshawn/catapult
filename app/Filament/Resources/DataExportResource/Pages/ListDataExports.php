@@ -73,7 +73,7 @@ class ListDataExports extends ListRecords
                     }
                     
                     // Debug: Log what we receive from FileUpload
-                    \Log::info('Import file data received:', ['file' => $data['file'], 'all_data' => $data]);
+                    \Illuminate\Support\Facades\Log::info('Import file data received:', ['file' => $data['file'], 'all_data' => $data]);
                     
                     // FileUpload returns just the filename when using directory()
                     // We need to prepend the directory path
