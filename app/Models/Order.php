@@ -367,6 +367,20 @@ class Order extends Model
             return null;
         }
         
+        // Check if an order already exists for this delivery date to prevent duplicates
+        $deliveryDate = $nextDate->copy()->addDay();
+        $existingOrder = $this->generatedOrders()
+            ->where('delivery_date', $deliveryDate->format('Y-m-d'))
+            ->first();
+            
+        if ($existingOrder) {
+            // Order already exists for this date, update next generation date and skip
+            $this->update([
+                'next_generation_date' => $this->calculateNextGenerationDate()
+            ]);
+            return null;
+        }
+        
         // Create new order based on template
         $newOrder = $this->replicate([
             'is_recurring',

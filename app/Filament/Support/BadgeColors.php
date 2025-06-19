@@ -52,6 +52,7 @@ class BadgeColors
             'processing' => 'info',
             'planted' => 'primary',
             'harvested' => 'success', 
+            'packed' => 'success',
             'delivered' => 'success',
             'completed' => 'success',
             'cancelled' => 'danger',

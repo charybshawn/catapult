@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MasterCultivar extends Model
 {
@@ -29,5 +30,10 @@ class MasterCultivar extends Model
     public function getFullNameAttribute(): string
     {
         return $this->masterSeedCatalog->common_name . ' (' . $this->cultivar_name . ')';
+    }
+
+    public function harvests(): HasMany
+    {
+        return $this->hasMany(Harvest::class);
     }
 }

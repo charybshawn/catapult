@@ -70,13 +70,16 @@
         "resource": "CropResource"
       },
       {
+        "resource": "HarvestResource"
+      },
+      {
         "resource": "RecipeResource"
       },
       {
         "resource": "CropPlanResource"
       },
       {
-        "resource": "TaskScheduleResource"
+        "resource": "TaskResource"
       }
     ],
     "products": [
@@ -142,6 +145,12 @@
         ]
       },
       {
+        "label": "Master Cultivars",
+        "url": "/admin/master-cultivars",
+        "icon": "heroicon-o-beaker",
+        "routes": ["filament.admin.resources.master-cultivars.*"]
+      },
+      {
         "resource": "ConsumableResource"
       },
       {
@@ -151,6 +160,9 @@
     "orders": [
       {
         "resource": "OrderResource"
+      },
+      {
+        "resource": "RecurringOrderResource"
       },
       {
         "resource": "InvoiceResource"
@@ -165,6 +177,24 @@
         "url": "/admin/database-management",
         "icon": "heroicon-o-circle-stack",
         "routes": ["filament.admin.pages.database-management"]
+      },
+      {
+        "label": "Application Settings",
+        "url": "/admin/settings",
+        "icon": "heroicon-o-cog-8-tooth",
+        "routes": ["filament.admin.resources.settings.*"]
+      },
+      {
+        "label": "Scheduled Tasks",
+        "url": "/admin/scheduled-tasks",
+        "icon": "heroicon-o-clock",
+        "routes": ["filament.admin.resources.scheduled-tasks.*"]
+      },
+      {
+        "label": "Activity Log",
+        "url": "/admin/activities",
+        "icon": "heroicon-o-document-text",
+        "routes": ["filament.admin.resources.activities.*"]
       },
       {
         "resource": "TableBackupManagement"

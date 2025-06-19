@@ -33,6 +33,7 @@ class Recipe extends Model
         'light_days',
         'seed_soak_hours',
         'expected_yield_grams', 
+        'buffer_percentage',
         'seed_density_grams_per_tray',
         'is_active',
         'notes',
@@ -51,6 +52,7 @@ class Recipe extends Model
         'light_days' => 'float',
         'seed_soak_hours' => 'integer',
         'expected_yield_grams' => 'float',
+        'buffer_percentage' => 'decimal:2',
         'seed_density_grams_per_tray' => 'float',
         'is_active' => 'boolean',
     ];
@@ -110,6 +112,14 @@ class Recipe extends Model
     public function crops(): HasMany
     {
         return $this->hasMany(Crop::class);
+    }
+    
+    /**
+     * Get the harvests for this recipe.
+     */
+    public function harvests(): HasMany
+    {
+        return $this->hasMany(Harvest::class);
     }
     
     /**

@@ -2,32 +2,22 @@
 
 namespace App\Filament\Resources\RecipeResource\Pages;
 
+use App\Filament\Pages\Base\BaseEditRecord;
 use App\Filament\Resources\RecipeResource;
-use App\Models\Supplier;
-use App\Models\RecipeStage;
-use App\Models\RecipeWateringSchedule;
 use App\Models\Consumable;
 use Filament\Actions;
-use App\Filament\Pages\Base\BaseEditRecord;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Builder;
+use Filament\Forms;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Forms\Components\MarkdownEditor;
-use Filament\Forms\Components\Placeholder;
-use Filament\Forms\Components\Hidden;
-use Filament\Notifications\Notification;
-use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Forms\Components\TextEntry;
 
 class EditRecipe extends BaseEditRecord
 {
     protected static string $resource = RecipeResource::class;
-    
+
     public function form(Form $form): Form
     {
         return $form->schema([
@@ -41,7 +31,7 @@ class EditRecipe extends BaseEditRecord
                         ->placeholder('Enter a descriptive name for this recipe')
                         ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
                         ->columnSpanFull(),
-                    
+
                     Select::make('seed_consumable_id')
                         ->label('Seed')
                         ->relationship('seedConsumable', 'name')
@@ -50,11 +40,12 @@ class EditRecipe extends BaseEditRecord
                                 ->where('is_active', true)
                                 ->get()
                                 ->mapWithKeys(function ($seed) {
-                                    $lotInfo = $seed->lot_no ? " (Lot: {$seed->lot_no})" : "";
+                                    $lotInfo = $seed->lot_no ? " (Lot: {$seed->lot_no})" : '';
                                     $totalAvailable = $seed->current_stock * ($seed->quantity_per_unit ?? 0);
                                     $displayUnit = $seed->quantity_unit ?? 'units';
-                                    $stockInfo = " - " . number_format($totalAvailable, 1) . " {$displayUnit} available";
-                                    return [$seed->id => $seed->name . $lotInfo . $stockInfo];
+                                    $stockInfo = ' - '.number_format($totalAvailable, 1)." {$displayUnit} available";
+
+                                    return [$seed->id => $seed->name.$lotInfo.$stockInfo];
                                 });
                         })
                         ->searchable()
@@ -65,6 +56,7 @@ class EditRecipe extends BaseEditRecord
                         ->createOptionUsing(function (array $data) {
                             $data['type'] = 'seed';
                             $data['consumed_quantity'] = 0;
+
                             return Consumable::create($data)->id;
                         })
                         ->columnSpan(1),
@@ -77,11 +69,12 @@ class EditRecipe extends BaseEditRecord
                                 ->where('is_active', true)
                                 ->get()
                                 ->mapWithKeys(function ($soil) {
-                                    $quantityInfo = "";
+                                    $quantityInfo = '';
                                     if ($soil->total_quantity && $soil->quantity_unit) {
-                                        $quantityInfo = " - " . number_format($soil->total_quantity, 1) . " {$soil->quantity_unit} available";
+                                        $quantityInfo = ' - '.number_format($soil->total_quantity, 1)." {$soil->quantity_unit} available";
                                     }
-                                    return [$soil->id => $soil->name . $quantityInfo];
+
+                                    return [$soil->id => $soil->name.$quantityInfo];
                                 });
                         })
                         ->searchable()
@@ -92,10 +85,11 @@ class EditRecipe extends BaseEditRecord
                         ->createOptionUsing(function (array $data) {
                             $data['type'] = 'soil';
                             $data['consumed_quantity'] = 0;
+
                             return Consumable::create($data)->id;
                         })
                         ->columnSpan(1),
-                        
+
                     TextInput::make('seed_density_grams_per_tray')
                         ->label('Planting Density (g/tray)')
                         ->required()
@@ -104,12 +98,23 @@ class EditRecipe extends BaseEditRecord
                         ->step(0.01)
                         ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
                         ->columnSpan(1),
-                        
+
                     TextInput::make('expected_yield_grams')
                         ->label('Expected Yield (g/tray)')
                         ->numeric()
                         ->minValue(0)
                         ->step(0.01)
+                        ->columnSpan(1),
+
+                    TextInput::make('buffer_percentage')
+                        ->label('Planning Buffer (%)')
+                        ->helperText('Safety buffer for crop planning (e.g., 10 = 10% extra trays)')
+                        ->numeric()
+                        ->minValue(0)
+                        ->maxValue(50)
+                        ->step(0.01)
+                        ->default(10.00)
+                        ->suffix('%')
                         ->columnSpan(1),
 
                     Textarea::make('notes')
@@ -140,7 +145,7 @@ class EditRecipe extends BaseEditRecord
                             $germ = floatval($get('germination_days') ?? 0);
                             $blackout = floatval($get('blackout_days') ?? 0);
                             $dtm = floatval($state ?? 0);
-                            
+
                             $lightDays = max(0, $dtm - ($germ + $blackout));
                             $set('light_days', $lightDays);
                         }),
@@ -163,7 +168,7 @@ class EditRecipe extends BaseEditRecord
                             $germ = floatval($state ?? 0);
                             $blackout = floatval($get('blackout_days') ?? 0);
                             $dtm = floatval($get('days_to_maturity') ?? 0);
-                            
+
                             $lightDays = max(0, $dtm - ($germ + $blackout));
                             $set('light_days', $lightDays);
                         })
@@ -180,7 +185,7 @@ class EditRecipe extends BaseEditRecord
                             $germ = floatval($get('germination_days') ?? 0);
                             $blackout = floatval($state ?? 0);
                             $dtm = floatval($get('days_to_maturity') ?? 0);
-                            
+
                             $lightDays = max(0, $dtm - ($germ + $blackout));
                             $set('light_days', $lightDays);
                         })
@@ -200,7 +205,7 @@ class EditRecipe extends BaseEditRecord
                                 $germ = floatval($get('germination_days') ?? 0);
                                 $blackout = floatval($get('blackout_days') ?? 0);
                                 $dtm = floatval($get('days_to_maturity') ?? 0);
-                                
+
                                 $lightDays = max(0, $dtm - ($germ + $blackout));
                                 $set('light_days', $lightDays);
                             }

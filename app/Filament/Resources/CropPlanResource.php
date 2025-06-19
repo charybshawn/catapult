@@ -4,15 +4,13 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\CropPlanResource\Pages;
 use App\Models\CropPlan;
-use App\Models\Order;
-use App\Models\Recipe;
-use App\Models\User;
+use App\Services\HarvestYieldCalculator;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 
@@ -21,15 +19,18 @@ class CropPlanResource extends Resource
     protected static ?string $model = CropPlan::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
+
     protected static ?string $navigationLabel = 'Crop Plans';
+
     protected static ?string $navigationGroup = 'Production';
+
     protected static ?int $navigationSort = 1;
-    
+
     public static function shouldRegisterNavigation(): bool
     {
         return true;
     }
-    
+
     protected static ?string $recordTitleAttribute = 'id';
 
     public static function form(Form $form): Form
@@ -45,12 +46,13 @@ class CropPlanResource extends Resource
                                     ->relationship('order', 'id')
                                     ->getOptionLabelFromRecordUsing(function ($record) {
                                         $customerName = $record->user->name ?? 'Unknown';
+
                                         return "Order #{$record->id} - {$customerName}";
                                     })
                                     ->searchable()
                                     ->preload()
                                     ->required(),
-                                    
+
                                 Forms\Components\Select::make('recipe_id')
                                     ->label('Recipe')
                                     ->relationship('recipe', 'name')
@@ -58,7 +60,7 @@ class CropPlanResource extends Resource
                                     ->preload()
                                     ->required(),
                             ]),
-                            
+
                         Forms\Components\Grid::make(3)
                             ->schema([
                                 Forms\Components\TextInput::make('trays_needed')
@@ -66,14 +68,14 @@ class CropPlanResource extends Resource
                                     ->numeric()
                                     ->minValue(1)
                                     ->required(),
-                                    
+
                                 Forms\Components\TextInput::make('grams_needed')
                                     ->label('Grams Needed')
                                     ->numeric()
                                     ->minValue(0)
                                     ->step(0.01)
                                     ->required(),
-                                    
+
                                 Forms\Components\TextInput::make('grams_per_tray')
                                     ->label('Grams per Tray')
                                     ->numeric()
@@ -81,7 +83,7 @@ class CropPlanResource extends Resource
                                     ->step(0.01),
                             ]),
                     ]),
-                    
+
                 Forms\Components\Section::make('Timeline')
                     ->schema([
                         Forms\Components\Grid::make(3)
@@ -89,17 +91,17 @@ class CropPlanResource extends Resource
                                 Forms\Components\DatePicker::make('plant_by_date')
                                     ->label('Plant By Date')
                                     ->required(),
-                                    
+
                                 Forms\Components\DatePicker::make('expected_harvest_date')
                                     ->label('Expected Harvest Date')
                                     ->required(),
-                                    
+
                                 Forms\Components\DatePicker::make('delivery_date')
                                     ->label('Delivery Date')
                                     ->required(),
                             ]),
                     ]),
-                    
+
                 Forms\Components\Section::make('Status & Approval')
                     ->schema([
                         Forms\Components\Grid::make(2)
@@ -115,7 +117,7 @@ class CropPlanResource extends Resource
                                     ])
                                     ->default('draft')
                                     ->required(),
-                                    
+
                                 Forms\Components\Select::make('approved_by')
                                     ->label('Approved By')
                                     ->relationship('approvedBy', 'name')
@@ -123,28 +125,28 @@ class CropPlanResource extends Resource
                                     ->preload()
                                     ->visible(fn ($record) => $record && $record->approved_by),
                             ]),
-                            
+
                         Forms\Components\DateTimePicker::make('approved_at')
                             ->label('Approved At')
                             ->disabled()
                             ->visible(fn ($record) => $record && $record->approved_at),
                     ]),
-                    
+
                 Forms\Components\Section::make('Calculation Details')
                     ->schema([
                         Forms\Components\Textarea::make('notes')
                             ->label('Notes')
                             ->rows(3),
-                            
+
                         Forms\Components\Textarea::make('admin_notes')
                             ->label('Admin Notes')
                             ->rows(3),
-                            
+
                         Forms\Components\KeyValue::make('calculation_details')
                             ->label('Calculation Details')
                             ->addActionLabel('Add Detail')
                             ->columnSpanFull(),
-                            
+
                         Forms\Components\KeyValue::make('order_items_included')
                             ->label('Order Items Included')
                             ->addActionLabel('Add Item')
@@ -161,27 +163,27 @@ class CropPlanResource extends Resource
             ->persistFiltersInSession()
             ->persistSortInSession()
             ->persistColumnSearchesInSession()
-            ->persistSearchInSession()            ->columns([
+            ->persistSearchInSession()->columns([
                 Tables\Columns\TextColumn::make('id')
                     ->label('Plan #')
                     ->sortable(),
-                    
+
                 Tables\Columns\TextColumn::make('order.id')
                     ->label('Order')
                     ->formatStateUsing(fn ($record) => "#{$record->order->id}")
                     ->url(fn ($record) => route('filament.admin.resources.orders.edit', $record->order_id))
                     ->sortable(),
-                    
+
                 Tables\Columns\TextColumn::make('order.user.name')
                     ->label('Customer')
                     ->searchable()
                     ->sortable(),
-                    
+
                 Tables\Columns\TextColumn::make('recipe.name')
                     ->label('Recipe')
                     ->searchable()
                     ->sortable(),
-                    
+
                 Tables\Columns\BadgeColumn::make('status')
                     ->label('Status')
                     ->colors([
@@ -192,16 +194,16 @@ class CropPlanResource extends Resource
                         'danger' => 'cancelled',
                     ])
                     ->sortable(),
-                    
+
                 Tables\Columns\TextColumn::make('trays_needed')
                     ->label('Trays')
                     ->sortable(),
-                    
+
                 Tables\Columns\TextColumn::make('plant_by_date')
                     ->label('Plant By')
                     ->date()
                     ->sortable(),
-                    
+
                 Tables\Columns\TextColumn::make('days_until_planting')
                     ->label('Days Until')
                     ->getStateUsing(fn ($record) => $record->days_until_planting)
@@ -211,7 +213,7 @@ class CropPlanResource extends Resource
                         default => 'success',
                     })
                     ->weight(fn ($state) => $state <= 2 ? 'bold' : 'normal'),
-                    
+
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Created')
                     ->dateTime()
@@ -228,11 +230,11 @@ class CropPlanResource extends Resource
                         'completed' => 'Completed',
                         'cancelled' => 'Cancelled',
                     ]),
-                    
+
                 Tables\Filters\Filter::make('urgent')
                     ->label('Urgent (Plant within 2 days)')
                     ->query(fn (Builder $query) => $query->where('plant_by_date', '<=', now()->addDays(2))),
-                    
+
                 Tables\Filters\Filter::make('overdue')
                     ->label('Overdue')
                     ->query(fn (Builder $query) => $query->where('plant_by_date', '<', now())),
@@ -259,7 +261,70 @@ class CropPlanResource extends Resource
                             ->send();
                     })
                     ->requiresConfirmation(),
-                    
+
+                Tables\Actions\Action::make('recalculate')
+                    ->label('Recalculate with Latest Harvest Data')
+                    ->icon('heroicon-o-calculator')
+                    ->color('warning')
+                    ->visible(fn ($record) => $record->status === 'draft')
+                    ->action(function ($record) {
+                        $yieldCalculator = app(HarvestYieldCalculator::class);
+                        $recipe = $record->recipe;
+
+                        if (! $recipe) {
+                            Notification::make()
+                                ->title('Cannot recalculate')
+                                ->body('No recipe associated with this crop plan')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        $oldYield = $record->grams_per_tray;
+                        $oldTrays = $record->trays_needed;
+
+                        // Get new yield calculation
+                        $newYield = $yieldCalculator->calculatePlanningYield($recipe);
+                        $newTrays = ceil($record->grams_needed / $newYield);
+
+                        // Get yield stats for display
+                        $stats = $yieldCalculator->getYieldStats($recipe);
+
+                        // Update the crop plan
+                        $record->update([
+                            'grams_per_tray' => $newYield,
+                            'trays_needed' => $newTrays,
+                            'calculation_details' => array_merge(
+                                $record->calculation_details ?? [],
+                                [
+                                    'recalculated_at' => now()->toISOString(),
+                                    'harvest_data_used' => $stats['harvest_count'] > 0,
+                                    'old_yield' => $oldYield,
+                                    'new_yield' => $newYield,
+                                    'old_trays' => $oldTrays,
+                                    'new_trays' => $newTrays,
+                                    'yield_stats' => $stats,
+                                ]
+                            ),
+                        ]);
+
+                        $message = "Recalculated: {$oldTrays} → {$newTrays} trays";
+                        if ($stats['harvest_count'] > 0) {
+                            $message .= " (using {$stats['harvest_count']} harvest records)";
+                        } else {
+                            $message .= ' (using recipe expected yield)';
+                        }
+
+                        Notification::make()
+                            ->title('Crop plan recalculated')
+                            ->body($message)
+                            ->success()
+                            ->send();
+                    })
+                    ->requiresConfirmation()
+                    ->modalDescription('This will update the crop plan using the latest harvest data and current buffer settings.'),
+
                 Tables\Actions\Action::make('generate_crops')
                     ->label('Generate Crops')
                     ->icon('heroicon-o-plus-circle')
@@ -272,14 +337,14 @@ class CropPlanResource extends Resource
                             ->warning()
                             ->send();
                     }),
-                    
+
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
-                    
+
                     Tables\Actions\BulkAction::make('approve_selected')
                         ->label('Approve Selected')
                         ->icon('heroicon-o-check-circle')
@@ -292,7 +357,7 @@ class CropPlanResource extends Resource
                                     $approved++;
                                 }
                             }
-                            
+
                             Notification::make()
                                 ->title("Approved {$approved} crop plans")
                                 ->success()
@@ -311,17 +376,17 @@ class CropPlanResource extends Resource
             'manual-planning' => Pages\ManualCropPlanning::route('/manual-planning'),
         ];
     }
-    
+
     public static function canCreate(): bool
     {
         return false; // Crop plans are auto-generated from orders
     }
-    
+
     public static function getNavigationBadge(): ?string
     {
         return static::getModel()::where('status', 'draft')->count() ?: null;
     }
-    
+
     public static function getNavigationBadgeColor(): ?string
     {
         return static::getNavigationBadge() > 0 ? 'warning' : null;

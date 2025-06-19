@@ -5,13 +5,20 @@ namespace App\Services;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\Recipe;
 use App\Models\SeedEntry;
-use App\Models\PriceVariation;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
 class CropPlanCalculatorService
 {
+    protected HarvestYieldCalculator $yieldCalculator;
+
+    public function __construct(HarvestYieldCalculator $yieldCalculator)
+    {
+        $this->yieldCalculator = $yieldCalculator;
+    }
+
     /**
      * Calculate planting requirements for a collection of orders.
      */
@@ -26,7 +33,7 @@ class CropPlanCalculatorService
 
             // Aggregate seed requirements
             foreach ($orderDetails['seed_requirements'] as $seedEntryId => $requirement) {
-                if (!isset($seedRequirements[$seedEntryId])) {
+                if (! isset($seedRequirements[$seedEntryId])) {
                     $seedRequirements[$seedEntryId] = [
                         'seed_entry' => $requirement['seed_entry'],
                         'total_grams_needed' => 0,
@@ -66,7 +73,7 @@ class CropPlanCalculatorService
 
             // Aggregate seed requirements from this item
             foreach ($itemDetails['seed_requirements'] as $seedEntryId => $requirement) {
-                if (!isset($seedRequirements[$seedEntryId])) {
+                if (! isset($seedRequirements[$seedEntryId])) {
                     $seedRequirements[$seedEntryId] = [
                         'seed_entry' => $requirement['seed_entry'],
                         'grams_needed' => 0,
@@ -98,9 +105,10 @@ class CropPlanCalculatorService
         $product = $orderItem->product;
         $priceVariation = $orderItem->priceVariation;
         $quantity = $orderItem->quantity;
-        
-        if (!$product) {
+
+        if (! $product) {
             Log::warning("Order item {$orderItem->id} has no product");
+
             return [
                 'product_name' => 'Unknown Product',
                 'quantity' => $quantity,
@@ -136,10 +144,10 @@ class CropPlanCalculatorService
             // For now, we'll assume the product name matches or is related to a seed entry
             // This might need refinement based on your data structure
             $seedEntry = $this->findSeedEntryForProduct($product);
-            
+
             if ($seedEntry) {
                 $traysNeeded = $this->calculateTraysNeeded($totalGramsNeeded, $seedEntry);
-                
+
                 $seedRequirements[$seedEntry->id] = [
                     'seed_entry' => $seedEntry,
                     'percentage' => 100,
@@ -156,18 +164,38 @@ class CropPlanCalculatorService
             'total_grams_needed' => $totalGramsNeeded,
             'packaging_type' => $priceVariation->packagingType?->name ?? 'Unknown',
             'seed_requirements' => $seedRequirements,
+            'yield_source' => $this->getYieldSourceInfo($seedRequirements),
         ];
     }
 
     /**
      * Calculate how many trays are needed based on grams required and seed entry properties.
+     * Uses harvest data when available, falls back to recipe expected yield.
      */
     protected function calculateTraysNeeded(float $gramsNeeded, SeedEntry $seedEntry): int
     {
-        // For now, we'll use a standard 50g per tray as default
-        // This could be made configurable or pulled from seed entry/recipe data
-        $gramsPerTray = 50; // This should ideally come from recipe or seed entry data
-        
+        // Find the recipe that uses this seed entry
+        $recipe = Recipe::where('seed_entry_id', $seedEntry->id)
+            ->where('is_active', true)
+            ->first();
+
+        if (! $recipe) {
+            // Fallback to default if no recipe found
+            Log::warning("No active recipe found for seed entry: {$seedEntry->id} ({$seedEntry->common_name})");
+            $gramsPerTray = 50; // Default fallback
+        } else {
+            // Use harvest-informed yield calculation
+            $gramsPerTray = $this->yieldCalculator->calculatePlanningYield($recipe);
+
+            // Log the yield source for transparency
+            $weightedYield = $this->yieldCalculator->calculateWeightedYieldForRecipe($recipe);
+            if ($weightedYield) {
+                Log::info("Using harvest-based yield for {$seedEntry->common_name}: {$gramsPerTray}g/tray (weighted: {$weightedYield}g, buffer: {$recipe->buffer_percentage}%)");
+            } else {
+                Log::info("Using recipe expected yield for {$seedEntry->common_name}: {$gramsPerTray}g/tray (no harvest data)");
+            }
+        }
+
         return (int) ceil($gramsNeeded / $gramsPerTray);
     }
 
@@ -181,17 +209,45 @@ class CropPlanCalculatorService
             ->orWhere('scientific_name', $product->name)
             ->first();
 
-        if (!$seedEntry) {
+        if (! $seedEntry) {
             // Try fuzzy matching on common name
-            $seedEntry = SeedEntry::where('common_name', 'LIKE', '%' . $product->name . '%')
+            $seedEntry = SeedEntry::where('common_name', 'LIKE', '%'.$product->name.'%')
                 ->first();
         }
 
-        if (!$seedEntry) {
+        if (! $seedEntry) {
             // Log this for review
             Log::warning("Could not find seed entry for product: {$product->name} (ID: {$product->id})");
         }
 
         return $seedEntry;
+    }
+
+    /**
+     * Get information about yield data sources for transparency.
+     */
+    protected function getYieldSourceInfo(array $seedRequirements): array
+    {
+        $yieldSources = [];
+
+        foreach ($seedRequirements as $seedEntryId => $requirement) {
+            $seedEntry = $requirement['seed_entry'];
+            $recipe = Recipe::where('seed_entry_id', $seedEntry->id)
+                ->where('is_active', true)
+                ->first();
+
+            if ($recipe) {
+                $stats = $this->yieldCalculator->getYieldStats($recipe);
+                $yieldSources[$seedEntry->common_name] = [
+                    'harvest_count' => $stats['harvest_count'],
+                    'weighted_yield' => $stats['weighted_yield'],
+                    'recipe_expected' => $stats['recipe_expected'],
+                    'recommendation' => $stats['recommendation'],
+                    'buffer_percentage' => $recipe->buffer_percentage,
+                ];
+            }
+        }
+
+        return $yieldSources;
     }
 }

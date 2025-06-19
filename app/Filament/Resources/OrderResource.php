@@ -56,7 +56,42 @@ class OrderResource extends Resource
                             ->searchable()
                             ->preload()
                             ->required()
-                            ->helperText('To add new customers, use the Customers section first'),
+                            ->createOptionForm([
+                                Forms\Components\TextInput::make('name')
+                                    ->label('Full Name')
+                                    ->required()
+                                    ->maxLength(255),
+                                Forms\Components\TextInput::make('email')
+                                    ->label('Email Address')
+                                    ->email()
+                                    ->required()
+                                    ->unique(User::class, 'email'),
+                                Forms\Components\TextInput::make('phone')
+                                    ->label('Phone Number')
+                                    ->tel()
+                                    ->maxLength(20),
+                                Forms\Components\Select::make('customer_type')
+                                    ->label('Customer Type')
+                                    ->options([
+                                        'retail' => 'Retail',
+                                        'wholesale' => 'Wholesale',
+                                    ])
+                                    ->default('retail')
+                                    ->required(),
+                                Forms\Components\TextInput::make('company_name')
+                                    ->label('Company Name')
+                                    ->maxLength(255)
+                                    ->visible(fn (Forms\Get $get) => $get('customer_type') === 'wholesale'),
+                                Forms\Components\Textarea::make('address')
+                                    ->label('Address')
+                                    ->rows(3),
+                            ])
+                            ->createOptionUsing(function (array $data): int {
+                                $data['password'] = bcrypt(Str::random(12));
+                                $data['email_verified_at'] = now();
+                                return User::create($data)->getKey();
+                            })
+                            ->helperText('Select existing customer or create a new one'),
                         Forms\Components\DatePicker::make('harvest_date')
                             ->label('Harvest Date')
                             ->helperText('When this order should be harvested (used by crop planner)')
@@ -69,7 +104,7 @@ class OrderResource extends Resource
                             ->options([
                                 'website_immediate' => 'Website Order',
                                 'farmers_market' => 'Farmer\'s Market',
-                                'b2b' => 'B2B',
+                                'b2b_recurring' => 'B2B',
                             ])
                             ->default('website_immediate')
                             ->required(),
@@ -237,6 +272,7 @@ class OrderResource extends Resource
                         'processing' => 'Preparing',
                         'planted' => 'Growing',
                         'harvested' => 'Harvested',
+                        'packed' => 'Packed',
                         'delivered' => 'Delivered',
                         'cancelled' => 'Cancelled',
                         'completed' => 'Completed',
@@ -443,6 +479,7 @@ class OrderResource extends Resource
             'processing' => 'Preparing',
             'planted' => 'Growing',
             'harvested' => 'Harvested',
+            'packed' => 'Packed',
             'delivered' => 'Delivered',
             'completed' => 'Completed',
             'cancelled' => 'Cancelled',
@@ -459,7 +496,8 @@ class OrderResource extends Resource
             'pending' => ['pending', 'processing', 'cancelled'], // Can start preparing or cancel
             'processing' => ['processing', 'planted', 'cancelled'], // Can start growing or cancel
             'planted' => ['planted', 'harvested', 'cancelled'], // Can harvest or cancel (in case of crop failure)
-            'harvested' => ['harvested', 'delivered', 'cancelled'], // Can deliver or cancel
+            'harvested' => ['harvested', 'packed', 'cancelled'], // Can pack or cancel
+            'packed' => ['packed', 'delivered', 'cancelled'], // Can deliver or cancel
             'delivered' => ['delivered', 'completed'], // Can only complete (rarely cancel after delivery)
             'completed' => ['completed'], // Final state - no changes allowed
             'cancelled' => ['cancelled', 'pending'], // Can reactivate cancelled orders
