@@ -22,9 +22,58 @@ class ResourceImportService
         $tempDir = 'imports/temp_' . uniqid();
         Storage::makeDirectory($tempDir);
         
+        // Check if ZIP file exists and is readable
+        if (!file_exists($zipPath)) {
+            throw new \Exception("ZIP file not found at path: {$zipPath}");
+        }
+        
+        if (!is_readable($zipPath)) {
+            throw new \Exception("ZIP file is not readable: {$zipPath}");
+        }
+        
+        // Check file size
+        $fileSize = filesize($zipPath);
+        if ($fileSize === 0) {
+            throw new \Exception("ZIP file is empty: {$zipPath}");
+        }
+        
         $zip = new ZipArchive();
-        if ($zip->open($zipPath) !== true) {
-            throw new \Exception("Cannot open ZIP file");
+        $openResult = $zip->open($zipPath);
+        
+        if ($openResult !== true) {
+            $errorMessage = "Cannot open ZIP file at {$zipPath}. ";
+            switch($openResult) {
+                case ZipArchive::ER_EXISTS:
+                    $errorMessage .= "File already exists.";
+                    break;
+                case ZipArchive::ER_INCONS:
+                    $errorMessage .= "Zip archive inconsistent.";
+                    break;
+                case ZipArchive::ER_INVAL:
+                    $errorMessage .= "Invalid argument.";
+                    break;
+                case ZipArchive::ER_MEMORY:
+                    $errorMessage .= "Memory allocation failure.";
+                    break;
+                case ZipArchive::ER_NOENT:
+                    $errorMessage .= "No such file.";
+                    break;
+                case ZipArchive::ER_NOZIP:
+                    $errorMessage .= "Not a zip archive.";
+                    break;
+                case ZipArchive::ER_OPEN:
+                    $errorMessage .= "Can't open file.";
+                    break;
+                case ZipArchive::ER_READ:
+                    $errorMessage .= "Read error.";
+                    break;
+                case ZipArchive::ER_SEEK:
+                    $errorMessage .= "Seek error.";
+                    break;
+                default:
+                    $errorMessage .= "Unknown error code: {$openResult}";
+            }
+            throw new \Exception($errorMessage);
         }
         
         $zip->extractTo(storage_path("app/{$tempDir}"));

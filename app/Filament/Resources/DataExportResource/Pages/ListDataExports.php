@@ -30,11 +30,14 @@ class ListDataExports extends ListRecords
                     \Filament\Forms\Components\FileUpload::make('file')
                         ->label('Import File')
                         ->helperText('Upload a ZIP file exported from this system')
-                        ->acceptedFileTypes(['application/zip'])
+                        ->acceptedFileTypes(['application/zip', 'application/x-zip-compressed', 'application/x-zip', 'application/octet-stream'])
                         ->required()
                         ->maxSize(1024 * 50) // 50MB
                         ->preserveFilenames()
-                        ->directory('imports'),
+                        ->directory('imports')
+                        ->disk('local')
+                        ->visibility('private')
+                        ->storeFileNamesIn('original_file_name'),
                         
                     \Filament\Forms\Components\Toggle::make('validate_only')
                         ->label('Validate Only')
@@ -64,7 +67,50 @@ class ListDataExports extends ListRecords
                         ->visible(fn ($get) => !$get('validate_only') && in_array($get('import_mode'), ['insert', 'upsert'])),
                 ])
                 ->action(function (array $data) {
-                    $filepath = storage_path('app/' . $data['file']);
+                    // Ensure imports directory exists
+                    if (!file_exists(storage_path('app/imports'))) {
+                        mkdir(storage_path('app/imports'), 0755, true);
+                    }
+                    
+                    // Debug: Log what we receive from FileUpload
+                    \Log::info('Import file data received:', ['file' => $data['file'], 'all_data' => $data]);
+                    
+                    // FileUpload returns just the filename when using directory()
+                    // We need to prepend the directory path
+                    $filename = is_array($data['file']) ? $data['file'][0] : $data['file'];
+                    
+                    // Try multiple possible paths
+                    $possiblePaths = [
+                        storage_path('app/imports/' . $filename),
+                        storage_path('app/' . $filename),
+                        storage_path('app/' . $data['file']),
+                    ];
+                    
+                    // Also check if the file might be in the livewire-tmp directory
+                    if (str_contains($filename, 'livewire-tmp')) {
+                        $possiblePaths[] = storage_path('app/' . $filename);
+                    }
+                    
+                    $filepath = null;
+                    foreach ($possiblePaths as $path) {
+                        if (file_exists($path)) {
+                            $filepath = $path;
+                            break;
+                        }
+                    }
+                    
+                    // Debug: Check if file exists
+                    if (!$filepath) {
+                        $checkedPaths = implode("\n", $possiblePaths);
+                        \Filament\Notifications\Notification::make()
+                            ->title('File Not Found')
+                            ->body("The uploaded file could not be found. Checked paths:\n{$checkedPaths}")
+                            ->danger()
+                            ->send();
+                        return;
+                    }
+                    
+                    \Log::info('Using file path:', ['path' => $filepath]);
                     
                     try {
                         $importService = new \App\Services\ImportExport\ResourceImportService();
@@ -128,7 +174,9 @@ class ListDataExports extends ListRecords
                         }
                         
                         // Clean up uploaded file
-                        unlink($filepath);
+                        if (file_exists($filepath)) {
+                            unlink($filepath);
+                        }
                         
                     } catch (\Exception $e) {
                         \Filament\Notifications\Notification::make()
@@ -138,7 +186,7 @@ class ListDataExports extends ListRecords
                             ->send();
                             
                         // Clean up uploaded file
-                        if (file_exists($filepath)) {
+                        if (isset($filepath) && file_exists($filepath)) {
                             unlink($filepath);
                         }
                     }
