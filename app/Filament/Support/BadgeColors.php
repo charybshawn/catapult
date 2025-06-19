@@ -42,21 +42,52 @@ class BadgeColors
     }
 
     /**
-     * Color mapping for order statuses
+     * Color mapping for order statuses (order management)
      */
     public static function getOrderStatusColor(string $status): string
     {
         return match ($status) {
+            'draft' => 'gray',
             'pending' => 'warning',
             'confirmed' => 'info',
             'processing' => 'info',
-            'planted' => 'primary',
-            'harvested' => 'success', 
-            'packed' => 'success',
-            'delivered' => 'success',
             'completed' => 'success',
             'cancelled' => 'danger',
             'template' => 'primary',
+            default => 'gray',
+        };
+    }
+    
+    /**
+     * Color mapping for crop production statuses
+     */
+    public static function getCropStatusColor(string $status): string
+    {
+        return match ($status) {
+            'not_started' => 'gray',
+            'planted' => 'info',
+            'growing' => 'primary',
+            'ready_to_harvest' => 'warning',
+            'harvested' => 'success',
+            'na' => 'gray',
+            default => 'gray',
+        };
+    }
+    
+    /**
+     * Color mapping for fulfillment statuses
+     */
+    public static function getFulfillmentStatusColor(string $status): string
+    {
+        return match ($status) {
+            'pending' => 'gray',
+            'processing' => 'info',
+            'packing' => 'info',
+            'packed' => 'primary',
+            'ready_for_delivery' => 'warning',
+            'out_for_delivery' => 'warning',
+            'delivered' => 'success',
+            'cancelled' => 'danger',
             default => 'gray',
         };
     }

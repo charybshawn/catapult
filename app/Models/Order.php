@@ -24,6 +24,8 @@ class Order extends Model
         'harvest_date',
         'delivery_date',
         'status',
+        'crop_status',
+        'fulfillment_status',
         'customer_type',
         'order_type',
         'billing_frequency',
@@ -541,15 +543,109 @@ class Order extends Model
     }
     
     /**
+     * Check if the order requires crop production.
+     */
+    public function requiresCropProduction(): bool
+    {
+        // Check if any order items are products with varieties that need growing
+        return $this->orderItems()->whereHas('product', function ($query) {
+            $query->where(function ($q) {
+                $q->whereNotNull('master_seed_catalog_id')
+                  ->orWhereNotNull('product_mix_id');
+            });
+        })->exists();
+    }
+    
+    /**
+     * Update crop status based on related crops.
+     */
+    public function updateCropStatus(): void
+    {
+        if (!$this->requiresCropProduction()) {
+            $this->update(['crop_status' => 'na']);
+            return;
+        }
+        
+        $crops = $this->crops;
+        
+        if ($crops->isEmpty()) {
+            $this->update(['crop_status' => 'not_started']);
+            return;
+        }
+        
+        // Check crop stages
+        $allHarvested = $crops->every(fn($crop) => $crop->current_stage === 'harvested');
+        $anyPlanted = $crops->contains(fn($crop) => $crop->planted_at !== null);
+        $allReady = $crops->every(fn($crop) => $crop->isReadyToHarvest());
+        
+        if ($allHarvested) {
+            $this->update(['crop_status' => 'harvested']);
+        } elseif ($allReady) {
+            $this->update(['crop_status' => 'ready_to_harvest']);
+        } elseif ($anyPlanted) {
+            $this->update(['crop_status' => 'growing']);
+        } else {
+            $this->update(['crop_status' => 'planted']);
+        }
+    }
+    
+    /**
+     * Get a combined status display.
+     */
+    public function getCombinedStatusAttribute(): string
+    {
+        $statuses = [];
+        
+        // Add order status
+        $statuses[] = match($this->status) {
+            'draft' => 'Draft',
+            'pending' => 'Pending',
+            'confirmed' => 'Confirmed',
+            'processing' => 'Processing',
+            'completed' => 'Completed',
+            'cancelled' => 'Cancelled',
+            'template' => 'Template',
+            default => ucfirst($this->status)
+        };
+        
+        // Add crop status if applicable
+        if ($this->crop_status !== 'na' && $this->crop_status !== 'not_started') {
+            $statuses[] = match($this->crop_status) {
+                'planted' => 'Planted',
+                'growing' => 'Growing',
+                'ready_to_harvest' => 'Ready to Harvest',
+                'harvested' => 'Harvested',
+                default => ucfirst($this->crop_status)
+            };
+        }
+        
+        // Add fulfillment status if not pending
+        if ($this->fulfillment_status !== 'pending') {
+            $statuses[] = match($this->fulfillment_status) {
+                'processing' => 'Processing',
+                'packing' => 'Packing',
+                'packed' => 'Packed',
+                'ready_for_delivery' => 'Ready for Delivery',
+                'out_for_delivery' => 'Out for Delivery',
+                'delivered' => 'Delivered',
+                'cancelled' => 'Cancelled',
+                default => ucfirst($this->fulfillment_status)
+            };
+        }
+        
+        return implode(' - ', array_unique($statuses));
+    }
+    
+    /**
      * Configure the activity log options for this model.
      */
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
             ->logOnly([
-                'user_id', 'harvest_date', 'delivery_date', 'status', 'customer_type', 
-                'is_recurring', 'recurring_frequency', 'recurring_start_date', 'recurring_end_date',
-                'is_recurring_active', 'notes'
+                'user_id', 'harvest_date', 'delivery_date', 'status', 'crop_status', 
+                'fulfillment_status', 'customer_type', 'is_recurring', 'recurring_frequency', 
+                'recurring_start_date', 'recurring_end_date', 'is_recurring_active', 'notes'
             ])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()

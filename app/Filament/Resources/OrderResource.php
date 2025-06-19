@@ -217,9 +217,16 @@ class OrderResource extends Resource
                         default => 'gray',
                     }),
                 Tables\Columns\SelectColumn::make('status')
-                    ->options(function (Order $record): array {
-                        return self::getAvailableStatusOptions($record);
-                    })
+                    ->label('Order Status')
+                    ->options([
+                        'draft' => 'Draft',
+                        'pending' => 'Pending',
+                        'confirmed' => 'Confirmed',
+                        'processing' => 'Processing',
+                        'completed' => 'Completed',
+                        'cancelled' => 'Cancelled',
+                        'template' => 'Template',
+                    ])
                     ->disabled(fn (Order $record): bool => $record->status === 'template')
                     ->selectablePlaceholder(false)
                     ->afterStateUpdated(function (Order $record, $state) {
@@ -231,14 +238,73 @@ class OrderResource extends Resource
                                 'new_status' => $state,
                                 'changed_by' => auth()->user()->name ?? 'System'
                             ])
-                            ->log('Status changed');
+                            ->log('Order status changed');
                             
                         Notification::make()
-                            ->title('Status Updated')
+                            ->title('Order Status Updated')
                             ->body("Order #{$record->id} status changed to: " . ucfirst($state))
                             ->success()
                             ->send();
                     }),
+                Tables\Columns\SelectColumn::make('crop_status')
+                    ->label('Crop Status')
+                    ->options([
+                        'not_started' => 'Not Started',
+                        'planted' => 'Planted',
+                        'growing' => 'Growing',
+                        'ready_to_harvest' => 'Ready to Harvest',
+                        'harvested' => 'Harvested',
+                        'na' => 'N/A',
+                    ])
+                    ->disabled(fn (Order $record): bool => $record->crop_status === 'na')
+                    ->selectablePlaceholder(false)
+                    ->afterStateUpdated(function (Order $record, $state) {
+                        activity()
+                            ->performedOn($record)
+                            ->withProperties([
+                                'old_status' => $record->getOriginal('crop_status'),
+                                'new_status' => $state,
+                                'changed_by' => auth()->user()->name ?? 'System'
+                            ])
+                            ->log('Crop status changed');
+                            
+                        Notification::make()
+                            ->title('Crop Status Updated')
+                            ->body("Order #{$record->id} crop status changed to: " . str_replace('_', ' ', ucfirst($state)))
+                            ->success()
+                            ->send();
+                    })
+                    ->toggleable(),
+                Tables\Columns\SelectColumn::make('fulfillment_status')
+                    ->label('Fulfillment')
+                    ->options([
+                        'pending' => 'Pending',
+                        'processing' => 'Processing',
+                        'packing' => 'Packing',
+                        'packed' => 'Packed',
+                        'ready_for_delivery' => 'Ready for Delivery',
+                        'out_for_delivery' => 'Out for Delivery',
+                        'delivered' => 'Delivered',
+                        'cancelled' => 'Cancelled',
+                    ])
+                    ->selectablePlaceholder(false)
+                    ->afterStateUpdated(function (Order $record, $state) {
+                        activity()
+                            ->performedOn($record)
+                            ->withProperties([
+                                'old_status' => $record->getOriginal('fulfillment_status'),
+                                'new_status' => $state,
+                                'changed_by' => auth()->user()->name ?? 'System'
+                            ])
+                            ->log('Fulfillment status changed');
+                            
+                        Notification::make()
+                            ->title('Fulfillment Status Updated')
+                            ->body("Order #{$record->id} fulfillment status changed to: " . str_replace('_', ' ', ucfirst($state)))
+                            ->success()
+                            ->send();
+                    })
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('parent_template')
                     ->label('Template')
                     ->getStateUsing(fn (Order $record) => $record->parent_recurring_order_id ? "Template #{$record->parent_recurring_order_id}" : null)
@@ -267,16 +333,37 @@ class OrderResource extends Resource
             ->defaultSort('created_at', 'desc')
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
+                    ->label('Order Status')
                     ->options([
-                        'pending' => 'Queued',
-                        'processing' => 'Preparing',
-                        'planted' => 'Growing',
+                        'draft' => 'Draft',
+                        'pending' => 'Pending',
+                        'confirmed' => 'Confirmed',
+                        'processing' => 'Processing',
+                        'completed' => 'Completed',
+                        'cancelled' => 'Cancelled',
+                        'template' => 'Template',
+                    ]),
+                Tables\Filters\SelectFilter::make('crop_status')
+                    ->label('Crop Status')
+                    ->options([
+                        'not_started' => 'Not Started',
+                        'planted' => 'Planted',
+                        'growing' => 'Growing',
+                        'ready_to_harvest' => 'Ready to Harvest',
                         'harvested' => 'Harvested',
+                        'na' => 'N/A',
+                    ]),
+                Tables\Filters\SelectFilter::make('fulfillment_status')
+                    ->label('Fulfillment Status')
+                    ->options([
+                        'pending' => 'Pending',
+                        'processing' => 'Processing',
+                        'packing' => 'Packing',
                         'packed' => 'Packed',
+                        'ready_for_delivery' => 'Ready for Delivery',
+                        'out_for_delivery' => 'Out for Delivery',
                         'delivered' => 'Delivered',
                         'cancelled' => 'Cancelled',
-                        'completed' => 'Completed',
-                        'template' => 'Template (Recurring)',
                     ]),
                 Tables\Filters\TernaryFilter::make('parent_recurring_order_id')
                     ->label('Order Source')
@@ -469,58 +556,6 @@ class OrderResource extends Resource
         ];
     }
 
-    /**
-     * Get available status options based on current status and business logic
-     */
-    public static function getAvailableStatusOptions(Order $record): array
-    {
-        $allStatuses = [
-            'pending' => 'Queued',
-            'processing' => 'Preparing',
-            'planted' => 'Growing',
-            'harvested' => 'Harvested',
-            'packed' => 'Packed',
-            'delivered' => 'Delivered',
-            'completed' => 'Completed',
-            'cancelled' => 'Cancelled',
-            'template' => 'Template',
-        ];
-        
-        // Templates can't change status
-        if ($record->status === 'template') {
-            return ['template' => 'Template'];
-        }
-        
-        // Define logical status transitions
-        $allowedTransitions = match($record->status) {
-            'pending' => ['pending', 'processing', 'cancelled'], // Can start preparing or cancel
-            'processing' => ['processing', 'planted', 'cancelled'], // Can start growing or cancel
-            'planted' => ['planted', 'harvested', 'cancelled'], // Can harvest or cancel (in case of crop failure)
-            'harvested' => ['harvested', 'packed', 'cancelled'], // Can pack or cancel
-            'packed' => ['packed', 'delivered', 'cancelled'], // Can deliver or cancel
-            'delivered' => ['delivered', 'completed'], // Can only complete (rarely cancel after delivery)
-            'completed' => ['completed'], // Final state - no changes allowed
-            'cancelled' => ['cancelled', 'pending'], // Can reactivate cancelled orders
-            default => array_keys($allStatuses), // Fallback: allow all
-        };
-        
-        // For admin users (check by email or add your own admin logic), allow more flexibility
-        $isAdmin = auth()->user()?->email === 'admin@example.com' || 
-                   str_contains(auth()->user()?->email ?? '', 'admin') ||
-                   auth()->user()?->is_admin ?? false;
-                   
-        if ($isAdmin) {
-            $adminExtraOptions = match($record->status) {
-                'processing', 'planted', 'harvested' => ['cancelled'],
-                'delivered' => ['cancelled'], // Admin can cancel even delivered orders
-                'completed' => ['delivered'], // Admin can step back completed orders
-                default => [],
-            };
-            $allowedTransitions = array_unique(array_merge($allowedTransitions, $adminExtraOptions));
-        }
-        
-        return array_intersect_key($allStatuses, array_flip($allowedTransitions));
-    }
 
     /**
      * Validate that orders can be consolidated into a single invoice
