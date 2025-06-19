@@ -198,6 +198,9 @@
       },
       {
         "resource": "TableBackupManagement"
+      },
+      {
+        "resource": "DataExportResource"
       }
 
     ]

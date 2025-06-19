@@ -39,6 +39,15 @@ Route::middleware('auth')->group(function () {
         
         abort(404, 'Backup file not found');
     })->name('database.backup.download');
+    
+    // Data export download route
+    Route::get('/admin/data-export/{export}/download', function (\App\Models\DataExport $export) {
+        if (!$export->fileExists()) {
+            abort(404, 'Export file not found');
+        }
+        
+        return response()->download($export->filepath);
+    })->name('filament.admin.data-export.download');
 });
 
 require __DIR__.'/auth.php';
