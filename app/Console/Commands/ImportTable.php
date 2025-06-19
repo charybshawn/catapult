@@ -160,8 +160,7 @@ class ImportTable extends Command
                 // Try to auto-detect unique columns
                 $uniqueColumns = $this->detectUniqueColumns($table);
                 if (empty($uniqueColumns)) {
-                    $this->warn("No unique columns specified or detected. Using 'id' column.");
-                    $uniqueColumns = ['id'];
+                    $this->info("No unique columns detected. Using content-based comparison (slower for large tables).");
                 } else {
                     $this->info("Using unique columns: " . implode(', ', $uniqueColumns));
                 }
@@ -411,19 +410,69 @@ class ImportTable extends Command
     }
     
     /**
-     * Check if a record exists based on unique columns
+     * Check if a record exists based on unique columns or content hash
      */
     protected function recordExists($table, $record, $uniqueColumns)
     {
-        $query = DB::table($table);
+        // Remove auto-increment and timestamp fields for comparison
+        $compareRecord = $this->prepareRecordForComparison($record);
         
-        foreach ($uniqueColumns as $column) {
-            if (isset($record[$column])) {
-                $query->where($column, $record[$column]);
+        if (!empty($uniqueColumns)) {
+            // Use specified unique columns
+            $query = DB::table($table);
+            
+            foreach ($uniqueColumns as $column) {
+                if (isset($record[$column])) {
+                    $query->where($column, $record[$column]);
+                }
             }
+            
+            return $query->exists();
+        } else {
+            // No unique columns, use content hash comparison
+            // Get all records from the table (this could be optimized for large tables)
+            $existingRecords = DB::table($table)->get();
+            
+            foreach ($existingRecords as $existingRecord) {
+                $existingArray = (array) $existingRecord;
+                $existingCompare = $this->prepareRecordForComparison($existingArray);
+                
+                // Compare content hashes
+                if ($this->getRecordHash($compareRecord) === $this->getRecordHash($existingCompare)) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+    }
+    
+    /**
+     * Prepare record for comparison by removing auto-generated fields
+     */
+    protected function prepareRecordForComparison($record)
+    {
+        // Remove fields that are auto-generated or system-managed
+        $excludeFields = ['id', 'created_at', 'updated_at', 'deleted_at'];
+        
+        $compareRecord = $record;
+        foreach ($excludeFields as $field) {
+            unset($compareRecord[$field]);
         }
         
-        return $query->exists();
+        // Sort array by keys for consistent hashing
+        ksort($compareRecord);
+        
+        return $compareRecord;
+    }
+    
+    /**
+     * Generate a hash of record content for comparison
+     */
+    protected function getRecordHash($record)
+    {
+        // Use JSON encoding for consistent string representation
+        return md5(json_encode($record));
     }
     
     /**
@@ -433,16 +482,27 @@ class ImportTable extends Command
     {
         $uniqueColumns = [];
         
-        // Common unique column names
-        $commonUnique = ['id', 'uuid', 'email', 'username', 'slug', 'sku', 'code'];
-        
-        $tableColumns = Schema::getColumnListing($table);
-        
-        foreach ($commonUnique as $column) {
-            if (in_array($column, $tableColumns)) {
-                $uniqueColumns[] = $column;
-                break; // Use first found
-            }
+        // Table-specific unique column detection
+        switch ($table) {
+            case 'harvests':
+                // For harvests, use combination of cultivar, user, and harvest date
+                // as these together should be unique for a harvest entry
+                $uniqueColumns = ['master_cultivar_id', 'user_id', 'harvest_date'];
+                break;
+            
+            default:
+                // Common unique column names (excluding 'id' since it's auto-increment)
+                $commonUnique = ['uuid', 'email', 'username', 'slug', 'sku', 'code', 'reference', 'external_id'];
+                
+                $tableColumns = Schema::getColumnListing($table);
+                
+                foreach ($commonUnique as $column) {
+                    if (in_array($column, $tableColumns)) {
+                        $uniqueColumns[] = $column;
+                        break; // Use first found
+                    }
+                }
+                break;
         }
         
         return $uniqueColumns;

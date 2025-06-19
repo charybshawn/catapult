@@ -19,6 +19,7 @@ class ExportTable extends Command
                             {--format=json : Export format (json or csv)}
                             {--output= : Output file path (defaults to storage/app/exports/)}
                             {--with-timestamps : Include created_at and updated_at columns}
+                            {--without-id : Exclude id column from export}
                             {--limit= : Limit number of records}
                             {--where=* : Where conditions in format column:value}';
 
@@ -37,6 +38,7 @@ class ExportTable extends Command
         $table = $this->argument('table');
         $format = strtolower($this->option('format'));
         $withTimestamps = $this->option('with-timestamps');
+        $withoutId = $this->option('without-id');
         $limit = $this->option('limit');
         $whereConditions = $this->option('where');
         
@@ -103,7 +105,23 @@ class ExportTable extends Command
         // Get columns to export
         $columns = Schema::getColumnListing($table);
         if (!$withTimestamps) {
-            $columns = array_diff($columns, ['created_at', 'updated_at']);
+            $columns = array_values(array_diff($columns, ['created_at', 'updated_at']));
+        }
+        if ($withoutId) {
+            $columns = array_values(array_diff($columns, ['id']));
+        }
+        
+        // Exclude virtual/generated columns that cannot be inserted
+        $virtualColumns = $this->getVirtualColumns($table);
+        if (!empty($virtualColumns)) {
+            $columns = array_values(array_diff($columns, $virtualColumns));
+            $this->info("Excluding virtual columns: " . implode(', ', $virtualColumns));
+        }
+        
+        // Ensure we have columns to export
+        if (empty($columns)) {
+            $this->error("No columns to export after exclusions.");
+            return 1;
         }
         
         // Get data
@@ -197,5 +215,19 @@ class ExportTable extends Command
         }
         
         return round($bytes, $precision) . ' ' . $units[$i];
+    }
+    
+    /**
+     * Get virtual/generated columns for a table
+     */
+    protected function getVirtualColumns($table)
+    {
+        // For now, manually specify known virtual columns per table
+        // This is more reliable than querying information_schema
+        $tableVirtualColumns = [
+            'harvests' => ['average_weight_per_tray', 'week_start_date'],
+        ];
+        
+        return $tableVirtualColumns[$table] ?? [];
     }
 }

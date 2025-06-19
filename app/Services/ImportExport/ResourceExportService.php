@@ -49,6 +49,7 @@ class ResourceExportService
                 'table' => $table,
                 '--format' => $format,
                 '--output' => $filepath,
+                '--without-id' => true, // Exclude IDs for portability
             ];
             
             if ($includeTimestamps) {
