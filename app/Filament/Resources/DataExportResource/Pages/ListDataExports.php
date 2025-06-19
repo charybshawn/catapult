@@ -75,20 +75,24 @@ class ListDataExports extends ListRecords
                     // Debug: Log what we receive from FileUpload
                     \Illuminate\Support\Facades\Log::info('Import file data received:', ['file' => $data['file'], 'all_data' => $data]);
                     
-                    // FileUpload returns just the filename when using directory()
-                    // We need to prepend the directory path
-                    $filename = is_array($data['file']) ? $data['file'][0] : $data['file'];
+                    // FileUpload might return the full path or just filename
+                    $fileInput = is_array($data['file']) ? $data['file'][0] : $data['file'];
+                    
+                    // Extract just the filename if it includes a path
+                    $filename = basename($fileInput);
                     
                     // Try multiple possible paths
                     $possiblePaths = [
-                        storage_path('app/imports/' . $filename),
-                        storage_path('app/' . $filename),
-                        storage_path('app/' . $data['file']),
+                        storage_path('app/' . $fileInput), // Full path as returned by FileUpload
+                        storage_path('app/public/' . $fileInput), // Public disk path
+                        storage_path('app/private/' . $fileInput), // Private disk path
+                        storage_path('app/imports/' . $filename), // Just filename in imports dir
+                        storage_path('app/' . $filename), // Just filename in app dir
                     ];
                     
                     // Also check if the file might be in the livewire-tmp directory
-                    if (str_contains($filename, 'livewire-tmp')) {
-                        $possiblePaths[] = storage_path('app/' . $filename);
+                    if (str_contains($fileInput, 'livewire-tmp')) {
+                        $possiblePaths[] = storage_path('app/' . $fileInput);
                     }
                     
                     $filepath = null;
@@ -101,10 +105,16 @@ class ListDataExports extends ListRecords
                     
                     // Debug: Check if file exists
                     if (!$filepath) {
-                        $checkedPaths = implode("\n", $possiblePaths);
+                        \Illuminate\Support\Facades\Log::error('File not found after upload', [
+                            'file_input' => $fileInput,
+                            'filename' => $filename,
+                            'checked_paths' => $possiblePaths,
+                            'raw_file_data' => $data['file']
+                        ]);
+                        
                         \Filament\Notifications\Notification::make()
                             ->title('File Not Found')
-                            ->body("The uploaded file could not be found. Checked paths:\n{$checkedPaths}")
+                            ->body("The uploaded file could not be found. Please try uploading again.")
                             ->danger()
                             ->send();
                         return;
