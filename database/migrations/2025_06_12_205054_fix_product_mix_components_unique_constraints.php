@@ -12,15 +12,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-<<<<<<< HEAD
-        // Check if columns already exist
-        if (!Schema::hasColumn('product_mix_components', 'master_seed_catalog_id')) {
-=======
         // Check if columns already exist before adding them
-        $hasColumns = Schema::hasColumns('product_mix_components', ['master_seed_catalog_id', 'cultivar']);
-        
-        if (!$hasColumns) {
->>>>>>> 586915e83908aa66e9cc9d315533470597184a57
+        if (!Schema::hasColumn('product_mix_components', 'master_seed_catalog_id')) {
             Schema::table('product_mix_components', function (Blueprint $table) {
                 // Add missing master_seed_catalog_id column
                 $table->unsignedBigInteger('master_seed_catalog_id')->after('product_mix_id');
@@ -31,26 +24,6 @@ return new class extends Migration
             });
         }
         
-<<<<<<< HEAD
-        // Handle indexes separately to avoid issues
-        Schema::table('product_mix_components', function (Blueprint $table) {
-            // Drop indexes if they exist using raw SQL
-            $indexes = collect(DB::select("SHOW INDEXES FROM product_mix_components"));
-            
-            if ($indexes->where('Key_name', 'product_mix_components_product_mix_id_seed_cultivar_id_unique')->isNotEmpty()) {
-                DB::statement('DROP INDEX product_mix_components_product_mix_id_seed_cultivar_id_unique ON product_mix_components');
-            }
-            
-            if ($indexes->where('Key_name', 'product_mix_components_product_mix_id_seed_variety_id_unique')->isNotEmpty()) {
-                DB::statement('DROP INDEX product_mix_components_product_mix_id_seed_variety_id_unique ON product_mix_components');
-            }
-            
-            // Add new index if it doesn't exist
-            if ($indexes->where('Key_name', 'mix_components_unique')->isEmpty()) {
-                $table->unique(['product_mix_id', 'master_seed_catalog_id', 'cultivar'], 'mix_components_unique');
-            }
-        });
-=======
         // Check for and drop existing incorrect indexes using raw SQL
         $indexes = DB::select("SHOW INDEX FROM product_mix_components WHERE Key_name IN ('product_mix_components_product_mix_id_seed_cultivar_id_unique', 'product_mix_components_product_mix_id_seed_variety_id_unique')");
         
@@ -65,7 +38,6 @@ return new class extends Migration
                 $table->unique(['product_mix_id', 'master_seed_catalog_id', 'cultivar'], 'mix_components_unique');
             });
         }
->>>>>>> 586915e83908aa66e9cc9d315533470597184a57
     }
 
     /**
