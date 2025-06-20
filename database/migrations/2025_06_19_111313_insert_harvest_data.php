@@ -14,11 +14,25 @@ return new class extends Migration
         if (app()->environment('testing')) {
             return;
         }
+        
+        // Get the first available user ID, or create a default user if none exists
+        $firstUserId = DB::table('users')->value('id');
+        if (!$firstUserId) {
+            // Create a default user if none exists
+            $firstUserId = DB::table('users')->insertGetId([
+                'name' => 'System',
+                'email' => 'system@example.com',
+                'password' => bcrypt('password'),
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+        }
+        
         $harvests = [
             [
                 'id' => 1,
                 'master_cultivar_id' => 18,
-                'user_id' => 2,
+                'user_id' => $firstUserId,
                 'total_weight_grams' => 1165.00,
                 'tray_count' => 4,
                 'average_weight_per_tray' => 291.25,
@@ -31,7 +45,7 @@ return new class extends Migration
             [
                 'id' => 2,
                 'master_cultivar_id' => 27,
-                'user_id' => 2,
+                'user_id' => $firstUserId,
                 'total_weight_grams' => 456.00,
                 'tray_count' => 3,
                 'average_weight_per_tray' => 152.00,
@@ -44,7 +58,7 @@ return new class extends Migration
             [
                 'id' => 3,
                 'master_cultivar_id' => 36,
-                'user_id' => 2,
+                'user_id' => $firstUserId,
                 'total_weight_grams' => 747.00,
                 'tray_count' => 4,
                 'average_weight_per_tray' => 186.75,
@@ -57,7 +71,7 @@ return new class extends Migration
             [
                 'id' => 4,
                 'master_cultivar_id' => 40,
-                'user_id' => 2,
+                'user_id' => $firstUserId,
                 'total_weight_grams' => 709.00,
                 'tray_count' => 3,
                 'average_weight_per_tray' => 236.33,
@@ -70,7 +84,7 @@ return new class extends Migration
             [
                 'id' => 5,
                 'master_cultivar_id' => 68,
-                'user_id' => 2,
+                'user_id' => $firstUserId,
                 'total_weight_grams' => 600.00,
                 'tray_count' => 4,
                 'average_weight_per_tray' => 150.00,
@@ -83,7 +97,7 @@ return new class extends Migration
             [
                 'id' => 6,
                 'master_cultivar_id' => 17,
-                'user_id' => 2,
+                'user_id' => $firstUserId,
                 'total_weight_grams' => 578.00,
                 'tray_count' => 2,
                 'average_weight_per_tray' => 289.00,
@@ -96,7 +110,7 @@ return new class extends Migration
             [
                 'id' => 7,
                 'master_cultivar_id' => 1,
-                'user_id' => 2,
+                'user_id' => $firstUserId,
                 'total_weight_grams' => 1422.00,
                 'tray_count' => 4,
                 'average_weight_per_tray' => 355.50,
@@ -109,7 +123,7 @@ return new class extends Migration
             [
                 'id' => 8,
                 'master_cultivar_id' => 40,
-                'user_id' => 2,
+                'user_id' => $firstUserId,
                 'total_weight_grams' => 708.00,
                 'tray_count' => 3,
                 'average_weight_per_tray' => 236.00,
