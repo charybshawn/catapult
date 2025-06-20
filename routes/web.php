@@ -38,4 +38,10 @@ Route::middleware('auth')->group(function () {
     
 });
 
+// Filament admin login POST route (temporary fix)
+Route::middleware(['web', 'guest'])->post('/admin/login', function (Illuminate\Http\Request $request) {
+    // This route handles Livewire form submissions for admin login
+    return redirect()->route('filament.admin.auth.login');
+})->name('filament.admin.auth.login.post');
+
 require __DIR__.'/auth.php';
