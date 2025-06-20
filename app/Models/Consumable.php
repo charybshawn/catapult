@@ -72,7 +72,7 @@ class Consumable extends Model
      * @var array
      */
     protected $appends = [
-        'current_stock',
+        'initial_stock',
     ];
     
     /**

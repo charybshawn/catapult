@@ -106,6 +106,7 @@ return new class extends Migration
             $table->integer('total_entries')->default(0);
             $table->integer('new_entries')->default(0);
             $table->integer('updated_entries')->default(0);
+            $table->integer('failed_entries_count')->default(0);
             $table->json('failed_entries')->nullable();
             $table->foreignId('uploaded_by')->constrained('users')->onDelete('cascade');
             $table->timestamp('uploaded_at');
