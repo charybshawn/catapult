@@ -10,8 +10,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Skip data insertion during testing
+        // Skip data insertion during testing or fresh migrations
         if (app()->environment('testing')) {
+            return;
+        }
+        
+        // Skip if master_cultivars table is empty (fresh database)
+        if (DB::table('master_cultivars')->count() === 0) {
             return;
         }
         
