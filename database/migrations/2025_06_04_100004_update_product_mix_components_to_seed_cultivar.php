@@ -45,7 +45,15 @@ return new class extends Migration
         }
         
         // Drop the old foreign key and column if they exist
-        if (Schema::hasColumn('product_mix_components', 'seed_variety_id')) {
+        $columnExists = DB::select("
+            SELECT COLUMN_NAME 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'product_mix_components' 
+            AND COLUMN_NAME = 'seed_variety_id'
+        ");
+        
+        if (!empty($columnExists)) {
             // Check if foreign key exists before dropping
             $foreignKeys = DB::select("
                 SELECT CONSTRAINT_NAME 
