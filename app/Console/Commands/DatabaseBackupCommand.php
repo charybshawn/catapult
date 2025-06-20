@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Services\SimpleBackupService;
+use App\Services\DatabaseBackupService;
 use Illuminate\Console\Command;
 
 class DatabaseBackupCommand extends Command

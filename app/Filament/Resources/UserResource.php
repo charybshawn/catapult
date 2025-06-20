@@ -55,6 +55,15 @@ class UserResource extends Resource
                             ->label('Company Name')
                             ->maxLength(255)
                             ->visible(fn (Forms\Get $get) => $get('customer_type') === 'wholesale'),
+                        Forms\Components\TextInput::make('wholesale_discount_percentage')
+                            ->label('Wholesale Discount %')
+                            ->helperText('Custom discount percentage for this customer (overrides product defaults)')
+                            ->numeric()
+                            ->minValue(0)
+                            ->maxValue(100)
+                            ->step(0.01)
+                            ->suffix('%')
+                            ->visible(fn (Forms\Get $get) => $get('customer_type') === 'wholesale'),
                     ])->columns(2),
                 
                 Forms\Components\Section::make('Address Information')
@@ -108,6 +117,12 @@ class UserResource extends Resource
                         'wholesale' => 'info',
                         default => 'gray',
                     }),
+                Tables\Columns\TextColumn::make('wholesale_discount_percentage')
+                    ->label('Wholesale Discount')
+                    ->suffix('%')
+                    ->placeholder('—')
+                    ->toggleable()
+                    ->visible(fn ($record) => $record->customer_type === 'wholesale'),
                 Tables\Columns\TextColumn::make('company_name')
                     ->searchable()
                     ->toggleable(),

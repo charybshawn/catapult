@@ -77,10 +77,19 @@ class OrderResource extends Resource
                                         'wholesale' => 'Wholesale',
                                     ])
                                     ->default('retail')
-                                    ->required(),
+                                    ->required()
+                                    ->reactive(),
                                 Forms\Components\TextInput::make('company_name')
                                     ->label('Company Name')
                                     ->maxLength(255)
+                                    ->visible(fn (Forms\Get $get) => $get('customer_type') === 'wholesale'),
+                                Forms\Components\TextInput::make('wholesale_discount_percentage')
+                                    ->label('Wholesale Discount %')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->maxValue(100)
+                                    ->step(0.01)
+                                    ->suffix('%')
                                     ->visible(fn (Forms\Get $get) => $get('customer_type') === 'wholesale'),
                                 Forms\Components\Textarea::make('address')
                                     ->label('Address')
@@ -434,6 +443,72 @@ class OrderResource extends Resource
                             Notification::make()
                                 ->title('Error Generating Order')
                                 ->body('Failed to generate recurring order: ' . $e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
+                
+                Tables\Actions\Action::make('recalculate_prices')
+                    ->label('Recalculate Prices')
+                    ->icon('heroicon-o-calculator')
+                    ->color('info')
+                    ->visible(fn (Order $record): bool => 
+                        $record->status !== 'template' && 
+                        $record->status !== 'cancelled' &&
+                        $record->user->isWholesaleCustomer() &&
+                        $record->orderItems->isNotEmpty()
+                    )
+                    ->requiresConfirmation()
+                    ->modalHeading('Recalculate Order Prices')
+                    ->modalDescription(function (Order $record) {
+                        $currentTotal = $record->totalAmount();
+                        $discount = $record->user->wholesale_discount_percentage ?? 0;
+                        return "This will recalculate all item prices using the current wholesale discount ({$discount}%). Current total: $" . number_format($currentTotal, 2);
+                    })
+                    ->action(function (Order $record) {
+                        try {
+                            $oldTotal = $record->totalAmount();
+                            $updatedItems = 0;
+                            
+                            foreach ($record->orderItems as $item) {
+                                if (!$item->product || !$item->price_variation_id) {
+                                    continue;
+                                }
+                                
+                                // Get current price for this customer
+                                $currentPrice = $item->product->getPriceForSpecificCustomer(
+                                    $record->user,
+                                    $item->price_variation_id
+                                );
+                                
+                                // Check if price has changed
+                                if (abs($currentPrice - $item->price) > 0.001) {
+                                    $item->price = $currentPrice;
+                                    $item->save();
+                                    $updatedItems++;
+                                }
+                            }
+                            
+                            $newTotal = $record->totalAmount();
+                            $difference = $oldTotal - $newTotal;
+                            
+                            if ($updatedItems > 0) {
+                                Notification::make()
+                                    ->title('Prices Recalculated')
+                                    ->body("Updated {$updatedItems} items. New total: $" . number_format($newTotal, 2) . " (saved $" . number_format($difference, 2) . ")")
+                                    ->success()
+                                    ->send();
+                            } else {
+                                Notification::make()
+                                    ->title('No Changes Needed')
+                                    ->body('All prices are already up to date.')
+                                    ->info()
+                                    ->send();
+                            }
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Error Recalculating Prices')
+                                ->body('Failed to recalculate prices: ' . $e->getMessage())
                                 ->danger()
                                 ->send();
                         }

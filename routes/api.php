@@ -29,18 +29,35 @@ Route::middleware(['web', 'auth'])->get('/products/{product}/price', function (R
 });
 
 Route::middleware(['web', 'auth'])->get('/products/{product}/price-variations', function (Request $request, \App\Models\Product $product) {
+    $customerId = $request->get('customer_id');
+    $customer = $customerId ? \App\Models\User::find($customerId) : null;
+    
     $priceVariations = $product->priceVariations()
         ->where('is_active', true)
         ->with('packagingType')
         ->orderBy('is_default', 'desc')
         ->orderBy('name')
         ->get()
-        ->map(function ($variation) {
+        ->map(function ($variation) use ($product, $customer) {
+            $basePrice = $variation->price;
+            $finalPrice = $basePrice;
+            
+            // Apply customer-specific wholesale pricing if applicable
+            if ($customer && $customer->isWholesaleCustomer()) {
+                $discountPercentage = $customer->getWholesaleDiscountPercentage($product);
+                if ($discountPercentage > 0) {
+                    $discountAmount = $basePrice * ($discountPercentage / 100);
+                    $finalPrice = $basePrice - $discountAmount;
+                }
+            }
+            
             return [
                 'id' => $variation->id,
                 'name' => $variation->name,
                 'sku' => $variation->sku,
-                'price' => $variation->price,
+                'price' => $finalPrice,
+                'base_price' => $basePrice,
+                'discount_percentage' => $customer ? $customer->getWholesaleDiscountPercentage($product) : 0,
                 'fill_weight_grams' => $variation->fill_weight_grams,
                 'is_default' => $variation->is_default,
                 'packaging_type' => $variation->packagingType?->name,

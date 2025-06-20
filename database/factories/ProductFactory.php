@@ -19,6 +19,28 @@ class ProductFactory extends Factory
     protected $model = Product::class;
 
     /**
+     * Configure the model factory.
+     */
+    public function configure(): static
+    {
+        return $this->afterCreating(function (Product $product) {
+            // Create a default price variation for the product
+            if ($product->priceVariations()->count() === 0) {
+                \App\Models\PriceVariation::create([
+                    'product_id' => $product->id,
+                    'name' => 'Default',
+                    'sku' => 'DEFAULT-' . $product->id,
+                    'price' => $product->base_price ?? 10.00,
+                    'is_default' => true,
+                    'is_global' => false,
+                    'is_active' => true,
+                    'fill_weight_grams' => 113.4,
+                ]);
+            }
+        });
+    }
+
+    /**
      * Define the model's default state.
      *
      * @return array<string, mixed>

@@ -351,30 +351,57 @@ class Product extends Model
     /**
      * Get the wholesale price for a price variation (with discount applied).
      */
-    public function getWholesalePrice(?int $priceVariationId = null, ?int $packagingTypeId = null): float
+    public function getWholesalePrice(?int $priceVariationId = null, ?int $packagingTypeId = null, ?User $customer = null): float
     {
         $retailPrice = $this->getRetailPrice($priceVariationId, $packagingTypeId);
         
-        if (!$this->wholesale_discount_percentage || $this->wholesale_discount_percentage <= 0) {
+        $discountPercentage = 0;
+        
+        // Get discount from customer first, then fall back to product default
+        if ($customer) {
+            $discountPercentage = $customer->getWholesaleDiscountPercentage($this);
+        } elseif ($this->wholesale_discount_percentage && $this->wholesale_discount_percentage > 0) {
+            $discountPercentage = $this->wholesale_discount_percentage;
+        }
+        
+        if ($discountPercentage <= 0) {
             return $retailPrice;
         }
         
-        $discountAmount = $retailPrice * ($this->wholesale_discount_percentage / 100);
-        return $retailPrice - $discountAmount;
+        // Cap discount percentage at 100% to prevent negative prices
+        $discountPercentage = min($discountPercentage, 100);
+        
+        $discountAmount = $retailPrice * ($discountPercentage / 100);
+        $wholesalePrice = $retailPrice - $discountAmount;
+        
+        // Ensure price never goes below zero
+        return max($wholesalePrice, 0);
     }
 
     /**
      * Get price for customer type using new wholesale discount system.
      */
-    public function getPriceForCustomer(string $customerType = 'retail', ?int $priceVariationId = null, ?int $packagingTypeId = null): float
+    public function getPriceForCustomer(string $customerType = 'retail', ?int $priceVariationId = null, ?int $packagingTypeId = null, ?User $customer = null): float
     {
         switch (strtolower($customerType)) {
             case 'wholesale':
-                return $this->getWholesalePrice($priceVariationId, $packagingTypeId);
+                return $this->getWholesalePrice($priceVariationId, $packagingTypeId, $customer);
             case 'retail':
             default:
                 return $this->getRetailPrice($priceVariationId, $packagingTypeId);
         }
+    }
+
+    /**
+     * Get price for a specific customer, considering their type and individual discount.
+     */
+    public function getPriceForSpecificCustomer(User $customer, ?int $priceVariationId = null, ?int $packagingTypeId = null): float
+    {
+        if ($customer->isWholesaleCustomer()) {
+            return $this->getWholesalePrice($priceVariationId, $packagingTypeId, $customer);
+        }
+        
+        return $this->getRetailPrice($priceVariationId, $packagingTypeId);
     }
 
     /**

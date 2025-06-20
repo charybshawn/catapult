@@ -410,13 +410,23 @@ class Order extends Model
         
         $newOrder->save();
         
-        // Copy order items
+        // Copy order items with recalculated prices
         foreach ($this->orderItems as $item) {
+            $currentPrice = $item->price; // Default to original price
+            
+            // Recalculate price based on current customer and product pricing
+            if ($item->product && $newOrder->user) {
+                $currentPrice = $item->product->getPriceForSpecificCustomer(
+                    $newOrder->user, 
+                    $item->price_variation_id
+                );
+            }
+            
             $newOrder->orderItems()->create([
                 'product_id' => $item->product_id,
                 'price_variation_id' => $item->price_variation_id,
                 'quantity' => $item->quantity,
-                'price' => $item->price,
+                'price' => $currentPrice,
             ]);
         }
         

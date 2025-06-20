@@ -30,6 +30,7 @@ class User extends Authenticatable implements FilamentUser
         'password',
         'phone',
         'customer_type',
+        'wholesale_discount_percentage',
         'company_name',
         'address',
         'city',
@@ -55,6 +56,7 @@ class User extends Authenticatable implements FilamentUser
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'wholesale_discount_percentage' => 'decimal:2',
     ];
 
     /**
@@ -82,6 +84,34 @@ class User extends Authenticatable implements FilamentUser
     public function canAccessPanel(Panel $panel): bool
     {
         return $this->hasPermissionTo('access filament');
+    }
+
+    /**
+     * Get the effective wholesale discount percentage for this user.
+     * Prioritizes user-specific discount, then falls back to product default.
+     */
+    public function getWholesaleDiscountPercentage(?Product $product = null): float
+    {
+        // If user has a specific wholesale discount, use it (capped at 100%)
+        if ($this->wholesale_discount_percentage !== null && $this->wholesale_discount_percentage > 0) {
+            return min($this->wholesale_discount_percentage, 100);
+        }
+        
+        // If user is wholesale type but no specific discount, use product default (capped at 100%)
+        if ($this->customer_type === 'wholesale' && $product && $product->wholesale_discount_percentage > 0) {
+            return min($product->wholesale_discount_percentage, 100);
+        }
+        
+        return 0;
+    }
+
+    /**
+     * Check if this user should receive wholesale pricing.
+     */
+    public function isWholesaleCustomer(): bool
+    {
+        return $this->customer_type === 'wholesale' || 
+               ($this->wholesale_discount_percentage !== null && $this->wholesale_discount_percentage > 0);
     }
 
 }

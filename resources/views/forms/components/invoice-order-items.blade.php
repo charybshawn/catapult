@@ -17,7 +17,7 @@
                 <div class="flex items-center gap-3 text-sm font-medium text-gray-700 dark:text-gray-300">
                     <div class="flex-1 min-w-0">Product</div>
                     <div class="flex-1 min-w-0">Price Variation</div>
-                    <div class="w-20 text-center">Qty</div>
+                    <div class="w-20 text-center">Quantity</div>
                     <div class="w-24 text-center">Unit Price</div>
                     <div class="w-20 text-center">Total</div>
                     <div class="w-16 text-center">Actions</div>
@@ -64,21 +64,22 @@
                                     type="number"
                                     x-model.number="item.quantity"
                                     @input="updateTotal(index)"
-                                    min="1"
-                                    step="1"
-                                    placeholder="Qty"
+                                    :min="getMinQuantity(index)"
+                                    :step="getQuantityStep(index)"
+                                    :placeholder="getQuantityPlaceholder(index)"
                                     class="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-2 text-center"
                                 />
+                                <div class="text-xs text-gray-500 text-center mt-1" x-text="getQuantityUnit(index)"></div>
                             </div>
 
                             <!-- Unit Price Display -->
                             <div class="w-24 text-center">
-                                <span class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="formatCurrency(item.price)"></span>
+                                <span class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="formatCurrency(parseFloat(item.price) || 0)"></span>
                             </div>
 
                             <!-- Total Display -->
                             <div class="w-20 text-center">
-                                <span class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="formatCurrency(item.quantity * item.price)"></span>
+                                <span class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="formatCurrency((parseFloat(item.quantity) || 0) * (parseFloat(item.price) || 0))"></span>
                             </div>
 
                             <!-- Actions -->
@@ -180,7 +181,29 @@ document.addEventListener('alpine:init', () => {
             if (item.price_variation_id && this.priceVariations[item.item_id]) {
                 const variation = this.priceVariations[item.item_id].find(v => v.id.toString() === item.price_variation_id.toString());
                 if (variation) {
-                    item.price = variation.price;
+                    // Always use the current price from the loaded variation (includes wholesale discount)
+                    const newPrice = parseFloat(variation.price);
+                    if (item.price !== newPrice) {
+                        item.price = newPrice;
+                        console.log(`Updated price for item ${index}: ${newPrice}`);
+                    }
+                    
+                    // Reset quantity to appropriate default for packaging type only if quantity is invalid
+                    if (this.isBulkVariation(index)) {
+                        // For bulk, default to minimum weight if quantity is too low
+                        if (!item.quantity || item.quantity < 0.01) {
+                            item.quantity = 100; // Default to 100 grams
+                        }
+                    } else {
+                        // For units, ensure quantity is at least 1 and is a whole number
+                        // Only reset to 1 if quantity is truly invalid (0, null, undefined, or negative)
+                        if (!item.quantity || item.quantity <= 0) {
+                            item.quantity = 1;
+                        } else {
+                            // Round to whole number but preserve the existing valid quantity
+                            item.quantity = Math.round(item.quantity);
+                        }
+                    }
                 }
             } else {
                 item.price = 0;
@@ -199,7 +222,9 @@ document.addEventListener('alpine:init', () => {
 
         calculateSubtotal() {
             return this.items.reduce((total, item) => {
-                return total + (item.quantity * item.price);
+                const quantity = parseFloat(item.quantity) || 0;
+                const price = parseFloat(item.price) || 0;
+                return total + (quantity * price);
             }, 0);
         },
 
@@ -222,6 +247,47 @@ document.addEventListener('alpine:init', () => {
             this.$watch('items', () => {
                 this.syncWithLivewire();
             }, { deep: true });
+            
+            // Watch for customer changes and reload price variations
+            this.watchForCustomerChanges();
+        },
+
+        watchForCustomerChanges() {
+            // Watch for changes to the user_id field
+            const userIdField = document.querySelector('select[name="user_id"]');
+            if (userIdField) {
+                userIdField.addEventListener('change', async () => {
+                    console.log('Customer changed, reloading prices...');
+                    
+                    // Clear existing price variations cache
+                    this.priceVariations = {};
+                    
+                    // Reload price variations for all products in current items
+                    const productIds = [...new Set(this.items.map(item => item.item_id).filter(id => id))];
+                    console.log('Reloading prices for products:', productIds);
+                    
+                    for (const productId of productIds) {
+                        await this.loadPriceVariationsForProduct(productId);
+                        console.log('Loaded variations for product', productId, this.priceVariations[productId]);
+                        
+                        // Update prices for items using this product
+                        this.items.forEach((item, index) => {
+                            if (item.item_id === productId && item.price_variation_id) {
+                                console.log(`Updating price for item ${index}, variation ${item.price_variation_id}`);
+                                this.updatePriceFromVariation(index);
+                            }
+                        });
+                    }
+                    
+                    // Force Alpine to update the display
+                    this.$nextTick(() => {
+                        // Trigger reactivity by creating a new array reference
+                        this.items = [...this.items];
+                        this.syncWithLivewire();
+                        console.log('Prices updated, items:', this.items);
+                    });
+                });
+            }
         },
 
         async loadExistingPriceVariations() {
@@ -237,7 +303,14 @@ document.addEventListener('alpine:init', () => {
 
         async loadPriceVariationsForProduct(productId) {
             try {
-                const response = await fetch(`/api/products/${productId}/price-variations`, {
+                // Get customer ID from the form if available
+                const customerId = this.getCustomerId();
+                const url = new URL(`/api/products/${productId}/price-variations`, window.location.origin);
+                if (customerId) {
+                    url.searchParams.append('customer_id', customerId);
+                }
+                
+                const response = await fetch(url, {
                     headers: {
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
                         'Accept': 'application/json',
@@ -250,6 +323,52 @@ document.addEventListener('alpine:init', () => {
             } catch (error) {
                 console.warn('Could not fetch price variations for product:', productId, error);
             }
+        },
+
+        getCustomerId() {
+            // Try to get customer ID from Livewire data
+            if (this.$wire && this.$wire.data && this.$wire.data.user_id) {
+                return this.$wire.data.user_id;
+            }
+            
+            // Try to get from form field
+            const userIdField = document.querySelector('select[name="user_id"], input[name="user_id"]');
+            if (userIdField && userIdField.value) {
+                return userIdField.value;
+            }
+            
+            return null;
+        },
+
+        // Check if the selected price variation is for bulk packaging
+        isBulkVariation(index) {
+            const item = this.items[index];
+            if (!item.price_variation_id || !this.priceVariations[item.item_id]) {
+                return false;
+            }
+            
+            const variation = this.priceVariations[item.item_id].find(v => 
+                v.id.toString() === item.price_variation_id.toString()
+            );
+            
+            return variation && variation.packaging_type && 
+                   variation.packaging_type.toLowerCase().includes('bulk');
+        },
+
+        getMinQuantity(index) {
+            return this.isBulkVariation(index) ? 0.01 : 1;
+        },
+
+        getQuantityStep(index) {
+            return this.isBulkVariation(index) ? 0.01 : 1;
+        },
+
+        getQuantityPlaceholder(index) {
+            return this.isBulkVariation(index) ? 'Grams' : 'Qty';
+        },
+
+        getQuantityUnit(index) {
+            return this.isBulkVariation(index) ? 'grams' : 'units';
         }
     }));
 });

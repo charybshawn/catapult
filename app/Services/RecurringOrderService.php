@@ -21,7 +21,7 @@ class RecurringOrderService
             'errors' => []
         ];
 
-        $recurringOrders = $this->getActiveRecurringOrders();
+        $recurringOrders = $this->getAllRecurringTemplates();
         
         foreach ($recurringOrders as $order) {
             try {
@@ -69,6 +69,17 @@ class RecurringOrderService
     {
         return Order::where('is_recurring', true)
             ->where('is_recurring_active', true)
+            ->whereNull('parent_recurring_order_id') // Only templates, not generated orders
+            ->with(['user', 'orderItems', 'packagingTypes'])
+            ->get();
+    }
+
+    /**
+     * Get all recurring order templates (active and inactive).
+     */
+    public function getAllRecurringTemplates(): Collection
+    {
+        return Order::where('is_recurring', true)
             ->whereNull('parent_recurring_order_id') // Only templates, not generated orders
             ->with(['user', 'orderItems', 'packagingTypes'])
             ->get();

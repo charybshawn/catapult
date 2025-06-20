@@ -7,6 +7,7 @@ use App\Filament\Pages\Base\BaseEditRecord;
 use App\Models\PriceVariation;
 use Filament\Actions;
 use Filament\Notifications\Notification;
+use Illuminate\Support\Facades\Log;
 
 class EditProduct extends BaseEditRecord
 {
@@ -227,7 +228,7 @@ class EditProduct extends BaseEditRecord
      */
     public function updateVariation($variationId, array $data)
     {
-        \Log::info('updateVariation called', ['variationId' => $variationId, 'data' => $data]);
+        Log::info('updateVariation called', ['variationId' => $variationId, 'data' => $data]);
         
         $variation = PriceVariation::findOrFail($variationId);
         
@@ -322,7 +323,7 @@ class EditProduct extends BaseEditRecord
                 ->danger()
                 ->send();
                 
-            \Illuminate\Support\Facades\Log::error('Error deleting price variation', [
+            Log::error('Error deleting price variation', [
                 'variation_id' => $variationId,
                 'error' => $e->getMessage()
             ]);

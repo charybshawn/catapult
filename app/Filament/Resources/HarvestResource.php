@@ -9,6 +9,7 @@ use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Tables\Grouping\Group;
 use Illuminate\Database\Eloquent\Builder;
 
 class HarvestResource extends BaseResource
@@ -88,22 +89,60 @@ class HarvestResource extends BaseResource
                     ->sortable(),
                 Tables\Columns\TextColumn::make('masterCultivar.full_name')
                     ->label('Variety')
-                    ->searchable()
-                    ->sortable(),
+                    ->searchable(query: function (Builder $query, string $search): Builder {
+                        return $query->whereHas('masterCultivar', function (Builder $query) use ($search) {
+                            $query->where('cultivar_name', 'like', "%{$search}%")
+                                ->orWhereHas('masterSeedCatalog', function (Builder $query) use ($search) {
+                                    $query->where('common_name', 'like', "%{$search}%");
+                                });
+                        });
+                    })
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        // Check if joins already exist to avoid duplicates
+                        $joins = collect($query->getQuery()->joins);
+                        
+                        if (!$joins->pluck('table')->contains('master_cultivars')) {
+                            $query->join('master_cultivars', 'harvests.master_cultivar_id', '=', 'master_cultivars.id');
+                        }
+                        
+                        if (!$joins->pluck('table')->contains('master_seed_catalog')) {
+                            $query->join('master_seed_catalog', 'master_cultivars.master_seed_catalog_id', '=', 'master_seed_catalog.id');
+                        }
+                        
+                        return $query
+                            ->orderBy('master_seed_catalog.common_name', $direction)
+                            ->orderBy('master_cultivars.cultivar_name', $direction);
+                    }),
                 Tables\Columns\TextColumn::make('total_weight_grams')
                     ->label('Total Weight')
                     ->suffix(' g')
                     ->numeric(1)
-                    ->sortable(),
+                    ->sortable()
+                    ->summarize([
+                        Tables\Columns\Summarizers\Sum::make()
+                            ->label('Total')
+                            ->numeric(1)
+                            ->suffix(' g'),
+                    ]),
                 Tables\Columns\TextColumn::make('tray_count')
                     ->label('Trays')
                     ->numeric()
-                    ->sortable(),
+                    ->sortable()
+                    ->summarize([
+                        Tables\Columns\Summarizers\Sum::make()
+                            ->label('Total'),
+                    ]),
                 Tables\Columns\TextColumn::make('average_weight_per_tray')
                     ->label('Avg/Tray')
                     ->suffix(' g')
                     ->numeric(1)
-                    ->sortable(),
+                    ->sortable()
+                    ->summarize([
+                        Tables\Columns\Summarizers\Average::make()
+                            ->label('Average')
+                            ->numeric(1)
+                            ->suffix(' g'),
+                    ]),
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Harvested By')
                     ->searchable()
@@ -114,6 +153,63 @@ class HarvestResource extends BaseResource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('harvest_date', 'desc')
+            ->modifyQueryUsing(function (Builder $query) {
+                return $query->selectRaw("
+                    harvests.*,
+                    CONCAT(harvests.master_cultivar_id, '_', DATE_FORMAT(harvests.harvest_date, '%Y-%m-%d')) as variety_date_key
+                ");
+            })
+            ->groups([
+                Tables\Grouping\Group::make('variety_date_key')
+                    ->label('Variety & Date')
+                    ->getTitleFromRecordUsing(function (Harvest $record): string {
+                        return $record->masterCultivar->full_name . ' - ' . $record->harvest_date->format('M j, Y');
+                    })
+                    ->orderQueryUsing(function (Builder $query, string $direction) {
+                        // Check if joins already exist to avoid duplicates
+                        $joins = collect($query->getQuery()->joins);
+                        
+                        if (!$joins->pluck('table')->contains('master_cultivars')) {
+                            $query->join('master_cultivars', 'harvests.master_cultivar_id', '=', 'master_cultivars.id');
+                        }
+                        
+                        if (!$joins->pluck('table')->contains('master_seed_catalog')) {
+                            $query->join('master_seed_catalog', 'master_cultivars.master_seed_catalog_id', '=', 'master_seed_catalog.id');
+                        }
+                        
+                        return $query
+                            ->orderBy('harvests.harvest_date', $direction)
+                            ->orderBy('master_seed_catalog.common_name', $direction)
+                            ->orderBy('master_cultivars.cultivar_name', $direction);
+                    })
+                    ->collapsible(),
+                Tables\Grouping\Group::make('harvest_date')
+                    ->label('Date Only')
+                    ->date()
+                    ->collapsible(),
+                Tables\Grouping\Group::make('master_cultivar_id')
+                    ->label('Variety Only')
+                    ->getTitleFromRecordUsing(fn (Harvest $record): string => $record->masterCultivar->full_name)
+                    ->orderQueryUsing(function (Builder $query, string $direction) {
+                        // Check if joins already exist to avoid duplicates
+                        $joins = collect($query->getQuery()->joins);
+                        
+                        if (!$joins->pluck('table')->contains('master_cultivars')) {
+                            $query->join('master_cultivars', 'harvests.master_cultivar_id', '=', 'master_cultivars.id');
+                        }
+                        
+                        if (!$joins->pluck('table')->contains('master_seed_catalog')) {
+                            $query->join('master_seed_catalog', 'master_cultivars.master_seed_catalog_id', '=', 'master_seed_catalog.id');
+                        }
+                        
+                        return $query
+                            ->orderBy('master_seed_catalog.common_name', $direction)
+                            ->orderBy('master_cultivars.cultivar_name', $direction);
+                    })
+                    ->collapsible(),
+            ])
+            ->defaultGroup('variety_date_key')
+            ->groupsInDropdownOnDesktop()
             ->filters([
                 Tables\Filters\SelectFilter::make('master_cultivar_id')
                     ->label('Variety')
