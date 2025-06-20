@@ -45,14 +45,16 @@ return new class extends Migration
         }
         
         // Drop the old foreign key and column if they exist
-        Schema::table('product_mix_components', function (Blueprint $table) {
-            // Check if foreign key exists before dropping
-            $foreignKeys = DB::select("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'product_mix_components' AND COLUMN_NAME = 'seed_variety_id'");
-            if (!empty($foreignKeys)) {
-                $table->dropForeign(['seed_variety_id']);
-            }
-            $table->dropColumn('seed_variety_id');
-        });
+        if (Schema::hasColumn('product_mix_components', 'seed_variety_id')) {
+            Schema::table('product_mix_components', function (Blueprint $table) {
+                // Check if foreign key exists before dropping
+                $foreignKeys = DB::select("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'product_mix_components' AND COLUMN_NAME = 'seed_variety_id'");
+                if (!empty($foreignKeys)) {
+                    $table->dropForeign(['seed_variety_id']);
+                }
+                $table->dropColumn('seed_variety_id');
+            });
+        }
         
         // Make seed_cultivar_id required and add unique constraint if it doesn't exist
         Schema::table('product_mix_components', function (Blueprint $table) {
