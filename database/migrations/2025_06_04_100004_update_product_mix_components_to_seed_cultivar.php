@@ -12,10 +12,18 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Add new seed_cultivar_id column
-        Schema::table('product_mix_components', function (Blueprint $table) {
-            $table->foreignId('seed_cultivar_id')->nullable()->constrained('seed_cultivars')->onDelete('cascade');
-        });
+        // Check if seed_variety_id column exists before proceeding
+        if (!Schema::hasColumn('product_mix_components', 'seed_variety_id')) {
+            // Column doesn't exist, skip this migration
+            return;
+        }
+        
+        // Add new seed_cultivar_id column if it doesn't exist
+        if (!Schema::hasColumn('product_mix_components', 'seed_cultivar_id')) {
+            Schema::table('product_mix_components', function (Blueprint $table) {
+                $table->foreignId('seed_cultivar_id')->nullable()->constrained('seed_cultivars')->onDelete('cascade');
+            });
+        }
         
         // Migrate data from seed_varieties to seed_cultivars
         $components = DB::table('product_mix_components')
@@ -36,16 +44,25 @@ return new class extends Migration
             }
         }
         
-        // Drop the old foreign key and column
+        // Drop the old foreign key and column if they exist
         Schema::table('product_mix_components', function (Blueprint $table) {
-            $table->dropForeign(['seed_variety_id']);
+            // Check if foreign key exists before dropping
+            $foreignKeys = DB::select("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'product_mix_components' AND COLUMN_NAME = 'seed_variety_id'");
+            if (!empty($foreignKeys)) {
+                $table->dropForeign(['seed_variety_id']);
+            }
             $table->dropColumn('seed_variety_id');
         });
         
-        // Make seed_cultivar_id required and add unique constraint
+        // Make seed_cultivar_id required and add unique constraint if it doesn't exist
         Schema::table('product_mix_components', function (Blueprint $table) {
             $table->foreignId('seed_cultivar_id')->nullable(false)->change();
-            $table->unique(['product_mix_id', 'seed_cultivar_id']);
+            
+            // Check if unique constraint already exists
+            $indexes = DB::select("SHOW INDEX FROM product_mix_components WHERE Key_name = 'product_mix_components_product_mix_id_seed_cultivar_id_unique'");
+            if (empty($indexes)) {
+                $table->unique(['product_mix_id', 'seed_cultivar_id']);
+            }
         });
     }
 
