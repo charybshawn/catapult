@@ -57,6 +57,9 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
+            'dump_command_timeout' => 60 * 5, // 5 minutes
+            'dump_using_single_transaction' => true,
+            'schema_state' => null, // Disable schema dumping
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],

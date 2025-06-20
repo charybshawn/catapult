@@ -58,7 +58,7 @@ class GenerateConsolidatedInvoices extends Command
                     $this->info("Successfully generated {$generatedInvoices->count()} consolidated invoices:");
                     
                     foreach ($generatedInvoices as $invoice) {
-                        $this->line("- Invoice #{$invoice->invoice_number} for {$invoice->user->name} - ${$invoice->effective_amount}");
+                        $this->line("- Invoice #{$invoice->invoice_number} for {$invoice->user->name} - {$invoice->effective_amount}");
                     }
                 }
             }
