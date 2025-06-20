@@ -78,7 +78,7 @@
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                                             <button 
-                                                wire:click="restoreBackup('{{ $backup['path'] }}')"
+                                                wire:click="restoreBackup('{{ $backup['name'] }}')"
                                                 wire:confirm="Are you sure you want to restore this backup? This will completely replace your current database and cannot be undone."
                                                 class="text-amber-600 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-300"
                                             >

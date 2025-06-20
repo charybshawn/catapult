@@ -25,9 +25,9 @@ class DatabaseRestoreCommand extends Command
      */
     protected $description = 'Restore database from backup file';
 
-    protected DatabaseBackupService $backupService;
+    protected SimpleBackupService $backupService;
 
-    public function __construct(DatabaseBackupService $backupService)
+    public function __construct(SimpleBackupService $backupService)
     {
         parent::__construct();
         $this->backupService = $backupService;
@@ -87,13 +87,14 @@ class DatabaseRestoreCommand extends Command
 
         $this->info('🔄 Restoring database...');
         
-        $result = $this->backupService->restoreBackup($fullPath);
-
-        if ($result['success']) {
+        try {
+            $filename = basename($fullPath);
+            $this->backupService->restoreBackup($filename);
+            
             $this->info("✅ Database restored successfully!");
-            $this->line("🕒 Restored at: {$result['restored_at']}");
-        } else {
-            $this->error("❌ Restore failed: {$result['error']}");
+            $this->line("🕒 Restored at: " . now()->format('M j, Y g:i A'));
+        } catch (\Exception $e) {
+            $this->error("❌ Restore failed: {$e->getMessage()}");
         }
     }
 
@@ -101,22 +102,22 @@ class DatabaseRestoreCommand extends Command
     {
         $backups = $this->backupService->listBackups();
 
-        if (empty($backups)) {
+        if ($backups->isEmpty()) {
             $this->error('❌ No backups found.');
             return;
         }
 
-        $latestBackup = $backups[0]; // Already sorted by creation time, newest first
-        $this->info("📋 Found latest backup: {$latestBackup['filename']} ({$latestBackup['size']})");
+        $latestBackup = $backups->first(); // Already sorted by creation time, newest first
+        $this->info("📋 Found latest backup: {$latestBackup['name']} ({$latestBackup['size']})");
         
-        $this->restoreBackup($latestBackup['filename']);
+        $this->restoreBackup($latestBackup['name']);
     }
 
     protected function selectBackupInteractively(): ?string
     {
         $backups = $this->backupService->listBackups();
 
-        if (empty($backups)) {
+        if ($backups->isEmpty()) {
             $this->error('❌ No backups found.');
             return null;
         }
@@ -125,26 +126,26 @@ class DatabaseRestoreCommand extends Command
         
         $choices = [];
         foreach ($backups as $index => $backup) {
-            $choice = "{$backup['filename']} ({$backup['size']}) - {$backup['created_at']}";
+            $choice = "{$backup['name']} ({$backup['size']}) - {$backup['created_at']->format('M j, Y g:i A')}";
             $choices[$index] = $choice;
             $this->line(($index + 1) . ". {$choice}");
         }
 
         $selection = $this->ask('Enter the number of the backup to restore');
         
-        if (!is_numeric($selection) || $selection < 1 || $selection > count($backups)) {
+        if (!is_numeric($selection) || $selection < 1 || $selection > $backups->count()) {
             $this->error('Invalid selection.');
             return null;
         }
 
-        return $backups[$selection - 1]['filename'];
+        return $backups[$selection - 1]['name'];
     }
 
     protected function listBackups(): void
     {
         $backups = $this->backupService->listBackups();
 
-        if (empty($backups)) {
+        if ($backups->isEmpty()) {
             $this->info('No backups found.');
             return;
         }
@@ -158,9 +159,9 @@ class DatabaseRestoreCommand extends Command
         foreach ($backups as $index => $backup) {
             $rows[] = [
                 $index + 1,
-                $backup['filename'],
+                $backup['name'],
                 $backup['size'],
-                $backup['created_at'],
+                $backup['created_at']->format('M j, Y g:i A'),
             ];
         }
 
