@@ -43,15 +43,34 @@ class TimeClockWidget extends Component
         }
     }
 
+    public function clockIn()
+    {
+        if (!$this->isActive) {
+            $timeCard = TimeCard::create([
+                'user_id' => Auth::id(),
+                'clock_in' => now(),
+                'work_date' => today(),
+                'status' => 'active',
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+            ]);
+            
+            $this->loadActiveTimeCard();
+        }
+    }
+
+    protected $listeners = ['timeCardUpdated' => 'refreshWidget'];
+
+    public function refreshWidget()
+    {
+        $this->loadActiveTimeCard();
+    }
+
     public function clockOut()
     {
         if ($this->activeTimeCard) {
-            $this->activeTimeCard->clockOut();
-            
-            // Optionally log out the user
-            Auth::logout();
-            
-            return redirect()->route('filament.admin.auth.login');
+            // Emit event to show the logout task modal
+            $this->dispatch('showLogoutModal', $this->activeTimeCard->id);
         }
     }
 

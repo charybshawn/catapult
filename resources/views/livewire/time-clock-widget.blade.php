@@ -1,4 +1,6 @@
-<div class="flex items-center space-x-2">
+<div class="flex items-center space-x-2" 
+     x-data="{}" 
+     x-on:refresh-time-widgets.window="$wire.refreshWidget()">
     @if($isActive)
         <div class="flex items-center space-x-2 text-sm">
             @if($isFlagged)
@@ -20,15 +22,25 @@
             @endif
             <button 
                 wire:click="clockOut"
-                wire:confirm="Are you sure you want to clock out and log out?"
-                class="ml-2 px-3 py-1 text-xs font-medium text-white bg-danger-600 hover:bg-danger-700 rounded-md transition-colors duration-200"
+                class="ml-2 px-3 py-1 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105"
             >
-                Clock Out & Logout
+                Clock Out
             </button>
         </div>
     @else
-        <div class="text-sm text-gray-500 dark:text-gray-400">
-            No active time card
+        <div class="flex items-center space-x-2 text-sm">
+            <div class="text-gray-500 dark:text-gray-400">
+                Not clocked in
+            </div>
+            <button 
+                wire:click="clockIn"
+                class="px-3 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105 ring-2 ring-green-500 ring-opacity-50"
+            >
+                Clock In
+            </button>
         </div>
     @endif
+    
+    <!-- Include the logout task modal -->
+    <livewire:logout-task-modal />
 </div>

@@ -78,6 +78,19 @@ class TimeCardResource extends Resource
                             ->rows(3)
                             ->columnSpanFull()
                             ->label('Notes'),
+                        Forms\Components\TagsInput::make('taskNames')
+                            ->label('Tasks Performed')
+                            ->placeholder('Select or type tasks...')
+                            ->suggestions(function () {
+                                return \App\Models\TaskType::active()
+                                    ->orderBy('category')
+                                    ->orderBy('sort_order')
+                                    ->pluck('name')
+                                    ->toArray();
+                            })
+                            ->columnSpanFull()
+                            ->helperText('Tasks completed during this shift')
+                            ->dehydrated(false),
                     ]),
                 Forms\Components\Section::make('Technical Information')
                     ->schema([
@@ -159,6 +172,11 @@ class TimeCardResource extends Resource
                         str_contains($state, 'Near limit') => 'warning',
                         default => 'success',
                     }),
+                Tables\Columns\TagsColumn::make('taskNames')
+                    ->label('Tasks')
+                    ->getStateUsing(fn (TimeCard $record) => $record->task_names)
+                    ->separator(',')
+                    ->limitList(3),
                 Tables\Columns\TextColumn::make('notes')
                     ->limit(30)
                     ->toggleable(isToggledHiddenByDefault: true),

@@ -16,24 +16,8 @@ class TimeTrackingMiddleware
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (auth()->check()) {
-            $user = auth()->user();
-            
-            // Check if user already has an active time card for today
-            $activeTimeCard = TimeCard::getActiveForUser($user->id);
-            
-            if (!$activeTimeCard) {
-                // Create a new time card for today
-                TimeCard::create([
-                    'user_id' => $user->id,
-                    'clock_in' => now(),
-                    'work_date' => today(),
-                    'status' => 'active',
-                    'ip_address' => $request->ip(),
-                    'user_agent' => $request->userAgent(),
-                ]);
-            }
-        }
+        // Automatic time tracking has been disabled
+        // Users now manually clock in/out using the time clock widget
         
         return $next($request);
     }

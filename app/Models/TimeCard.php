@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Carbon\Carbon;
 
 class TimeCard extends Model
@@ -53,6 +55,44 @@ class TimeCard extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function taskTypes(): BelongsToMany
+    {
+        return $this->belongsToMany(TaskType::class, 'time_card_tasks')
+            ->withPivot('is_custom', 'task_name')
+            ->withTimestamps();
+    }
+
+    public function tasks(): HasMany
+    {
+        return $this->hasMany(TimeCardTask::class);
+    }
+
+    /**
+     * Add tasks to this time card
+     * @param array $tasks Array of task names
+     */
+    public function addTasks(array $tasks): void
+    {
+        foreach ($tasks as $taskName) {
+            // Check if this is an existing task type
+            $taskType = TaskType::where('name', $taskName)->first();
+            
+            $this->tasks()->create([
+                'task_name' => $taskName,
+                'task_type_id' => $taskType?->id,
+                'is_custom' => !$taskType,
+            ]);
+        }
+    }
+
+    /**
+     * Get all task names as an array
+     */
+    public function getTaskNamesAttribute(): array
+    {
+        return $this->tasks()->pluck('task_name')->toArray();
     }
 
     public function getDurationFormattedAttribute(): string
