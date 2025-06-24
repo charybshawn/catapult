@@ -349,6 +349,8 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
             
             $scrapeUpload = SeedScrapeUpload::create([
                 'original_filename' => $originalFilename,
+                'supplier_id' => $supplier->id,
+                'uploaded_by' => auth()->id(),
                 'status' => SeedScrapeUpload::STATUS_PROCESSING,
                 'uploaded_at' => now(),
             ]);
