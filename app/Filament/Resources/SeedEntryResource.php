@@ -537,6 +537,86 @@ class SeedEntryResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\BulkAction::make('import_to_master_catalog')
+                        ->label('Import to Master Catalog')
+                        ->icon('heroicon-o-arrow-up-tray')
+                        ->color('success')
+                        ->requiresConfirmation()
+                        ->modalHeading('Import to Master Seed Catalog')
+                        ->modalDescription('This will create or update entries in the Master Seed Catalog based on the selected seed entries.')
+                        ->action(function (\Illuminate\Database\Eloquent\Collection $records) {
+                            $imported = 0;
+                            $updated = 0;
+                            $errors = [];
+                            
+                            foreach ($records as $seedEntry) {
+                                try {
+                                    // Find existing master catalog entry by common name
+                                    $masterCatalog = \App\Models\MasterSeedCatalog::where('common_name', $seedEntry->common_name)
+                                        ->first();
+                                    
+                                    if ($masterCatalog) {
+                                        // Update existing entry - add cultivar if not already present
+                                        $cultivars = $masterCatalog->cultivars ?? [];
+                                        
+                                        // Check if cultivar already exists (case-insensitive)
+                                        $cultivarExists = false;
+                                        foreach ($cultivars as $existing) {
+                                            if (strcasecmp(trim($existing), trim($seedEntry->cultivar_name)) === 0) {
+                                                $cultivarExists = true;
+                                                break;
+                                            }
+                                        }
+                                        
+                                        if (!$cultivarExists) {
+                                            $cultivars[] = $seedEntry->cultivar_name;
+                                            $masterCatalog->update([
+                                                'cultivars' => array_values(array_unique($cultivars))
+                                            ]);
+                                            $updated++;
+                                        }
+                                    } else {
+                                        // Create new master catalog entry
+                                        \App\Models\MasterSeedCatalog::create([
+                                            'common_name' => $seedEntry->common_name,
+                                            'cultivars' => [$seedEntry->cultivar_name],
+                                            'description' => $seedEntry->description,
+                                            'is_active' => true,
+                                        ]);
+                                        $imported++;
+                                    }
+                                } catch (\Exception $e) {
+                                    $errors[] = "{$seedEntry->common_name} - {$seedEntry->cultivar_name}: " . $e->getMessage();
+                                }
+                            }
+                            
+                            // Show results
+                            if ($imported > 0 || $updated > 0) {
+                                $message = [];
+                                if ($imported > 0) {
+                                    $message[] = "{$imported} new master catalog entries created";
+                                }
+                                if ($updated > 0) {
+                                    $message[] = "{$updated} existing entries updated with new cultivars";
+                                }
+                                
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Import Successful')
+                                    ->body(implode('<br>', $message))
+                                    ->success()
+                                    ->send();
+                            }
+                            
+                            if (!empty($errors)) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Some imports failed')
+                                    ->body('Errors:<br>' . implode('<br>', array_slice($errors, 0, 5)) . 
+                                           (count($errors) > 5 ? '<br>...and ' . (count($errors) - 5) . ' more errors' : ''))
+                                    ->danger()
+                                    ->persistent()
+                                    ->send();
+                            }
+                        }),
                     Tables\Actions\DeleteBulkAction::make()
                         ->requiresConfirmation()
                         ->modalHeading('Delete Selected Seed Entries')

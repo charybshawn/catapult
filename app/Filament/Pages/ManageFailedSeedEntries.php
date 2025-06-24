@@ -216,6 +216,13 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                                             $entryIndex = $matches[1] ?? 0;
                                             $uploadId = $data['_upload_id'] ?? null;
                                             
+                                            Log::info('ManageFailedSeedEntries: Retry entry action triggered', [
+                                                'state_path' => $statePath,
+                                                'entry_index' => $entryIndex,
+                                                'upload_id' => $uploadId,
+                                                'entry_title' => $data['title'] ?? 'Unknown'
+                                            ]);
+                                            
                                             if ($uploadId) {
                                                 $this->retryIndividualEntry($uploadId, $entryIndex, $data);
                                             }
@@ -230,6 +237,13 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                                             preg_match('/failed_entries\.(\d+)/', $statePath, $matches);
                                             $entryIndex = $matches[1] ?? 0;
                                             $uploadId = $data['_upload_id'] ?? null;
+                                            
+                                            Log::info('ManageFailedSeedEntries: Ignore entry action triggered', [
+                                                'state_path' => $statePath,
+                                                'entry_index' => $entryIndex,
+                                                'upload_id' => $uploadId,
+                                                'entry_title' => $data['title'] ?? 'Unknown'
+                                            ]);
                                             
                                             if ($uploadId) {
                                                 $this->ignoreIndividualEntry($uploadId, $entryIndex);
@@ -298,6 +312,11 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                     ->modalHeading('Retry All Failed Entries')
                     ->modalDescription(fn (SeedScrapeUpload $record) => "This will retry processing all {$record->failed_entries_count} failed entries.")
                     ->action(function (SeedScrapeUpload $record) {
+                        Log::info('ManageFailedSeedEntries: Retry all failed entries action triggered', [
+                            'upload_id' => $record->id,
+                            'filename' => $record->original_filename,
+                            'failed_count' => $record->failed_entries_count
+                        ]);
                         $this->retryAllFailedEntries($record);
                     }),
                     
@@ -309,10 +328,21 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                     ->modalHeading('Clear All Failed Entries')
                     ->modalDescription('This will permanently remove all failed entries from this upload. This action cannot be undone.')
                     ->action(function (SeedScrapeUpload $record) {
+                        Log::info('ManageFailedSeedEntries: Clear failed entries action triggered', [
+                            'upload_id' => $record->id,
+                            'filename' => $record->original_filename,
+                            'failed_count' => $record->failed_entries_count,
+                            'user_id' => auth()->id()
+                        ]);
+                        
                         $record->update([
                             'failed_entries' => [],
                             'failed_entries_count' => 0,
                             'notes' => $record->notes . ' (Failed entries cleared by user)'
+                        ]);
+                        
+                        Log::info('ManageFailedSeedEntries: Failed entries cleared', [
+                            'upload_id' => $record->id
                         ]);
                         
                         Notification::make()
@@ -340,10 +370,19 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
     
     protected function retryAllFailedEntries(SeedScrapeUpload $upload): void
     {
+        Log::info('ManageFailedSeedEntries: Starting retry all failed entries', [
+            'upload_id' => $upload->id,
+            'filename' => $upload->original_filename,
+            'failed_entries_count' => count($upload->failed_entries ?? [])
+        ]);
+        
         try {
             $failedEntries = $upload->failed_entries ?? [];
             
             if (empty($failedEntries)) {
+                Log::warning('ManageFailedSeedEntries: No failed entries to retry', [
+                    'upload_id' => $upload->id
+                ]);
                 Notification::make()
                     ->title('No Failed Entries')
                     ->body('There are no failed entries to retry.')
@@ -355,7 +394,16 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
             // Get the supplier from the first successful entry or use a default
             $supplier = $this->detectSupplierForRetry($upload);
             
+            Log::debug('ManageFailedSeedEntries: Detected supplier for retry', [
+                'upload_id' => $upload->id,
+                'supplier_id' => $supplier?->id,
+                'supplier_name' => $supplier?->name
+            ]);
+            
             if (!$supplier) {
+                Log::error('ManageFailedSeedEntries: Could not determine supplier for retry', [
+                    'upload_id' => $upload->id
+                ]);
                 Notification::make()
                     ->title('Supplier Not Found')
                     ->body('Could not determine the supplier for retrying entries.')
@@ -368,10 +416,17 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
             $successCount = 0;
             $newFailedEntries = [];
             
-            foreach ($failedEntries as $failedEntry) {
+            foreach ($failedEntries as $index => $failedEntry) {
                 try {
                     // Extract the product data
                     $productData = $failedEntry['data'] ?? [];
+                    
+                    Log::debug('ManageFailedSeedEntries: Retrying failed entry', [
+                        'upload_id' => $upload->id,
+                        'entry_index' => $index,
+                        'product_title' => $productData['title'] ?? 'Unknown',
+                        'supplier_id' => $supplier->id
+                    ]);
                     
                     // Attempt to reprocess
                     $importer->processProduct(
@@ -382,8 +437,22 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                     );
                     
                     $successCount++;
+                    
+                    Log::info('ManageFailedSeedEntries: Successfully retried entry', [
+                        'upload_id' => $upload->id,
+                        'entry_index' => $index,
+                        'product_title' => $productData['title'] ?? 'Unknown'
+                    ]);
                 } catch (\Exception $e) {
                     // Still failed, keep in failed entries
+                    Log::warning('ManageFailedSeedEntries: Entry retry failed', [
+                        'upload_id' => $upload->id,
+                        'entry_index' => $index,
+                        'product_title' => $productData['title'] ?? 'Unknown',
+                        'error' => $e->getMessage(),
+                        'error_class' => get_class($e)
+                    ]);
+                    
                     $failedEntry['retry_error'] = $e->getMessage();
                     $failedEntry['retry_timestamp'] = now()->toIso8601String();
                     $newFailedEntries[] = $failedEntry;
@@ -398,6 +467,14 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                 'notes' => $upload->notes . "\nRetried {$successCount}/" . count($failedEntries) . " failed entries at " . now()->format('Y-m-d H:i:s')
             ]);
             
+            Log::info('ManageFailedSeedEntries: Retry all completed', [
+                'upload_id' => $upload->id,
+                'total_entries' => count($failedEntries),
+                'success_count' => $successCount,
+                'still_failed_count' => count($newFailedEntries),
+                'success_rate' => count($failedEntries) > 0 ? round($successCount / count($failedEntries) * 100, 2) . '%' : '0%'
+            ]);
+            
             Notification::make()
                 ->title('Retry Complete')
                 ->body("Successfully processed {$successCount} entries. " . count($newFailedEntries) . " entries still failed.")
@@ -405,9 +482,11 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                 ->send();
                 
         } catch (\Exception $e) {
-            Log::error('Error retrying failed entries', [
+            Log::error('ManageFailedSeedEntries: Error retrying failed entries', [
                 'upload_id' => $upload->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'error_class' => get_class($e),
+                'trace' => $e->getTraceAsString()
             ]);
             
             Notification::make()
@@ -434,14 +513,37 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
         // Try to find a supplier from successful entries
         // This is a simplified approach - in production, you might want to store supplier_id in the upload record
         
+        Log::debug('ManageFailedSeedEntries: Detecting supplier from upload', [
+            'upload_id' => $upload->id,
+            'filename' => $upload->original_filename
+        ]);
+        
         // Check if we can parse the original filename for supplier info
         if (preg_match('/^(.+?)_/', $upload->original_filename, $matches)) {
             $supplierName = str_replace('_', '.', $matches[1]);
-            return Supplier::where('name', 'LIKE', "%{$supplierName}%")->first();
+            $supplier = Supplier::where('name', 'LIKE', "%{$supplierName}%")->first();
+            
+            if ($supplier) {
+                Log::debug('ManageFailedSeedEntries: Found supplier from filename pattern', [
+                    'upload_id' => $upload->id,
+                    'pattern_match' => $supplierName,
+                    'supplier_id' => $supplier->id,
+                    'supplier_name' => $supplier->name
+                ]);
+                return $supplier;
+            }
         }
         
         // Fallback to a default or first active supplier
-        return Supplier::where('is_active', true)->first();
+        $defaultSupplier = Supplier::where('is_active', true)->first();
+        
+        Log::debug('ManageFailedSeedEntries: Using fallback supplier', [
+            'upload_id' => $upload->id,
+            'supplier_id' => $defaultSupplier?->id,
+            'supplier_name' => $defaultSupplier?->name
+        ]);
+        
+        return $defaultSupplier;
     }
     
     protected function extractCommonName(string $title): string
@@ -479,11 +581,23 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
     
     protected function retryIndividualEntry(int $uploadId, int $entryIndex, array $fixedData): void
     {
+        Log::info('ManageFailedSeedEntries: Starting individual entry retry', [
+            'upload_id' => $uploadId,
+            'entry_index' => $entryIndex,
+            'entry_title' => $fixedData['title'] ?? 'Unknown'
+        ]);
+        
         try {
             $upload = SeedScrapeUpload::findOrFail($uploadId);
             $failedEntries = $upload->failed_entries ?? [];
             
             if (!isset($failedEntries[$entryIndex])) {
+                Log::error('ManageFailedSeedEntries: Failed entry not found at index', [
+                    'upload_id' => $uploadId,
+                    'entry_index' => $entryIndex,
+                    'total_failed_entries' => count($failedEntries)
+                ]);
+                
                 Notification::make()
                     ->title('Entry Not Found')
                     ->body('The specified failed entry could not be found.')
@@ -495,6 +609,11 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
             // Get supplier
             $supplier = Supplier::find($fixedData['supplier_id']);
             if (!$supplier) {
+                Log::error('ManageFailedSeedEntries: Supplier not found for retry', [
+                    'upload_id' => $uploadId,
+                    'supplier_id' => $fixedData['supplier_id']
+                ]);
+                
                 Notification::make()
                     ->title('Supplier Not Found')
                     ->body('The specified supplier could not be found.')
@@ -502,6 +621,15 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                     ->send();
                 return;
             }
+            
+            Log::debug('ManageFailedSeedEntries: Processing fixed entry data', [
+                'upload_id' => $uploadId,
+                'entry_index' => $entryIndex,
+                'supplier_id' => $supplier->id,
+                'supplier_name' => $supplier->name,
+                'product_title' => $fixedData['title'],
+                'variation_count' => count($fixedData['variations'] ?? [])
+            ]);
             
             // Convert fixed data back to the expected format
             $productData = [
@@ -516,8 +644,20 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
             ];
             
             // Attempt to process the fixed entry
+            Log::info('ManageFailedSeedEntries: Attempting to process fixed entry', [
+                'upload_id' => $uploadId,
+                'entry_index' => $entryIndex,
+                'product_title' => $productData['title']
+            ]);
+            
             $importer = new SeedScrapeImporter();
             $importer->processProduct($productData, $supplier, now()->toIso8601String(), 'USD');
+            
+            Log::info('ManageFailedSeedEntries: Successfully processed fixed entry', [
+                'upload_id' => $uploadId,
+                'entry_index' => $entryIndex,
+                'product_title' => $productData['title']
+            ]);
             
             // Remove this entry from failed entries
             unset($failedEntries[$entryIndex]);
@@ -531,6 +671,12 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                 'notes' => $upload->notes . "\nFixed and retried entry '{$fixedData['title']}' at " . now()->format('Y-m-d H:i:s')
             ]);
             
+            Log::info('ManageFailedSeedEntries: Updated upload record after successful retry', [
+                'upload_id' => $uploadId,
+                'remaining_failed_count' => count($failedEntries),
+                'new_successful_count' => $upload->successful_entries + 1
+            ]);
+            
             Notification::make()
                 ->title('Entry Processed Successfully')
                 ->body("Successfully processed '{$fixedData['title']}'")
@@ -541,10 +687,13 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
             $this->redirect(request()->header('Referer'));
                 
         } catch (\Exception $e) {
-            Log::error('Error retrying individual entry', [
+            Log::error('ManageFailedSeedEntries: Error retrying individual entry', [
                 'upload_id' => $uploadId,
                 'entry_index' => $entryIndex,
-                'error' => $e->getMessage()
+                'entry_title' => $fixedData['title'] ?? 'Unknown',
+                'error' => $e->getMessage(),
+                'error_class' => get_class($e),
+                'trace' => $e->getTraceAsString()
             ]);
             
             Notification::make()
@@ -557,11 +706,22 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
     
     protected function ignoreIndividualEntry(int $uploadId, int $entryIndex): void
     {
+        Log::info('ManageFailedSeedEntries: Starting ignore individual entry', [
+            'upload_id' => $uploadId,
+            'entry_index' => $entryIndex
+        ]);
+        
         try {
             $upload = SeedScrapeUpload::findOrFail($uploadId);
             $failedEntries = $upload->failed_entries ?? [];
             
             if (!isset($failedEntries[$entryIndex])) {
+                Log::error('ManageFailedSeedEntries: Failed entry not found at index', [
+                    'upload_id' => $uploadId,
+                    'entry_index' => $entryIndex,
+                    'total_failed_entries' => count($failedEntries)
+                ]);
+                
                 Notification::make()
                     ->title('Entry Not Found')
                     ->body('The specified failed entry could not be found.')
@@ -571,6 +731,12 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
             }
             
             $entryTitle = $failedEntries[$entryIndex]['data']['title'] ?? 'Unknown Entry';
+            
+            Log::info('ManageFailedSeedEntries: Ignoring failed entry', [
+                'upload_id' => $uploadId,
+                'entry_index' => $entryIndex,
+                'entry_title' => $entryTitle
+            ]);
             
             // Remove this entry from failed entries
             unset($failedEntries[$entryIndex]);
@@ -583,6 +749,12 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                 'notes' => $upload->notes . "\nIgnored entry '{$entryTitle}' at " . now()->format('Y-m-d H:i:s')
             ]);
             
+            Log::info('ManageFailedSeedEntries: Successfully ignored entry', [
+                'upload_id' => $uploadId,
+                'entry_title' => $entryTitle,
+                'remaining_failed_count' => count($failedEntries)
+            ]);
+            
             Notification::make()
                 ->title('Entry Ignored')
                 ->body("Ignored '{$entryTitle}'")
@@ -593,10 +765,12 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
             $this->redirect(request()->header('Referer'));
                 
         } catch (\Exception $e) {
-            Log::error('Error ignoring individual entry', [
+            Log::error('ManageFailedSeedEntries: Error ignoring individual entry', [
                 'upload_id' => $uploadId,
                 'entry_index' => $entryIndex,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'error_class' => get_class($e),
+                'trace' => $e->getTraceAsString()
             ]);
             
             Notification::make()

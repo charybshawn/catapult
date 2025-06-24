@@ -104,6 +104,16 @@
         </x-filament::tabs.item>
 
         <x-filament::tabs.item
+            :active="$activeTab === 'time'"
+            x-on:click="activeTab = 'time'; history.replaceState(null, null, '?tab=time');"
+            icon="heroicon-m-clock"
+            :badge="($timeCardsSummary['flagged_time_cards'] ?? 0) > 0 ? ($timeCardsSummary['flagged_time_cards'] ?? 0) : null"
+            :badge-color="'danger'"
+        >
+            Time Management
+        </x-filament::tabs.item>
+
+        <x-filament::tabs.item
             :active="$activeTab === 'analytics'"
             x-on:click="activeTab = 'analytics'; history.replaceState(null, null, '?tab=analytics');"
             icon="heroicon-m-chart-bar"
@@ -912,6 +922,186 @@
         <!-- Planning & Predictions Tab -->
         <div x-show="activeTab === 'planning'" x-cloak>
             <p class="text-gray-500 text-center py-8">Planning & Predictions content will go here</p>
+        </div>
+
+        <!-- Time Management Tab -->
+        <div x-show="activeTab === 'time'" x-cloak>
+            <div class="space-y-8">
+                <!-- Header Section -->
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Time Management</h2>
+                    <a href="{{ route('filament.admin.resources.time-cards.index') }}" 
+                       class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Manage Time Cards
+                    </a>
+                </div>
+
+                <!-- Summary Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <!-- Employees Clocked In -->
+                    <div class="bg-white dark:bg-gray-900 rounded-xl border border-blue-200 dark:border-blue-700 p-6 shadow-sm hover:shadow-md transition-all">
+                        <div class="flex items-center mb-3">
+                            <div class="w-2 h-2 rounded-full bg-blue-500 mr-3"></div>
+                            <h3 class="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Currently Working</h3>
+                        </div>
+                        <div class="mb-1">
+                            <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ $timeCardsSummary['employees_clocked_in'] ?? 0 }}</span>
+                        </div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Employees clocked in</p>
+                    </div>
+
+                    <!-- Flagged Time Cards -->
+                    <div class="bg-white dark:bg-gray-900 rounded-xl border border-red-200 dark:border-red-700 p-6 shadow-sm hover:shadow-md transition-all">
+                        <div class="flex items-center mb-3">
+                            <div class="w-2 h-2 rounded-full bg-red-500 mr-3"></div>
+                            <h3 class="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">Need Review</h3>
+                        </div>
+                        <div class="mb-1">
+                            <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ $timeCardsSummary['flagged_time_cards'] ?? 0 }}</span>
+                        </div>
+                        @if(($timeCardsSummary['flagged_time_cards'] ?? 0) > 0)
+                            <p class="text-xs text-red-600 dark:text-red-400">Exceeded 8-hour limit</p>
+                        @else
+                            <p class="text-xs text-gray-500 dark:text-gray-400">All shifts normal</p>
+                        @endif
+                    </div>
+
+                    <!-- Today's Hours -->
+                    <div class="bg-white dark:bg-gray-900 rounded-xl border border-green-200 dark:border-green-700 p-6 shadow-sm hover:shadow-md transition-all">
+                        <div class="flex items-center mb-3">
+                            <div class="w-2 h-2 rounded-full bg-green-500 mr-3"></div>
+                            <h3 class="text-xs font-semibold text-green-600 dark:text-green-400 uppercase tracking-wider">Today's Hours</h3>
+                        </div>
+                        <div class="mb-1">
+                            <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ $timeCardsSummary['total_hours_today'] ?? '0.0' }}</span>
+                        </div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Total hours worked</p>
+                    </div>
+
+                    <!-- Weekly Hours -->
+                    <div class="bg-white dark:bg-gray-900 rounded-xl border border-purple-200 dark:border-purple-700 p-6 shadow-sm hover:shadow-md transition-all">
+                        <div class="flex items-center mb-3">
+                            <div class="w-2 h-2 rounded-full bg-purple-500 mr-3"></div>
+                            <h3 class="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">This Week</h3>
+                        </div>
+                        <div class="mb-1">
+                            <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ $timeCardsSummary['total_hours_this_week'] ?? '0.0' }}</span>
+                        </div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Total hours this week</p>
+                    </div>
+                </div>
+
+                <!-- Active Employees Section -->
+                @if(!empty($activeEmployees) && count($activeEmployees) > 0)
+                <div class="space-y-6">
+                    <h3 class="text-lg font-semibold text-blue-600 dark:text-blue-400 flex items-center">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Currently Clocked In ({{ count($activeEmployees) }})
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        @foreach($activeEmployees as $employee)
+                        <div class="bg-white dark:bg-gray-900 border {{ $employee['is_flagged'] ? 'border-red-200 dark:border-red-700' : 'border-gray-200 dark:border-gray-700' }} rounded-lg p-4 hover:shadow-md transition-all">
+                            <div class="flex justify-between items-start mb-2">
+                                <h4 class="font-semibold text-gray-900 dark:text-white">{{ $employee['user_name'] }}</h4>
+                                @if($employee['is_flagged'])
+                                    <x-filament::badge color="danger" size="sm">REVIEW</x-filament::badge>
+                                @elseif($employee['needs_attention'])
+                                    <x-filament::badge color="warning" size="sm">NEAR LIMIT</x-filament::badge>
+                                @endif
+                            </div>
+                            <div class="space-y-1 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-500 dark:text-gray-400">Clock In:</span>
+                                    <span class="text-gray-900 dark:text-white">{{ \Carbon\Carbon::parse($employee['clock_in'])->format('g:i A') }}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-500 dark:text-gray-400">Elapsed:</span>
+                                    <span class="font-mono {{ $employee['is_flagged'] ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white' }}">{{ $employee['elapsed_time'] }}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-500 dark:text-gray-400">Hours:</span>
+                                    <span class="text-gray-900 dark:text-white">{{ number_format($employee['hours_worked'], 1) }}h</span>
+                                </div>
+                            </div>
+                        </div>
+                        @endforeach
+                    </div>
+                </div>
+                @else
+                <div class="text-center py-12">
+                    <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <h4 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No employees currently clocked in</h4>
+                    <p class="text-gray-500 dark:text-gray-400">All employees have clocked out for the day</p>
+                </div>
+                @endif
+
+                <!-- Flagged Time Cards Section -->
+                @if(!empty($flaggedTimeCards) && count($flaggedTimeCards) > 0)
+                <div class="space-y-6">
+                    <h3 class="text-lg font-semibold text-red-600 dark:text-red-400 flex items-center">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z"></path>
+                        </svg>
+                        Time Cards Requiring Review ({{ count($flaggedTimeCards) }})
+                    </h3>
+                    <div class="space-y-4">
+                        @foreach($flaggedTimeCards as $timeCard)
+                        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg p-4">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-3 mb-2">
+                                        <h4 class="font-semibold text-gray-900 dark:text-white">{{ $timeCard['user_name'] }}</h4>
+                                        <x-filament::badge color="danger" size="sm">EXCEEDED 8 HOURS</x-filament::badge>
+                                    </div>
+                                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                        <div>
+                                            <span class="text-gray-500 dark:text-gray-400">Date:</span>
+                                            <div class="text-gray-900 dark:text-white">{{ \Carbon\Carbon::parse($timeCard['work_date'])->format('M j, Y') }}</div>
+                                        </div>
+                                        <div>
+                                            <span class="text-gray-500 dark:text-gray-400">Clock In:</span>
+                                            <div class="text-gray-900 dark:text-white">{{ \Carbon\Carbon::parse($timeCard['clock_in'])->format('g:i A') }}</div>
+                                        </div>
+                                        <div>
+                                            <span class="text-gray-500 dark:text-gray-400">Total Time:</span>
+                                            <div class="font-mono text-red-600 dark:text-red-400">{{ $timeCard['elapsed_time'] }}</div>
+                                        </div>
+                                        <div>
+                                            <span class="text-gray-500 dark:text-gray-400">Exceeded:</span>
+                                            <div class="text-gray-900 dark:text-white">{{ \Carbon\Carbon::parse($timeCard['exceeded_at'])->format('g:i A') }}</div>
+                                        </div>
+                                    </div>
+                                    @if(!empty($timeCard['flags']))
+                                    <div class="mt-2 flex flex-wrap gap-1">
+                                        @foreach($timeCard['flags'] as $flag)
+                                            <x-filament::badge color="warning" size="xs">{{ $flag }}</x-filament::badge>
+                                        @endforeach
+                                    </div>
+                                    @endif
+                                </div>
+                                <div class="ml-4">
+                                    <a href="{{ route('filament.admin.resources.time-cards.edit', ['record' => $timeCard['id']]) }}" 
+                                       class="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                        </svg>
+                                        Review
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        @endforeach
+                    </div>
+                </div>
+                @endif
+            </div>
         </div>
 
         <!-- Analytics & Reports Tab -->

@@ -173,6 +173,12 @@
     ],
     "system": [
       {
+        "label": "Time Cards",
+        "url": "/admin/time-cards",
+        "icon": "heroicon-o-clock",
+        "routes": ["filament.admin.resources.time-cards.*"]
+      },
+      {
         "label": "Database Management",
         "url": "/admin/database-management",
         "icon": "heroicon-o-circle-stack",

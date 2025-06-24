@@ -24,6 +24,10 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
 use App\Filament\Resources\CropAlertResource;
 use App\Filament\Widgets\SeedPriceTrendsWidget;
 use App\Filament\Widgets\SeedReorderAdvisorWidget;
+use App\Filament\Widgets\TimeCardSummaryWidget;
+use App\Http\Middleware\TimeTrackingMiddleware;
+use Filament\View\PanelsRenderHook;
+use Illuminate\Support\Facades\Blade;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -64,6 +68,7 @@ class AdminPanelProvider extends PanelProvider
             ->viteTheme('resources/css/filament/admin/theme.css')
             ->widgets([
                 // Removed AccountWidget to hide welcome message and sign out button
+                TimeCardSummaryWidget::class,
                 SeedPriceTrendsWidget::class,
                 SeedReorderAdvisorWidget::class,
             ])
@@ -78,9 +83,14 @@ class AdminPanelProvider extends PanelProvider
                 SubstituteBindings::class,
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
+                TimeTrackingMiddleware::class,
             ])
             ->authMiddleware([
                 Authenticate::class,
-            ]);
+            ])
+            ->renderHook(
+                PanelsRenderHook::USER_MENU_BEFORE,
+                fn () => Blade::render('@livewire(\'time-clock-widget\')')
+            );
     }
 }

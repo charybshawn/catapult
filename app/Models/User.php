@@ -68,6 +68,14 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
+     * Get the time cards for this user.
+     */
+    public function timeCards(): HasMany
+    {
+        return $this->hasMany(TimeCard::class);
+    }
+
+    /**
      * Configure the activity log options for this model.
      */
     public function getActivitylogOptions(): LogOptions

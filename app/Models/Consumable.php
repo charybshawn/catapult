@@ -72,7 +72,7 @@ class Consumable extends Model
      * @var array
      */
     protected $appends = [
-        'initial_stock',
+        // Removed 'initial_stock' since it's already a database field
     ];
     
     /**

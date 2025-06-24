@@ -28,6 +28,7 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Illuminate\Support\Facades\Log;
 
 class SeedScrapeUploader extends Page implements HasForms, HasTable
 {
@@ -59,6 +60,10 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
     
     public function mount(): void
     {
+        Log::info('SeedScrapeUploader: Page mounted', [
+            'user_id' => auth()->id(),
+            'timestamp' => now()->toISOString()
+        ]);
         $this->form->fill();
     }
     
@@ -76,6 +81,10 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                             ->maxSize(10240) // 10MB
                             ->disk('local')
                             ->afterStateUpdated(function ($state, callable $set) {
+                                Log::info('SeedScrapeUploader: File upload state updated', [
+                                    'file_count' => is_array($state) ? count($state) : 1,
+                                    'timestamp' => now()->toISOString()
+                                ]);
                                 $this->handleFileUpload($state, $set);
                             })
                             ->uploadProgressIndicatorPosition('left')
@@ -100,6 +109,11 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                             ->label('Select Supplier')
                             ->options(function () {
                                 $options = [];
+                                
+                                Log::debug('SeedScrapeUploader: Building supplier options list', [
+                                    'match_count' => count($this->supplierMatches),
+                                    'source_url' => $this->currentSourceUrl
+                                ]);
                                 
                                 // Add potential matches with confidence scores
                                 foreach ($this->supplierMatches as $match) {
@@ -176,6 +190,12 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                                     ->columnSpanFull(),
                             ])
                             ->createOptionUsing(function (array $data): string {
+                                Log::info('SeedScrapeUploader: Creating new supplier', [
+                                    'supplier_name' => $data['name'],
+                                    'supplier_type' => $data['type'],
+                                    'source_url' => $this->currentSourceUrl
+                                ]);
+                                
                                 $supplier = Supplier::create([
                                     'name' => $data['name'],
                                     'type' => $data['type'],
@@ -185,6 +205,11 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                                     'address' => $data['address'] ?? null,
                                     'notes' => $data['notes'] ?? null,
                                     'is_active' => true,
+                                ]);
+                                
+                                Log::info('SeedScrapeUploader: New supplier created successfully', [
+                                    'supplier_id' => $supplier->id,
+                                    'supplier_name' => $supplier->name
                                 ]);
                                 
                                 Notification::make()
@@ -227,22 +252,61 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
     protected function handleFileUpload($state, callable $set): void
     {
         if (empty($state)) {
+            Log::debug('SeedScrapeUploader: Empty state received in handleFileUpload');
             return;
         }
         
         $filesToProcess = is_array($state) ? $state : [$state];
+        Log::info('SeedScrapeUploader: Starting file upload processing', [
+            'total_files' => count($filesToProcess),
+            'timestamp' => now()->toISOString()
+        ]);
         
-        foreach ($filesToProcess as $file) {
+        foreach ($filesToProcess as $index => $file) {
             if (!($file instanceof TemporaryUploadedFile)) {
+                Log::warning('SeedScrapeUploader: Skipping non-TemporaryUploadedFile instance', [
+                    'file_index' => $index,
+                    'file_type' => gettype($file)
+                ]);
                 continue;
             }
             
+            Log::info('SeedScrapeUploader: Processing uploaded file', [
+                'file_name' => $file->getClientOriginalName(),
+                'file_size' => $file->getSize(),
+                'mime_type' => $file->getMimeType(),
+                'temp_path' => $file->getRealPath(),
+                'storage_path' => $file->getPath(),
+                'file_index' => $index
+            ]);
+            
             try {
                 // Read JSON to extract source URL
-                $jsonContent = file_get_contents($file->getRealPath());
+                $tempPath = $file->getRealPath();
+                Log::debug('SeedScrapeUploader: Reading JSON content from temp file', [
+                    'temp_file_path' => $tempPath,
+                    'file_exists' => file_exists($tempPath),
+                    'file_size' => file_exists($tempPath) ? filesize($tempPath) : 0
+                ]);
+                
+                $jsonContent = file_get_contents($tempPath);
                 $jsonData = json_decode($jsonContent, true);
                 
+                Log::debug('SeedScrapeUploader: JSON decode result', [
+                    'decode_success' => $jsonData !== null,
+                    'json_error' => json_last_error_msg(),
+                    'has_source_site' => isset($jsonData['source_site']),
+                    'data_keys' => $jsonData ? array_keys($jsonData) : []
+                ]);
+                
                 if (!$jsonData || !isset($jsonData['source_site'])) {
+                    Log::error('SeedScrapeUploader: Invalid JSON structure', [
+                        'file_name' => $file->getClientOriginalName(),
+                        'json_valid' => $jsonData !== null,
+                        'has_source_site' => isset($jsonData['source_site']),
+                        'available_fields' => $jsonData ? array_keys($jsonData) : []
+                    ]);
+                    
                     Notification::make()
                         ->title('Invalid JSON')
                         ->body('JSON file must contain a source_site field')
@@ -252,14 +316,32 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                 }
                 
                 $sourceUrl = $jsonData['source_site'];
+                Log::info('SeedScrapeUploader: Extracted source URL from JSON', [
+                    'source_url' => $sourceUrl,
+                    'file_name' => $file->getClientOriginalName()
+                ]);
                 
                 // Check for existing mapping
                 $existingMapping = SupplierSourceMapping::findMappingForSource($sourceUrl);
+                Log::debug('SeedScrapeUploader: Checked for existing supplier mapping', [
+                    'source_url' => $sourceUrl,
+                    'mapping_exists' => $existingMapping !== null,
+                    'supplier_id' => $existingMapping ? $existingMapping->supplier_id : null,
+                    'supplier_name' => $existingMapping ? $existingMapping->supplier->name : null
+                ]);
                 
                 if ($existingMapping) {
                     // Process directly with existing mapping
+                    Log::info('SeedScrapeUploader: Using existing supplier mapping', [
+                        'supplier_id' => $existingMapping->supplier_id,
+                        'supplier_name' => $existingMapping->supplier->name,
+                        'source_url' => $sourceUrl
+                    ]);
                     $this->processFileWithSupplier($file, $existingMapping->supplier);
                 } else {
+                    Log::info('SeedScrapeUploader: No existing mapping found, requiring supplier selection', [
+                        'source_url' => $sourceUrl
+                    ]);
                     // Need supplier selection
                     $this->currentSourceUrl = $sourceUrl;
                     $this->pendingFiles = [$file];
@@ -267,6 +349,19 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                     // Find potential matches
                     $matchingService = app(SupplierMatchingService::class);
                     $this->supplierMatches = $matchingService->findPotentialMatches($sourceUrl);
+                    
+                    Log::info('SeedScrapeUploader: Found potential supplier matches', [
+                        'source_url' => $sourceUrl,
+                        'match_count' => count($this->supplierMatches),
+                        'matches' => collect($this->supplierMatches)->map(function ($match) {
+                            return [
+                                'supplier_id' => $match['supplier']->id,
+                                'supplier_name' => $match['supplier']->name,
+                                'confidence' => $match['confidence'],
+                                'reasons' => $match['match_reasons']
+                            ];
+                        })->toArray()
+                    ]);
                     
                     $this->showSupplierSelection = true;
                     
@@ -278,9 +373,12 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                 }
                 
             } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error('Error processing uploaded file', [
+                Log::error('SeedScrapeUploader: Error processing uploaded file', [
                     'error' => $e->getMessage(),
-                    'file' => $file->getClientOriginalName()
+                    'error_class' => get_class($e),
+                    'file' => $file->getClientOriginalName(),
+                    'temp_path' => $file->getRealPath(),
+                    'trace' => $e->getTraceAsString()
                 ]);
                 
                 Notification::make()
@@ -300,15 +398,34 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
     public function processFilesWithSupplier(): void
     {
         if (empty($this->selectedSupplier) || empty($this->pendingFiles)) {
+            Log::warning('SeedScrapeUploader: processFilesWithSupplier called with empty supplier or files', [
+                'selected_supplier' => $this->selectedSupplier,
+                'pending_files_count' => count($this->pendingFiles)
+            ]);
             return;
         }
+        
+        Log::info('SeedScrapeUploader: Starting batch file processing with supplier', [
+            'supplier_id' => $this->selectedSupplier,
+            'source_url' => $this->currentSourceUrl,
+            'file_count' => count($this->pendingFiles)
+        ]);
         
         try {
             $supplier = Supplier::find($this->selectedSupplier);
             
             if (!$supplier) {
+                Log::error('SeedScrapeUploader: Supplier not found', [
+                    'supplier_id' => $this->selectedSupplier
+                ]);
                 throw new \Exception('Supplier not found');
             }
+            
+            Log::info('SeedScrapeUploader: Creating supplier source mapping', [
+                'source_url' => $this->currentSourceUrl,
+                'supplier_id' => $supplier->id,
+                'supplier_name' => $supplier->name
+            ]);
             
             // Create mapping for future uploads
             SupplierSourceMapping::createMapping(
@@ -318,17 +435,32 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
             );
             
             // Process all pending files
-            foreach ($this->pendingFiles as $file) {
+            Log::info('SeedScrapeUploader: Processing pending files', [
+                'file_count' => count($this->pendingFiles),
+                'supplier_id' => $supplier->id
+            ]);
+            
+            foreach ($this->pendingFiles as $index => $file) {
+                Log::debug('SeedScrapeUploader: Processing file in batch', [
+                    'file_index' => $index,
+                    'file_name' => $file->getClientOriginalName(),
+                    'supplier_id' => $supplier->id
+                ]);
                 $this->processFileWithSupplier($file, $supplier);
             }
             
             // Reset state
+            Log::info('SeedScrapeUploader: Batch processing completed, resetting state');
             $this->resetSupplierSelection();
             
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Error processing files with supplier', [
+            Log::error('SeedScrapeUploader: Error processing files with supplier', [
                 'error' => $e->getMessage(),
-                'supplier_id' => $this->selectedSupplier
+                'error_class' => get_class($e),
+                'supplier_id' => $this->selectedSupplier,
+                'source_url' => $this->currentSourceUrl,
+                'pending_files_count' => count($this->pendingFiles),
+                'trace' => $e->getTraceAsString()
             ]);
             
             Notification::make()
@@ -347,17 +479,49 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
         try {
             $originalFilename = $file->getClientOriginalName();
             
+            Log::info('SeedScrapeUploader: Starting individual file processing', [
+                'original_filename' => $originalFilename,
+                'supplier_id' => $supplier->id,
+                'supplier_name' => $supplier->name,
+                'temp_path' => $file->getRealPath(),
+                'file_size' => $file->getSize(),
+                'mime_type' => $file->getMimeType()
+            ]);
+            
             $scrapeUpload = SeedScrapeUpload::create([
                 'original_filename' => $originalFilename,
                 'status' => SeedScrapeUpload::STATUS_PROCESSING,
                 'uploaded_at' => now(),
             ]);
             
+            Log::info('SeedScrapeUploader: Created SeedScrapeUpload record', [
+                'upload_id' => $scrapeUpload->id,
+                'filename' => $originalFilename,
+                'status' => SeedScrapeUpload::STATUS_PROCESSING
+            ]);
+            
             // Use enhanced importer with supplier override
+            Log::info('SeedScrapeUploader: Initiating import with SeedScrapeImporter', [
+                'upload_id' => $scrapeUpload->id,
+                'temp_file_path' => $file->getRealPath(),
+                'supplier_id' => $supplier->id
+            ]);
+            
             $importer = new SeedScrapeImporter();
             $importer->importWithSupplier($file->getRealPath(), $scrapeUpload, $supplier);
             
             $scrapeUpload->refresh();
+            
+            Log::info('SeedScrapeUploader: File processing completed', [
+                'upload_id' => $scrapeUpload->id,
+                'filename' => $originalFilename,
+                'final_status' => $scrapeUpload->status,
+                'total_entries' => $scrapeUpload->total_entries,
+                'successful_entries' => $scrapeUpload->successful_entries,
+                'failed_entries' => $scrapeUpload->failed_entries_count,
+                'supplier_id' => $supplier->id,
+                'supplier_name' => $supplier->name
+            ]);
             
             Notification::make()
                 ->title('File Processed Successfully')
@@ -366,11 +530,28 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                 ->send();
                 
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Error processing individual file', [
+            Log::error('SeedScrapeUploader: Error processing individual file', [
                 'error' => $e->getMessage(),
+                'error_class' => get_class($e),
                 'file' => $file->getClientOriginalName(),
-                'supplier' => $supplier->name
+                'temp_path' => $file->getRealPath(),
+                'supplier_id' => $supplier->id,
+                'supplier_name' => $supplier->name,
+                'upload_id' => isset($scrapeUpload) ? $scrapeUpload->id : null,
+                'trace' => $e->getTraceAsString()
             ]);
+            
+            // Update upload status if record was created
+            if (isset($scrapeUpload)) {
+                $scrapeUpload->update([
+                    'status' => SeedScrapeUpload::STATUS_ERROR,
+                    'notes' => 'Error: ' . $e->getMessage()
+                ]);
+                
+                Log::info('SeedScrapeUploader: Updated upload status to ERROR', [
+                    'upload_id' => $scrapeUpload->id
+                ]);
+            }
             
             throw $e;
         }
@@ -395,6 +576,8 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
      */
     protected function resetSupplierSelection(): void
     {
+        Log::debug('SeedScrapeUploader: Resetting supplier selection state');
+        
         $this->showSupplierSelection = false;
         $this->selectedSupplier = null;
         $this->pendingFiles = [];

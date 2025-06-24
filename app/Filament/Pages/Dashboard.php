@@ -9,6 +9,8 @@ use App\Models\TaskSchedule;
 use App\Models\Order;
 use App\Models\Recipe;
 use App\Models\SeedEntry;
+use App\Models\TimeCard;
+use App\Models\User;
 use App\Services\InventoryService;
 use Filament\Pages\Dashboard as BaseDashboard;
 use Filament\Panel;
@@ -91,6 +93,11 @@ class Dashboard extends BaseDashboard
             // Planning Data
             'plantingRecommendations' => $this->getPlantingRecommendations(),
             'trayUtilization' => $this->getTrayUtilization(),
+            
+            // Time Management Data
+            'timeCardsSummary' => $this->getTimeCardsSummary(),
+            'activeEmployees' => $this->getActiveEmployees(),
+            'flaggedTimeCards' => $this->getFlaggedTimeCards(),
         ];
     }
     
@@ -697,5 +704,116 @@ class Dashboard extends BaseDashboard
             'utilization_percent' => $utilizationPercent,
             'status' => $utilizationPercent > 90 ? 'critical' : ($utilizationPercent > 75 ? 'warning' : 'good')
         ];
+    }
+    
+    /**
+     * Get time cards summary for dashboard
+     */
+    protected function getTimeCardsSummary(): array
+    {
+        $today = now()->startOfDay();
+        $thisWeek = now()->startOfWeek();
+        $thisMonth = now()->startOfMonth();
+        
+        return [
+            'employees_clocked_in' => TimeCard::where('status', 'active')->count(),
+            'flagged_time_cards' => TimeCard::where('requires_review', true)->count(),
+            'total_hours_today' => $this->getTotalHoursForPeriod($today, now()),
+            'total_hours_this_week' => $this->getTotalHoursForPeriod($thisWeek, now()),
+            'total_hours_this_month' => $this->getTotalHoursForPeriod($thisMonth, now()),
+            'average_daily_hours' => $this->getAverageDailyHours(),
+        ];
+    }
+    
+    /**
+     * Get currently active employees
+     */
+    protected function getActiveEmployees(): array
+    {
+        $activeTimeCards = TimeCard::where('status', 'active')
+            ->with('user')
+            ->orderBy('clock_in', 'asc')
+            ->get();
+            
+        return $activeTimeCards->map(function ($timeCard) {
+            return [
+                'id' => $timeCard->id,
+                'user_name' => $timeCard->user->name,
+                'clock_in' => $timeCard->clock_in,
+                'elapsed_time' => $timeCard->elapsed_time,
+                'hours_worked' => $timeCard->clock_in->diffInHours(now()),
+                'is_flagged' => $timeCard->requires_review,
+                'needs_attention' => $timeCard->clock_in->diffInHours(now()) >= 7, // Near 8-hour limit
+            ];
+        })->toArray();
+    }
+    
+    /**
+     * Get time cards that are flagged for review
+     */
+    protected function getFlaggedTimeCards(): array
+    {
+        $flaggedCards = TimeCard::where('requires_review', true)
+            ->with('user')
+            ->orderBy('max_shift_exceeded_at', 'desc')
+            ->take(10)
+            ->get();
+            
+        return $flaggedCards->map(function ($timeCard) {
+            return [
+                'id' => $timeCard->id,
+                'user_name' => $timeCard->user->name,
+                'clock_in' => $timeCard->clock_in,
+                'elapsed_time' => $timeCard->elapsed_time,
+                'exceeded_at' => $timeCard->max_shift_exceeded_at,
+                'flags' => $timeCard->flags ?? [],
+                'work_date' => $timeCard->work_date,
+            ];
+        })->toArray();
+    }
+    
+    /**
+     * Calculate total hours worked for a given period
+     */
+    protected function getTotalHoursForPeriod(Carbon $start, Carbon $end): float
+    {
+        $timeCards = TimeCard::whereBetween('work_date', [$start->toDateString(), $end->toDateString()])
+            ->get();
+            
+        $totalMinutes = 0;
+        
+        foreach ($timeCards as $card) {
+            if ($card->status === 'active') {
+                $totalMinutes += $card->clock_in->diffInMinutes(now());
+            } else {
+                $totalMinutes += $card->duration_minutes ?? 0;
+            }
+        }
+        
+        return round($totalMinutes / 60, 1);
+    }
+    
+    /**
+     * Get average daily hours worked over the last 30 days
+     */
+    protected function getAverageDailyHours(): float
+    {
+        $thirtyDaysAgo = now()->subDays(30)->startOfDay();
+        $completedCards = TimeCard::where('status', 'completed')
+            ->where('work_date', '>=', $thirtyDaysAgo->toDateString())
+            ->get();
+            
+        if ($completedCards->isEmpty()) {
+            return 0;
+        }
+        
+        $totalMinutes = $completedCards->sum('duration_minutes');
+        $totalDays = $completedCards->groupBy('work_date')->count();
+        
+        if ($totalDays === 0) {
+            return 0;
+        }
+        
+        return round(($totalMinutes / 60) / $totalDays, 1);
     }
 } 
