@@ -14,13 +14,17 @@ class SupplierSourceMapping extends Model
         'source_url',
         'domain', 
         'supplier_id',
+        'source_name',
+        'source_identifier',
+        'mapping_data',
         'is_active',
         'metadata'
     ];
     
     protected $casts = [
         'is_active' => 'boolean',
-        'metadata' => 'array'
+        'metadata' => 'array',
+        'mapping_data' => 'array'
     ];
     
     /**
@@ -36,7 +40,10 @@ class SupplierSourceMapping extends Model
      */
     public static function findMappingForSource(string $sourceUrl): ?self
     {
-        // Try exact URL first
+        $service = app(\App\Services\SupplierMatchingService::class);
+        $domain = $service->extractDomain($sourceUrl);
+        
+        // Try exact URL match first
         $mapping = self::where('source_url', $sourceUrl)
             ->where('is_active', true)
             ->first();
@@ -45,10 +52,8 @@ class SupplierSourceMapping extends Model
             return $mapping;
         }
         
-        // Try domain match
-        $domain = app(\App\Services\SupplierMatchingService::class)->extractDomain($sourceUrl);
-        
-        return self::where('domain', $domain)
+        // Try domain match using source_identifier
+        return self::where('source_identifier', $domain)
             ->where('is_active', true)
             ->first();
     }
@@ -58,17 +63,22 @@ class SupplierSourceMapping extends Model
      */
     public static function createMapping(string $sourceUrl, int $supplierId, array $metadata = []): self
     {
-        $domain = app(\App\Services\SupplierMatchingService::class)->extractDomain($sourceUrl);
+        $service = app(\App\Services\SupplierMatchingService::class);
+        $domain = $service->extractDomain($sourceUrl);
+        $domainName = $service->extractDomainName($domain);
         
         return self::updateOrCreate(
             [
-                'domain' => $domain,
-                'supplier_id' => $supplierId
+                'supplier_id' => $supplierId,
+                'source_identifier' => $domain
             ],
             [
                 'source_url' => $sourceUrl,
+                'domain' => $domain,
+                'source_name' => $domainName,
                 'is_active' => true,
-                'metadata' => $metadata
+                'metadata' => $metadata,
+                'mapping_data' => $metadata // Store in both fields for now
             ]
         );
     }

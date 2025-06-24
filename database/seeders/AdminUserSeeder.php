@@ -17,8 +17,8 @@ class AdminUserSeeder extends Seeder
         // Create admin role if it doesn't exist
         $adminRole = Role::firstOrCreate(['name' => 'admin']);
         
-        // Create a persistent admin user
-        $admin = User::firstOrCreate(
+        // Create or update admin user
+        $admin = User::updateOrCreate(
             ['email' => 'charybshawn@gmail.com'],
             [
                 'name' => 'Admin User',

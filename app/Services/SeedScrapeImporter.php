@@ -72,7 +72,7 @@ class SeedScrapeImporter
                         ['import_method' => 'legacy_auto_created']
                     );
                     
-                    Log::info('SeedScrapeImporter: Created new supplier mapping (legacy mode)', [
+                    Log::info('Created new supplier and mapping (legacy mode)', [
                         'upload_id' => $scrapeUpload->id,
                         'source_url' => $sourceUrl,
                         'supplier_id' => $supplier->id,
@@ -84,7 +84,7 @@ class SeedScrapeImporter
             // Get currency code from top level if available, or detect from supplier
             $currencyCode = $this->detectCurrency($jsonData, $supplier->name);
             
-            Log::info('SeedScrapeImporter: Detected currency and starting product processing', [
+            Log::info('Detected currency and starting product processing', [
                 'upload_id' => $scrapeUpload->id,
                 'currency_code' => $currencyCode,
                 'supplier_id' => $supplier->id,
@@ -93,7 +93,7 @@ class SeedScrapeImporter
             
             // Process each product
             foreach ($jsonData['data'] as $index => $productData) {
-                Log::debug('SeedScrapeImporter: Processing product', [
+                Log::debug('Processing product', [
                     'upload_id' => $scrapeUpload->id,
                     'product_index' => $index,
                     'product_title' => $productData['title'] ?? 'Unknown',

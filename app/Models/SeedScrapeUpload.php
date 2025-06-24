@@ -17,12 +17,16 @@ class SeedScrapeUpload extends Model
 
     protected $fillable = [
         'original_filename', 
+        'supplier_id',
+        'uploaded_by',
         'status', 
         'uploaded_at', 
         'processed_at', 
         'notes',
         'failed_entries',
         'total_entries',
+        'new_entries',
+        'updated_entries',
         'successful_entries',
         'failed_entries_count'
     ];
