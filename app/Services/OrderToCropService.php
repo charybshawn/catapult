@@ -63,6 +63,11 @@ class OrderToCropService
     {
         $requiredCrops = [];
 
+        // Ensure orderItems are loaded with product relationships
+        if (!$order->relationLoaded('orderItems')) {
+            $order->load(['orderItems.product.productMix.components.seedEntry.recipes']);
+        }
+
         foreach ($order->orderItems as $orderItem) {
             $product = $orderItem->product;
             $quantity = $orderItem->quantity;
@@ -113,8 +118,14 @@ class OrderToCropService
         if ($product->product_mix_id && $product->productMix) {
             // For mixed products, get recipes for each component
             foreach ($product->productMix->components as $component) {
-                if ($component->seedEntry && $component->seedEntry->recipes()->exists()) {
-                    $recipe = $component->seedEntry->recipes()->first();
+                if ($component->seedEntry) {
+                    // Use eager loaded relationship if available
+                    if ($component->seedEntry->relationLoaded('recipes')) {
+                        $recipe = $component->seedEntry->recipes->first();
+                    } else {
+                        $recipe = $component->seedEntry->recipes()->first();
+                    }
+                    
                     if ($recipe) {
                         $recipes->push($recipe);
                     }

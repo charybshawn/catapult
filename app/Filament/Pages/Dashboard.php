@@ -17,6 +17,7 @@ use Filament\Panel;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
 
 class Dashboard extends BaseDashboard
@@ -63,42 +64,44 @@ class Dashboard extends BaseDashboard
      */
     protected function getDashboardData(): array
     {
-        return [
-            // Operations Dashboard Data
-            'activeCropsCount' => $this->getActiveCropsCount(),
-            'activeTraysCount' => $this->getActiveTraysCount(),
-            'tasksCount' => $this->getTasksCount(),
-            'overdueTasksCount' => $this->getOverdueTasksCount(),
-            'cropsNeedingHarvest' => $this->getCropsNeedingHarvest(),
-            'recentlySowedCrops' => $this->getRecentlySowedCrops(),
-            'cropsByStage' => $this->getCropsByStage(),
-            
-            // Alerts Data
-            'todaysAlerts' => $this->getTodaysAlerts(),
-            'upcomingAlerts' => $this->getUpcomingAlerts(),
-            'overdueAlerts' => $this->getOverdueAlerts(),
-            'alertsSummary' => $this->getAlertsSummary(),
-            
-            // Inventory & Alerts Data
-            'lowStockCount' => $this->getLowStockCount(),
-            'lowStockItems' => $this->getLowStockItems(),
-            'seedInventoryAlerts' => $this->getSeedInventoryAlerts(),
-            'packagingAlerts' => $this->getPackagingAlerts(),
-            
-            // Harvest & Yield Data
-            'upcomingHarvests' => $this->getUpcomingHarvests(),
-            'yieldEstimates' => $this->getYieldEstimates(),
-            'weeklyHarvestSchedule' => $this->getWeeklyHarvestSchedule(),
-            
-            // Planning Data
-            'plantingRecommendations' => $this->getPlantingRecommendations(),
-            'trayUtilization' => $this->getTrayUtilization(),
-            
-            // Time Management Data
-            'timeCardsSummary' => $this->getTimeCardsSummary(),
-            'activeEmployees' => $this->getActiveEmployees(),
-            'flaggedTimeCards' => $this->getFlaggedTimeCards(),
-        ];
+        return Cache::remember('dashboard_data', now()->addMinutes(5), function () {
+            return [
+                // Operations Dashboard Data
+                'activeCropsCount' => $this->getActiveCropsCount(),
+                'activeTraysCount' => $this->getActiveTraysCount(),
+                'tasksCount' => $this->getTasksCount(),
+                'overdueTasksCount' => $this->getOverdueTasksCount(),
+                'cropsNeedingHarvest' => $this->getCropsNeedingHarvest(),
+                'recentlySowedCrops' => $this->getRecentlySowedCrops(),
+                'cropsByStage' => $this->getCropsByStage(),
+                
+                // Alerts Data
+                'todaysAlerts' => $this->getTodaysAlerts(),
+                'upcomingAlerts' => $this->getUpcomingAlerts(),
+                'overdueAlerts' => $this->getOverdueAlerts(),
+                'alertsSummary' => $this->getAlertsSummary(),
+                
+                // Inventory & Alerts Data
+                'lowStockCount' => $this->getLowStockCount(),
+                'lowStockItems' => $this->getLowStockItems(),
+                'seedInventoryAlerts' => $this->getSeedInventoryAlerts(),
+                'packagingAlerts' => $this->getPackagingAlerts(),
+                
+                // Harvest & Yield Data
+                'upcomingHarvests' => $this->getUpcomingHarvests(),
+                'yieldEstimates' => $this->getYieldEstimates(),
+                'weeklyHarvestSchedule' => $this->getWeeklyHarvestSchedule(),
+                
+                // Planning Data
+                'plantingRecommendations' => $this->getPlantingRecommendations(),
+                'trayUtilization' => $this->getTrayUtilization(),
+                
+                // Time Management Data
+                'timeCardsSummary' => $this->getTimeCardsSummary(),
+                'activeEmployees' => $this->getActiveEmployees(),
+                'flaggedTimeCards' => $this->getFlaggedTimeCards(),
+            ];
+        });
     }
     
     protected function getActiveCropsCount(): int

@@ -238,6 +238,11 @@ class Product extends Model
      */
     public function defaultPriceVariation(): ?PriceVariation
     {
+        // Use eager loaded relationship if available
+        if ($this->relationLoaded('priceVariations')) {
+            return $this->priceVariations->where('is_default', true)->first();
+        }
+        
         return $this->priceVariations()->where('is_default', true)->first();
     }
 
@@ -246,6 +251,11 @@ class Product extends Model
      */
     public function activePriceVariations(): Collection
     {
+        // Use eager loaded relationship if available
+        if ($this->relationLoaded('priceVariations')) {
+            return $this->priceVariations->where('is_active', true);
+        }
+        
         return $this->priceVariations()->where('is_active', true)->get();
     }
 
@@ -254,31 +264,56 @@ class Product extends Model
      */
     public function getPrice(?int $packagingTypeId = null, float $quantity = 1): float
     {
-        // Find a price variation that matches the packaging type
-        if ($packagingTypeId) {
-            $variation = $this->priceVariations()
-                ->where('packaging_type_id', $packagingTypeId)
-                ->where('is_active', true)
-                ->orderBy('price')
-                ->first();
+        // Use eager loaded relationship if available
+        if ($this->relationLoaded('priceVariations')) {
+            $activeVariations = $this->priceVariations->where('is_active', true);
+            
+            // Find a price variation that matches the packaging type
+            if ($packagingTypeId) {
+                $variation = $activeVariations
+                    ->where('packaging_type_id', $packagingTypeId)
+                    ->sortBy('price')
+                    ->first();
+            } else {
+                $variation = null;
+            }
+
+            // If no matching variation found, try to get the default
+            if (!$variation) {
+                $variation = $activeVariations->where('is_default', true)->first();
+            }
+
+            // If still no variation, get the cheapest active one
+            if (!$variation) {
+                $variation = $activeVariations->sortBy('price')->first();
+            }
         } else {
-            $variation = null;
-        }
+            // Find a price variation that matches the packaging type
+            if ($packagingTypeId) {
+                $variation = $this->priceVariations()
+                    ->where('packaging_type_id', $packagingTypeId)
+                    ->where('is_active', true)
+                    ->orderBy('price')
+                    ->first();
+            } else {
+                $variation = null;
+            }
 
-        // If no matching variation found, try to get the default
-        if (!$variation) {
-            $variation = $this->priceVariations()
-                ->where('is_default', true)
-                ->where('is_active', true)
-                ->first();
-        }
+            // If no matching variation found, try to get the default
+            if (!$variation) {
+                $variation = $this->priceVariations()
+                    ->where('is_default', true)
+                    ->where('is_active', true)
+                    ->first();
+            }
 
-        // If still no variation, get the cheapest active one
-        if (!$variation) {
-            $variation = $this->priceVariations()
-                ->where('is_active', true)
-                ->orderBy('price')
-                ->first();
+            // If still no variation, get the cheapest active one
+            if (!$variation) {
+                $variation = $this->priceVariations()
+                    ->where('is_active', true)
+                    ->orderBy('price')
+                    ->first();
+            }
         }
 
         return $variation ? $variation->price : 0;
@@ -323,6 +358,14 @@ class Product extends Model
      */
     public function getPriceVariationByName(string $name): ?PriceVariation
     {
+        // Use eager loaded relationship if available
+        if ($this->relationLoaded('priceVariations')) {
+            return $this->priceVariations
+                ->where('name', $name)
+                ->where('is_active', true)
+                ->first();
+        }
+        
         return $this->priceVariations()
             ->where('name', $name)
             ->where('is_active', true)

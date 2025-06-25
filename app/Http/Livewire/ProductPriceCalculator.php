@@ -13,7 +13,7 @@ class ProductPriceCalculator extends Component
     public $quantity = 1;
     public $calculatedPrice = 0;
     
-    protected $listeners = ['recalculatePrice'];
+    protected $listeners = ['recalculatePrice.debounce.500ms' => 'recalculatePrice'];
     
     public function mount($productId = null)
     {
@@ -43,12 +43,12 @@ class ProductPriceCalculator extends Component
     
     public function updatedCustomerType()
     {
-        $this->calculatePrice();
+        $this->dispatch('recalculatePrice.debounce.500ms');
     }
     
     public function updatedQuantity()
     {
-        $this->calculatePrice();
+        $this->dispatch('recalculatePrice.debounce.500ms');
     }
     
     public function recalculatePrice($params)

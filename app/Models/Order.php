@@ -223,9 +223,15 @@ class Order extends Model
      */
     public function totalAmount(): float
     {
-        return $this->orderItems->sum(function ($item) {
-            return $item->quantity * $item->price;
-        });
+        // Use eager loaded relationship if available
+        if ($this->relationLoaded('orderItems')) {
+            return $this->orderItems->sum(function ($item) {
+                return $item->quantity * $item->price;
+            });
+        }
+        
+        // Fall back to database query with sum aggregation for efficiency
+        return $this->orderItems()->sum(\DB::raw('quantity * price'));
     }
     
     /**
