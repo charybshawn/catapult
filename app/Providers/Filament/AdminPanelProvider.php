@@ -49,6 +49,7 @@ class AdminPanelProvider extends PanelProvider
                 'Production',
                 'Products & Inventory',
                 'Orders & Sales',
+                'Customers',
                 'System',
             ])
             ->resources([

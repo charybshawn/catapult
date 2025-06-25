@@ -283,6 +283,7 @@ class SlidingNavigationBuilder
             'Products' => 'products', // Product catalog items
             'Production' => 'production', 
             'Orders & Sales' => 'orders',
+            'Customers' => 'customers',
             'System' => 'system',
             default => null,
         };

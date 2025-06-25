@@ -5,8 +5,10 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -76,6 +78,14 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
+     * Get the customer profile associated with this user.
+     */
+    public function customer(): HasOne
+    {
+        return $this->hasOne(Customer::class);
+    }
+
+    /**
      * Configure the activity log options for this model.
      */
     public function getActivitylogOptions(): LogOptions
@@ -88,10 +98,67 @@ class User extends Authenticatable implements FilamentUser
 
     /**
      * Determine if the user can access the Filament panel.
+     * Only users with admin/employee roles can access the admin panel.
+     * Customers with passwords access a separate customer portal (not implemented yet).
      */
     public function canAccessPanel(Panel $panel): bool
     {
+        // Must have a password to access any panel
+        if (!$this->password) {
+            return false;
+        }
+        
+        // Only non-customer roles can access the admin panel
+        if ($this->hasRole('customer') && !$this->hasAnyRole(['admin', 'employee'])) {
+            return false;
+        }
+        
         return $this->hasPermissionTo('access filament');
+    }
+
+    /**
+     * Check if this user can login (has password and appropriate permissions)
+     */
+    public function canLogin(): bool
+    {
+        return !is_null($this->password);
+    }
+
+    /**
+     * Check if this is a customer-only account (no login access)
+     */
+    public function isCustomerOnly(): bool
+    {
+        return $this->hasRole('customer') && is_null($this->password);
+    }
+
+    /**
+     * Upgrade a customer-only account to have login access
+     * This would be used when a customer signs up with an existing email
+     */
+    public function enableLogin(string $password): bool
+    {
+        if ($this->password) {
+            // Already has login access
+            return false;
+        }
+
+        $this->password = Hash::make($password);
+        $this->email_verified_at = now(); // Mark as verified since they're actively registering
+        
+        return $this->save();
+    }
+
+    /**
+     * Find an existing customer record by email for potential upgrade
+     */
+    public static function findCustomerByEmail(string $email): ?self
+    {
+        return static::where('email', $email)
+            ->whereHas('roles', function ($query) {
+                $query->where('name', 'customer');
+            })
+            ->first();
     }
 
     /**

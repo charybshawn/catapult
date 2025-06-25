@@ -25,6 +25,11 @@
       "icon": "heroicon-o-shopping-cart",
       "description": "Customer orders and invoices"
     },
+    "customers": {
+      "label": "Customers",
+      "icon": "heroicon-o-users",
+      "description": "Customer management and profiles"
+    },
     "system": {
       "label": "System",
       "icon": "heroicon-o-cog-6-tooth",
@@ -166,12 +171,17 @@
       },
       {
         "resource": "InvoiceResource"
-      },
+      }
+    ],
+    "customers": [
       {
-        "resource": "UserResource"
+        "resource": "CustomerResource"
       }
     ],
     "system": [
+      {
+        "resource": "UserResource"
+      },
       {
         "label": "Time Cards",
         "url": "/admin/time-cards",
@@ -179,22 +189,29 @@
         "routes": ["filament.admin.resources.time-cards.*"]
       },
       {
-        "label": "Database Management",
-        "url": "/admin/database-management",
-        "icon": "heroicon-o-circle-stack",
-        "routes": ["filament.admin.pages.database-management"]
-      },
-      {
-        "label": "Application Settings",
-        "url": "/admin/settings",
-        "icon": "heroicon-o-cog-8-tooth",
-        "routes": ["filament.admin.resources.settings.*"]
-      },
-      {
-        "label": "Scheduled Tasks",
-        "url": "/admin/scheduled-tasks",
-        "icon": "heroicon-o-clock",
-        "routes": ["filament.admin.resources.scheduled-tasks.*"]
+        "label": "Settings & Configuration",
+        "icon": "heroicon-o-cog-6-tooth",
+        "type": "group",
+        "children": [
+          {
+            "label": "System Settings",
+            "url": "/admin/system-settings",
+            "icon": "heroicon-o-cog-6-tooth",
+            "routes": ["filament.admin.pages.system-settings"]
+          },
+          {
+            "label": "Database Management",
+            "url": "/admin/database-management",
+            "icon": "heroicon-o-circle-stack",
+            "routes": ["filament.admin.pages.database-management"]
+          },
+          {
+            "label": "Scheduled Tasks",
+            "url": "/admin/scheduled-tasks",
+            "icon": "heroicon-o-clock",
+            "routes": ["filament.admin.resources.scheduled-tasks.*"]
+          }
+        ]
       },
       {
         "label": "Activity Log",

@@ -21,6 +21,7 @@ class Order extends Model
      */
     protected $fillable = [
         'user_id',
+        'customer_id',
         'harvest_date',
         'delivery_date',
         'status',
@@ -141,6 +142,14 @@ class Order extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+    
+    /**
+     * Get the customer for this order.
+     */
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
     }
     
     /**

@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             FilamentPermissionSeeder::class,
             RoleSeeder::class,
+            CustomerRoleSeeder::class, // Add customer role and permissions
             FilamentAdminUserSeeder::class,
             PackagingSeeder::class,
             CurrentSeedEntryDataSeeder::class, // Uncomment to seed with actual seed entries

@@ -21,9 +21,10 @@ class SettingsResource extends Resource
     protected static ?string $model = Setting::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-cog-6-tooth';
-    protected static ?string $navigationLabel = 'Settings';
+    protected static ?string $navigationLabel = 'Advanced Settings';
     protected static ?string $navigationGroup = 'System';
-    protected static ?int $navigationSort = 3;
+    protected static ?int $navigationSort = 10;
+    protected static bool $shouldRegisterNavigation = false;
     
     protected static ?string $recordTitleAttribute = 'key';
 

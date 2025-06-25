@@ -3,6 +3,8 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\UserResource\Pages;
+use App\Filament\Support\SlideOverConfigurations;
+use App\Filament\Traits\HasConsistentSlideOvers;
 use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -17,21 +19,27 @@ use Spatie\Permission\Models\Role;
 
 class UserResource extends Resource
 {
+    use HasConsistentSlideOvers;
+
     protected static ?string $model = User::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-users';
 
-    protected static ?string $navigationGroup = 'Orders & Sales';
+    protected static ?string $navigationLabel = 'Employees';
 
-    protected static ?int $navigationSort = 1;
+    protected static ?string $navigationGroup = 'System';
+
+    protected static ?int $navigationSort = 5;
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                Forms\Components\Section::make('User Information')
+                Forms\Components\Section::make('Employee Information')
+                    ->description('Basic employee details')
                     ->schema([
                         Forms\Components\TextInput::make('name')
+                            ->label('Full Name')
                             ->required()
                             ->maxLength(255),
                         Forms\Components\TextInput::make('email')
@@ -42,126 +50,94 @@ class UserResource extends Resource
                         Forms\Components\TextInput::make('phone')
                             ->tel()
                             ->maxLength(20),
-                        Forms\Components\Select::make('customer_type')
-                            ->label('Customer Type')
-                            ->options([
-                                'retail' => 'Retail',
-                                'wholesale' => 'Wholesale',
-                            ])
-                            ->default('retail')
-                            ->required()
-                            ->reactive(),
-                        Forms\Components\TextInput::make('company_name')
-                            ->label('Company Name')
-                            ->maxLength(255)
-                            ->visible(fn (Forms\Get $get) => $get('customer_type') === 'wholesale'),
-                        Forms\Components\TextInput::make('wholesale_discount_percentage')
-                            ->label('Wholesale Discount %')
-                            ->helperText('Custom discount percentage for this customer (overrides product defaults)')
-                            ->numeric()
-                            ->minValue(0)
-                            ->maxValue(100)
-                            ->step(0.01)
-                            ->suffix('%')
-                            ->visible(fn (Forms\Get $get) => $get('customer_type') === 'wholesale'),
-                    ])->columns(2),
-                
-                Forms\Components\Section::make('Address Information')
-                    ->schema([
-                        Forms\Components\Textarea::make('address')
-                            ->rows(2)
-                            ->columnSpanFull(),
-                        Forms\Components\TextInput::make('city')
-                            ->maxLength(100),
-                        Forms\Components\TextInput::make('state')
-                            ->maxLength(50),
-                        Forms\Components\TextInput::make('zip')
-                            ->label('ZIP Code')
-                            ->maxLength(20),
                     ])->columns(3),
                 
-                Forms\Components\Section::make('Security')
+                Forms\Components\Section::make('Access & Permissions')
+                    ->description('Configure employee access level')
                     ->schema([
-                        Forms\Components\DateTimePicker::make('email_verified_at'),
-                        Forms\Components\TextInput::make('password')
-                            ->password()
-                            ->dehydrateStateUsing(fn (string $state): string => Hash::make($state))
-                            ->dehydrated(fn (?string $state): bool => filled($state))
-                            ->required(fn (string $operation): bool => $operation === 'create'),
                         Forms\Components\Select::make('roles')
+                            ->label('Employee Role')
                             ->multiple()
                             ->relationship('roles', 'name')
                             ->preload()
-                            ->searchable(),
-                    ]),
+                            ->searchable()
+                            ->options([
+                                'user' => 'User (Basic Access)',
+                                'manager' => 'Manager (Enhanced Access)',
+                                'admin' => 'Admin (Full Access)',
+                            ])
+                            ->default(['user'])
+                            ->required()
+                            ->helperText('Select the appropriate access level'),
+                        Forms\Components\TextInput::make('password')
+                            ->password()
+                            ->dehydrateStateUsing(fn (?string $state): ?string => $state ? Hash::make($state) : null)
+                            ->dehydrated(fn (?string $state): bool => filled($state))
+                            ->required(fn (string $operation): bool => $operation === 'create')
+                            ->helperText('Leave blank to keep existing password'),
+                        Forms\Components\Toggle::make('email_verified')
+                            ->label('Email Verified')
+                            ->default(true)
+                            ->dehydrateStateUsing(fn ($state) => $state ? now() : null)
+                            ->dehydrated(false)
+                            ->afterStateHydrated(fn ($component, $state, $record) => 
+                                $component->state($record?->email_verified_at !== null)
+                            ),
+                    ])->columns(1),
             ]);
     }
 
     public static function table(Table $table): Table
     {
         return $table
-            ->persistFiltersInSession()
-            ->persistSortInSession()
-            ->persistColumnSearchesInSession()
-            ->persistSearchInSession()            ->columns([
+            ->modifyQueryUsing(fn (Builder $query) => $query->whereDoesntHave('roles', fn ($q) => $q->where('name', 'customer')))
+            ->columns([
                 Tables\Columns\TextColumn::make('name')
-                    ->searchable(),
+                    ->searchable()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('email')
-                    ->searchable(),
+                    ->searchable()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('phone')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('customer_type')
-                    ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'retail' => 'success',
-                        'wholesale' => 'info',
-                        default => 'gray',
-                    }),
-                Tables\Columns\TextColumn::make('wholesale_discount_percentage')
-                    ->label('Wholesale Discount')
-                    ->suffix('%')
-                    ->placeholder('—')
-                    ->toggleable()
-                    ->visible(fn ($record) => $record->customer_type === 'wholesale'),
-                Tables\Columns\TextColumn::make('company_name')
-                    ->searchable()
-                    ->toggleable(),
                 Tables\Columns\TextColumn::make('roles.name')
+                    ->label('Role')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         'admin' => 'danger',
-                        'employee' => 'warning',
-                        'customer' => 'success',
+                        'manager' => 'warning',
+                        'user' => 'info',
                         default => 'gray',
-                    })
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('email_verified_at')
-                    ->dateTime()
+                    }),
+                Tables\Columns\IconColumn::make('email_verified_at')
+                    ->label('Email Verified')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-check-circle')
+                    ->falseIcon('heroicon-o-x-circle'),
+                Tables\Columns\TextColumn::make('timeCards_count')
+                    ->label('Time Cards')
+                    ->counts('timeCards')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('roles')
-                    ->relationship('roles', 'name')
-                    ->preload()
-                    ->searchable(),
+                    ->relationship('roles', 'name', fn (Builder $query) => $query->whereNot('name', 'customer'))
+                    ->multiple()
+                    ->preload(),
             ])
             ->actions([
-                Tables\Actions\EditAction::make()
-                    ->tooltip('Edit user'),
+                Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make()
-                    ->tooltip('Delete user'),
+                    ->visible(fn (User $record) => auth()->user()->hasRole('admin') && $record->id !== auth()->id()),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->visible(fn () => auth()->user()->hasRole('admin')),
                 ]),
             ]);
     }
@@ -178,7 +154,6 @@ class UserResource extends Resource
         return [
             'index' => Pages\ListUsers::route('/'),
             'create' => Pages\CreateUser::route('/create'),
-            'edit' => Pages\EditUser::route('/{record}/edit'),
         ];
     }
 } 

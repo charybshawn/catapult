@@ -21,6 +21,7 @@ class Invoice extends Model
     protected $fillable = [
         'order_id',
         'user_id',
+        'customer_id',
         'invoice_number',
         'amount',
         'total_amount',
@@ -68,6 +69,14 @@ class Invoice extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+    
+    /**
+     * Get the customer for this invoice.
+     */
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
     }
     
     /**
@@ -181,6 +190,7 @@ class Invoice extends Model
         $invoice = self::create([
             'order_id' => $order->id,
             'user_id' => $order->user_id,
+            'customer_id' => $order->customer_id,
             'invoice_number' => $invoiceNumber,
             'amount' => $totalAmount,
             'total_amount' => $totalAmount,

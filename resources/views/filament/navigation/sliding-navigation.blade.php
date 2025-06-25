@@ -71,7 +71,7 @@
                     '/tasks': 'production',
                     '/orders': 'orders',
                     '/invoices': 'orders',
-                    '/users': 'orders',
+                    '/users': 'customers',
                     '/consumables': 'inventory',
                     '/packaging-types': 'inventory',
                     '/product-inventories': 'products',
