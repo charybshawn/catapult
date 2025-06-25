@@ -185,17 +185,31 @@ class DatabaseRestoreCommand extends Command
             return $file;
         }
 
-        // Check if it's in the backup directory (use Laravel storage path)
-        $backupPath = \Illuminate\Support\Facades\Storage::disk('local')->path("backups/database/{$file}");
-        if (file_exists($backupPath)) {
-            return $backupPath;
+        // Check multiple possible locations for backup files
+        $possiblePaths = [
+            // Check in private/backups/database (where restore command expects them)
+            \Illuminate\Support\Facades\Storage::disk('local')->path("backups/database/{$file}"),
+            // Check in main backups/database (where most backups are stored)
+            storage_path("app/backups/database/{$file}"),
+        ];
+
+        foreach ($possiblePaths as $backupPath) {
+            if (file_exists($backupPath)) {
+                return $backupPath;
+            }
         }
 
         // Check if user provided just the filename without extension
         if (!str_ends_with($file, '.sql')) {
-            $backupPath = \Illuminate\Support\Facades\Storage::disk('local')->path("backups/database/{$file}.sql");
-            if (file_exists($backupPath)) {
-                return $backupPath;
+            $possiblePathsWithExt = [
+                \Illuminate\Support\Facades\Storage::disk('local')->path("backups/database/{$file}.sql"),
+                storage_path("app/backups/database/{$file}.sql"),
+            ];
+
+            foreach ($possiblePathsWithExt as $backupPath) {
+                if (file_exists($backupPath)) {
+                    return $backupPath;
+                }
             }
         }
 

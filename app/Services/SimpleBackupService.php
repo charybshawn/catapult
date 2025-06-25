@@ -83,12 +83,22 @@ class SimpleBackupService
     public function restoreBackup(string $filename): bool
     {
         $filepath = $this->backupPath . '/' . $filename;
+        $sqlContent = null;
         
-        if (!$this->disk->exists($filepath)) {
+        // Try private location first
+        if ($this->disk->exists($filepath)) {
+            $sqlContent = $this->disk->get($filepath);
+        } else {
+            // Try main location
+            $mainFilePath = storage_path('app/backups/database/' . $filename);
+            if (file_exists($mainFilePath)) {
+                $sqlContent = file_get_contents($mainFilePath);
+            }
+        }
+        
+        if (!$sqlContent) {
             throw new \Exception("Backup file not found: {$filename}");
         }
-
-        $sqlContent = $this->disk->get($filepath);
         
         if (empty($sqlContent)) {
             throw new \Exception("Backup file is empty or corrupted");
@@ -235,20 +245,43 @@ class SimpleBackupService
      */
     public function listBackups(): Collection
     {
-        if (!$this->disk->exists($this->backupPath)) {
-            return collect();
+        $allFiles = collect();
+
+        // Check private backups directory (storage/app/private/backups/database)
+        if ($this->disk->exists($this->backupPath)) {
+            $files = $this->disk->allFiles($this->backupPath);
+            $allFiles = $allFiles->merge($files);
         }
 
-        $files = $this->disk->allFiles($this->backupPath);
-        
-        return collect($files)
+        // Check main backups directory (storage/app/backups/database) using direct file system
+        $mainBackupPath = storage_path('app/backups/database');
+        if (is_dir($mainBackupPath)) {
+            $mainFiles = glob($mainBackupPath . '/*.{sql,json}', GLOB_BRACE);
+            foreach ($mainFiles as $fullPath) {
+                $allFiles->push('backups/database/' . basename($fullPath));
+            }
+        }
+
+        return $allFiles
             ->filter(fn($file) => str_ends_with($file, '.sql') || str_ends_with($file, '.json'))
+            ->unique(fn($file) => basename($file)) // Remove duplicates based on filename
             ->map(function($file) {
-                $size = $this->disk->size($file);
-                $timestamp = $this->disk->lastModified($file);
+                // Determine which disk/path this file is in
+                $filename = basename($file);
+                
+                // Try private location first
+                if ($this->disk->exists($this->backupPath . '/' . $filename)) {
+                    $size = $this->disk->size($this->backupPath . '/' . $filename);
+                    $timestamp = $this->disk->lastModified($this->backupPath . '/' . $filename);
+                } else {
+                    // Try main location using direct file system
+                    $mainFilePath = storage_path('app/backups/database/' . $filename);
+                    $size = filesize($mainFilePath);
+                    $timestamp = filemtime($mainFilePath);
+                }
                 
                 return [
-                    'name' => basename($file),
+                    'name' => $filename,
                     'path' => $file,
                     'size' => $this->formatBytes($size),
                     'size_bytes' => $size,
@@ -275,11 +308,18 @@ class SimpleBackupService
     {
         $filepath = $this->backupPath . '/' . $filename;
         
-        if (!$this->disk->exists($filepath)) {
-            throw new \Exception("Backup file not found: {$filename}");
+        // Try private location first
+        if ($this->disk->exists($filepath)) {
+            return $this->disk->download($filepath);
         }
-
-        return $this->disk->download($filepath);
+        
+        // Try main location
+        $mainFilePath = storage_path('app/backups/database/' . $filename);
+        if (file_exists($mainFilePath)) {
+            return response()->download($mainFilePath);
+        }
+        
+        throw new \Exception("Backup file not found: {$filename}");
     }
 
     /**
