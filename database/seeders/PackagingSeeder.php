@@ -79,6 +79,8 @@ class PackagingSeeder extends Seeder
                     48 => 0.65,
                     64 => 0.75,
                 },
+                'quantity_per_unit' => 1,
+                'quantity_unit' => 'l',
                 'total_quantity' => 0,
                 'is_active' => true,
             ]);
