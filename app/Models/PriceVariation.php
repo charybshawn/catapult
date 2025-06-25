@@ -80,8 +80,8 @@ class PriceVariation extends Model
                 $priceVariation->is_default = false;
             }
             
-            // Auto-set name based on packaging type if not provided
-            if (empty($priceVariation->name) || $priceVariation->name === 'New Variation') {
+            // Auto-set name based on packaging type if not provided (but only for non-template variations)
+            if ((empty($priceVariation->name) || $priceVariation->name === 'New Variation') && !$priceVariation->template_id) {
                 if ($priceVariation->packaging_type_id) {
                     $packagingType = PackagingType::find($priceVariation->packaging_type_id);
                     if ($packagingType) {
@@ -108,8 +108,8 @@ class PriceVariation extends Model
                 $priceVariation->is_default = false;
             }
             
-            // Auto-update name when packaging type changes
-            if ($priceVariation->isDirty('packaging_type_id')) {
+            // Auto-update name when packaging type changes (but only for non-template variations)
+            if ($priceVariation->isDirty('packaging_type_id') && !$priceVariation->template_id) {
                 if ($priceVariation->packaging_type_id) {
                     $packagingType = PackagingType::find($priceVariation->packaging_type_id);
                     if ($packagingType) {

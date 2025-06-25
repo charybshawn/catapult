@@ -89,14 +89,8 @@ class EditProduct extends BaseEditRecord
                 // Update existing variation
                 $variation = $currentTemplateVariations->get($templateId);
                 
-                // Determine name based on packaging type
-                $name = 'Default';
-                if (!empty($templateData['packaging_type_id'])) {
-                    $packagingType = \App\Models\PackagingType::find($templateData['packaging_type_id']);
-                    if ($packagingType) {
-                        $name = $packagingType->name;
-                    }
-                }
+                // Use the template's original name instead of generating a new one
+                $name = $templateData['name'] ?? 'Default';
                 
                 $variation->update([
                     'name' => $name,
@@ -110,14 +104,8 @@ class EditProduct extends BaseEditRecord
             } else {
                 // Create new variation from template
                 
-                // Determine name based on packaging type
-                $name = 'Default';
-                if (!empty($templateData['packaging_type_id'])) {
-                    $packagingType = \App\Models\PackagingType::find($templateData['packaging_type_id']);
-                    if ($packagingType) {
-                        $name = $packagingType->name;
-                    }
-                }
+                // Use the template's original name instead of generating a new one
+                $name = $templateData['name'] ?? 'Default';
                 
                 PriceVariation::create([
                     'product_id' => $product->id,
@@ -237,22 +225,27 @@ class EditProduct extends BaseEditRecord
             return;
         }
         
-        // Determine the name based on packaging type
-        $name = 'Default';
-        if (!empty($data['packaging_type_id'])) {
-            $packagingType = \App\Models\PackagingType::find($data['packaging_type_id']);
-            if ($packagingType) {
-                $name = $packagingType->name;
-            }
-        }
-        
-        $variation->update([
-            'name' => $name,
+        // Only auto-generate name for non-template variations
+        $updateData = [
             'packaging_type_id' => $data['packaging_type_id'] ?: null,
             'sku' => $data['sku'] ?: null,
             'fill_weight_grams' => $data['fill_weight_grams'] ?: null,
             'price' => $data['price'],
-        ]);
+        ];
+        
+        // Only auto-set name if this is not a template-based variation
+        if (!$variation->template_id) {
+            $name = 'Default';
+            if (!empty($data['packaging_type_id'])) {
+                $packagingType = \App\Models\PackagingType::find($data['packaging_type_id']);
+                if ($packagingType) {
+                    $name = $packagingType->name;
+                }
+            }
+            $updateData['name'] = $name;
+        }
+        
+        $variation->update($updateData);
         
         // Refresh the record to ensure the relationship is updated
         $this->record->refresh();

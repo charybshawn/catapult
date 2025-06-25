@@ -213,16 +213,8 @@ document.addEventListener('alpine:init', () => {
             checkboxes.forEach(cb => {
                 cb.checked = !allChecked;
                 if (!allChecked) {
-                    // Find the template data from the row
-                    const row = cb.closest('tr');
-                    const fillWeightInput = row.querySelector('input[type="number"]');
-                    this.toggleTemplate(
-                        parseInt(cb.value),
-                        row.cells[1].textContent.trim(),
-                        parseFloat(row.cells[3].textContent.replace('$', '')),
-                        null, // packaging will be handled separately
-                        parseFloat(fillWeightInput.value) || 0
-                    );
+                    // Trigger the individual checkbox change event to preserve packaging type
+                    cb.dispatchEvent(new Event('change'));
                 } else {
                     this.removeTemplate(parseInt(cb.value));
                 }

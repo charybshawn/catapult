@@ -135,14 +135,8 @@ class CreateProduct extends BaseCreateRecord
                 
             $hasDefault = false;
             foreach ($templates as $template) {
-                // Determine name based on packaging type
-                $name = 'Default';
-                if ($template->packaging_type_id) {
-                    $packagingType = \App\Models\PackagingType::find($template->packaging_type_id);
-                    if ($packagingType) {
-                        $name = $packagingType->name;
-                    }
-                }
+                // Use the template's original name instead of generating a new one
+                $name = $template->name;
                 
                 $variation = \App\Models\PriceVariation::create([
                     'product_id' => $product->id,
@@ -163,14 +157,8 @@ class CreateProduct extends BaseCreateRecord
         
         // Create variations from selected templates (legacy method)
         foreach ($selectedTemplates as $templateData) {
-            // Determine name based on packaging type
-            $name = 'Default';
-            if (!empty($templateData['packaging_type_id'])) {
-                $packagingType = \App\Models\PackagingType::find($templateData['packaging_type_id']);
-                if ($packagingType) {
-                    $name = $packagingType->name;
-                }
-            }
+            // Use the template's original name instead of generating a new one
+            $name = $templateData['name'] ?? 'Default';
             
             $variation = PriceVariation::create([
                 'product_id' => $product->id,
