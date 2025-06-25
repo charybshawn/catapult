@@ -429,16 +429,26 @@ class ProductInventoryResource extends Resource
 
     public static function getNavigationBadge(): ?string
     {
-        return static::getModel()::active()->count();
+        try {
+            return static::getModel()::active()->count();
+        } catch (\Exception $e) {
+            \Log::error('Navigation badge error: ' . $e->getMessage());
+            return null;
+        }
     }
 
     public static function getNavigationBadgeColor(): ?string
     {
-        $lowStock = static::getModel()::active()
-            ->where('available_quantity', '>', 0)
-            ->where('available_quantity', '<=', 10)
-            ->count();
+        try {
+            $lowStock = static::getModel()::active()
+                ->where('available_quantity', '>', 0)
+                ->where('available_quantity', '<=', 10)
+                ->count();
 
-        return $lowStock > 0 ? 'warning' : 'success';
+            return $lowStock > 0 ? 'warning' : 'success';
+        } catch (\Exception $e) {
+            \Log::error('Navigation badge color error: ' . $e->getMessage());
+            return null;
+        }
     }
 }
