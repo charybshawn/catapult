@@ -78,6 +78,7 @@ class DatabaseRestoreCommand extends Command
             $this->warn('⚠️  WARNING: This will completely replace your current database!');
             $this->line("📁 Backup file: " . basename($fullPath));
             $this->line("📍 Full path: {$fullPath}");
+            $this->line("🔄 Process: Reset DB → Run Migrations → Import Data");
             $this->newLine();
             
             if (!$this->confirm('Are you sure you want to proceed?')) {
@@ -86,14 +87,19 @@ class DatabaseRestoreCommand extends Command
             }
         }
 
-        $this->info('🔄 Restoring database...');
+        $this->info('🔄 Starting seamless database restore...');
+        $this->line('   Step 1: Resetting database and running fresh migrations');
+        $this->line('   Step 2: Importing data from backup');
+        $this->line('   Step 3: Clearing caches and optimizing');
         
         try {
             $filename = basename($fullPath);
             $this->backupService->restoreBackup($filename);
             
-            $this->info("✅ Database restored successfully!");
-            $this->line("🕒 Restored at: " . now()->format('M j, Y g:i A'));
+            $this->info("✅ Seamless database restore completed successfully!");
+            $this->line("🗃️  Schema: Created from current migrations");
+            $this->line("📊 Data: Imported from backup file");
+            $this->line("🕒 Completed at: " . now()->format('M j, Y g:i A'));
         } catch (\Exception $e) {
             $this->error("❌ Restore failed: {$e->getMessage()}");
         }
@@ -179,15 +185,15 @@ class DatabaseRestoreCommand extends Command
             return $file;
         }
 
-        // Check if it's in the backup directory
-        $backupPath = storage_path("app/backups/database/{$file}");
+        // Check if it's in the backup directory (use Laravel storage path)
+        $backupPath = \Illuminate\Support\Facades\Storage::disk('local')->path("backups/database/{$file}");
         if (file_exists($backupPath)) {
             return $backupPath;
         }
 
         // Check if user provided just the filename without extension
         if (!str_ends_with($file, '.sql')) {
-            $backupPath = storage_path("app/backups/database/{$file}.sql");
+            $backupPath = \Illuminate\Support\Facades\Storage::disk('local')->path("backups/database/{$file}.sql");
             if (file_exists($backupPath)) {
                 return $backupPath;
             }

@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Collection;
 use Carbon\Carbon;
 use Ifsnop\Mysqldump\Mysqldump;
@@ -42,14 +44,15 @@ class SimpleBackupService
         $tempFilePath = tempnam(sys_get_temp_dir(), 'backup_');
         
         try {
-            // Create mysqldump instance with minimal options
+            // Create mysqldump instance for data-only backup (exclude structure and migrations)
             $dump = new Mysqldump($dsn, $config['username'], $config['password'], [
                 'compress' => Mysqldump::NONE,
                 'single-transaction' => true,
                 'lock-tables' => false,
-                'add-drop-table' => true,
+                'no-create-info' => true, // Data only, no CREATE TABLE statements
+                'add-drop-table' => false, // No DROP TABLE statements since no structure
                 'default-character-set' => Mysqldump::UTF8,
-                'exclude-tables' => ['crop_batches', 'product_inventory_summary'], // Exclude problematic views
+                'exclude-tables' => ['crop_batches', 'product_inventory_summary', 'migrations'], // Exclude views and migration tracking
             ]);
             
             // Create the backup to temp file
@@ -75,6 +78,7 @@ class SimpleBackupService
 
     /**
      * Restore database from backup
+     * This performs a complete restore: fresh migrations + data import
      */
     public function restoreBackup(string $filename): bool
     {
@@ -91,6 +95,10 @@ class SimpleBackupService
         }
 
         try {
+            // Step 1: Reset database to clean state and run fresh migrations
+            $this->runPreRestoreMigrations();
+            
+            // Step 2: Import data
             // Get database connection
             $config = config('database.connections.mysql');
             $pdo = new \PDO(
@@ -116,8 +124,8 @@ class SimpleBackupService
                         $pdo->exec($statement);
                     } catch (\Exception $e) {
                         // Log individual statement errors but continue
-                        \Log::warning("SQL statement failed during restore: " . $e->getMessage());
-                        \Log::warning("Statement: " . substr($statement, 0, 200) . "...");
+                        Log::warning("SQL statement failed during restore: " . $e->getMessage());
+                        Log::warning("Statement: " . substr($statement, 0, 200) . "...");
                     }
                 }
             }
@@ -126,10 +134,53 @@ class SimpleBackupService
             $pdo->exec('COMMIT');
             $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
             
+            // Step 3: Run post-restore operations
+            $this->runPostRestoreOperations();
+            
             return true;
             
         } catch (\Exception $e) {
             throw new \Exception("Restore failed: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Prepare database for restore by resetting and running fresh migrations
+     */
+    private function runPreRestoreMigrations(): void
+    {
+        try {
+            Log::info("Starting pre-restore migrations");
+            
+            // Use migrate:fresh instead of reset to avoid foreign key issues
+            Artisan::call('migrate:fresh', ['--force' => true]);
+            Log::info("Fresh migrations completed - database reset and migrated");
+            
+        } catch (\Exception $e) {
+            Log::error("Pre-restore migrations failed: " . $e->getMessage());
+            throw new \Exception("Failed to prepare database for restore: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Run any necessary post-restore operations
+     */
+    private function runPostRestoreOperations(): void
+    {
+        try {
+            Log::info("Running post-restore operations");
+            
+            // Clear any cached data
+            Artisan::call('cache:clear');
+            Artisan::call('config:clear');
+            Artisan::call('route:clear');
+            Artisan::call('view:clear');
+            
+            Log::info("Post-restore operations completed");
+            
+        } catch (\Exception $e) {
+            Log::warning("Some post-restore operations failed: " . $e->getMessage());
+            // Don't throw exception here as restore was successful
         }
     }
 

@@ -23,7 +23,7 @@ class DatabaseBackupCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Create, list, or delete database backups';
+    protected $description = 'Create, list, or delete data-only database backups (schema restored via migrations)';
 
     protected SimpleBackupService $backupService;
 
@@ -53,13 +53,14 @@ class DatabaseBackupCommand extends Command
 
     protected function createBackup(): void
     {
-        $this->info('Creating database backup...');
+        $this->info('Creating data-only database backup...');
         
         try {
             $filename = $this->backupService->createBackup();
             
-            $this->info("✅ Backup created successfully!");
+            $this->info("✅ Data-only backup created successfully!");
             $this->line("📁 File: {$filename}");
+            $this->line("💡 Contains data only - schema will be created from migrations during restore");
             
             // Handle custom output path
             if ($customPath = $this->option('output')) {

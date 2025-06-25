@@ -11,7 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('orders', function (Blueprint $table) {
+        if (!Schema::hasTable('orders')) {
+            Schema::create('orders', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->date('harvest_date')->nullable();
@@ -31,9 +32,11 @@ return new class extends Migration
             $table->index('harvest_date');
             $table->index('delivery_date');
             $table->index('order_type');
-        });
+            });
+        }
 
-        Schema::create('invoices', function (Blueprint $table) {
+        if (!Schema::hasTable('invoices')) {
+            Schema::create('invoices', function (Blueprint $table) {
             $table->id();
             $table->foreignId('order_id')->nullable()->constrained()->onDelete('cascade');
             $table->decimal('amount', 10, 2);
@@ -49,9 +52,11 @@ return new class extends Migration
             
             $table->index('status');
             $table->index('due_date');
-        });
+            });
+        }
 
-        Schema::create('payments', function (Blueprint $table) {
+        if (!Schema::hasTable('payments')) {
+            Schema::create('payments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('order_id')->constrained()->onDelete('cascade');
             $table->decimal('amount', 10, 2);
@@ -63,9 +68,11 @@ return new class extends Migration
             $table->timestamps();
             
             $table->index(['order_id', 'status']);
-        });
+            });
+        }
 
-        Schema::create('order_packagings', function (Blueprint $table) {
+        if (!Schema::hasTable('order_packagings')) {
+            Schema::create('order_packagings', function (Blueprint $table) {
             $table->id();
             $table->foreignId('order_id')->constrained()->onDelete('cascade');
             $table->foreignId('packaging_type_id')->constrained('packaging_types')->onDelete('cascade');
@@ -75,7 +82,8 @@ return new class extends Migration
             $table->timestamps();
             
             $table->index('order_id');
-        });
+            });
+        }
     }
 
     /**

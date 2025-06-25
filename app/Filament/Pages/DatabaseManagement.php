@@ -20,7 +20,7 @@ class DatabaseManagement extends Page
     {
         return [
             Action::make('createBackup')
-                ->label('Create Backup')
+                ->label('Create Data Backup')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('success')
                 ->action(function () {
@@ -30,8 +30,8 @@ class DatabaseManagement extends Page
                         
                         Notification::make()
                             ->success()
-                            ->title('Backup Created Successfully')
-                            ->body("Backup file: {$filename}")
+                            ->title('Data Backup Created Successfully')
+                            ->body("Data-only backup file: {$filename}. Schema will be created from migrations during restore.")
                             ->send();
                     } catch (\Exception $e) {
                         Notification::make()
@@ -48,7 +48,7 @@ class DatabaseManagement extends Page
                 ->color('warning')
                 ->form([
                     FileUpload::make('backup_file')
-                        ->label('Backup File (.sql)')
+                        ->label('Data Backup File (.sql)')
                         ->acceptedFileTypes([
                             'application/sql',          // generic SQL mime
                             'application/x-sql',        // common on some browsers
@@ -67,9 +67,9 @@ class DatabaseManagement extends Page
                     $this->restoreFromUpload($data['backup_file']);
                 })
                 ->requiresConfirmation()
-                ->modalHeading('Restore Database from Upload')
-                ->modalDescription('This will completely replace your current database. This action cannot be undone.')
-                ->modalSubmitActionLabel('Restore Database'),
+                ->modalHeading('Seamless Database Restore')
+                ->modalDescription('This will reset the database, run fresh migrations, and import your data. Process: Reset DB → Run Migrations → Import Data → Clear Caches.')
+                ->modalSubmitActionLabel('Start Seamless Restore'),
         ];
     }
 
@@ -87,13 +87,13 @@ class DatabaseManagement extends Page
             
             Notification::make()
                 ->success()
-                ->title('Database Restored Successfully')
-                ->body('The database has been restored from the backup.')
+                ->title('Seamless Restore Completed!')
+                ->body('Database reset → Migrations run → Data imported → Caches cleared. All done!')
                 ->send();
         } catch (\Exception $e) {
             Notification::make()
                 ->danger()
-                ->title('Restore Failed')
+                ->title('Seamless Restore Failed')
                 ->body($e->getMessage())
                 ->send();
         }
@@ -102,101 +102,38 @@ class DatabaseManagement extends Page
     public function restoreFromFilePath(string $filePath): void
     {
         try {
-            $sqlContent = file_get_contents($filePath);
-            if (empty($sqlContent)) {
-                throw new \Exception("Backup file is empty or corrupted");
-            }
-
-            // Get database connection
-            $config = config('database.connections.mysql');
-            $pdo = new \PDO(
-                "mysql:host={$config['host']};port={$config['port']};dbname={$config['database']};charset={$config['charset']}",
-                $config['username'],
-                $config['password'],
-                [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
-            );
-
-            // Disable foreign key checks
-            $pdo->exec('SET FOREIGN_KEY_CHECKS=0');
-            $pdo->exec('SET SQL_MODE="NO_AUTO_VALUE_ON_ZERO"');
-            $pdo->exec('SET AUTOCOMMIT=0');
-            $pdo->exec('START TRANSACTION');
-
-            // Split SQL into individual statements
-            $statements = $this->splitSqlStatements($sqlContent);
+            // Copy uploaded file to backup directory so service can find it
+            $backupService = new SimpleBackupService();
+            $filename = 'uploaded_' . time() . '.sql';
+            $backupPath = storage_path('app/backups/database/' . $filename);
             
-            foreach ($statements as $statement) {
-                $statement = trim($statement);
-                if (!empty($statement) && $statement !== ';') {
-                    try {
-                        $pdo->exec($statement);
-                    } catch (\Exception $e) {
-                        // Log individual statement errors but continue
-                        \Log::warning("SQL statement failed during restore: " . $e->getMessage());
-                    }
-                }
+            // Ensure backup directory exists
+            if (!is_dir(dirname($backupPath))) {
+                mkdir(dirname($backupPath), 0755, true);
             }
-
-            // Commit transaction and re-enable foreign key checks
-            $pdo->exec('COMMIT');
-            $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
+            
+            copy($filePath, $backupPath);
+            
+            // Use the seamless restore process
+            $backupService->restoreBackup($filename);
+            
+            // Clean up temporary file
+            unlink($backupPath);
             
             Notification::make()
                 ->success()
-                ->title('Database Restored Successfully')
-                ->body('The database has been restored from the uploaded backup.')
+                ->title('Seamless Restore Completed!')
+                ->body('Database reset → Migrations run → Data imported → Caches cleared. All done!')
                 ->send();
         } catch (\Exception $e) {
             Notification::make()
                 ->danger()
-                ->title('Restore Failed')
+                ->title('Seamless Restore Failed')
                 ->body($e->getMessage())
                 ->send();
         }
     }
 
-    private function splitSqlStatements(string $sql): array
-    {
-        // Remove comments and split by semicolons
-        $sql = preg_replace('/--.*$/m', '', $sql); // Remove single-line comments
-        $sql = preg_replace('/\/\*.*?\*\//s', '', $sql); // Remove multi-line comments
-        
-        // Split by semicolons, but be careful with quoted strings
-        $statements = [];
-        $current = '';
-        $inQuotes = false;
-        $quoteChar = '';
-        
-        for ($i = 0; $i < strlen($sql); $i++) {
-            $char = $sql[$i];
-            
-            if (!$inQuotes && ($char === '"' || $char === "'")) {
-                $inQuotes = true;
-                $quoteChar = $char;
-            } elseif ($inQuotes && $char === $quoteChar) {
-                // Check if it's escaped
-                if ($i > 0 && $sql[$i-1] !== '\\') {
-                    $inQuotes = false;
-                    $quoteChar = '';
-                }
-            } elseif (!$inQuotes && $char === ';') {
-                $statements[] = trim($current);
-                $current = '';
-                continue;
-            }
-            
-            $current .= $char;
-        }
-        
-        // Add the last statement if it exists
-        if (!empty(trim($current))) {
-            $statements[] = trim($current);
-        }
-        
-        return array_filter($statements, function($stmt) {
-            return !empty(trim($stmt));
-        });
-    }
 
     /**
      * Handle a backup file uploaded via the FileUpload component and initiate the restore.
