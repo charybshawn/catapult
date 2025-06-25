@@ -55,8 +55,8 @@
                             <td class="px-4 py-4 whitespace-nowrap">
                                 <div class="text-sm font-medium text-gray-900 dark:text-gray-100">
                                     @php
-                                        // Generate name from packaging type or use 'Default' for no packaging
-                                        $displayName = $variation->packagingType ? $variation->packagingType->name : 'Default';
+                                        // Use the stored variation name or fallback to 'Default'
+                                        $displayName = $variation->name ?: 'Default';
                                     @endphp
                                     {{ $displayName }}
                                 </div>

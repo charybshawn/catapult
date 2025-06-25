@@ -349,13 +349,19 @@ class PriceVariationResource extends Resource
                 // Add packaging type
                 $parts[] = $packaging->name;
                 
-                // Add size if available
+                // Add size if available and not already in packaging name
                 if ($packaging->capacity_volume && $packaging->volume_unit) {
-                    $parts[] = '(' . $packaging->capacity_volume . $packaging->volume_unit . ')';
+                    $sizeString = $packaging->capacity_volume . $packaging->volume_unit;
+                    if (!str_contains(strtolower($packaging->name), strtolower($sizeString))) {
+                        $parts[] = '(' . $sizeString . ')';
+                    }
                 } elseif ($packaging->capacity_weight) {
                     // Convert grams to oz for display
                     $oz = round($packaging->capacity_weight / 28.35, 1);
-                    $parts[] = '(' . $oz . 'oz)';
+                    $ozString = $oz . 'oz';
+                    if (!str_contains(strtolower($packaging->name), strtolower($ozString))) {
+                        $parts[] = '(' . $ozString . ')';
+                    }
                 }
             }
         } else {
