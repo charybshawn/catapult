@@ -167,12 +167,6 @@ class Product extends Model
                 $product->createDefaultPriceVariation();
             }
             
-            // Only ensure inventory entries exist for new products or when explicitly needed
-            // This prevents unnecessary calls on every save
-            if ($product->wasRecentlyCreated || $product->shouldUpdateInventoryEntries()) {
-                $product->ensureInventoryEntriesExist();
-            }
-            
             // Update the default price variation if base_price was changed
             if ($product->wasChanged('base_price') && $product->base_price) {
                 $defaultVariation = $product->priceVariations()->where('is_default', true)->first();

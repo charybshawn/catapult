@@ -189,7 +189,9 @@ class PriceVariationResource extends Resource
                                     ->reactive(),
 
                                 Forms\Components\Select::make('packaging_type_id')
-                                    ->relationship('packagingType', 'name')
+                                    ->relationship('packagingType', 'name', function ($query) {
+                                        return $query->where('is_active', true);
+                                    })
                                     ->getOptionLabelFromRecordUsing(fn (\App\Models\PackagingType $record): string => $record->display_name)
                                     ->label('Packaging')
                                     ->placeholder('Select packaging or leave empty')
@@ -198,12 +200,15 @@ class PriceVariationResource extends Resource
                                     ->nullable()
                                     ->reactive()
                                     ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                                        // Auto-generate name if not manually overridden
-                                        if (!$get('manual_name_override')) {
+                                        // Only auto-generate name for non-global variations and if not manually overridden
+                                        if (!$get('manual_name_override') && !$get('is_global')) {
                                             self::generateVariationName($state, $get('pricing_type'), $set, $get);
                                         }
                                     })
-                                    ->hint('Optional'),
+                                    ->hint('Optional')
+                                    ->helperText('Choose the packaging type for this price variation')
+                                    ->dehydrated(true)
+                                    ->visible(true),
                             ]),
                     ])
                     ->collapsible()

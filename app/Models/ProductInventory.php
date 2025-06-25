@@ -41,6 +41,16 @@ class ProductInventory extends Model
      */
     protected static function booted()
     {
+        // Validate that price variation belongs to product
+        static::saving(function ($inventory) {
+            if ($inventory->price_variation_id && $inventory->product_id) {
+                $priceVariation = \App\Models\PriceVariation::find($inventory->price_variation_id);
+                if ($priceVariation && $priceVariation->product_id != $inventory->product_id) {
+                    throw new \Exception("Price variation does not belong to the selected product.");
+                }
+            }
+        });
+        
         // Prevent deletion of inventory with quantities
         static::deleting(function ($inventory) {
             if ($inventory->quantity > 0 || $inventory->reserved_quantity > 0) {
@@ -211,7 +221,7 @@ class ProductInventory extends Model
     /**
      * Release reserved stock.
      */
-    public function releaseReservation(float $quantity, string $reason = null): void
+    public function releaseReservation(float $quantity, ?string $reason = null): void
     {
         $this->reserved_quantity = max(0, $this->reserved_quantity - $quantity);
         $this->save();

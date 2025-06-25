@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\ProductInventoryResource\Pages;
 
 use App\Filament\Resources\ProductInventoryResource;
+use App\Filament\Resources\ProductInventoryResource\Widgets\ProductInventoryStats;
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Support\Facades\Log;
@@ -10,6 +11,13 @@ use Illuminate\Support\Facades\Log;
 class ListProductInventories extends ListRecords
 {
     protected static string $resource = ProductInventoryResource::class;
+    
+    protected function getHeaderWidgets(): array
+    {
+        return [
+            ProductInventoryStats::class,
+        ];
+    }
 
     protected function getHeaderActions(): array
     {

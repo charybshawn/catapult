@@ -53,12 +53,28 @@ class ProductInventoryResource extends Resource
                             ->relationship('priceVariation', 'name', function ($query, Forms\Get $get) {
                                 $productId = $get('product_id');
                                 if ($productId) {
-                                    return $query->where('product_id', $productId);
+                                    return $query->where('product_id', $productId)
+                                        ->where('is_active', true);
                                 }
-                                return $query;
+                                return $query->where('is_active', true);
                             })
                             ->visible(fn (Forms\Get $get) => $get('product_id'))
-                            ->helperText('Optional: Link to specific price variation'),
+                            ->required()
+                            ->helperText('Select the specific price variation for this inventory batch')
+                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                // Validate that the selected variation belongs to the selected product
+                                if ($state && $get('product_id')) {
+                                    $variation = \App\Models\PriceVariation::find($state);
+                                    if ($variation && $variation->product_id != $get('product_id')) {
+                                        $set('price_variation_id', null);
+                                        Notification::make()
+                                            ->title('Invalid Selection')
+                                            ->body('The selected price variation does not belong to the selected product.')
+                                            ->danger()
+                                            ->send();
+                                    }
+                                }
+                            }),
                     ])
                     ->columns(2),
 
@@ -159,20 +175,88 @@ class ProductInventoryResource extends Resource
                     ->label('Variation')
                     ->searchable()
                     ->sortable()
-                    ->formatStateUsing(function ($state, $record) {
+                    ->badge()
+                    ->color(function ($record) {
                         if (!$record->priceVariation) {
-                            return '-';
+                            return 'gray';
                         }
                         
-                        // Just show the variation name
-                        return $record->priceVariation->name;
+                        return match($record->priceVariation->name) {
+                            'Default' => 'primary',
+                            'Wholesale' => 'info',
+                            'Bulk' => 'success',
+                            'Special' => 'warning',
+                            default => 'gray'
+                        };
+                    }),
+                Tables\Columns\TextColumn::make('priceVariation.packagingType.name')
+                    ->label('Packaging')
+                    ->searchable()
+                    ->sortable()
+                    ->placeholder('No packaging')
+                    ->formatStateUsing(function ($state, $record) {
+                        if (!$record->priceVariation || !$record->priceVariation->packagingType) {
+                            return 'No packaging';
+                        }
+                        
+                        $packaging = $record->priceVariation->packagingType;
+                        $display = $packaging->display_name;
+                        
+                        // Add capacity if available
+                        if ($packaging->capacity_volume && $packaging->volume_unit) {
+                            $display .= ' (' . $packaging->capacity_volume . ' ' . $packaging->volume_unit . ')';
+                        }
+                        
+                        return $display;
                     })
-                    ->tooltip(function ($record) {
-                        if (!$record->priceVariation) {
+                    ->description(function ($record) {
+                        if (!$record->priceVariation || !$record->priceVariation->packagingType) {
                             return null;
                         }
-                        return "Price: $" . number_format($record->priceVariation->price, 2);
+                        
+                        $packaging = $record->priceVariation->packagingType;
+                        $details = [];
+                        
+                        // Add unit type
+                        if ($packaging->unit_type) {
+                            $details[] = ucfirst($packaging->unit_type);
+                        }
+                        
+                        // Add fill weight if available
+                        if ($record->priceVariation->fill_weight_grams) {
+                            $details[] = $record->priceVariation->fill_weight_grams . 'g fill';
+                        }
+                        
+                        return implode(' | ', $details);
+                    })
+                    ->icon(function ($record) {
+                        if (!$record->priceVariation || !$record->priceVariation->packagingType) {
+                            return null;
+                        }
+                        
+                        $type = $record->priceVariation->packagingType->type;
+                        return match($type) {
+                            'clamshell' => 'heroicon-o-cube',
+                            'bag' => 'heroicon-o-shopping-bag',
+                            'box' => 'heroicon-o-archive-box',
+                            'jar' => 'heroicon-o-beaker',
+                            'tray' => 'heroicon-o-rectangle-stack',
+                            default => 'heroicon-o-cube-transparent'
+                        };
                     }),
+                Tables\Columns\TextColumn::make('priceVariation.price')
+                    ->label('Price')
+                    ->money('USD')
+                    ->sortable()
+                    ->alignEnd(),
+                Tables\Columns\TextColumn::make('priceVariation.sku')
+                    ->label('SKU')
+                    ->searchable()
+                    ->sortable()
+                    ->placeholder('No SKU')
+                    ->copyable()
+                    ->copyMessage('SKU copied')
+                    ->toggleable(),
                 Tables\Columns\TextInputColumn::make('quantity')
                     ->label('Total Qty')
                     ->type('number')
@@ -246,6 +330,19 @@ class ProductInventoryResource extends Resource
                         'expired' => 'Expired',
                         'damaged' => 'Damaged',
                     ]),
+                SelectFilter::make('packaging_type')
+                    ->label('Packaging Type')
+                    ->relationship('priceVariation.packagingType', 'name', function ($query) {
+                        return $query->where('is_active', true);
+                    })
+                    ->getOptionLabelFromRecordUsing(fn ($record) => $record->display_name)
+                    ->searchable()
+                    ->preload(),
+                SelectFilter::make('price_variation')
+                    ->label('Price Variation')
+                    ->relationship('priceVariation', 'name')
+                    ->searchable()
+                    ->preload(),
                 Filter::make('low_stock')
                     ->query(fn (Builder $query): Builder => $query->where('available_quantity', '>', 0)->where('available_quantity', '<=', 10))
                     ->label('Low Stock'),

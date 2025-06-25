@@ -19,6 +19,8 @@ class PackagingType extends Model
      */
     protected $fillable = [
         'name',
+        'type',
+        'unit_type',
         'capacity_volume',
         'volume_unit',
         'description',

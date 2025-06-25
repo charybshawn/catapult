@@ -73,6 +73,14 @@ class PriceVariation extends Model
     protected static function booted()
     {
         static::creating(function ($priceVariation) {
+            // Debug: Log the data being saved
+            \Log::info('PriceVariation creating', [
+                'name' => $priceVariation->name,
+                'packaging_type_id' => $priceVariation->packaging_type_id,
+                'is_global' => $priceVariation->is_global,
+                'price' => $priceVariation->price,
+            ]);
+            
             // Set product_id to NULL for global price variations
             if ($priceVariation->is_global) {
                 $priceVariation->product_id = null;
@@ -81,7 +89,8 @@ class PriceVariation extends Model
             }
             
             // Auto-set name based on packaging type if not provided (but only for non-template variations)
-            if ((empty($priceVariation->name) || $priceVariation->name === 'New Variation') && !$priceVariation->template_id) {
+            // Note: Global variations ARE templates, so we should not auto-name them
+            if ((empty($priceVariation->name) || $priceVariation->name === 'New Variation') && !$priceVariation->template_id && !$priceVariation->is_global) {
                 if ($priceVariation->packaging_type_id) {
                     $packagingType = PackagingType::find($priceVariation->packaging_type_id);
                     if ($packagingType) {
@@ -109,7 +118,8 @@ class PriceVariation extends Model
             }
             
             // Auto-update name when packaging type changes (but only for non-template variations)
-            if ($priceVariation->isDirty('packaging_type_id') && !$priceVariation->template_id) {
+            // Global variations are templates, so don't auto-update their names
+            if ($priceVariation->isDirty('packaging_type_id') && !$priceVariation->template_id && !$priceVariation->is_global) {
                 if ($priceVariation->packaging_type_id) {
                     $packagingType = PackagingType::find($priceVariation->packaging_type_id);
                     if ($packagingType) {
