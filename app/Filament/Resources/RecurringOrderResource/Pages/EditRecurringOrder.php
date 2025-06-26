@@ -4,9 +4,9 @@ namespace App\Filament\Resources\RecurringOrderResource\Pages;
 
 use App\Filament\Resources\RecurringOrderResource;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Pages\Base\BaseEditRecord;
 
-class EditRecurringOrder extends EditRecord
+class EditRecurringOrder extends BaseEditRecord
 {
     protected static string $resource = RecurringOrderResource::class;
 

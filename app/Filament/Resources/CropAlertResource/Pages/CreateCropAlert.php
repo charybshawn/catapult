@@ -14,8 +14,4 @@ class CreateCropAlert extends BaseCreateRecord
         return 'Create Crop Alert';
     }
     
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
-    }
 } 

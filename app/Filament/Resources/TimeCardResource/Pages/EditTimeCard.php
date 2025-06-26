@@ -4,9 +4,9 @@ namespace App\Filament\Resources\TimeCardResource\Pages;
 
 use App\Filament\Resources\TimeCardResource;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Pages\Base\BaseEditRecord;
 
-class EditTimeCard extends EditRecord
+class EditTimeCard extends BaseEditRecord
 {
     protected static string $resource = TimeCardResource::class;
 

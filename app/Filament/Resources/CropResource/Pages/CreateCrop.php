@@ -236,8 +236,4 @@ class CreateCrop extends BaseCreateRecord
         return $firstCrop;
     }
     
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
-    }
 } 

@@ -15,10 +15,6 @@ class CreateProduct extends BaseCreateRecord
     
     protected $listeners = ['updateVariation', 'deleteVariation', 'setAsDefault', 'addCustomVariation'];
     
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
-    }
     
     public function create(bool $another = false): void
     {
