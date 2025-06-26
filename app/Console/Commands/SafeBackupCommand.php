@@ -335,17 +335,7 @@ class SafeBackupCommand extends Command
         $process = new Process($command);
         
         // Enhance PATH for web server environment
-        $currentPath = $_SERVER['PATH'] ?? getenv('PATH') ?? '';
-        $additionalPaths = [
-            '/opt/homebrew/bin',
-            '/opt/homebrew/opt/mysql-client/bin',
-            '/usr/local/bin',
-            '/usr/local/opt/mysql-client/bin',
-            '/Applications/Herd.app/Contents/Resources/bin',
-        ];
-        
-        $enhancedPath = $currentPath . ':' . implode(':', $additionalPaths);
-        $process->setEnv(['PATH' => $enhancedPath]);
+        $process->setEnv(['PATH' => SimpleBackupService::getEnhancedPath()]);
         
         $process->run();
         
@@ -364,16 +354,8 @@ class SafeBackupCommand extends Command
         $process = new Process($command, base_path());
         
         // Enhance PATH for web server environment to find git and other tools
-        $currentPath = $_SERVER['PATH'] ?? getenv('PATH') ?? '';
-        $additionalPaths = [
-            '/opt/homebrew/bin',
-            '/usr/local/bin',
-            '/usr/bin',
-            '/bin',
-        ];
-        
-        $enhancedPath = $currentPath . ':' . implode(':', $additionalPaths);
-        $process->setEnv(['PATH' => $enhancedPath]);
+        $gitPaths = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin'];
+        $process->setEnv(['PATH' => SimpleBackupService::getEnhancedPath($gitPaths)]);
         $process->run();
 
         if (!$process->isSuccessful()) {

@@ -73,15 +73,10 @@ class DatabaseConsole extends Page
                 ->icon('heroicon-o-arrow-up-tray')
                 ->color('danger')
                 ->form([
-                    Toggle::make('list_backups_only')
-                        ->label('List Backups Only')
-                        ->helperText('Just show available backups without restoring')
-                        ->reactive(),
                     Toggle::make('use_latest')
                         ->label('Use Latest Backup')
                         ->helperText('Use the most recent backup instead of selecting specific file')
-                        ->reactive()
-                        ->hidden(fn ($get) => $get('list_backups_only')),
+                        ->reactive(),
                     Select::make('backup_file')
                         ->label('Select Backup File')
                         ->options(function () {
@@ -93,20 +88,10 @@ class DatabaseConsole extends Page
                             }
                             return $options;
                         })
-                        ->required(fn ($get) => !$get('use_latest') && !$get('list_backups_only'))
+                        ->required(fn ($get) => !$get('use_latest'))
                         ->searchable()
                         ->helperText('Select a backup file to restore from')
-                        ->hidden(fn ($get) => $get('use_latest') || $get('list_backups_only')),
-                    TextInput::make('custom_file_path')
-                        ->label('Custom File Path (Optional)')
-                        ->placeholder('Enter full path to backup file')
-                        ->helperText('Use custom backup file path instead of selecting from list')
-                        ->hidden(fn ($get) => $get('use_latest') || $get('list_backups_only')),
-                    Toggle::make('force_restore')
-                        ->label('Force Restore (Skip Confirmation)')
-                        ->helperText('Skip CLI confirmation prompts during restore')
-                        ->default(true)
-                        ->hidden(fn ($get) => $get('list_backups_only')),
+                        ->hidden(fn ($get) => $get('use_latest')),
                 ])
                 ->action(function (array $data) {
                     $this->restoreBackup($data);
@@ -204,6 +189,11 @@ class DatabaseConsole extends Page
     public $safeBackupSuccess = false;
     public $showSafeBackupModal = false;
 
+    public $restoreOutput = '';
+    public $restoreRunning = false;
+    public $restoreSuccess = false;
+    public $showRestoreModal = false;
+
 
     public function closeSafeBackupModal(): void
     {
@@ -213,59 +203,50 @@ class DatabaseConsole extends Page
         $this->safeBackupSuccess = false;
     }
 
+    public function closeRestoreModal(): void
+    {
+        $this->showRestoreModal = false;
+        $this->restoreOutput = '';
+        $this->restoreRunning = false;
+        $this->restoreSuccess = false;
+    }
+
 
     protected function restoreBackup(array $data): void
     {
+        $this->restoreOutput = '';
+        $this->restoreRunning = true;
+        $this->restoreSuccess = false;
+        $this->showRestoreModal = true;
+        
+        $this->dispatch('open-restore-modal');
+        
         try {
             $parameters = [];
             
-            if ($data['list_backups_only'] ?? false) {
-                $parameters['--list'] = true;
+            // Always use force mode in web interface (no STDIN available)
+            $parameters['--force'] = true;
+            
+            if ($data['use_latest'] ?? false) {
+                $parameters['--latest'] = true;
             } else {
-                if ($data['force_restore'] ?? true) {
-                    $parameters['--force'] = true;
-                }
-                
-                if ($data['use_latest'] ?? false) {
-                    $parameters['--latest'] = true;
-                } else {
-                    $file = $data['custom_file_path'] ?? $data['backup_file'] ?? null;
-                    if ($file) {
-                        $parameters['file'] = $file;
-                    }
+                $file = $data['backup_file'] ?? null;
+                if ($file) {
+                    $parameters['file'] = $file;
                 }
             }
 
             $exitCode = Artisan::call('db:restore', $parameters);
             $output = Artisan::output();
+            
+            $this->restoreOutput = $output;
+            $this->restoreRunning = false;
+            $this->restoreSuccess = ($exitCode === 0);
 
-            if ($exitCode === 0) {
-                $title = 'Command Executed Successfully';
-                if ($data['list_backups_only'] ?? false) {
-                    $title = 'Available Backups Listed';
-                } else {
-                    $title = 'Database Restored Successfully';
-                }
-                
-                Notification::make()
-                    ->success()
-                    ->title($title)
-                    ->body($this->formatCommandOutput($output))
-                    ->duration(5000)
-                    ->send();
-            } else {
-                Notification::make()
-                    ->danger()
-                    ->title('Command Failed')
-                    ->body($this->formatCommandOutput($output))
-                    ->send();
-            }
         } catch (\Exception $e) {
-            Notification::make()
-                ->danger()
-                ->title('❌ Command Failed')
-                ->body($e->getMessage())
-                ->send();
+            $this->restoreOutput .= "\n\nError: " . $e->getMessage();
+            $this->restoreRunning = false;
+            $this->restoreSuccess = false;
         }
     }
 

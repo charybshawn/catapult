@@ -72,11 +72,11 @@ class DatabaseRestoreCommand extends Command
             return;
         }
 
-        // Safety confirmation
-        if (!$this->option('force')) {
-            $this->warn('⚠️  WARNING: This will completely replace your current database!');
-            $this->line("📁 Backup file: " . basename($fullPath));
-            $this->line("📍 Full path: {$fullPath}");
+        // Safety confirmation - skip if no STDIN available (web interface)
+        if (!$this->option('force') && defined('STDIN')) {
+            $this->warn('WARNING: This will completely replace your current database!');
+            $this->line("Backup file: " . basename($fullPath));
+            $this->line("Full path: {$fullPath}");
             $this->newLine();
             
             if (!$this->confirm('Are you sure you want to proceed?')) {
@@ -85,16 +85,16 @@ class DatabaseRestoreCommand extends Command
             }
         }
 
-        $this->info('🔄 Restoring database...');
+        $this->info('Restoring database...');
         
         try {
             $filename = basename($fullPath);
             $this->backupService->restoreBackup($filename);
             
-            $this->info("✅ Database restored successfully!");
-            $this->line("🕒 Restored at: " . now()->format('M j, Y g:i A'));
+            $this->info("Database restored successfully!");
+            $this->line("Restored at: " . now()->format('M j, Y g:i A'));
         } catch (\Exception $e) {
-            $this->error("❌ Restore failed: {$e->getMessage()}");
+            $this->error("Restore failed: {$e->getMessage()}");
         }
     }
 
@@ -103,12 +103,12 @@ class DatabaseRestoreCommand extends Command
         $backups = $this->backupService->listBackups();
 
         if ($backups->isEmpty()) {
-            $this->error('❌ No backups found.');
+            $this->error('No backups found.');
             return;
         }
 
         $latestBackup = $backups->first(); // Already sorted by creation time, newest first
-        $this->info("📋 Found latest backup: {$latestBackup['name']} ({$latestBackup['size']})");
+        $this->info("Found latest backup: {$latestBackup['name']} ({$latestBackup['size']})");
         
         $this->restoreBackup($latestBackup['name']);
     }
@@ -118,11 +118,11 @@ class DatabaseRestoreCommand extends Command
         $backups = $this->backupService->listBackups();
 
         if ($backups->isEmpty()) {
-            $this->error('❌ No backups found.');
+            $this->error('No backups found.');
             return null;
         }
 
-        $this->info('📋 Available backups:');
+        $this->info('Available backups:');
         
         $choices = [];
         foreach ($backups as $index => $backup) {
@@ -150,7 +150,7 @@ class DatabaseRestoreCommand extends Command
             return;
         }
 
-        $this->info('📋 Available Database Backups:');
+        $this->info('Available Database Backups:');
         $this->newLine();
 
         $headers = ['#', 'Filename', 'Size', 'Created At'];
@@ -167,8 +167,8 @@ class DatabaseRestoreCommand extends Command
 
         $this->table($headers, $rows);
         $this->newLine();
-        $this->line('💡 Use: php artisan db:restore [filename] to restore a specific backup');
-        $this->line('💡 Use: php artisan db:restore --latest to restore the most recent backup');
+        $this->line('Use: php artisan db:restore [filename] to restore a specific backup');
+        $this->line('Use: php artisan db:restore --latest to restore the most recent backup');
     }
 
     protected function resolveBackupPath(string $file): ?string
@@ -178,26 +178,14 @@ class DatabaseRestoreCommand extends Command
             return $file;
         }
 
-        // Check if it's in the backup directory (private path used by SimpleBackupService)
-        $backupPath = storage_path("app/private/backups/database/{$file}");
-        if (file_exists($backupPath)) {
-            return $backupPath;
-        }
-
-        // Also check the old location for backward compatibility
+        // Check standardized backup directory
         $backupPath = storage_path("app/backups/database/{$file}");
         if (file_exists($backupPath)) {
             return $backupPath;
         }
 
-        // Check if user provided just the filename without extension (private path)
+        // Check if user provided just the filename without extension
         if (!str_ends_with($file, '.sql')) {
-            $backupPath = storage_path("app/private/backups/database/{$file}.sql");
-            if (file_exists($backupPath)) {
-                return $backupPath;
-            }
-            
-            // Also check old location for backward compatibility
             $backupPath = storage_path("app/backups/database/{$file}.sql");
             if (file_exists($backupPath)) {
                 return $backupPath;

@@ -22,59 +22,70 @@ class SimpleBackupService
      */
     public function createBackup(?string $name = null): string
     {
-        $timestamp = Carbon::now()->format('Y-m-d_H-i-s');
-        $filename = $name ?? "database_backup_{$timestamp}.sql";
-        
-        // Ensure the filename ends with .sql
-        if (!str_ends_with($filename, '.sql')) {
-            $filename .= '.sql';
-        }
-
-        // Ensure directory exists
-        $fullBackupDir = storage_path('app/' . $this->backupPath);
-        if (!is_dir($fullBackupDir)) {
-            mkdir($fullBackupDir, 0755, true);
-        }
-        
-        // Get database connection details
-        $config = config('database.connections.mysql');
-        
-        // Full path to backup file
-        $backupPath = storage_path('app/' . $this->backupPath . '/' . $filename);
-        
-        // Create mysqldump command
-        $command = [
-            'mysqldump',
-            '--host=' . $config['host'],
-            '--port=' . $config['port'],
-            '--user=' . $config['username'],
-            '--password=' . $config['password'],
-            '--single-transaction',
-            '--no-tablespaces',
-            '--skip-add-locks',
-            '--set-gtid-purged=OFF',
-            '--column-statistics=0',
-            '--skip-routines',
-            '--skip-triggers',
-            '--skip-events',
-            $config['database']
-        ];
+        $lockFile = storage_path('app/backups/.backup.lock');
+        $lockHandle = null;
         
         try {
-            $process = new Process($command, base_path());
+            // Ensure backup directory exists
+            $fullBackupDir = storage_path('app/' . $this->backupPath);
+            if (!is_dir($fullBackupDir)) {
+                mkdir($fullBackupDir, 0755, true);
+            }
             
-            // Enhance PATH for web server environment
-            $currentPath = $_SERVER['PATH'] ?? getenv('PATH') ?? '';
-            $additionalPaths = [
-                '/opt/homebrew/bin',
-                '/opt/homebrew/opt/mysql-client/bin',
-                '/usr/local/bin',
-                '/usr/local/opt/mysql-client/bin',
-                '/Applications/Herd.app/Contents/Resources/bin',
+            // Create lock directory if it doesn't exist
+            $lockDir = dirname($lockFile);
+            if (!is_dir($lockDir)) {
+                mkdir($lockDir, 0755, true);
+            }
+            
+            // Acquire exclusive lock to prevent concurrent backups
+            $lockHandle = fopen($lockFile, 'w');
+            if (!$lockHandle || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
+                throw new \Exception('Another backup operation is already in progress. Please wait and try again.');
+            }
+            
+            $timestamp = Carbon::now()->format('Y-m-d_H-i-s');
+            $filename = $name ?? "database_backup_{$timestamp}.sql";
+            
+            // Validate and sanitize filename
+            $filename = $this->sanitizeFilename($filename);
+            
+            // Ensure the filename ends with .sql
+            if (!str_ends_with($filename, '.sql')) {
+                $filename .= '.sql';
+            }
+            
+            // Get database connection details
+            $config = config('database.connections.mysql');
+            
+            // Full path to backup file
+            $backupPath = storage_path('app/' . $this->backupPath . '/' . $filename);
+            
+            // Create mysqldump command
+            $command = [
+                'mysqldump',
+                '--host=' . $config['host'],
+                '--port=' . $config['port'],
+                '--user=' . $config['username'],
+                '--password=' . $config['password'],
+                '--single-transaction',
+                '--no-tablespaces',
+                '--skip-add-locks',
+                '--set-gtid-purged=OFF',
+                '--column-statistics=0',
+                '--skip-routines',
+                '--skip-triggers',
+                '--skip-events',
+                $config['database']
             ];
             
-            $enhancedPath = $currentPath . ':' . implode(':', $additionalPaths);
-            $process->setEnv(['PATH' => $enhancedPath]);
+            $process = new Process($command, base_path());
+            
+            // Set memory and time limits for large databases
+            $process->setTimeout(3600); // 1 hour timeout
+            
+            // Enhance PATH for web server environment
+            $process->setEnv(['PATH' => self::getEnhancedPath()]);
             
             $process->run();
             
@@ -82,13 +93,40 @@ class SimpleBackupService
                 throw new \Exception('mysqldump failed: ' . $process->getErrorOutput());
             }
             
+            $output = $process->getOutput();
+            
+            // Check output size (warn if > 100MB)
+            $outputSize = strlen($output);
+            if ($outputSize > 100 * 1024 * 1024) {
+                error_log("Large backup created: " . $this->formatBytes($outputSize));
+            }
+            
             // Save output to file
-            file_put_contents($backupPath, $process->getOutput());
+            file_put_contents($backupPath, $output);
+            
+            // Validate file was written correctly
+            if (!file_exists($backupPath) || filesize($backupPath) === 0) {
+                throw new \Exception('Backup file was not created successfully');
+            }
+            
+            // Basic SQL validation
+            if (!$this->validateBackupFile($backupPath)) {
+                throw new \Exception('Backup file appears to be corrupted or invalid');
+            }
             
             return $filename;
             
         } catch (\Exception $e) {
             throw new \Exception("Backup failed: " . $e->getMessage());
+        } finally {
+            // Always release the lock
+            if ($lockHandle) {
+                flock($lockHandle, LOCK_UN);
+                fclose($lockHandle);
+                if (file_exists($lockFile)) {
+                    unlink($lockFile);
+                }
+            }
         }
     }
 
@@ -136,9 +174,11 @@ class SimpleBackupService
                     try {
                         $pdo->exec($statement);
                     } catch (\Exception $e) {
-                        // Log individual statement errors but continue
-                        \Log::warning("SQL statement failed during restore: " . $e->getMessage());
-                        \Log::warning("Statement: " . substr($statement, 0, 200) . "...");
+                        // Log failed statement to error log (not Laravel Log to avoid class issues)
+                        $errorMsg = "SQL statement failed during restore: " . $e->getMessage();
+                        $stmtPreview = substr($statement, 0, 100) . "...";
+                        error_log("Database Restore Warning: {$errorMsg} | Statement: {$stmtPreview}");
+                        // Continue with next statement
                     }
                 }
             }
@@ -254,6 +294,79 @@ class SimpleBackupService
         }
 
         return response()->download($filepath);
+    }
+
+    /**
+     * Validate backup file integrity
+     */
+    private function validateBackupFile(string $filePath): bool
+    {
+        try {
+            $content = file_get_contents($filePath);
+            
+            // Check if file contains SQL dump markers
+            if (!str_contains($content, 'mysqldump') && !str_contains($content, 'CREATE TABLE') && !str_contains($content, 'INSERT INTO')) {
+                return false;
+            }
+            
+            // Check for basic SQL syntax (must contain at least one semicolon)
+            if (!str_contains($content, ';')) {
+                return false;
+            }
+            
+            // Check for obvious corruption markers
+            if (str_contains($content, 'mysqldump: Error') || str_contains($content, 'ERROR')) {
+                return false;
+            }
+            
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Sanitize filename to prevent path traversal and invalid characters
+     */
+    private function sanitizeFilename(string $filename): string
+    {
+        // Remove any path separators and parent directory references
+        $filename = basename($filename);
+        $filename = str_replace(['../', '../', '..\\', '..'], '', $filename);
+        
+        // Remove or replace invalid characters for filesystem
+        $filename = preg_replace('/[^a-zA-Z0-9\-_.]/', '_', $filename);
+        
+        // Ensure filename isn't empty after sanitization
+        if (empty(trim($filename, '._'))) {
+            $filename = 'backup_' . Carbon::now()->format('Y-m-d_H-i-s');
+        }
+        
+        // Limit filename length
+        if (strlen($filename) > 100) {
+            $filename = substr($filename, 0, 100);
+        }
+        
+        return $filename;
+    }
+
+    /**
+     * Get enhanced PATH for mysqldump execution
+     */
+    public static function getEnhancedPath(?array $additionalPaths = null): string
+    {
+        $currentPath = $_SERVER['PATH'] ?? getenv('PATH') ?? '';
+        $defaultPaths = [
+            '/opt/homebrew/bin',
+            '/opt/homebrew/opt/mysql-client/bin',
+            '/usr/local/bin',
+            '/usr/local/opt/mysql-client/bin',
+            '/Applications/Herd.app/Contents/Resources/bin',
+        ];
+        
+        $pathsToAdd = $additionalPaths ?? $defaultPaths;
+        
+        return $currentPath . ':' . implode(':', $pathsToAdd);
     }
 
     /**
