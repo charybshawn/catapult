@@ -202,8 +202,18 @@ class DatabaseConsole extends Page
         }
     }
 
+    public $safeBackupOutput = '';
+    public $safeBackupRunning = false;
+    public $showSafeBackupModal = false;
+
     protected function safeBackup(array $data): void
     {
+        $this->safeBackupOutput = '';
+        $this->safeBackupRunning = true;
+        $this->showSafeBackupModal = true;
+        
+        $this->dispatch('open-safe-backup-modal');
+        
         try {
             $parameters = [];
             
@@ -233,30 +243,24 @@ class DatabaseConsole extends Page
 
             $exitCode = Artisan::call('safe:backup', $parameters);
             $output = Artisan::output();
+            
+            $this->safeBackupOutput = $output;
+            $this->safeBackupRunning = false;
 
             if ($exitCode === 0) {
-                Notification::make()
-                    ->success()
-                    ->title('🎉 Safe Backup Completed')
-                    ->body($this->formatCommandOutput($output))
-                    ->duration(8000)
-                    ->send();
-                
                 $this->dispatch('refresh-backups');
-            } else {
-                Notification::make()
-                    ->danger()
-                    ->title('❌ Safe Backup Failed')
-                    ->body($this->formatCommandOutput($output))
-                    ->send();
             }
         } catch (\Exception $e) {
-            Notification::make()
-                ->danger()
-                ->title('❌ Safe Backup Command Failed')
-                ->body($e->getMessage())
-                ->send();
+            $this->safeBackupOutput .= "\n\n❌ Error: " . $e->getMessage();
+            $this->safeBackupRunning = false;
         }
+    }
+
+    public function closeSafeBackupModal(): void
+    {
+        $this->showSafeBackupModal = false;
+        $this->safeBackupOutput = '';
+        $this->safeBackupRunning = false;
     }
 
     protected function restoreBackup(array $data): void

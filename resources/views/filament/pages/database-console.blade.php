@@ -385,5 +385,69 @@
                 </div>
             </div>
         </div>
+
+        <!-- Safe Backup Modal -->
+        <div x-data="{ show: @entangle('showSafeBackupModal') }" 
+             x-show="show" 
+             x-transition.opacity
+             class="fixed inset-0 z-50 overflow-y-auto"
+             style="display: none;">
+            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                <div x-show="show" 
+                     x-transition.opacity
+                     class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+                     @click="$wire.closeSafeBackupModal()"></div>
+
+                <div x-show="show" 
+                     x-transition:enter="ease-out duration-300"
+                     x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                     x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                     x-transition:leave="ease-in duration-200"
+                     x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                     x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                     class="inline-block w-full max-w-4xl p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white dark:bg-gray-800 shadow-xl rounded-lg">
+                    
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                            <x-filament::icon icon="heroicon-o-shield-check" class="h-5 w-5 inline mr-2"/>
+                            Safe Backup Process
+                        </h3>
+                        <button @click="$wire.closeSafeBackupModal()" 
+                                class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                            <x-filament::icon icon="heroicon-o-x-mark" class="h-6 w-6"/>
+                        </button>
+                    </div>
+
+                    <div class="mb-4">
+                        <div class="flex items-center space-x-2">
+                            <div wire:loading.remove wire:target="safeBackup" class="flex items-center space-x-2">
+                                @if($safeBackupRunning)
+                                    <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                                    <span class="text-sm text-blue-600 dark:text-blue-400">Process running...</span>
+                                @else
+                                    <x-filament::icon icon="heroicon-o-check-circle" class="h-4 w-4 text-green-600"/>
+                                    <span class="text-sm text-green-600 dark:text-green-400">Process completed</span>
+                                @endif
+                            </div>
+                            <div wire:loading wire:target="safeBackup" class="flex items-center space-x-2">
+                                <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                                <span class="text-sm text-blue-600 dark:text-blue-400">Starting process...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-900 rounded-lg p-4 font-mono text-sm overflow-y-auto max-h-96">
+                        <pre class="text-green-400 whitespace-pre-wrap" x-text="$wire.safeBackupOutput || 'Waiting for output...'"></pre>
+                    </div>
+
+                    <div class="mt-6 flex justify-end space-x-3">
+                        <button @click="$wire.closeSafeBackupModal()" 
+                                class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm font-medium">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </x-filament-panels::page>
