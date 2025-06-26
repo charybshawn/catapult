@@ -317,6 +317,20 @@ class SafeBackupCommand extends Command
     protected function runMysqlDump(array $command, string $outputPath): void
     {
         $process = new Process($command);
+        
+        // Enhance PATH for web server environment
+        $currentPath = $_SERVER['PATH'] ?? getenv('PATH') ?? '';
+        $additionalPaths = [
+            '/opt/homebrew/bin',
+            '/opt/homebrew/opt/mysql-client/bin',
+            '/usr/local/bin',
+            '/usr/local/opt/mysql-client/bin',
+            '/Applications/Herd.app/Contents/Resources/bin',
+        ];
+        
+        $enhancedPath = $currentPath . ':' . implode(':', $additionalPaths);
+        $process->setEnv(['PATH' => $enhancedPath]);
+        
         $process->run();
         
         if (!$process->isSuccessful()) {
@@ -331,18 +345,19 @@ class SafeBackupCommand extends Command
      */
     protected function runProcess(array $command): string
     {
-        // Use absolute path for git commands
-        if ($command[0] === 'git') {
-            $gitPaths = ['/usr/bin/git', '/opt/homebrew/bin/git', '/usr/local/bin/git'];
-            foreach ($gitPaths as $gitPath) {
-                if (file_exists($gitPath) && is_executable($gitPath)) {
-                    $command[0] = $gitPath;
-                    break;
-                }
-            }
-        }
-        
         $process = new Process($command);
+        
+        // Enhance PATH for web server environment to find git and other tools
+        $currentPath = $_SERVER['PATH'] ?? getenv('PATH') ?? '';
+        $additionalPaths = [
+            '/opt/homebrew/bin',
+            '/usr/local/bin',
+            '/usr/bin',
+            '/bin',
+        ];
+        
+        $enhancedPath = $currentPath . ':' . implode(':', $additionalPaths);
+        $process->setEnv(['PATH' => $enhancedPath]);
         $process->run();
 
         if (!$process->isSuccessful()) {
