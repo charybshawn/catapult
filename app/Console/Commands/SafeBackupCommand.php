@@ -40,7 +40,7 @@ class SafeBackupCommand extends Command
      */
     public function handle()
     {
-        $this->info('🔄 Starting safe backup process...');
+        $this->info('Starting safe backup process...');
         
         // Check prerequisites
         if (!$this->checkPrerequisites()) {
@@ -48,47 +48,47 @@ class SafeBackupCommand extends Command
         }
         
         // Step 1: Create database backup
-        $this->info('1️⃣ Creating database backup...');
+        $this->info('1. Creating database backup...');
         try {
             $backupFiles = $this->createCustomBackup();
             if (is_array($backupFiles)) {
                 foreach ($backupFiles as $file) {
-                    $this->info("✅ Backup created: {$file}");
+                    $this->info("Backup created: {$file}");
                 }
             } else {
-                $this->info("✅ Backup created: {$backupFiles}");
+                $this->info("Backup created: {$backupFiles}");
             }
         } catch (\Exception $e) {
-            $this->error("❌ Backup failed: {$e->getMessage()}");
+            $this->error("Backup failed: {$e->getMessage()}");
             return 1;
         }
 
         // Step 2: Check git status
-        $this->info('2️⃣ Checking git status...');
+        $this->info('2. Checking git status...');
         $gitStatus = $this->runProcess(['git', 'status', '--porcelain']);
         
         if (empty(trim($gitStatus))) {
-            $this->info('✅ No changes to commit.');
+            $this->info('No changes to commit.');
             return 0;
         }
 
         // Step 3: Add all changes
-        $this->info('3️⃣ Adding changes to git...');
+        $this->info('3. Adding changes to git...');
         try {
             $this->runProcess(['git', 'add', '.']);
-            $this->info('✅ Changes staged');
+            $this->info('Changes staged');
         } catch (\Exception $e) {
             $this->error("Failed to stage changes: " . $e->getMessage());
             return 1;
         }
 
         // Step 4: Commit changes
-        $this->info('4️⃣ Committing changes...');
+        $this->info('4. Committing changes...');
         $commitMessage = $this->option('commit-message') ?: 'Safe backup: ' . now()->format('Y-m-d H:i:s');
         
         try {
             $this->runProcess(['git', 'commit', '-m', $commitMessage]);
-            $this->info("✅ Changes committed: {$commitMessage}");
+            $this->info("Changes committed: {$commitMessage}");
         } catch (\Exception $e) {
             $this->error("Failed to commit changes: " . $e->getMessage());
             return 1;
@@ -96,19 +96,19 @@ class SafeBackupCommand extends Command
 
         // Step 5: Push to origin (unless --no-push is specified)
         if (!$this->option('no-push')) {
-            $this->info('5️⃣ Pushing to origin...');
+            $this->info('5. Pushing to origin...');
             try {
                 $this->runProcess(['git', 'push']);
-                $this->info('✅ Changes pushed to origin');
+                $this->info('Changes pushed to origin');
             } catch (\Exception $e) {
-                $this->warn("⚠️  Push failed: {$e->getMessage()}");
-                $this->info('💡 You may need to push manually later');
+                $this->warn("Push failed: {$e->getMessage()}");
+                $this->info('You may need to push manually later');
             }
         } else {
-            $this->info('⏭️  Skipping git push (--no-push specified)');
+            $this->info('Skipping git push (--no-push specified)');
         }
 
-        $this->info('🎉 Safe backup process completed successfully!');
+        $this->info('Safe backup process completed successfully!');
         return 0;
     }
 
@@ -129,15 +129,15 @@ class SafeBackupCommand extends Command
         }
         
         if (!$gitFound) {
-            $this->error('❌ git not found. Git is required for this command.');
-            $this->info('💡 Install git or check PATH configuration');
+            $this->error('git not found. Git is required for this command.');
+            $this->info('Install git or check PATH configuration');
             return false;
         }
 
         // Check if mysqldump is available (warn but don't fail)
         if (!$this->isMysqldumpAvailable()) {
-            $this->warn('⚠️  mysqldump not found. Using PHP-based backup instead.');
-            $this->line('💡 For better performance, install MySQL client tools:');
+            $this->warn('mysqldump not found. Using PHP-based backup instead.');
+            $this->line('For better performance, install MySQL client tools:');
             $this->line('   macOS: brew install mysql-client');
             $this->line('   Ubuntu/Debian: apt install mysql-client');
             $this->line('   CentOS/RHEL: yum install mysql');
@@ -157,8 +157,8 @@ class SafeBackupCommand extends Command
         $mysqldumpAvailable = $this->isMysqldumpAvailable();
         
         if (!$mysqldumpAvailable && ($this->option('separate') || $this->option('schema-only') || $this->option('data-only'))) {
-            $this->warn('⚠️  Advanced backup options require mysqldump. Falling back to full backup.');
-            $this->line('💡 Install MySQL client tools for schema/data separation:');
+            $this->warn('Advanced backup options require mysqldump. Falling back to full backup.');
+            $this->line('Install MySQL client tools for schema/data separation:');
             $this->line('   brew install mysql-client');
             $this->newLine();
         }
@@ -239,7 +239,7 @@ class SafeBackupCommand extends Command
         
         foreach ($mysqldumpPaths as $mysqldumpPath) {
             if (file_exists($mysqldumpPath) && is_executable($mysqldumpPath)) {
-                $this->line("✅ Found mysqldump at: {$mysqldumpPath}");
+                $this->line("Found mysqldump at: {$mysqldumpPath}");
                 return true;
             }
         }
@@ -247,14 +247,14 @@ class SafeBackupCommand extends Command
         // Also try PATH lookup as fallback
         $pathLookup = shell_exec('which mysqldump 2>/dev/null');
         if (!empty($pathLookup) && file_exists(trim($pathLookup))) {
-            $this->line("✅ Found mysqldump in PATH: " . trim($pathLookup));
+            $this->line("Found mysqldump in PATH: " . trim($pathLookup));
             return true;
         }
         
         // Check if it's available through Docker
         $dockerMysql = shell_exec('docker --version 2>/dev/null');
         if (!empty($dockerMysql)) {
-            $this->line("💡 Docker available - mysqldump could be used via MySQL container");
+            $this->line("Docker available - mysqldump could be used via MySQL container");
         }
         
         return false;
@@ -291,6 +291,9 @@ class SafeBackupCommand extends Command
             '--no-data',
             '--routines',
             '--triggers',
+            '--no-tablespaces',
+            '--single-transaction',
+            '--skip-add-locks',
             $dbName
         ];
         
@@ -314,6 +317,9 @@ class SafeBackupCommand extends Command
             '--password=' . config('database.connections.mysql.password'),
             '--no-create-info',
             '--skip-triggers',
+            '--no-tablespaces',
+            '--single-transaction',
+            '--skip-add-locks',
             $dbName
         ];
         

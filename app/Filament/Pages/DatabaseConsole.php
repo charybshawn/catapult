@@ -38,34 +38,19 @@ class DatabaseConsole extends Page
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('success')
                 ->form([
-                    TextInput::make('output_path')
-                        ->label('Custom Output Path (Optional)')
-                        ->placeholder('Leave empty to use default location')
-                        ->helperText('Specify a custom path to save the backup file'),
-                    Toggle::make('list_only')
-                        ->label('List Backups Only')
-                        ->helperText('Just show available backups without creating new one'),
-                    TextInput::make('delete_backup')
-                        ->label('Delete Backup (Optional)')
-                        ->placeholder('Enter backup filename to delete')
-                        ->helperText('Specify a backup file to delete instead of creating new backup'),
-                ])
-                ->action(function (array $data) {
-                    $this->createBackup($data);
-                }),
-
-            Action::make('safeBackup')
-                ->label('Safe Backup')
-                ->icon('heroicon-o-shield-check')
-                ->color('warning')
-                ->form([
+                    Toggle::make('safe_backup')
+                        ->label('Safe Backup (Git Integration)')
+                        ->helperText('Create backup, commit changes, and push to git')
+                        ->reactive(),
                     TextInput::make('commit_message')
                         ->label('Git Commit Message (Optional)')
                         ->placeholder('Safe backup: ' . now()->format('Y-m-d H:i:s'))
-                        ->helperText('Custom commit message for git'),
+                        ->helperText('Custom commit message for git')
+                        ->hidden(fn ($get) => !$get('safe_backup')),
                     Toggle::make('no_push')
                         ->label('Skip Git Push')
-                        ->helperText('Skip pushing changes to remote repository'),
+                        ->helperText('Skip pushing changes to remote repository')
+                        ->hidden(fn ($get) => !$get('safe_backup')),
                     Select::make('backup_type')
                         ->label('Backup Type')
                         ->options([
@@ -75,14 +60,13 @@ class DatabaseConsole extends Page
                             'separate' => 'Separate Files (Schema + Data)'
                         ])
                         ->default('full')
-                        ->helperText('Choose what to include in the backup'),
+                        ->helperText('Choose what to include in the backup')
+                        ->hidden(fn ($get) => !$get('safe_backup')),
                 ])
                 ->action(function (array $data) {
-                    $this->safeBackup($data);
-                })
-                ->requiresConfirmation()
-                ->modalHeading('Create Safe Backup')
-                ->modalDescription('This will create a backup, commit changes, and push to git (unless disabled).'),
+                    $this->createBackup($data);
+                }),
+
 
             Action::make('restoreBackup')
                 ->label('Restore Backup')
@@ -149,119 +133,86 @@ class DatabaseConsole extends Page
 
     protected function createBackup(array $data): void
     {
-        try {
-            $command = 'db:backup';
-            $parameters = [];
-            
-            if (!empty($data['output_path'])) {
-                $parameters['--output'] = $data['output_path'];
-            }
-            
-            if ($data['list_only'] ?? false) {
-                $parameters['--list'] = true;
-            }
-            
-            if (!empty($data['delete_backup'])) {
-                $parameters['--delete'] = $data['delete_backup'];
-            }
-
-            $exitCode = Artisan::call($command, $parameters);
-            $output = Artisan::output();
-
-            if ($exitCode === 0) {
-                $title = '✅ Command Executed Successfully';
-                if ($data['list_only'] ?? false) {
-                    $title = '📋 Backup List Retrieved';
-                } elseif (!empty($data['delete_backup'])) {
-                    $title = '🗑️ Backup Deleted Successfully';
-                } else {
-                    $title = '✅ Backup Created Successfully';
-                }
-                
-                Notification::make()
-                    ->success()
-                    ->title($title)
-                    ->body($this->formatCommandOutput($output))
-                    ->duration(5000)
-                    ->send();
-                
-                $this->dispatch('refresh-backups');
-            } else {
-                Notification::make()
-                    ->danger()
-                    ->title('❌ Command Failed')
-                    ->body($this->formatCommandOutput($output))
-                    ->send();
-            }
-        } catch (\Exception $e) {
-            Notification::make()
-                ->danger()
-                ->title('❌ Command Failed')
-                ->body($e->getMessage())
-                ->send();
-        }
-    }
-
-    public $safeBackupOutput = '';
-    public $safeBackupRunning = false;
-    public $showSafeBackupModal = false;
-
-    protected function safeBackup(array $data): void
-    {
         $this->safeBackupOutput = '';
         $this->safeBackupRunning = true;
+        $this->safeBackupSuccess = false;
         $this->showSafeBackupModal = true;
         
         $this->dispatch('open-safe-backup-modal');
         
         try {
-            $parameters = [];
-            
-            if (!empty($data['commit_message'])) {
-                $parameters['--commit-message'] = $data['commit_message'];
-            }
-            
-            if ($data['no_push'] ?? false) {
-                $parameters['--no-push'] = true;
-            }
-            
-            $backupType = $data['backup_type'] ?? 'full';
-            switch ($backupType) {
-                case 'schema_only':
-                    $parameters['--schema-only'] = true;
-                    break;
-                case 'data_only':
-                    $parameters['--data-only'] = true;
-                    break;
-                case 'separate':
-                    $parameters['--separate'] = true;
-                    break;
-                default:
-                    // full backup - no additional flags needed
-                    break;
+            if ($data['safe_backup'] ?? false) {
+                // Use safe backup command via Artisan::call (works fine)
+                $command = 'safe:backup';
+                $parameters = [];
+                
+                if (!empty($data['commit_message'])) {
+                    $parameters['--commit-message'] = $data['commit_message'];
+                }
+                
+                if ($data['no_push'] ?? false) {
+                    $parameters['--no-push'] = true;
+                }
+                
+                $backupType = $data['backup_type'] ?? 'full';
+                switch ($backupType) {
+                    case 'schema_only':
+                        $parameters['--schema-only'] = true;
+                        break;
+                    case 'data_only':
+                        $parameters['--data-only'] = true;
+                        break;
+                    case 'separate':
+                        $parameters['--separate'] = true;
+                        break;
+                    default:
+                        // full backup - no additional flags needed
+                        break;
+                }
+
+                $exitCode = Artisan::call($command, $parameters);
+                $output = Artisan::output();
+                
+                $this->safeBackupOutput = $output;
+                $this->safeBackupRunning = false;
+                $this->safeBackupSuccess = ($exitCode === 0);
+            } else {
+                // Use backup service directly to avoid Artisan::call environment issues
+                $backupService = new \App\Services\SimpleBackupService();
+                $this->safeBackupOutput = "Creating database backup...\n";
+                
+                $filename = $backupService->createBackup();
+                
+                $this->safeBackupOutput .= "Backup created successfully!\n";
+                $this->safeBackupOutput .= "File: {$filename}\n";
+                $this->safeBackupRunning = false;
+                $this->safeBackupSuccess = true;
             }
 
-            $exitCode = Artisan::call('safe:backup', $parameters);
-            $output = Artisan::output();
-            
-            $this->safeBackupOutput = $output;
-            $this->safeBackupRunning = false;
-
-            if ($exitCode === 0) {
+            if ($this->safeBackupSuccess) {
                 $this->dispatch('refresh-backups');
             }
         } catch (\Exception $e) {
-            $this->safeBackupOutput .= "\n\n❌ Error: " . $e->getMessage();
+            $this->safeBackupOutput .= "\n\nError: " . $e->getMessage();
             $this->safeBackupRunning = false;
+            $this->safeBackupSuccess = false;
         }
     }
+
+    public $safeBackupOutput = '';
+    public $safeBackupRunning = false;
+    public $safeBackupSuccess = false;
+    public $showSafeBackupModal = false;
+
 
     public function closeSafeBackupModal(): void
     {
         $this->showSafeBackupModal = false;
         $this->safeBackupOutput = '';
         $this->safeBackupRunning = false;
+        $this->safeBackupSuccess = false;
     }
+
 
     protected function restoreBackup(array $data): void
     {
@@ -289,11 +240,11 @@ class DatabaseConsole extends Page
             $output = Artisan::output();
 
             if ($exitCode === 0) {
-                $title = '✅ Command Executed Successfully';
+                $title = 'Command Executed Successfully';
                 if ($data['list_backups_only'] ?? false) {
-                    $title = '📋 Available Backups Listed';
+                    $title = 'Available Backups Listed';
                 } else {
-                    $title = '✅ Database Restored Successfully';
+                    $title = 'Database Restored Successfully';
                 }
                 
                 Notification::make()
@@ -305,7 +256,7 @@ class DatabaseConsole extends Page
             } else {
                 Notification::make()
                     ->danger()
-                    ->title('❌ Command Failed')
+                    ->title('Command Failed')
                     ->body($this->formatCommandOutput($output))
                     ->send();
             }
@@ -326,7 +277,7 @@ class DatabaseConsole extends Page
             
             Notification::make()
                 ->success()
-                ->title('🗑️ Backup Deleted')
+                ->title('Backup Deleted')
                 ->body("Backup '{$filename}' has been deleted successfully.")
                 ->send();
             
@@ -334,7 +285,7 @@ class DatabaseConsole extends Page
         } catch (\Exception $e) {
             Notification::make()
                 ->danger()
-                ->title('❌ Delete Failed')
+                ->title('Delete Failed')
                 ->body($e->getMessage())
                 ->send();
         }
@@ -345,7 +296,7 @@ class DatabaseConsole extends Page
         if (empty($filenames)) {
             Notification::make()
                 ->warning()
-                ->title('⚠️ No Backups Selected')
+                ->title('No Backups Selected')
                 ->body('Please select at least one backup to delete.')
                 ->send();
             return;
@@ -370,21 +321,21 @@ class DatabaseConsole extends Page
         if ($successCount > 0 && $failCount === 0) {
             Notification::make()
                 ->success()
-                ->title('🎉 Mass Delete Completed')
+                ->title('Mass Delete Completed')
                 ->body("{$successCount} backup(s) deleted successfully.")
                 ->duration(5000)
                 ->send();
         } elseif ($successCount > 0 && $failCount > 0) {
             Notification::make()
                 ->warning()
-                ->title('⚠️ Partial Success')
+                ->title('Partial Success')
                 ->body("{$successCount} deleted, {$failCount} failed. First error: " . ($errors[0] ?? 'Unknown error'))
                 ->duration(8000)
                 ->send();
         } else {
             Notification::make()
                 ->danger()
-                ->title('❌ Mass Delete Failed')
+                ->title('Mass Delete Failed')
                 ->body("Failed to delete all {$failCount} backup(s). First error: " . ($errors[0] ?? 'Unknown error'))
                 ->duration(8000)
                 ->send();
@@ -401,7 +352,7 @@ class DatabaseConsole extends Page
         } catch (\Exception $e) {
             Notification::make()
                 ->danger()
-                ->title('❌ Download Failed')
+                ->title('Download Failed')
                 ->body($e->getMessage())
                 ->send();
             

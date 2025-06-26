@@ -5,21 +5,20 @@ namespace App\Services;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Collection;
 use Carbon\Carbon;
-use Ifsnop\Mysqldump\Mysqldump;
+use Symfony\Component\Process\Process;
 
 class SimpleBackupService
 {
-    private $disk;
     private $backupPath;
 
     public function __construct()
     {
-        $this->disk = Storage::disk('local');
+        // Use direct file system instead of Laravel disk to avoid path confusion
         $this->backupPath = 'backups/database';
     }
 
     /**
-     * Create a database backup using mysqldump-php
+     * Create a database backup using native mysqldump
      */
     public function createBackup(?string $name = null): string
     {
@@ -32,43 +31,63 @@ class SimpleBackupService
         }
 
         // Ensure directory exists
-        $this->disk->makeDirectory($this->backupPath);
+        $fullBackupDir = storage_path('app/' . $this->backupPath);
+        if (!is_dir($fullBackupDir)) {
+            mkdir($fullBackupDir, 0755, true);
+        }
         
         // Get database connection details
         $config = config('database.connections.mysql');
-        $dsn = "mysql:host={$config['host']};port={$config['port']};dbname={$config['database']};charset={$config['charset']}";
         
-        // Create temp file in system temp directory
-        $tempFilePath = tempnam(sys_get_temp_dir(), 'backup_');
+        // Full path to backup file
+        $backupPath = storage_path('app/' . $this->backupPath . '/' . $filename);
+        
+        // Create mysqldump command
+        $command = [
+            'mysqldump',
+            '--host=' . $config['host'],
+            '--port=' . $config['port'],
+            '--user=' . $config['username'],
+            '--password=' . $config['password'],
+            '--single-transaction',
+            '--no-tablespaces',
+            '--skip-add-locks',
+            '--set-gtid-purged=OFF',
+            '--column-statistics=0',
+            '--skip-routines',
+            '--skip-triggers',
+            '--skip-events',
+            $config['database']
+        ];
         
         try {
-            // Create mysqldump instance with minimal options
-            $dump = new Mysqldump($dsn, $config['username'], $config['password'], [
-                'compress' => Mysqldump::NONE,
-                'single-transaction' => true,
-                'lock-tables' => false,
-                'add-drop-table' => true,
-                'default-character-set' => Mysqldump::UTF8,
-                'exclude-tables' => ['crop_batches', 'product_inventory_summary'], // Exclude problematic views
-            ]);
+            $process = new Process($command, base_path());
             
-            // Create the backup to temp file
-            $dump->start($tempFilePath);
+            // Enhance PATH for web server environment
+            $currentPath = $_SERVER['PATH'] ?? getenv('PATH') ?? '';
+            $additionalPaths = [
+                '/opt/homebrew/bin',
+                '/opt/homebrew/opt/mysql-client/bin',
+                '/usr/local/bin',
+                '/usr/local/opt/mysql-client/bin',
+                '/Applications/Herd.app/Contents/Resources/bin',
+            ];
             
-            // Move the file to Laravel storage
-            $finalPath = $this->backupPath . '/' . $filename;
-            $this->disk->put($finalPath, file_get_contents($tempFilePath));
+            $enhancedPath = $currentPath . ':' . implode(':', $additionalPaths);
+            $process->setEnv(['PATH' => $enhancedPath]);
             
-            // Clean up temp file
-            unlink($tempFilePath);
+            $process->run();
+            
+            if (!$process->isSuccessful()) {
+                throw new \Exception('mysqldump failed: ' . $process->getErrorOutput());
+            }
+            
+            // Save output to file
+            file_put_contents($backupPath, $process->getOutput());
             
             return $filename;
             
         } catch (\Exception $e) {
-            // Clean up temp file if it exists
-            if (file_exists($tempFilePath)) {
-                unlink($tempFilePath);
-            }
             throw new \Exception("Backup failed: " . $e->getMessage());
         }
     }
@@ -80,11 +99,13 @@ class SimpleBackupService
     {
         $filepath = $this->backupPath . '/' . $filename;
         
-        if (!$this->disk->exists($filepath)) {
+        $fullFilepath = storage_path('app/' . $filepath);
+        
+        if (!file_exists($fullFilepath)) {
             throw new \Exception("Backup file not found: {$filename}");
         }
 
-        $sqlContent = $this->disk->get($filepath);
+        $sqlContent = file_get_contents($fullFilepath);
         
         if (empty($sqlContent)) {
             throw new \Exception("Backup file is empty or corrupted");
@@ -184,17 +205,18 @@ class SimpleBackupService
      */
     public function listBackups(): Collection
     {
-        if (!$this->disk->exists($this->backupPath)) {
+        $fullBackupDir = storage_path('app/' . $this->backupPath);
+        
+        if (!is_dir($fullBackupDir)) {
             return collect();
         }
 
-        $files = $this->disk->allFiles($this->backupPath);
+        $files = glob($fullBackupDir . '/*.{sql,json}', GLOB_BRACE);
         
         return collect($files)
-            ->filter(fn($file) => str_ends_with($file, '.sql') || str_ends_with($file, '.json'))
             ->map(function($file) {
-                $size = $this->disk->size($file);
-                $timestamp = $this->disk->lastModified($file);
+                $size = filesize($file);
+                $timestamp = filemtime($file);
                 
                 return [
                     'name' => basename($file),
@@ -213,8 +235,11 @@ class SimpleBackupService
      */
     public function deleteBackup(string $filename): bool
     {
-        $filepath = $this->backupPath . '/' . $filename;
-        return $this->disk->delete($filepath);
+        $filepath = storage_path('app/' . $this->backupPath . '/' . $filename);
+        if (file_exists($filepath)) {
+            return unlink($filepath);
+        }
+        return false;
     }
 
     /**
@@ -222,13 +247,13 @@ class SimpleBackupService
      */
     public function downloadBackup(string $filename)
     {
-        $filepath = $this->backupPath . '/' . $filename;
+        $filepath = storage_path('app/' . $this->backupPath . '/' . $filename);
         
-        if (!$this->disk->exists($filepath)) {
+        if (!file_exists($filepath)) {
             throw new \Exception("Backup file not found: {$filename}");
         }
 
-        return $this->disk->download($filepath);
+        return response()->download($filepath);
     }
 
     /**

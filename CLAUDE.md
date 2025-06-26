@@ -45,6 +45,18 @@
 - `app/Services/SimpleBackupService.php` - Core backup logic
 - `resources/views/filament/pages/database-console.blade.php` - UI template
 
+### 🗂️ STANDARDIZED BACKUP STORAGE LOCATION
+**ALL backup files MUST be stored in: `storage/app/backups/database/`**
+
+**NEVER use:**
+- `storage/app/private/backups/database/` 
+- Any other backup paths
+- Laravel disk abstractions for backup storage (causes path confusion)
+
+**ALWAYS use:**
+- Direct file system operations with `storage_path('app/backups/database/')`
+- This standardized path across ALL backup-related code
+
 ### ❌ FAILED/ABANDONED Files (CLEANED UP):
 - ~~`app/Models/DatabaseBackup.php`~~ - Virtual model attempt (DELETED)
 - ~~`app/Filament/Resources/DatabaseBackupResource.php`~~ - Resource attempt (DELETED)
@@ -100,6 +112,8 @@ Before marking any task complete:
 3. **Don't create "temporary" files** - They become permanent technical debt
 4. **Don't ignore errors** - Fix the root cause, don't work around it
 5. **Don't create new files if you can extend existing ones**
+6. **Don't use emojis/emoticons in code or output** - Keep code clean and professional
+7. **Don't use `\Log::` - ALWAYS use `use Illuminate\Support\Facades\Log;` and then `Log::`** - This error happens constantly
 
 ## ✅ What TO Do
 
