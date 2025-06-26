@@ -101,20 +101,39 @@
         </div>
 
         <!-- Available Backups -->
-        <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+        <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700" x-data="{ selectedBackups: [], selectAll: false }">
             <div class="p-6">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
                         Available Backups
                     </h3>
-                    <div class="flex items-center space-x-2">
-                        <x-filament::icon 
-                            icon="heroicon-o-clock" 
-                            class="h-4 w-4 text-gray-400"
-                        />
-                        <span class="text-sm text-gray-500 dark:text-gray-400">
-                            Auto-refreshes after operations
-                        </span>
+                    <div class="flex items-center space-x-4">
+                        <div class="flex items-center space-x-2">
+                            <x-filament::icon 
+                                icon="heroicon-o-clock" 
+                                class="h-4 w-4 text-gray-400"
+                            />
+                            <span class="text-sm text-gray-500 dark:text-gray-400">
+                                Auto-refreshes after operations
+                            </span>
+                        </div>
+                        <div x-show="selectedBackups.length > 0" 
+                             x-transition
+                             class="flex items-center space-x-2">
+                            <span class="text-sm text-gray-600 dark:text-gray-400" x-text="`${selectedBackups.length} selected`"></span>
+                            <button 
+                                @click="if(confirm('Are you sure you want to delete ' + selectedBackups.length + ' backup(s)? This action cannot be undone.')) { $wire.massDeleteBackups(selectedBackups); selectedBackups = []; selectAll = false; }"
+                                class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm font-medium"
+                            >
+                                Delete Selected
+                            </button>
+                            <button 
+                                @click="selectedBackups = []; selectAll = false;"
+                                class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm font-medium"
+                            >
+                                Clear Selection
+                            </button>
+                        </div>
                     </div>
                 </div>
                 
@@ -128,6 +147,15 @@
                             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                                 <thead class="bg-gray-50 dark:bg-gray-800">
                                     <tr>
+                                        <th class="w-16 px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                            <input 
+                                                type="checkbox" 
+                                                x-model="selectAll"
+                                                @change="selectAll ? selectedBackups = [@foreach($backups as $backup)'{{ $backup['name'] }}'@if(!$loop->last),@endif @endforeach] : selectedBackups = []"
+                                                class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                                title="Select All"
+                                            />
+                                        </th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                             Backup File
                                         </th>
@@ -145,6 +173,14 @@
                                 <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
                                     @foreach($backups as $backup)
                                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                            <td class="w-16 px-3 py-4 whitespace-nowrap">
+                                                <input 
+                                                    type="checkbox" 
+                                                    value="{{ $backup['name'] }}"
+                                                    x-model="selectedBackups"
+                                                    class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                                />
+                                            </td>
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <div class="flex items-center">
                                                     <x-filament::icon 
@@ -208,6 +244,109 @@
                             </div>
                         </div>
                     @endif
+                </div>
+            </div>
+        </div>
+
+        <!-- Schema Change Workflow -->
+        <div class="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800 p-6">
+            <div class="flex items-center space-x-3 mb-4">
+                <x-filament::icon 
+                    icon="heroicon-o-arrow-path" 
+                    class="h-6 w-6 text-emerald-600 dark:text-emerald-400"
+                />
+                <h3 class="text-lg font-semibold text-emerald-900 dark:text-emerald-100">
+                    Schema Change Workflow
+                </h3>
+                <span class="text-xs bg-emerald-100 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 px-2 py-1 rounded-full">
+                    ✅ Tested
+                </span>
+            </div>
+            
+            <div class="prose dark:prose-invert max-w-none">
+                <p class="text-emerald-700 dark:text-emerald-300 mb-6">
+                    When working on features that require <code class="bg-emerald-100 dark:bg-emerald-800 px-1 rounded">migration:fresh</code> 
+                    but you want to preserve existing data, follow this tested workflow:
+                </p>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 not-prose">
+                    <div class="bg-white dark:bg-gray-900 rounded-lg border border-emerald-200 dark:border-emerald-700 p-4">
+                        <div class="flex items-center space-x-2 mb-3">
+                            <span class="flex items-center justify-center w-6 h-6 bg-emerald-500 text-white rounded-full text-xs font-bold">1</span>
+                            <h4 class="font-semibold text-gray-900 dark:text-white">Backup Current Data</h4>
+                        </div>
+                        <div class="space-y-2 text-sm">
+                            <div class="bg-gray-50 dark:bg-gray-800 rounded p-2">
+                                <code class="text-emerald-600 dark:text-emerald-400 text-xs">php artisan db:backup</code>
+                            </div>
+                            <p class="text-gray-600 dark:text-gray-400">
+                                Create backup of current data on your main branch before starting development.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white dark:bg-gray-900 rounded-lg border border-emerald-200 dark:border-emerald-700 p-4">
+                        <div class="flex items-center space-x-2 mb-3">
+                            <span class="flex items-center justify-center w-6 h-6 bg-emerald-500 text-white rounded-full text-xs font-bold">2</span>
+                            <h4 class="font-semibold text-gray-900 dark:text-white">Develop Feature</h4>
+                        </div>
+                        <div class="space-y-2 text-sm">
+                            <div class="bg-gray-50 dark:bg-gray-800 rounded p-2">
+                                <code class="text-emerald-600 dark:text-emerald-400 text-xs">git checkout -b new-feature</code>
+                            </div>
+                            <p class="text-gray-600 dark:text-gray-400">
+                                Create feature branch and make your schema changes/migrations.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white dark:bg-gray-900 rounded-lg border border-emerald-200 dark:border-emerald-700 p-4">
+                        <div class="flex items-center space-x-2 mb-3">
+                            <span class="flex items-center justify-center w-6 h-6 bg-emerald-500 text-white rounded-full text-xs font-bold">3</span>
+                            <h4 class="font-semibold text-gray-900 dark:text-white">Fresh Migration</h4>
+                        </div>
+                        <div class="space-y-2 text-sm">
+                            <div class="bg-gray-50 dark:bg-gray-800 rounded p-2">
+                                <code class="text-emerald-600 dark:text-emerald-400 text-xs">php artisan migrate:fresh</code>
+                            </div>
+                            <p class="text-gray-600 dark:text-gray-400">
+                                Apply new schema. This drops all tables and rebuilds them.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white dark:bg-gray-900 rounded-lg border border-emerald-200 dark:border-emerald-700 p-4">
+                        <div class="flex items-center space-x-2 mb-3">
+                            <span class="flex items-center justify-center w-6 h-6 bg-emerald-500 text-white rounded-full text-xs font-bold">4</span>
+                            <h4 class="font-semibold text-gray-900 dark:text-white">Restore Data</h4>
+                        </div>
+                        <div class="space-y-2 text-sm">
+                            <div class="bg-gray-50 dark:bg-gray-800 rounded p-2">
+                                <code class="text-emerald-600 dark:text-emerald-400 text-xs">php artisan db:restore filename.sql --force</code>
+                            </div>
+                            <p class="text-gray-600 dark:text-gray-400">
+                                Restore old data to new schema. System handles mismatches gracefully.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-6 bg-emerald-100 dark:bg-emerald-800/30 border border-emerald-200 dark:border-emerald-700 rounded-lg p-4">
+                    <div class="flex items-start space-x-3">
+                        <x-filament::icon 
+                            icon="heroicon-o-light-bulb" 
+                            class="h-5 w-5 text-emerald-600 dark:text-emerald-400 mt-0.5 flex-shrink-0"
+                        />
+                        <div class="text-sm">
+                            <h5 class="font-semibold text-emerald-900 dark:text-emerald-100 mb-2">Why This Works:</h5>
+                            <ul class="space-y-1 text-emerald-800 dark:text-emerald-200">
+                                <li>• The restore process disables foreign key checks for compatibility</li>
+                                <li>• Failed SQL statements are skipped gracefully while preserving what works</li>
+                                <li>• New schema tables/columns are preserved alongside restored data</li>
+                                <li>• Transactions ensure data integrity during the restore process</li>
+                            </ul>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

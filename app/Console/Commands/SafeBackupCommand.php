@@ -125,25 +125,13 @@ class SafeBackupCommand extends Command
         }
 
         // Check if mysqldump is available (warn but don't fail)
-        $mysqldumpPaths = [
-            '/usr/bin/mysqldump', 
-            '/opt/homebrew/bin/mysqldump',
-            '/opt/homebrew/opt/mysql-client/bin/mysqldump',
-            '/usr/local/bin/mysqldump'
-        ];
-        
-        $mysqldumpFound = false;
-        foreach ($mysqldumpPaths as $mysqldumpPath) {
-            if (file_exists($mysqldumpPath) && is_executable($mysqldumpPath)) {
-                $mysqldumpFound = true;
-                break;
-            }
-        }
-        
-        if (!$mysqldumpFound) {
+        if (!$this->isMysqldumpAvailable()) {
             $this->warn('⚠️  mysqldump not found. Using PHP-based backup instead.');
             $this->line('💡 For better performance, install MySQL client tools:');
-            $this->line('   brew install mysql-client');
+            $this->line('   macOS: brew install mysql-client');
+            $this->line('   Ubuntu/Debian: apt install mysql-client');
+            $this->line('   CentOS/RHEL: yum install mysql');
+            $this->line('   Or use Laravel Herd, DBngin, MAMP, etc.');
             $this->newLine();
         }
 
@@ -155,24 +143,111 @@ class SafeBackupCommand extends Command
      */
     protected function createCustomBackup()
     {
-        $dbName = config('database.connections.mysql.database');
-        $timestamp = now()->format('Y-m-d_H-i-s');
-        $backupDir = storage_path('app/backups/database');
+        // Check if mysqldump is available for advanced options
+        $mysqldumpAvailable = $this->isMysqldumpAvailable();
         
-        if (!is_dir($backupDir)) {
-            mkdir($backupDir, 0755, true);
+        if (!$mysqldumpAvailable && ($this->option('separate') || $this->option('schema-only') || $this->option('data-only'))) {
+            $this->warn('⚠️  Advanced backup options require mysqldump. Falling back to full backup.');
+            $this->line('💡 Install MySQL client tools for schema/data separation:');
+            $this->line('   brew install mysql-client');
+            $this->newLine();
         }
 
-        if ($this->option('separate')) {
-            return $this->createSeparateBackups($dbName, $timestamp, $backupDir);
-        } elseif ($this->option('schema-only')) {
-            return $this->createSchemaBackup($dbName, $timestamp, $backupDir);
-        } elseif ($this->option('data-only')) {
-            return $this->createDataBackup($dbName, $timestamp, $backupDir);
-        } else {
-            // Default: use existing service for combined backup (works without mysqldump)
-            return $this->backupService->createBackup();
+        if ($mysqldumpAvailable && ($this->option('separate') || $this->option('schema-only') || $this->option('data-only'))) {
+            $dbName = config('database.connections.mysql.database');
+            $timestamp = now()->format('Y-m-d_H-i-s');
+            $backupDir = storage_path('app/backups/database');
+            
+            if (!is_dir($backupDir)) {
+                mkdir($backupDir, 0755, true);
+            }
+
+            if ($this->option('separate')) {
+                return $this->createSeparateBackups($dbName, $timestamp, $backupDir);
+            } elseif ($this->option('schema-only')) {
+                return $this->createSchemaBackup($dbName, $timestamp, $backupDir);
+            } elseif ($this->option('data-only')) {
+                return $this->createDataBackup($dbName, $timestamp, $backupDir);
+            }
         }
+        
+        // Default: use existing service for combined backup (works without mysqldump)
+        return $this->backupService->createBackup();
+    }
+
+    /**
+     * Check if mysqldump is available
+     */
+    protected function isMysqldumpAvailable(): bool
+    {
+        $mysqldumpPaths = [
+            // Standard system locations (Linux/Unix)
+            '/usr/bin/mysqldump',
+            '/usr/local/bin/mysqldump',
+            '/bin/mysqldump',
+            
+            // Homebrew (macOS) - Intel & Apple Silicon
+            '/usr/local/bin/mysqldump',                              // Homebrew Intel
+            '/opt/homebrew/bin/mysqldump',                           // Homebrew Apple Silicon
+            '/usr/local/opt/mysql-client/bin/mysqldump',             // Homebrew mysql-client Intel
+            '/opt/homebrew/opt/mysql-client/bin/mysqldump',          // Homebrew mysql-client Apple Silicon
+            '/usr/local/opt/mysql/bin/mysqldump',                    // Homebrew mysql Intel
+            '/opt/homebrew/opt/mysql/bin/mysqldump',                 // Homebrew mysql Apple Silicon
+            
+            // Laravel Herd (macOS)
+            '/Users/' . get_current_user() . '/Library/Application Support/Herd/bin/mysqldump',
+            '/Applications/Herd.app/Contents/Resources/bin/mysqldump',
+            
+            // DBngin (macOS)
+            '/usr/local/mysql/bin/mysqldump',
+            '/Applications/DBngin.app/Contents/Resources/mysql/bin/mysqldump',
+            
+            // MAMP/XAMPP (macOS/Windows/Linux)
+            '/Applications/MAMP/Library/bin/mysqldump',              // MAMP macOS
+            '/opt/lampp/bin/mysqldump',                              // XAMPP Linux
+            '/Applications/XAMPP/xamppfiles/bin/mysqldump',          // XAMPP macOS
+            'C:\\xampp\\mysql\\bin\\mysqldump.exe',                 // XAMPP Windows
+            'C:\\mamp\\bin\\mysql\\bin\\mysqldump.exe',             // MAMP Windows
+            
+            // Laragon (Windows)
+            'C:\\laragon\\bin\\mysql\\mysql-8.0.30-winx64\\bin\\mysqldump.exe',
+            
+            // Docker Desktop MySQL
+            '/usr/local/bin/docker',                                 // Check if we can use docker
+            
+            // Linux package managers
+            '/usr/bin/mariadb-dump',                                 // MariaDB on some Linux distros
+            '/snap/bin/mysql.mysqldump',                            // Snap packages
+            
+            // FreeBSD
+            '/usr/local/bin/mysqldump',
+            
+            // Alternative installations
+            '/opt/mysql/bin/mysqldump',
+            '/usr/mysql/bin/mysqldump',
+        ];
+        
+        foreach ($mysqldumpPaths as $mysqldumpPath) {
+            if (file_exists($mysqldumpPath) && is_executable($mysqldumpPath)) {
+                $this->line("✅ Found mysqldump at: {$mysqldumpPath}");
+                return true;
+            }
+        }
+        
+        // Also try PATH lookup as fallback
+        $pathLookup = shell_exec('which mysqldump 2>/dev/null');
+        if (!empty($pathLookup) && file_exists(trim($pathLookup))) {
+            $this->line("✅ Found mysqldump in PATH: " . trim($pathLookup));
+            return true;
+        }
+        
+        // Check if it's available through Docker
+        $dockerMysql = shell_exec('docker --version 2>/dev/null');
+        if (!empty($dockerMysql)) {
+            $this->line("💡 Docker available - mysqldump could be used via MySQL container");
+        }
+        
+        return false;
     }
 
     /**
