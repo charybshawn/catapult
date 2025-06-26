@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Services\DatabaseBackupService;
 use App\Services\SimpleBackupService;
 use Illuminate\Console\Command;
 
@@ -179,14 +178,26 @@ class DatabaseRestoreCommand extends Command
             return $file;
         }
 
-        // Check if it's in the backup directory
+        // Check if it's in the backup directory (private path used by SimpleBackupService)
+        $backupPath = storage_path("app/private/backups/database/{$file}");
+        if (file_exists($backupPath)) {
+            return $backupPath;
+        }
+
+        // Also check the old location for backward compatibility
         $backupPath = storage_path("app/backups/database/{$file}");
         if (file_exists($backupPath)) {
             return $backupPath;
         }
 
-        // Check if user provided just the filename without extension
+        // Check if user provided just the filename without extension (private path)
         if (!str_ends_with($file, '.sql')) {
+            $backupPath = storage_path("app/private/backups/database/{$file}.sql");
+            if (file_exists($backupPath)) {
+                return $backupPath;
+            }
+            
+            // Also check old location for backward compatibility
             $backupPath = storage_path("app/backups/database/{$file}.sql");
             if (file_exists($backupPath)) {
                 return $backupPath;

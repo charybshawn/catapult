@@ -107,31 +107,44 @@ class SafeBackupCommand extends Command
      */
     protected function checkPrerequisites(): bool
     {
-        // Check if mysqldump is available
-        $process = new Process(['which', 'mysqldump']);
-        $process->run();
+        // Check for git in common locations
+        $gitPaths = ['/usr/bin/git', '/opt/homebrew/bin/git', '/usr/local/bin/git'];
+        $gitFound = false;
         
-        if (!$process->isSuccessful()) {
-            $this->error('❌ mysqldump not found. MySQL client tools are required.');
-            $this->line('');
-            $this->info('📋 To install MySQL client tools on Mac:');
-            $this->line('   brew install mysql-client');
-            $this->line('   # OR');
-            $this->line('   brew install mysql');
-            $this->line('');
-            $this->info('💡 If using Homebrew, you may need to add to PATH:');
-            $this->line('   echo \'export PATH="/opt/homebrew/opt/mysql-client/bin:$PATH"\' >> ~/.zshrc');
+        foreach ($gitPaths as $gitPath) {
+            if (file_exists($gitPath) && is_executable($gitPath)) {
+                $gitFound = true;
+                break;
+            }
+        }
+        
+        if (!$gitFound) {
+            $this->error('❌ git not found. Git is required for this command.');
+            $this->info('💡 Install git or check PATH configuration');
             return false;
         }
 
-        // Check if git is available
-        $process = new Process(['which', 'git']);
-        $process->run();
+        // Check if mysqldump is available (warn but don't fail)
+        $mysqldumpPaths = [
+            '/usr/bin/mysqldump', 
+            '/opt/homebrew/bin/mysqldump',
+            '/opt/homebrew/opt/mysql-client/bin/mysqldump',
+            '/usr/local/bin/mysqldump'
+        ];
         
-        if (!$process->isSuccessful()) {
-            $this->error('❌ git not found. Git is required for this command.');
-            $this->info('💡 Install git: brew install git');
-            return false;
+        $mysqldumpFound = false;
+        foreach ($mysqldumpPaths as $mysqldumpPath) {
+            if (file_exists($mysqldumpPath) && is_executable($mysqldumpPath)) {
+                $mysqldumpFound = true;
+                break;
+            }
+        }
+        
+        if (!$mysqldumpFound) {
+            $this->warn('⚠️  mysqldump not found. Using PHP-based backup instead.');
+            $this->line('💡 For better performance, install MySQL client tools:');
+            $this->line('   brew install mysql-client');
+            $this->newLine();
         }
 
         return true;
@@ -157,7 +170,7 @@ class SafeBackupCommand extends Command
         } elseif ($this->option('data-only')) {
             return $this->createDataBackup($dbName, $timestamp, $backupDir);
         } else {
-            // Default: use existing service for combined backup
+            // Default: use existing service for combined backup (works without mysqldump)
             return $this->backupService->createBackup();
         }
     }
@@ -243,6 +256,17 @@ class SafeBackupCommand extends Command
      */
     protected function runProcess(array $command): string
     {
+        // Use absolute path for git commands
+        if ($command[0] === 'git') {
+            $gitPaths = ['/usr/bin/git', '/opt/homebrew/bin/git', '/usr/local/bin/git'];
+            foreach ($gitPaths as $gitPath) {
+                if (file_exists($gitPath) && is_executable($gitPath)) {
+                    $command[0] = $gitPath;
+                    break;
+                }
+            }
+        }
+        
         $process = new Process($command);
         $process->run();
 
