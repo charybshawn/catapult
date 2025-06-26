@@ -72,14 +72,14 @@ class MasterSeedCatalog extends Model
         $cultivarNames = $uniqueCultivars;
 
         // Get existing cultivars for this catalog
-        $existingCultivars = $this->cultivars()->pluck('cultivar_name')->toArray();
+        $existingCultivars = $this->cultivars()->pluck('name')->toArray();
 
         // Create new cultivars that don't exist
         foreach ($cultivarNames as $cultivarName) {
             if (!empty($cultivarName) && !in_array($cultivarName, $existingCultivars)) {
                 try {
                     $this->cultivars()->create([
-                        'cultivar_name' => $cultivarName,
+                        'name' => $cultivarName,
                         'is_active' => true,
                     ]);
                 } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
@@ -92,7 +92,7 @@ class MasterSeedCatalog extends Model
         // Remove cultivars that are no longer in the list
         if (!empty($cultivarNames)) {
             $this->cultivars()
-                ->whereNotIn('cultivar_name', $cultivarNames)
+                ->whereNotIn('name', $cultivarNames)
                 ->delete();
         }
     }

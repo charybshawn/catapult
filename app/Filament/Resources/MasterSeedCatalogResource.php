@@ -67,9 +67,6 @@ class MasterSeedCatalogResource extends Resource
                     ->badge()
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('cultivars_count')
-                    ->counts('cultivars')
-                    ->label('Cultivars'),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
