@@ -21,6 +21,7 @@ class MasterCultivarResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-tag';
     protected static ?string $navigationGroup = 'Products & Inventory';
     protected static ?string $navigationLabel = 'Cultivars';
+    protected static bool $shouldRegisterNavigation = false;
 
     public static function form(Form $form): Form
     {
