@@ -74,15 +74,25 @@ class SafeBackupCommand extends Command
 
         // Step 3: Add all changes
         $this->info('3️⃣ Adding changes to git...');
-        $this->runProcess(['git', 'add', '.']);
-        $this->info('✅ Changes staged');
+        try {
+            $this->runProcess(['git', 'add', '.']);
+            $this->info('✅ Changes staged');
+        } catch (\Exception $e) {
+            $this->error("Failed to stage changes: " . $e->getMessage());
+            return 1;
+        }
 
         // Step 4: Commit changes
         $this->info('4️⃣ Committing changes...');
         $commitMessage = $this->option('commit-message') ?: 'Safe backup: ' . now()->format('Y-m-d H:i:s');
         
-        $this->runProcess(['git', 'commit', '-m', $commitMessage]);
-        $this->info("✅ Changes committed: {$commitMessage}");
+        try {
+            $this->runProcess(['git', 'commit', '-m', $commitMessage]);
+            $this->info("✅ Changes committed: {$commitMessage}");
+        } catch (\Exception $e) {
+            $this->error("Failed to commit changes: " . $e->getMessage());
+            return 1;
+        }
 
         // Step 5: Push to origin (unless --no-push is specified)
         if (!$this->option('no-push')) {
@@ -345,7 +355,7 @@ class SafeBackupCommand extends Command
      */
     protected function runProcess(array $command): string
     {
-        $process = new Process($command);
+        $process = new Process($command, base_path());
         
         // Enhance PATH for web server environment to find git and other tools
         $currentPath = $_SERVER['PATH'] ?? getenv('PATH') ?? '';
