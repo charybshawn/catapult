@@ -159,11 +159,11 @@ class CropResource extends BaseResource
                         DB::raw('MIN(crops.harvested_at) as harvested_at'),
                         DB::raw('AVG(crops.harvest_weight_grams) as harvest_weight_grams'),
                         DB::raw('MIN(crops.time_to_next_stage_minutes) as time_to_next_stage_minutes'),
-                        DB::raw('MIN(crops.time_to_next_stage_display) as time_to_next_stage_display'),
+                        DB::raw('MIN(crops.time_to_next_stage_status) as time_to_next_stage_status'),
                         DB::raw('MIN(crops.stage_age_minutes) as stage_age_minutes'),
-                        DB::raw('MIN(crops.stage_age_display) as stage_age_display'),
+                        DB::raw('MIN(crops.stage_age_status) as stage_age_status'),
                         DB::raw('MIN(crops.total_age_minutes) as total_age_minutes'),
-                        DB::raw('MIN(crops.total_age_display) as total_age_display'),
+                        DB::raw('MIN(crops.total_age_status) as total_age_status'),
                         DB::raw('MIN(crops.expected_harvest_at) as expected_harvest_at'),
                         DB::raw('MIN(crops.watering_suspended_at) as watering_suspended_at'),
                         DB::raw('MIN(crops.notes) as notes'),
@@ -209,21 +209,21 @@ class CropResource extends BaseResource
                     })
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('stage_age_display')
+                Tables\Columns\TextColumn::make('stage_age_status')
                     ->label('Time in Stage')
                     ->getStateUsing(fn ($record): string => $record->getStageAgeStatus())
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('stage_age_minutes', $direction);
                     })
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('time_to_next_stage_display')
+                Tables\Columns\TextColumn::make('time_to_next_stage_status')
                     ->label('Time to Next Stage')
                     ->getStateUsing(fn ($record): string => $record->timeToNextStage())
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('time_to_next_stage_minutes', $direction);
                     })
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('total_age_display')
+                Tables\Columns\TextColumn::make('total_age_status')
                     ->label('Total Age')
                     ->getStateUsing(fn ($record): string => $record->getTotalAgeStatus())
                     ->sortable(query: function (Builder $query, string $direction): Builder {
