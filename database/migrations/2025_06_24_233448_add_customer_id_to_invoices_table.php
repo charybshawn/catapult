@@ -14,7 +14,7 @@ return new class extends Migration
     {
         Schema::table('invoices', function (Blueprint $table) {
             // Add customer_id column
-            $table->foreignId('customer_id')->nullable()->after('user_id')->constrained()->onDelete('cascade');
+            $table->foreignId('customer_id')->nullable()->constrained()->onDelete('cascade');
             
             // Add index for performance
             $table->index('customer_id');
