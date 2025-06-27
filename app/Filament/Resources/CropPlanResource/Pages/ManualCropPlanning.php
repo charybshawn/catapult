@@ -86,7 +86,7 @@ class ManualCropPlanning extends Page
             return;
         }
 
-        $planCalculator = new CropPlanCalculatorService();
+        $planCalculator = app(CropPlanCalculatorService::class);
         $result = $planCalculator->calculateForOrders($this->orders);
         
         $this->plantingPlan = $result['planting_plan'];
