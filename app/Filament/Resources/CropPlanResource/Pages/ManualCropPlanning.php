@@ -67,7 +67,7 @@ class ManualCropPlanning extends Page
         }
 
         $this->orders = Order::with([
-            'user',
+            'customer',
             'orderItems.product.productMix.seedEntries',
             'orderItems.priceVariation.packagingType'
         ])
