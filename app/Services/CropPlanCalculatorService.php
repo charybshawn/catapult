@@ -112,7 +112,7 @@ class CropPlanCalculatorService
             return [
                 'product_name' => 'Unknown Product',
                 'quantity' => $quantity,
-                'fill_weight_grams' => 0,
+                'fill_weight' => 0,
                 'total_grams_needed' => 0,
                 'packaging_type' => 'Unknown',
                 'seed_requirements' => [],
@@ -120,7 +120,7 @@ class CropPlanCalculatorService
         }
 
         // Get fill weight from price variation
-        $fillWeightGrams = $priceVariation?->fill_weight_grams ?? 100; // Default to 100g if not set
+        $fillWeightGrams = $priceVariation?->fill_weight ?? 100; // Default to 100g if not set
         $totalGramsNeeded = $quantity * $fillWeightGrams;
 
         $seedRequirements = [];
@@ -160,7 +160,7 @@ class CropPlanCalculatorService
         return [
             'product_name' => $product->name,
             'quantity' => $quantity,
-            'fill_weight_grams' => $fillWeightGrams,
+            'fill_weight' => $fillWeightGrams,
             'total_grams_needed' => $totalGramsNeeded,
             'packaging_type' => $priceVariation->packagingType?->name ?? 'Unknown',
             'seed_requirements' => $seedRequirements,

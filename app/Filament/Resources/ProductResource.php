@@ -608,7 +608,7 @@ class ProductResource extends BaseResource
                                     ->mapWithKeys(function ($template) {
                                         $packagingName = $template->packagingType?->display_name ?? 'No packaging';
                                         $price = '$' . number_format($template->price, 2);
-                                        $weight = $template->fill_weight_grams ? ' - ' . $template->fill_weight_grams . 'g' : '';
+                                        $weight = $template->fill_weight ? ' - ' . $template->fill_weight . 'g' : '';
                                         
                                         return [$template->id => "{$template->name} ({$packagingName}){$weight} - {$price}"];
                                     });
@@ -691,7 +691,7 @@ class ProductResource extends BaseResource
                                     ->mapWithKeys(function ($template) {
                                         $packagingName = $template->packagingType?->display_name ?? 'No packaging';
                                         $price = '$' . number_format($template->price, 2);
-                                        $weight = $template->fill_weight_grams ? ' - ' . $template->fill_weight_grams . 'g' : '';
+                                        $weight = $template->fill_weight ? ' - ' . $template->fill_weight . 'g' : '';
                                         
                                         return [$template->id => "{$template->name} ({$packagingName}){$weight} - {$price}"];
                                     });
@@ -761,7 +761,7 @@ class ProductResource extends BaseResource
                                 'name' => $template->name,
                                 'packaging_type_id' => $template->packaging_type_id,
                                 'sku' => $template->sku,
-                                'fill_weight_grams' => $template->fill_weight_grams,
+                                'fill_weight' => $template->fill_weight,
                                 'price' => $template->price,
                                 'is_default' => !$hasDefault && $createdCount === 0, // First one becomes default if no default exists
                                 'is_active' => true,

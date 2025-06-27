@@ -102,7 +102,7 @@
                 @php
                     $packagingName = $template->packagingType?->display_name ?? 'No packaging';
                     $price = '$' . number_format($template->price, 2);
-                    $weight = $template->fill_weight_grams ? $template->fill_weight_grams . 'g' : 'No weight';
+                    $weight = $template->fill_weight ? $template->fill_weight . 'g' : 'No weight';
                 @endphp
                 
                 <div 

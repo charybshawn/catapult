@@ -83,7 +83,7 @@
                     '/master-seed-catalogs': 'inventory',
                     '/products': 'products',
                     '/product-mixes': 'products',
-                    '/categories': 'system',
+                    '/categories': 'products',
                     '/database-management': 'system'
                 };
                 

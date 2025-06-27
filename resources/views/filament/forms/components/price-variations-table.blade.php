@@ -44,7 +44,7 @@
                                     editing: false,
                                     packaging_type_id: '{{ $variation->packaging_type_id }}',
                                     sku: '{{ $variation->sku }}',
-                                    fill_weight_grams: '{{ $variation->fill_weight_grams }}',
+                                    fill_weight_grams: '{{ $variation->fill_weight }}',
                                     price: '{{ $variation->price }}'
                                 }">
                                 <td class="px-4 py-4 whitespace-nowrap">
@@ -78,7 +78,7 @@
                                 </td>
                                 <td class="px-4 py-4 whitespace-nowrap">
                                     <div x-show="!editing" class="text-sm text-gray-900 dark:text-gray-100">
-                                        {{ $variation->fill_weight_grams ? number_format($variation->fill_weight_grams, 2) . 'g' : '-' }}
+                                        {{ $variation->fill_weight ? number_format($variation->fill_weight, 2) . 'g' : '-' }}
                                     </div>
                                     <input x-show="editing" 
                                            x-model="fill_weight_grams" 

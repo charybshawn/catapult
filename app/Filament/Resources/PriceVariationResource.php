@@ -168,7 +168,7 @@ class PriceVariationResource extends Resource
                                     ->helperText(function (Forms\Get $get): ?string {
                                         $unit = $get('pricing_unit');
                                         if ($unit && $unit !== 'per_item') {
-                                            $fillWeight = $get('fill_weight_grams');
+                                            $fillWeight = $get('fill_weight');
                                             if ($fillWeight && is_numeric($fillWeight)) {
                                                 $price = $get('price');
                                                 if ($price && is_numeric($price)) {
@@ -220,7 +220,7 @@ class PriceVariationResource extends Resource
                     ->schema([
                         Forms\Components\Grid::make(2)
                             ->schema([
-                                Forms\Components\TextInput::make('fill_weight_grams')
+                                Forms\Components\TextInput::make('fill_weight')
                                     ->label(function (Forms\Get $get): string {
                                         $packagingId = $get('packaging_type_id');
                                         $name = strtolower($get('name') ?? '');
@@ -371,7 +371,7 @@ class PriceVariationResource extends Resource
             }
         } else {
             // Handle package-free variations
-            $fillWeight = $get('fill_weight_grams');
+            $fillWeight = $get('fill_weight');
             if ($fillWeight || $pricingUnit !== 'per_item') {
                 if (str_contains(strtolower($pricingType ?? ''), 'bulk')) {
                     // For bulk, show pricing unit
@@ -456,7 +456,7 @@ class PriceVariationResource extends Resource
                 Tables\Columns\TextColumn::make('sku')
                     ->label('SKU/UPC')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('fill_weight_grams')
+                Tables\Columns\TextColumn::make('fill_weight')
                     ->label('Weight/Qty')
                     ->formatStateUsing(function ($state, $record) {
                         if ($record->is_global && !$state) {
@@ -555,7 +555,7 @@ class PriceVariationResource extends Resource
                             ->label('Variation Name')
                             ->required()
                             ->default(fn ($record) => $record->name),
-                        Forms\Components\TextInput::make('fill_weight_grams')
+                        Forms\Components\TextInput::make('fill_weight')
                             ->label('Fill Weight (grams)')
                             ->numeric()
                             ->minValue(0)
@@ -595,7 +595,7 @@ class PriceVariationResource extends Resource
                             'packaging_type_id' => $record->packaging_type_id,
                             'name' => $data['name'],
                             'sku' => $data['sku'],
-                            'fill_weight_grams' => $data['fill_weight_grams'],
+                            'fill_weight' => $data['fill_weight_grams'],
                             'price' => $data['price'],
                             'is_default' => $data['is_default'],
                             'is_global' => false,

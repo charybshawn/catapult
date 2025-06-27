@@ -64,7 +64,7 @@
                                 $isSelected = in_array($template->id, $selectedTemplateIds);
                                 $selectedData = $selectedTemplateData->get($template->id, []);
                                 $currentPrice = $selectedData['price'] ?? $template->price;
-                                $currentFillWeight = $selectedData['fill_weight_grams'] ?? $template->fill_weight_grams ?? 0;
+                                $currentFillWeight = $selectedData['fill_weight_grams'] ?? $template->fill_weight ?? 0;
                             @endphp
                             <tr class="hover:bg-gray-50 dark:hover:bg-gray-700" x-data="{ fillWeight: {{ $currentFillWeight }}, customPrice: {{ $currentPrice }} }">
                                 <td class="px-6 py-4 whitespace-nowrap">
@@ -166,7 +166,7 @@
                                 (was $<span x-text="template.original_price.toFixed(2)"></span>)
                             </span>
                         </span>
-                        <span class="text-gray-500 ml-2" x-show="template.fill_weight_grams" x-text="template.fill_weight_grams + 'g'"></span>
+                        <span class="text-gray-500 ml-2" x-show="template.fill_weight" x-text="template.fill_weight + 'g'"></span>
                         <span x-show="template.original_price && template.price !== template.original_price" 
                               class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 ml-2">
                             Custom Price

@@ -31,7 +31,7 @@ class PriceVariationsTableSeeder extends Seeder
                 'created_at' => '2025-06-24 18:40:05',
                 'updated_at' => '2025-06-24 18:42:41',
                 'packaging_type_id' => 2,
-                'fill_weight_grams' => 70,
+                'fill_weight' => 70,
             ],
             [
                 'id' => 2,
@@ -47,7 +47,7 @@ class PriceVariationsTableSeeder extends Seeder
                 'created_at' => '2025-06-24 18:40:47',
                 'updated_at' => '2025-06-24 18:42:58',
                 'packaging_type_id' => 3,
-                'fill_weight_grams' => 70,
+                'fill_weight' => 70,
             ],
             [
                 'id' => 3,
@@ -63,7 +63,7 @@ class PriceVariationsTableSeeder extends Seeder
                 'created_at' => '2025-06-24 18:44:16',
                 'updated_at' => '2025-06-24 18:44:16',
                 'packaging_type_id' => null,
-                'fill_weight_grams' => null,
+                'fill_weight' => null,
             ],
             [
                 'id' => 4,
@@ -79,7 +79,7 @@ class PriceVariationsTableSeeder extends Seeder
                 'created_at' => '2025-06-24 18:44:47',
                 'updated_at' => '2025-06-24 18:44:47',
                 'packaging_type_id' => null,
-                'fill_weight_grams' => null,
+                'fill_weight' => null,
             ],
             [
                 'id' => 5,
@@ -95,7 +95,7 @@ class PriceVariationsTableSeeder extends Seeder
                 'created_at' => '2025-06-24 18:45:58',
                 'updated_at' => '2025-06-24 18:46:21',
                 'packaging_type_id' => null,
-                'fill_weight_grams' => 80,
+                'fill_weight' => 80,
             ],
             [
                 'id' => 7,
@@ -111,7 +111,7 @@ class PriceVariationsTableSeeder extends Seeder
                 'created_at' => '2025-06-24 18:45:58',
                 'updated_at' => '2025-06-24 18:45:58',
                 'packaging_type_id' => null,
-                'fill_weight_grams' => null,
+                'fill_weight' => null,
             ],
             [
                 'id' => 8,
@@ -127,7 +127,7 @@ class PriceVariationsTableSeeder extends Seeder
                 'created_at' => '2025-06-24 18:45:58',
                 'updated_at' => '2025-06-24 18:45:58',
                 'packaging_type_id' => null,
-                'fill_weight_grams' => null,
+                'fill_weight' => null,
             ],
         ]);
     }

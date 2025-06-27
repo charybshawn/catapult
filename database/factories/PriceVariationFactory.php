@@ -28,7 +28,7 @@ class PriceVariationFactory extends Factory
             'product_id' => Product::factory(),
             'name' => $selectedType,
             'sku' => strtoupper($this->faker->lexify('??###')),
-            'fill_weight_grams' => $this->getWeightForType($selectedType),
+            'fill_weight' => $this->getWeightForType($selectedType),
             'price' => $this->faker->randomFloat(2, 2, 25),
             'is_default' => false,
             'is_global' => $this->faker->boolean(30),
@@ -44,7 +44,7 @@ class PriceVariationFactory extends Factory
         return $this->state([
             'is_default' => true,
             'name' => '4oz Container',
-            'fill_weight_grams' => 113.4,
+            'fill_weight' => 113.4,
         ]);
     }
 
@@ -55,7 +55,7 @@ class PriceVariationFactory extends Factory
     {
         return $this->state([
             'name' => 'Bulk/lb',
-            'fill_weight_grams' => 453.6,
+            'fill_weight' => 453.6,
             'price' => $this->faker->randomFloat(2, 8, 20),
         ]);
     }
@@ -67,7 +67,7 @@ class PriceVariationFactory extends Factory
     {
         return $this->state([
             'name' => "{$size} Container",
-            'fill_weight_grams' => $this->getWeightForSize($size),
+            'fill_weight' => $this->getWeightForSize($size),
         ]);
     }
 
