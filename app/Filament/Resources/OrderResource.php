@@ -228,10 +228,12 @@ class OrderResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn ($query) => $query->with(['customer', 'orderItems']))
             ->persistFiltersInSession()
             ->persistSortInSession()
             ->persistColumnSearchesInSession()
-            ->persistSearchInSession()            ->columns([
+            ->persistSearchInSession()
+            ->columns([
                 Tables\Columns\TextColumn::make('id')
                     ->label('Order ID')
                     ->sortable(),
@@ -436,7 +438,7 @@ class OrderResource extends Resource
                     ->requiresConfirmation()
                     ->modalHeading('Generate Next Recurring Order')
                     ->modalDescription(fn (Order $record) => 
-                        "This will create the next order in the recurring series for {$record->user->name}."
+                        "This will create the next order in the recurring series for {$record->customer->contact_name}."
                     )
                     ->action(function (Order $record) {
                         try {
@@ -477,14 +479,14 @@ class OrderResource extends Resource
                     ->visible(fn (Order $record): bool => 
                         $record->status !== 'template' && 
                         $record->status !== 'cancelled' &&
-                        $record->user->isWholesaleCustomer() &&
+                        $record->customer->isWholesaleCustomer() &&
                         $record->orderItems->isNotEmpty()
                     )
                     ->requiresConfirmation()
                     ->modalHeading('Recalculate Order Prices')
                     ->modalDescription(function (Order $record) {
                         $currentTotal = $record->totalAmount();
-                        $discount = $record->user->wholesale_discount_percentage ?? 0;
+                        $discount = $record->customer->wholesale_discount_percentage ?? 0;
                         return "This will recalculate all item prices using the current wholesale discount ({$discount}%). Current total: $" . number_format($currentTotal, 2);
                     })
                     ->action(function (Order $record) {
@@ -499,7 +501,7 @@ class OrderResource extends Resource
                                 
                                 // Get current price for this customer
                                 $currentPrice = $item->product->getPriceForSpecificCustomer(
-                                    $record->user,
+                                    $record->customer,
                                     $item->price_variation_id
                                 );
                                 
