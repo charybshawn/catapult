@@ -24,6 +24,9 @@ class CropPlanCalculatorService
      */
     public function calculateForOrders(Collection $orders): array
     {
+        // Pre-load all required relationships to avoid N+1 queries
+        $orders->load(['orderItems.product.productMix.seedEntries', 'orderItems.priceVariation', 'customer', 'user']);
+        
         $seedRequirements = [];
         $calculationDetails = [];
 
@@ -46,7 +49,7 @@ class CropPlanCalculatorService
                 $seedRequirements[$seedEntryId]['total_trays_needed'] += $requirement['trays_needed'];
                 $seedRequirements[$seedEntryId]['orders'][] = [
                     'order_id' => $order->id,
-                    'customer' => $order->user->name,
+                    'customer' => $order->customer ? $order->customer->contact_name : ($order->user ? $order->user->name : 'Unknown'),
                     'grams' => $requirement['grams_needed'],
                     'trays' => $requirement['trays_needed'],
                 ];
@@ -64,6 +67,11 @@ class CropPlanCalculatorService
      */
     public function calculateForOrder(Order $order): array
     {
+        // Ensure required relationships are loaded to avoid lazy loading
+        if (!$order->relationLoaded('orderItems')) {
+            $order->load(['orderItems.product.productMix.seedEntries', 'orderItems.priceVariation', 'customer', 'user']);
+        }
+        
         $seedRequirements = [];
         $orderItems = [];
 
@@ -90,7 +98,7 @@ class CropPlanCalculatorService
 
         return [
             'order_id' => $order->id,
-            'customer' => $order->user->name,
+            'customer' => $order->customer ? $order->customer->contact_name : ($order->user ? $order->user->name : 'Unknown'),
             'delivery_date' => $order->delivery_date->format('Y-m-d'),
             'order_items' => $orderItems,
             'seed_requirements' => $seedRequirements,
@@ -206,7 +214,7 @@ class CropPlanCalculatorService
     {
         // Try to find by exact name match first
         $seedEntry = SeedEntry::where('common_name', $product->name)
-            ->orWhere('scientific_name', $product->name)
+            ->orWhere('cultivar_name', $product->name)
             ->first();
 
         if (! $seedEntry) {

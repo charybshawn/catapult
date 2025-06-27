@@ -28,6 +28,7 @@ use App\Filament\Widgets\TimeCardSummaryWidget;
 use App\Http\Middleware\TimeTrackingMiddleware;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Blade;
+use Saade\FilamentFullCalendar\FilamentFullCalendarPlugin;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -67,6 +68,9 @@ class AdminPanelProvider extends PanelProvider
             ->homeUrl('/admin')
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->viteTheme('resources/css/filament/admin/theme.css')
+            ->plugins([
+                FilamentFullCalendarPlugin::make(),
+            ])
             ->widgets([
                 // Removed AccountWidget to hide welcome message and sign out button
                 TimeCardSummaryWidget::class,

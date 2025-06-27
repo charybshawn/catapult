@@ -26,6 +26,11 @@ Route::middleware('auth')->group(function () {
     // Dashboard AJAX endpoint
     Route::get('/admin/dashboard/data', [\App\Filament\Pages\Dashboard::class, 'getDashboardDataAjax'])->name('dashboard.data');
     
+    // Admin-specific routes that need Filament middleware
+    Route::middleware(['web'])->prefix('admin')->group(function () {
+        Route::post('/generate-crop-plan/{order}', [\App\Http\Controllers\CropPlanningController::class, 'generateCropPlan'])->name('crop-planning.generate');
+    });
+    
     
 });
 

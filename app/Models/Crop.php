@@ -102,6 +102,11 @@ class Crop extends Model
      */
     public function seedEntry(): ?SeedEntry
     {
+        // Ensure recipe relationship is loaded to avoid lazy loading
+        if (!$this->relationLoaded('recipe')) {
+            $this->load('recipe.seedEntry');
+        }
+        
         if ($this->recipe) {
             return $this->recipe->seedEntry;
         }
@@ -129,18 +134,15 @@ class Crop extends Model
      */
     public function getVarietyNameAttribute(): ?string
     {
+        // Ensure recipe relationship is loaded to avoid lazy loading
+        if (!$this->relationLoaded('recipe')) {
+            $this->load('recipe.seedEntry');
+        }
+        
         if ($this->recipe && $this->recipe->seedEntry) {
             return $this->recipe->seedEntry->cultivar_name;
         }
         
-        // If the recipe is not eager loaded, fetch it directly
-        if ($this->recipe_id) {
-            $recipe = Recipe::find($this->recipe_id);
-            
-            if ($recipe && $recipe->seedEntry) {
-                return $recipe->seedEntry->cultivar_name;
-            }
-        }
         return null;
     }
     

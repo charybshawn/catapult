@@ -162,6 +162,12 @@ class CropPlanResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query) => $query->with([
+                'order.customer',
+                'recipe.seedEntry',
+                'createdBy',
+                'approvedBy'
+            ]))
             ->persistFiltersInSession()
             ->persistSortInSession()
             ->persistColumnSearchesInSession()

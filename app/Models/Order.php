@@ -215,6 +215,11 @@ class Order extends Model
      */
     public function totalAmount(): float
     {
+        // Ensure orderItems are loaded to avoid lazy loading
+        if (!$this->relationLoaded('orderItems')) {
+            $this->load('orderItems');
+        }
+        
         return $this->orderItems->sum(function ($item) {
             return $item->quantity * $item->price;
         });
@@ -410,6 +415,14 @@ class Order extends Model
         }
         
         $newOrder->save();
+        
+        // Ensure relationships are loaded to avoid lazy loading in the loop
+        if (!$this->relationLoaded('orderItems')) {
+            $this->load(['orderItems.product', 'orderItems.priceVariation']);
+        }
+        if (!$newOrder->relationLoaded('customer')) {
+            $newOrder->load('customer');
+        }
         
         // Copy order items with recalculated prices
         foreach ($this->orderItems as $item) {

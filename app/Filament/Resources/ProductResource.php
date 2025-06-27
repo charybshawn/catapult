@@ -45,6 +45,12 @@ class ProductResource extends BaseResource
     public static function table(Table $table): Table
     {
         return static::configureTableDefaults($table)
+            ->modifyQueryUsing(fn (Builder $query) => $query->with([
+                'category',
+                'masterSeedCatalog',
+                'productMix',
+                'priceVariations.packagingType'
+            ]))
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->searchable(),

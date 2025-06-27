@@ -545,11 +545,21 @@ class Product extends Model
     public function getVarietiesAttribute()
     {
         if ($this->master_seed_catalog_id) {
+            // Ensure masterSeedCatalog is loaded to avoid lazy loading
+            if (!$this->relationLoaded('masterSeedCatalog')) {
+                $this->load('masterSeedCatalog');
+            }
             // Single variety product
             return collect([$this->masterSeedCatalog]);
-        } elseif ($this->product_mix_id && $this->productMix) {
-            // Mix product - return all varieties in the mix
-            return $this->productMix->masterSeedCatalogs;
+        } elseif ($this->product_mix_id) {
+            // Ensure productMix and its catalogs are loaded to avoid lazy loading
+            if (!$this->relationLoaded('productMix')) {
+                $this->load('productMix.masterSeedCatalogs');
+            }
+            if ($this->productMix) {
+                // Mix product - return all varieties in the mix
+                return $this->productMix->masterSeedCatalogs;
+            }
         }
         
         return collect();
