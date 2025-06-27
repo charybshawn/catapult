@@ -116,6 +116,14 @@ class Customer extends Model
     }
 
     /**
+     * Check if this customer is a wholesale customer.
+     */
+    public function isWholesaleCustomer(): bool
+    {
+        return $this->customer_type === 'wholesale';
+    }
+
+    /**
      * Get the effective discount percentage for this customer.
      */
     public function getEffectiveDiscountAttribute(): float
