@@ -509,13 +509,8 @@ class ProductResource extends BaseResource
                             Forms\Components\Select::make('master_seed_catalog_id')
                                 ->label('Single Variety')
                                 ->options(function () {
-                                    // Get master catalog entries that have seed inventory
-                                    return \App\Models\MasterSeedCatalog::whereHas('consumables', function ($query) {
-                                        $query->where('type', 'seed')
-                                            ->where('is_active', true)
-                                            ->whereRaw('(total_quantity - consumed_quantity) > 0');
-                                    })
-                                    ->where('is_active', true)
+                                    // Get all active master catalog entries
+                                    return \App\Models\MasterSeedCatalog::where('is_active', true)
                                     ->orderBy('common_name', 'asc')
                                     ->get()
                                     ->mapWithKeys(function ($catalog) {
@@ -533,7 +528,7 @@ class ProductResource extends BaseResource
                                 ->helperText(fn (Forms\Get $get): string => 
                                     !empty($get('product_mix_id')) 
                                         ? 'Disabled: Product already has a mix assigned' 
-                                        : 'Select variety from master catalog with available inventory'
+                                        : 'Select variety from master catalog'
                                 ),
                             Forms\Components\Select::make('product_mix_id')
                                 ->label('Product Mix')

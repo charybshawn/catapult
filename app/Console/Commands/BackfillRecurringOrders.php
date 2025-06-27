@@ -270,7 +270,7 @@ class BackfillRecurringOrders extends Command
     private function calculateBillingPeriod(Carbon $deliveryDate, Order $template): string
     {
         return match($template->order_type) {
-            'b2b_recurring' => $deliveryDate->format('Y-m'),
+            'b2b' => $deliveryDate->format('Y-m'),
             'farmers_market', 'farmers_market_recurring' => $deliveryDate->format('Y-\WW'),
             'csa_recurring' => $deliveryDate->format('Y-m'),
             'weekly_box_recurring' => $deliveryDate->format('Y-\WW'),

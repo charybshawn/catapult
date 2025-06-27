@@ -107,7 +107,7 @@ class GenerateConsolidatedInvoices extends Command
     protected function getCustomersNeedingConsolidatedInvoices(Carbon $forDate)
     {
         return \App\Models\User::whereHas('orders', function ($query) use ($forDate) {
-            $query->where('order_type', 'b2b_recurring')
+            $query->where('order_type', 'b2b')
                 ->where('billing_frequency', '<>', 'immediate')
                 ->where('requires_invoice', true)
                 ->whereNull('consolidated_invoice_id')
@@ -133,7 +133,7 @@ class GenerateConsolidatedInvoices extends Command
     protected function getOrdersToConsolidate(\App\Models\User $customer, Carbon $forDate)
     {
         return $customer->orders()
-            ->where('order_type', 'b2b_recurring')
+            ->where('order_type', 'b2b')
             ->where('billing_frequency', '<>', 'immediate')
             ->where('requires_invoice', true)
             ->whereNull('consolidated_invoice_id')

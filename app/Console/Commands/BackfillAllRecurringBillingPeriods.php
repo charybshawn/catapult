@@ -15,7 +15,7 @@ class BackfillAllRecurringBillingPeriods extends Command
      */
     protected $signature = 'orders:backfill-all-recurring-billing-periods 
                             {--dry-run : Show what would be updated without making changes}
-                            {--order-type= : Only process specific order type (b2b_recurring, farmers_market_recurring, etc.)}
+                            {--order-type= : Only process specific order type (b2b, farmers_market_recurring, etc.)}
                             {--start-date= : Only process orders from this date onwards (YYYY-MM-DD)}';
 
     /**
@@ -132,7 +132,7 @@ class BackfillAllRecurringBillingPeriods extends Command
         
         // Different billing period logic based on order type
         return match($order->order_type) {
-            'b2b_recurring' => $this->calculateB2BBillingPeriod($orderDate, $order),
+            'b2b' => $this->calculateB2BBillingPeriod($orderDate, $order),
             'farmers_market_recurring', 'farmers_market' => $this->calculateFarmersMarketBillingPeriod($orderDate, $order),
             'csa_recurring' => $this->calculateCSABillingPeriod($orderDate, $order),
             'weekly_box_recurring' => $this->calculateWeeklyBoxBillingPeriod($orderDate, $order),

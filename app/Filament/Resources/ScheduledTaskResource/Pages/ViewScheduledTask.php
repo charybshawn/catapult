@@ -137,7 +137,7 @@ class ViewScheduledTask extends ViewRecord
             ],
             'orders:backfill-all-recurring-billing-periods' => [
                 '--dry-run' => 'Show what would be updated without making changes',
-                '--order-type=TYPE' => 'Only process specific order type (b2b_recurring, farmers_market_recurring, etc.)',
+                '--order-type=TYPE' => 'Only process specific order type (b2b, farmers_market_recurring, etc.)',
                 '--start-date=YYYY-MM-DD' => 'Only process orders from this date onwards',
             ],
             'orders:backfill-recurring' => [

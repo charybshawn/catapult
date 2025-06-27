@@ -31,7 +31,7 @@ class OrderFactory extends Factory
             'crop_status' => $this->faker->randomElement(['not_started', 'planted', 'growing', 'ready_to_harvest', 'harvested', 'na']),
             'fulfillment_status' => $this->faker->randomElement(['pending', 'processing', 'packing', 'packed', 'ready_for_delivery', 'out_for_delivery', 'delivered', 'cancelled']),
             'customer_type' => $this->faker->randomElement(['retail', 'wholesale']),
-            'order_type' => $this->faker->randomElement(['website_immediate', 'farmers_market', 'b2b', 'b2b_recurring']),
+            'order_type' => $this->faker->randomElement(['website_immediate', 'farmers_market', 'b2b']),
             'billing_frequency' => $this->faker->randomElement(['immediate', 'weekly', 'monthly', 'quarterly']),
             'requires_invoice' => $this->faker->boolean(80),
             'is_recurring' => false,
@@ -70,7 +70,7 @@ class OrderFactory extends Factory
     public function b2bRecurring(): static
     {
         return $this->recurring()->state([
-            'order_type' => 'b2b_recurring',
+            'order_type' => 'b2b',
             'billing_frequency' => $this->faker->randomElement(['weekly', 'monthly', 'quarterly']),
             'requires_invoice' => true,
         ]);

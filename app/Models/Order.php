@@ -20,7 +20,6 @@ class Order extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'user_id',
         'customer_id',
         'harvest_date',
         'delivery_date',
@@ -91,23 +90,23 @@ class Order extends Model
             }
             
             // Automatically set status to template when marked as recurring (but not for B2B orders)
-            if ($order->is_recurring && !in_array($order->order_type, ['b2b', 'b2b_recurring']) && $order->status !== 'template') {
+            if ($order->is_recurring && $order->order_type !== 'b2b' && $order->status !== 'template') {
                 $order->status = 'template';
             } elseif (!$order->is_recurring && $order->status === 'template') {
                 // If no longer recurring, change status from template to pending
                 $order->status = 'pending';
             }
             
-            // Automatically set customer_type from user if not set
-            if (!$order->customer_type && $order->user_id) {
-                $user = $order->user_id ? User::find($order->user_id) : null;
-                if ($user) {
-                    $order->customer_type = $user->customer_type ?? 'retail';
+            // Automatically set customer_type from customer if not set
+            if (!$order->customer_type && $order->customer_id) {
+                $customer = $order->customer_id ? \App\Models\Customer::find($order->customer_id) : null;
+                if ($customer) {
+                    $order->customer_type = $customer->customer_type ?? 'retail';
                 }
             }
             
             // Set billing periods for B2B orders
-            if (in_array($order->order_type, ['b2b', 'b2b_recurring']) && 
+            if ($order->order_type === 'b2b' && 
                 $order->billing_frequency !== 'immediate' && 
                 $order->delivery_date &&
                 (!$order->billing_period_start || !$order->billing_period_end)) {
@@ -136,13 +135,6 @@ class Order extends Model
         });
     }
     
-    /**
-     * Get the user (customer) for this order.
-     */
-    public function user(): BelongsTo
-    {
-        return $this->belongsTo(User::class);
-    }
     
     /**
      * Get the customer for this order.
@@ -321,7 +313,7 @@ class Order extends Model
      */
     public function isB2BRecurringTemplate(): bool
     {
-        return in_array($this->order_type, ['b2b', 'b2b_recurring']) && 
+        return $this->order_type === 'b2b' && 
                $this->is_recurring && 
                $this->parent_recurring_order_id === null;
     }
@@ -424,9 +416,9 @@ class Order extends Model
             $currentPrice = $item->price; // Default to original price
             
             // Recalculate price based on current customer and product pricing
-            if ($item->product && $newOrder->user) {
+            if ($item->product && $newOrder->customer) {
                 $currentPrice = $item->product->getPriceForSpecificCustomer(
-                    $newOrder->user, 
+                    $newOrder->customer, 
                     $item->price_variation_id
                 );
             }
@@ -491,8 +483,8 @@ class Order extends Model
             return $value;
         }
         
-        // Otherwise get from user
-        return $this->user?->customer_type ?? 'retail';
+        // Otherwise get from customer
+        return $this->customer?->customer_type ?? 'retail';
     }
     
     /**
@@ -515,8 +507,7 @@ class Order extends Model
         return match($this->order_type) {
             'farmers_market' => 'Farmer\'s Market',
             'b2b' => 'B2B',
-            'b2b_recurring' => 'B2B', // Legacy support
-            'website_immediate' => 'Website Order',
+            'website' => 'Website Order',
             default => 'Website Order',
         };
     }
@@ -540,7 +531,7 @@ class Order extends Model
      */
     public function requiresImmediateInvoicing(): bool
     {
-        return $this->order_type === 'website_immediate' || 
+        return $this->order_type === 'website' || 
                $this->billing_frequency === 'immediate';
     }
     
@@ -549,7 +540,7 @@ class Order extends Model
      */
     public function isConsolidatedBilling(): bool
     {
-        return in_array($this->order_type, ['b2b', 'b2b_recurring']) && 
+        return $this->order_type === 'b2b' && 
                in_array($this->billing_frequency, ['weekly', 'monthly', 'quarterly']);
     }
     
@@ -662,7 +653,7 @@ class Order extends Model
     {
         return LogOptions::defaults()
             ->logOnly([
-                'user_id', 'harvest_date', 'delivery_date', 'status', 'crop_status', 
+                'customer_id', 'harvest_date', 'delivery_date', 'status', 'crop_status', 
                 'fulfillment_status', 'customer_type', 'is_recurring', 'recurring_frequency', 
                 'recurring_start_date', 'recurring_end_date', 'is_recurring_active', 'notes'
             ])

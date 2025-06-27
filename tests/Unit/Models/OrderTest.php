@@ -116,7 +116,7 @@ class OrderTest extends TestCase
     }
 
     /** @test */
-    public function it_correctly_identifies_b2b_recurring_templates()
+    public function it_correctly_identifies_b2b_templates()
     {
         $b2bRecurring = Order::factory()->b2bRecurring()->create();
         $regularRecurring = Order::factory()->recurring()->create([

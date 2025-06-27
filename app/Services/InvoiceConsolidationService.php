@@ -52,7 +52,7 @@ class InvoiceConsolidationService
     protected function getCustomersNeedingConsolidatedInvoices(Carbon $forDate): Collection
     {
         return User::whereHas('orders', function ($query) use ($forDate) {
-            $query->where('order_type', 'b2b_recurring')
+            $query->where('order_type', 'b2b')
                 ->where('billing_frequency', '<>', 'immediate')
                 ->where('requires_invoice', true)
                 ->whereNull('consolidated_invoice_id')
@@ -111,7 +111,7 @@ class InvoiceConsolidationService
     protected function getOrdersToConsolidate(User $customer, Carbon $forDate): Collection
     {
         return $customer->orders()
-            ->where('order_type', 'b2b_recurring')
+            ->where('order_type', 'b2b')
             ->where('billing_frequency', '<>', 'immediate')
             ->where('requires_invoice', true)
             ->whereNull('consolidated_invoice_id')
@@ -180,7 +180,7 @@ class InvoiceConsolidationService
      */
     public function setBillingPeriodForOrder(Order $order): void
     {
-        if ($order->order_type !== 'b2b_recurring' || $order->billing_frequency === 'immediate') {
+        if ($order->order_type !== 'b2b' || $order->billing_frequency === 'immediate') {
             return;
         }
         
