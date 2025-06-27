@@ -228,7 +228,7 @@ class OrderResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with(['customer', 'orderItems']))
+            ->modifyQueryUsing(fn ($query) => $query->with(['customer', 'orderItems', 'invoice']))
             ->persistFiltersInSession()
             ->persistSortInSession()
             ->persistColumnSearchesInSession()
