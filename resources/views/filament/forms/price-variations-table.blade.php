@@ -12,7 +12,9 @@
     // Get variations if we have a product - always fetch fresh from database
     $variations = collect();
     if ($product && $product->exists) {
-        $variations = \App\Models\PriceVariation::where('product_id', $product->id)->get();
+        $variations = \App\Models\PriceVariation::where('product_id', $product->id)
+            ->with('packagingType')
+            ->get();
     }
 @endphp
 
@@ -53,13 +55,19 @@
                     @foreach($variations as $variation)
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-800" x-data="{ editing: false }">
                             <td class="px-4 py-4 whitespace-nowrap">
-                                <div class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                <div x-show="!editing" class="text-sm font-medium text-gray-900 dark:text-gray-100">
                                     @php
                                         // Use the stored variation name or fallback to 'Default'
                                         $displayName = $variation->name ?: 'Default';
                                     @endphp
                                     {{ $displayName }}
                                 </div>
+                                <input x-show="editing" 
+                                       x-model="name" 
+                                       type="text" 
+                                       class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                                       x-init="name = '{{ $displayName }}'"
+                                       x-cloak>
                             </td>
                             <td class="px-4 py-4 whitespace-nowrap">
                                 <div x-show="!editing" class="text-sm text-gray-900 dark:text-gray-100">
@@ -89,14 +97,14 @@
                             </td>
                             <td class="px-4 py-4 whitespace-nowrap">
                                 <div x-show="!editing" class="text-sm text-gray-900 dark:text-gray-100">
-                                    {{ $variation->fill_weight_grams ? number_format($variation->fill_weight_grams, 2) . 'g' : '-' }}
+                                    {{ $variation->fill_weight ? number_format($variation->fill_weight, 2) . 'g' : '-' }}
                                 </div>
                                 <input x-show="editing" 
                                        x-model="fill_weight_grams" 
                                        type="number" 
                                        step="0.01"
                                        class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                                       x-init="fill_weight_grams = '{{ $variation->fill_weight_grams }}'"
+                                       x-init="fill_weight_grams = '{{ $variation->fill_weight }}'"
                                        x-cloak>
                             </td>
                             <td class="px-4 py-4 whitespace-nowrap">
@@ -152,6 +160,7 @@
                                             x-show="editing" 
                                             @click="
                                                 Livewire.find('{{ $livewire->getId() }}').updateVariation({{ $variation->id }}, {
+                                                    name: name,
                                                     packaging_type_id: packaging_type_id,
                                                     sku: sku,
                                                     fill_weight_grams: fill_weight_grams,
