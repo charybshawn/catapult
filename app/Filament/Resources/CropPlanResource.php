@@ -43,9 +43,11 @@ class CropPlanResource extends Resource
                             ->schema([
                                 Forms\Components\Select::make('order_id')
                                     ->label('Order')
-                                    ->relationship('order', 'id')
+                                    ->relationship('order', 'id', function ($query) {
+                                        return $query->with('customer');
+                                    })
                                     ->getOptionLabelFromRecordUsing(function ($record) {
-                                        $customerName = $record->user->name ?? 'Unknown';
+                                        $customerName = $record->customer->contact_name ?? 'Unknown';
 
                                         return "Order #{$record->id} - {$customerName}";
                                     })
@@ -174,7 +176,7 @@ class CropPlanResource extends Resource
                     ->url(fn ($record) => route('filament.admin.resources.orders.edit', $record->order_id))
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('order.user.name')
+                Tables\Columns\TextColumn::make('order.customer.contact_name')
                     ->label('Customer')
                     ->searchable()
                     ->sortable(),
