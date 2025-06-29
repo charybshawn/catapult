@@ -12,16 +12,19 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('seed_variations', function (Blueprint $table) {
-            // Rename and add columns to match import expectations
-            $table->renameColumn('size', 'size_description');
-            $table->renameColumn('unit', 'original_weight_unit');
-            $table->renameColumn('is_available', 'is_in_stock');
+            // Keep original column names from main branch
+            // Only add new columns needed for import functionality
             
             // Add missing columns
             $table->string('sku')->nullable()->after('seed_entry_id');
-            $table->decimal('weight_kg', 8, 4)->nullable()->after('size_description');
+            $table->decimal('weight_kg', 8, 4)->nullable()->after('size');
             $table->decimal('original_weight_value', 8, 4)->nullable()->after('weight_kg');
+            $table->string('original_weight_unit')->nullable()->after('original_weight_value');
             $table->string('currency', 3)->default('USD')->after('current_price');
+            
+            // Add alias columns for backward compatibility if needed
+            $table->string('size_description')->virtualAs('size')->nullable();
+            $table->boolean('is_in_stock')->virtualAs('is_available')->nullable();
         });
     }
 
@@ -31,16 +34,15 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('seed_variations', function (Blueprint $table) {
-            // Reverse the column renames
-            $table->renameColumn('size_description', 'size');
-            $table->renameColumn('original_weight_unit', 'unit');
-            $table->renameColumn('is_in_stock', 'is_available');
+            // Drop virtual columns
+            $table->dropColumn(['size_description', 'is_in_stock']);
             
             // Drop added columns
             $table->dropColumn([
                 'sku',
                 'weight_kg', 
                 'original_weight_value',
+                'original_weight_unit',
                 'currency'
             ]);
         });

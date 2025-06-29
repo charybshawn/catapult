@@ -271,7 +271,7 @@ class RecipeResource extends Resource
                     ->label('Status')
                     ->options([
                         '1' => 'Active',
-                        '0' => 'Inactive',
+                        'unit' => 'Inactive',
                     ]),
                     
                 Tables\Filters\SelectFilter::make('seed_entry_id')

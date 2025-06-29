@@ -19,7 +19,7 @@ class SeedVariation extends Model
         static::saving(function ($variation) {
             // Validate price is reasonable (allow null for out-of-stock items)
             if ($variation->current_price !== null && ($variation->current_price <= 0 || $variation->current_price > 50000)) {
-                throw new \InvalidArgumentException('Price must be between $0.01 and $50,000, or null for out-of-stock items');
+                throw new \InvalidArgumentException('Price must be between $unit.01 and $50,000, or null for out-of-stock items');
             }
             
             // Validate weight is positive if provided
@@ -41,7 +41,7 @@ class SeedVariation extends Model
                         'price_per_kg' => $pricePerKg,
                         'price' => $variation->current_price,
                         'weight_kg' => $variation->weight_kg,
-                        'size_description' => $variation->size_description
+                        'size' => $variation->size
                     ]);
                 }
                 if ($pricePerKg < 1) {
@@ -50,7 +50,7 @@ class SeedVariation extends Model
                         'price_per_kg' => $pricePerKg,
                         'price' => $variation->current_price,
                         'weight_kg' => $variation->weight_kg,
-                        'size_description' => $variation->size_description
+                        'size' => $variation->size
                     ]);
                 }
             }
@@ -59,14 +59,14 @@ class SeedVariation extends Model
 
     protected $fillable = [
         'seed_entry_id', 
-        'size_description', 
+        'size', 
         'sku', 
         'weight_kg',
         'original_weight_value', 
         'original_weight_unit',
         'current_price',
         'currency',
-        'is_in_stock', 
+        'is_available', 
         'last_checked_at',
         'consumable_id'
     ];
@@ -74,7 +74,7 @@ class SeedVariation extends Model
     protected $casts = [
         'weight_kg' => 'decimal:4',
         'current_price' => 'decimal:2',
-        'is_in_stock' => 'boolean',
+        'is_available' => 'boolean',
         'last_checked_at' => 'datetime',
     ];
     

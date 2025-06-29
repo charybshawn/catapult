@@ -12,12 +12,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('seed_price_history', function (Blueprint $table) {
-            // Rename checked_at to scraped_at
-            $table->renameColumn('checked_at', 'scraped_at');
+            // Keep original column name from main branch
+            // Only add new columns needed for import functionality
             
             // Add missing columns
             $table->string('currency', 3)->default('USD')->after('price');
             $table->boolean('is_in_stock')->default(true)->after('currency');
+            
+            // Add virtual column for backward compatibility if needed
+            $table->timestamp('scraped_at')->virtualAs('checked_at')->nullable();
         });
     }
 
@@ -27,8 +30,8 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('seed_price_history', function (Blueprint $table) {
-            // Reverse the column rename
-            $table->renameColumn('scraped_at', 'checked_at');
+            // Drop virtual column
+            $table->dropColumn('scraped_at');
             
             // Drop added columns
             $table->dropColumn([

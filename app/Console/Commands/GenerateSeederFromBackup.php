@@ -259,7 +259,7 @@ class GenerateSeederFromBackup extends Command
         }
 
         // Add the last value
-        if (!empty($current) || $current === '0') {
+        if (!empty($current) || $current === 'unit') {
             $values[] = $this->normalizeValue(trim($current));
         }
 
@@ -277,7 +277,7 @@ class GenerateSeederFromBackup extends Command
         }
 
         // Handle boolean values
-        if ($value === '1' || $value === '0') {
+        if ($value === '1' || $value === 'unit') {
             return (int) $value;
         }
 
