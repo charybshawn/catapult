@@ -14,17 +14,13 @@ class SupplierSourceMapping extends Model
         'source_url',
         'domain', 
         'supplier_id',
-        'source_name',
-        'source_identifier',
-        'mapping_data',
         'is_active',
         'metadata'
     ];
     
     protected $casts = [
         'is_active' => 'boolean',
-        'metadata' => 'array',
-        'mapping_data' => 'array'
+        'metadata' => 'array'
     ];
     
     /**
@@ -52,8 +48,8 @@ class SupplierSourceMapping extends Model
             return $mapping;
         }
         
-        // Try domain match using source_identifier
-        return self::where('source_identifier', $domain)
+        // Try domain match
+        return self::where('domain', $domain)
             ->where('is_active', true)
             ->first();
     }
@@ -70,15 +66,13 @@ class SupplierSourceMapping extends Model
         return self::updateOrCreate(
             [
                 'supplier_id' => $supplierId,
-                'source_identifier' => $domain
+                'domain' => $domain
             ],
             [
                 'source_url' => $sourceUrl,
                 'domain' => $domain,
-                'source_name' => $domainName,
                 'is_active' => true,
-                'metadata' => $metadata,
-                'mapping_data' => $metadata // Store in both fields for now
+                'metadata' => $metadata
             ]
         );
     }
