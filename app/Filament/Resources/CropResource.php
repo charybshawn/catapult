@@ -628,17 +628,8 @@ class CropResource extends BaseResource
                         $previousStage = $record->getPreviousStage();
                         return 'Rollback to ' . ucfirst($previousStage) . '?';
                     })
-                    ->modalDescription('This will revert all crops in this batch to the previous stage.')
-                    ->form([
-                        Forms\Components\DateTimePicker::make('rollback_timestamp')
-                            ->label('When should this rollback to?')
-                            ->default(now())
-                            ->seconds(false)
-                            ->required()
-                            ->maxDate(now())
-                            ->helperText('Specify when the stage should have started'),
-                    ])
-                    ->action(function (Crop $record, array $data) {
+                    ->modalDescription('This will revert all crops in this batch to the previous stage by removing the current stage timestamp.')
+                    ->action(function (Crop $record) {
                         $previousStage = $record->getPreviousStage();
                         
                         if (!$previousStage) {
@@ -665,7 +656,6 @@ class CropResource extends BaseResource
                             $trayNumbers = $crops->pluck('tray_number')->toArray();
                             
                             // Update all crops in this batch
-                            $rollbackTime = $data['rollback_timestamp'];
                             foreach ($crops as $crop) {
                                 // Clear the timestamp for the current stage
                                 $currentTimestampField = "{$record->current_stage}_at";
@@ -673,12 +663,6 @@ class CropResource extends BaseResource
                                 
                                 // Set the previous stage
                                 $crop->current_stage = $previousStage;
-                                
-                                // Update the timestamp for the previous stage if not already set
-                                $previousTimestampField = "{$previousStage}_at";
-                                if (!$crop->$previousTimestampField) {
-                                    $crop->$previousTimestampField = $rollbackTime;
-                                }
                                 
                                 $crop->save();
                             }
@@ -896,16 +880,7 @@ class CropResource extends BaseResource
                         ->label('Rollback Stage')
                         ->icon('heroicon-o-arrow-uturn-left')
                         ->color('warning')
-                        ->form([
-                            Forms\Components\DateTimePicker::make('rollback_timestamp')
-                                ->label('When should this rollback to?')
-                                ->default(now())
-                                ->seconds(false)
-                                ->required()
-                                ->maxDate(now())
-                                ->helperText('Specify when the stage should have started'),
-                        ])
-                        ->action(function ($records, array $data) {
+                        ->action(function ($records) {
                             $totalCount = 0;
                             $batchCount = 0;
                             $skippedCount = 0;
@@ -927,7 +902,6 @@ class CropResource extends BaseResource
                                         ->get();
                                     
                                     if ($crops->isNotEmpty()) {
-                                        $rollbackTime = $data['rollback_timestamp'];
                                         foreach ($crops as $crop) {
                                             // Clear the timestamp for the current stage
                                             $currentTimestampField = "{$crop->current_stage}_at";
@@ -935,12 +909,6 @@ class CropResource extends BaseResource
                                             
                                             // Set the previous stage
                                             $crop->current_stage = $previousStage;
-                                            
-                                            // Update the timestamp for the previous stage if not already set
-                                            $previousTimestampField = "{$previousStage}_at";
-                                            if (!$crop->$previousTimestampField) {
-                                                $crop->$previousTimestampField = $rollbackTime;
-                                            }
                                             
                                             $crop->save();
                                         }
@@ -973,7 +941,7 @@ class CropResource extends BaseResource
                         })
                         ->requiresConfirmation()
                         ->modalHeading('Rollback Selected Batches?')
-                        ->modalDescription('This will revert all trays in the selected batches to their previous stage.'),
+                        ->modalDescription('This will revert all trays in the selected batches to their previous stage by removing the current stage timestamp.'),
                 ]),
             ]);
     }
