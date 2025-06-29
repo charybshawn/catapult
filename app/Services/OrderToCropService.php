@@ -268,7 +268,7 @@ class OrderToCropService
             'delivery_date' => $deliveryDate,
             'calculation_details' => $calculationDetails,
             'order_items_included' => $orderItemsIncluded,
-            'created_by' => Auth::id(),
+            'created_by' => Auth::id() ?? 2, // Default to admin user for system operations
             'notes' => "Auto-generated from order #{$order->id} requirements",
         ]);
 

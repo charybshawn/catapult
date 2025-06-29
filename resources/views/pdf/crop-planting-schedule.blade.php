@@ -310,8 +310,8 @@
                                     <td>{{ $item->product->name }}</td>
                                     <td>{{ $item->quantity }}</td>
                                     <td>{{ $item->priceVariation?->packagingType?->name ?? 'Unknown' }}</td>
-                                    <td>{{ $item->priceVariation?->fill_weight_grams ?? 100 }}g</td>
-                                    <td>{{ ($item->quantity * ($item->priceVariation?->fill_weight_grams ?? 100)) }}g</td>
+                                    <td>{{ $item->priceVariation?->fill_weight ?? 100 }}g</td>
+                                    <td>{{ ($item->quantity * ($item->priceVariation?->fill_weight ?? 100)) }}g</td>
                                 </tr>
                             @endforeach
                         </tbody>

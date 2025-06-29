@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\OrderResource\Pages;
 use App\Filament\Resources\OrderResource\RelationManagers;
+use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
@@ -48,24 +49,54 @@ class OrderResource extends Resource
     {
         return $form
             ->schema([
+                Forms\Components\Section::make('Order Type')
+                    ->schema([
+                        Forms\Components\Toggle::make('is_recurring')
+                            ->label('Make this a recurring order')
+                            ->helperText('When enabled, this order will generate new orders automatically')
+                            ->reactive()
+                            ->afterStateUpdated(function ($state, callable $set) {
+                                if (!$state) {
+                                    $set('recurring_frequency', null);
+                                    $set('recurring_start_date', null);
+                                    $set('recurring_end_date', null);
+                                }
+                            }),
+                    ]),
+                
                 Forms\Components\Section::make('Order Information')
                     ->schema([
-                        Forms\Components\Select::make('user_id')
+                        Forms\Components\Select::make('customer_id')
                             ->label('Customer')
-                            ->relationship('user', 'name')
+                            ->options(function () {
+                                return \App\Models\Customer::all()
+                                    ->mapWithKeys(function ($customer) {
+                                        $display = $customer->business_name 
+                                            ? $customer->business_name . ' - ' . $customer->contact_name
+                                            : $customer->contact_name;
+                                        return [$customer->id => $display];
+                                    });
+                            })
                             ->searchable()
                             ->preload()
                             ->required()
                             ->createOptionForm([
-                                Forms\Components\TextInput::make('name')
-                                    ->label('Full Name')
+                                Forms\Components\TextInput::make('contact_name')
+                                    ->label('Contact Name')
                                     ->required()
+                                    ->maxLength(255),
+                                Forms\Components\TextInput::make('business_name')
+                                    ->label('Business Name')
                                     ->maxLength(255),
                                 Forms\Components\TextInput::make('email')
                                     ->label('Email Address')
                                     ->email()
                                     ->required()
-                                    ->unique(User::class, 'email'),
+                                    ->unique(Customer::class, 'email'),
+                                Forms\Components\TextInput::make('cc_email')
+                                    ->label('CC Email Address')
+                                    ->email()
+                                    ->maxLength(255),
                                 Forms\Components\TextInput::make('phone')
                                     ->label('Phone Number')
                                     ->tel()
@@ -79,10 +110,6 @@ class OrderResource extends Resource
                                     ->default('retail')
                                     ->required()
                                     ->reactive(),
-                                Forms\Components\TextInput::make('company_name')
-                                    ->label('Company Name')
-                                    ->maxLength(255)
-                                    ->visible(fn (Forms\Get $get) => $get('customer_type') === 'wholesale'),
                                 Forms\Components\TextInput::make('wholesale_discount_percentage')
                                     ->label('Wholesale Discount %')
                                     ->numeric()
@@ -94,46 +121,47 @@ class OrderResource extends Resource
                                 Forms\Components\Textarea::make('address')
                                     ->label('Address')
                                     ->rows(3),
+                                Forms\Components\TextInput::make('city')
+                                    ->label('City')
+                                    ->maxLength(255),
+                                Forms\Components\TextInput::make('province')
+                                    ->label('Province')
+                                    ->maxLength(255),
+                                Forms\Components\TextInput::make('postal_code')
+                                    ->label('Postal Code')
+                                    ->maxLength(20),
+                                Forms\Components\TextInput::make('country')
+                                    ->label('Country')
+                                    ->maxLength(255)
+                                    ->default('Canada'),
                             ])
                             ->createOptionUsing(function (array $data): int {
-                                $data['password'] = bcrypt(Str::random(12));
-                                $data['email_verified_at'] = now();
-                                return User::create($data)->getKey();
+                                return Customer::create($data)->getKey();
                             })
                             ->helperText('Select existing customer or create a new one'),
                         Forms\Components\DatePicker::make('harvest_date')
                             ->label('Harvest Date')
                             ->helperText('When this order should be harvested (used by crop planner)')
-                            ->required(),
+                            ->required(fn (Forms\Get $get) => !$get('is_recurring'))
+                            ->visible(fn (Forms\Get $get) => !$get('is_recurring')),
                         Forms\Components\DatePicker::make('delivery_date')
                             ->label('Delivery Date')
-                            ->required(),
+                            ->required()
+                            ->visible(fn (Forms\Get $get) => !$get('is_recurring')),
                         Forms\Components\Select::make('order_type')
                             ->label('Order Type')
                             ->options([
-                                'website_immediate' => 'Website Order',
+                                'website' => 'Website Order',
                                 'farmers_market' => 'Farmer\'s Market',
-                                'b2b_recurring' => 'B2B',
+                                'b2b' => 'B2B',
                             ])
-                            ->default('website_immediate')
+                            ->default('website')
                             ->required(),
                     ])
                     ->columns(2),
                 
                 Forms\Components\Section::make('Recurring Settings')
                     ->schema([
-                        Forms\Components\Toggle::make('is_recurring')
-                            ->label('Make this a recurring order')
-                            ->helperText('When enabled, this order will generate new orders automatically')
-                            ->reactive()
-                            ->afterStateUpdated(function ($state, callable $set) {
-                                if (!$state) {
-                                    $set('recurring_frequency', null);
-                                    $set('recurring_start_date', null);
-                                    $set('recurring_end_date', null);
-                                }
-                            }),
-                        
                         Forms\Components\Grid::make(3)
                             ->schema([
                                 Forms\Components\Select::make('recurring_frequency')
@@ -143,24 +171,19 @@ class OrderResource extends Resource
                                         'biweekly' => 'Biweekly',
                                         'monthly' => 'Monthly',
                                     ])
-                                    ->required()
-                                    ->visible(fn ($get) => $get('is_recurring')),
+                                    ->required(),
                                 
                                 Forms\Components\DatePicker::make('recurring_start_date')
                                     ->label('Start Date')
                                     ->helperText('First occurrence date')
-                                    ->required()
-                                    ->visible(fn ($get) => $get('is_recurring')),
+                                    ->required(),
                                 
                                 Forms\Components\DatePicker::make('recurring_end_date')
                                     ->label('End Date (Optional)')
-                                    ->helperText('Leave empty for indefinite')
-                                    ->visible(fn ($get) => $get('is_recurring')),
-                            ])
-                            ->visible(fn ($get) => $get('is_recurring')),
+                                    ->helperText('Leave empty for indefinite'),
+                            ]),
                     ])
-                    ->collapsible()
-                    ->collapsed(),
+                    ->visible(fn ($get) => $get('is_recurring')),
                 
                 Forms\Components\Section::make('Billing & Invoicing')
                     ->schema([
@@ -205,24 +228,25 @@ class OrderResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn ($query) => $query->with(['customer', 'orderItems', 'invoice']))
             ->persistFiltersInSession()
             ->persistSortInSession()
             ->persistColumnSearchesInSession()
-            ->persistSearchInSession()            ->columns([
+            ->persistSearchInSession()
+            ->columns([
                 Tables\Columns\TextColumn::make('id')
                     ->label('Order ID')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('user.name')
+                Tables\Columns\TextColumn::make('customer.contact_name')
                     ->label('Customer')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('order_type_display')
                     ->label('Type')
                     ->badge()
                     ->color(fn (Order $record): string => match ($record->order_type) {
-                        'website_immediate' => 'success',
+                        'website' => 'success',
                         'farmers_market' => 'warning',
                         'b2b' => 'info',
-                        'b2b_recurring' => 'info', // Legacy support
                         default => 'gray',
                     }),
                 Tables\Columns\SelectColumn::make('status')
@@ -414,7 +438,7 @@ class OrderResource extends Resource
                     ->requiresConfirmation()
                     ->modalHeading('Generate Next Recurring Order')
                     ->modalDescription(fn (Order $record) => 
-                        "This will create the next order in the recurring series for {$record->user->name}."
+                        "This will create the next order in the recurring series for {$record->customer->contact_name}."
                     )
                     ->action(function (Order $record) {
                         try {
@@ -455,14 +479,14 @@ class OrderResource extends Resource
                     ->visible(fn (Order $record): bool => 
                         $record->status !== 'template' && 
                         $record->status !== 'cancelled' &&
-                        $record->user->isWholesaleCustomer() &&
+                        $record->customer->isWholesaleCustomer() &&
                         $record->orderItems->isNotEmpty()
                     )
                     ->requiresConfirmation()
                     ->modalHeading('Recalculate Order Prices')
                     ->modalDescription(function (Order $record) {
                         $currentTotal = $record->totalAmount();
-                        $discount = $record->user->wholesale_discount_percentage ?? 0;
+                        $discount = $record->customer->wholesale_discount_percentage ?? 0;
                         return "This will recalculate all item prices using the current wholesale discount ({$discount}%). Current total: $" . number_format($currentTotal, 2);
                     })
                     ->action(function (Order $record) {
@@ -477,7 +501,7 @@ class OrderResource extends Resource
                                 
                                 // Get current price for this customer
                                 $currentPrice = $item->product->getPriceForSpecificCustomer(
-                                    $record->user,
+                                    $record->customer,
                                     $item->price_variation_id
                                 );
                                 

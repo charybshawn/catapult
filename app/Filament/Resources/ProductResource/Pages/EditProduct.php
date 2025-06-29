@@ -66,12 +66,14 @@ class EditProduct extends BaseEditRecord
         
         // Get current template-based variations for comparison
         $currentTemplateVariations = $product->priceVariations()
+            ->with('packagingType')
             ->whereNotNull('template_id')
             ->get()
             ->keyBy('template_id');
         
         // Get current custom variations
         $currentCustomVariations = $product->priceVariations()
+            ->with('packagingType')
             ->whereNull('template_id')
             ->get();
         
@@ -225,24 +227,17 @@ class EditProduct extends BaseEditRecord
             return;
         }
         
-        // Only auto-generate name for non-template variations
+        // Prepare update data
         $updateData = [
             'packaging_type_id' => $data['packaging_type_id'] ?: null,
             'sku' => $data['sku'] ?: null,
-            'fill_weight_grams' => $data['fill_weight_grams'] ?: null,
+            'fill_weight' => $data['fill_weight_grams'] ?: null,
             'price' => $data['price'],
         ];
         
-        // Only auto-set name if this is not a template-based variation
-        if (!$variation->template_id) {
-            $name = 'Default';
-            if (!empty($data['packaging_type_id'])) {
-                $packagingType = \App\Models\PackagingType::find($data['packaging_type_id']);
-                if ($packagingType) {
-                    $name = $packagingType->name;
-                }
-            }
-            $updateData['name'] = $name;
+        // Always allow name updates if provided
+        if (isset($data['name']) && trim($data['name']) !== '') {
+            $updateData['name'] = trim($data['name']);
         }
         
         $variation->update($updateData);

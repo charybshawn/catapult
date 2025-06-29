@@ -15,10 +15,6 @@ class CreateProduct extends BaseCreateRecord
     
     protected $listeners = ['updateVariation', 'deleteVariation', 'setAsDefault', 'addCustomVariation'];
     
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
-    }
     
     public function create(bool $another = false): void
     {
@@ -144,7 +140,7 @@ class CreateProduct extends BaseCreateRecord
                     'packaging_type_id' => $template->packaging_type_id,
                     'name' => $name,
                     'sku' => $template->sku,
-                    'fill_weight_grams' => $template->fill_weight_grams,
+                    'fill_weight' => $template->fill_weight,
                     'price' => $template->price,
                     'is_default' => !$hasDefault, // First one becomes default
                     'is_global' => false, // Product-specific
@@ -166,7 +162,7 @@ class CreateProduct extends BaseCreateRecord
                 'packaging_type_id' => $templateData['packaging_type_id'],
                 'name' => $name,
                 'sku' => $templateData['sku'] ?? null,
-                'fill_weight_grams' => $templateData['fill_weight_grams'],
+                'fill_weight' => $templateData['fill_weight_grams'],
                 'price' => $templateData['price'],
                 'is_default' => $templateData['is_default'],
                 'is_global' => false, // Product-specific
@@ -191,7 +187,7 @@ class CreateProduct extends BaseCreateRecord
                 'packaging_type_id' => $variationData['packaging_type_id'] ?? null,
                 'name' => $name,
                 'sku' => $variationData['sku'] ?? null,
-                'fill_weight_grams' => $variationData['fill_weight_grams'] ?? null,
+                'fill_weight' => $variationData['fill_weight_grams'] ?? null,
                 'price' => $variationData['price'],
                 'is_default' => $variationData['is_default'] ?? false,
                 'is_global' => false,
@@ -258,7 +254,7 @@ class CreateProduct extends BaseCreateRecord
             'name' => $name,
             'packaging_type_id' => $data['packaging_type_id'] ?: null,
             'sku' => $data['sku'] ?: null,
-            'fill_weight_grams' => $data['fill_weight_grams'] ?: null,
+            'fill_weight' => $data['fill_weight_grams'] ?: null,
             'price' => $data['price'],
         ]);
         

@@ -71,7 +71,7 @@ class GenerateCropsFromOrders extends Command
         $orders = Order::whereIn('status', ['pending', 'queued', 'preparing'])
             ->where('delivery_date', '<=', $endDate)
             ->whereDoesntHave('cropPlans')
-            ->with(['user', 'orderItems.product'])
+            ->with(['customer', 'orderItems.product'])
             ->orderBy('delivery_date')
             ->get();
 
@@ -82,7 +82,7 @@ class GenerateCropsFromOrders extends Command
 
         $this->info("Found {$orders->count()} orders needing crop plans:");
         foreach ($orders as $order) {
-            $customerName = $order->user->name ?? 'Unknown';
+            $customerName = $order->customer->contact_name ?? 'Unknown';
             $this->line("  - Order #{$order->id}: {$customerName} (delivery: {$order->delivery_date->format('Y-m-d')})");
         }
         $this->newLine();

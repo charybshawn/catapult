@@ -11,7 +11,9 @@ use App\Models\Recipe;
 use App\Models\SeedEntry;
 use App\Models\TimeCard;
 use App\Models\User;
+use App\Models\CropPlan;
 use App\Services\InventoryService;
+use App\Services\CropPlanCalculatorService;
 use Filament\Pages\Dashboard as BaseDashboard;
 use Filament\Panel;
 use Illuminate\Contracts\View\View;
@@ -64,44 +66,48 @@ class Dashboard extends BaseDashboard
      */
     protected function getDashboardData(): array
     {
-        return Cache::remember('dashboard_data', now()->addMinutes(5), function () {
-            return [
-                // Operations Dashboard Data
-                'activeCropsCount' => $this->getActiveCropsCount(),
-                'activeTraysCount' => $this->getActiveTraysCount(),
-                'tasksCount' => $this->getTasksCount(),
-                'overdueTasksCount' => $this->getOverdueTasksCount(),
-                'cropsNeedingHarvest' => $this->getCropsNeedingHarvest(),
-                'recentlySowedCrops' => $this->getRecentlySowedCrops(),
-                'cropsByStage' => $this->getCropsByStage(),
-                
-                // Alerts Data
-                'todaysAlerts' => $this->getTodaysAlerts(),
-                'upcomingAlerts' => $this->getUpcomingAlerts(),
-                'overdueAlerts' => $this->getOverdueAlerts(),
-                'alertsSummary' => $this->getAlertsSummary(),
-                
-                // Inventory & Alerts Data
-                'lowStockCount' => $this->getLowStockCount(),
-                'lowStockItems' => $this->getLowStockItems(),
-                'seedInventoryAlerts' => $this->getSeedInventoryAlerts(),
-                'packagingAlerts' => $this->getPackagingAlerts(),
-                
-                // Harvest & Yield Data
-                'upcomingHarvests' => $this->getUpcomingHarvests(),
-                'yieldEstimates' => $this->getYieldEstimates(),
-                'weeklyHarvestSchedule' => $this->getWeeklyHarvestSchedule(),
-                
-                // Planning Data
-                'plantingRecommendations' => $this->getPlantingRecommendations(),
-                'trayUtilization' => $this->getTrayUtilization(),
-                
-                // Time Management Data
-                'timeCardsSummary' => $this->getTimeCardsSummary(),
-                'activeEmployees' => $this->getActiveEmployees(),
-                'flaggedTimeCards' => $this->getFlaggedTimeCards(),
-            ];
-        });
+        return [
+            // Operations Dashboard Data
+            'activeCropsCount' => $this->getActiveCropsCount(),
+            'activeTraysCount' => $this->getActiveTraysCount(),
+            'tasksCount' => $this->getTasksCount(),
+            'overdueTasksCount' => $this->getOverdueTasksCount(),
+            'cropsNeedingHarvest' => $this->getCropsNeedingHarvest(),
+            'recentlySowedCrops' => $this->getRecentlySowedCrops(),
+            'cropsByStage' => $this->getCropsByStage(),
+            
+            // Alerts Data
+            'todaysAlerts' => $this->getTodaysAlerts(),
+            'upcomingAlerts' => $this->getUpcomingAlerts(),
+            'overdueAlerts' => $this->getOverdueAlerts(),
+            'alertsSummary' => $this->getAlertsSummary(),
+            
+            // Inventory & Alerts Data
+            'lowStockCount' => $this->getLowStockCount(),
+            'lowStockItems' => $this->getLowStockItems(),
+            'seedInventoryAlerts' => $this->getSeedInventoryAlerts(),
+            'packagingAlerts' => $this->getPackagingAlerts(),
+            
+            // Harvest & Yield Data
+            'upcomingHarvests' => $this->getUpcomingHarvests(),
+            'yieldEstimates' => $this->getYieldEstimates(),
+            'weeklyHarvestSchedule' => $this->getWeeklyHarvestSchedule(),
+            
+            // Planning Data
+            'plantingRecommendations' => $this->getPlantingRecommendations(),
+            'trayUtilization' => $this->getTrayUtilization(),
+            
+            // Time Management Data
+            'timeCardsSummary' => $this->getTimeCardsSummary(),
+            'activeEmployees' => $this->getActiveEmployees(),
+            'flaggedTimeCards' => $this->getFlaggedTimeCards(),
+            
+            // Crop Planning Data
+            'urgentCropPlans' => $this->getUrgentCropPlans(),
+            'overdueCropPlans' => $this->getOverdueCropPlans(),
+            'upcomingOrdersNeedingPlans' => $this->getUpcomingOrdersNeedingPlans(),
+            'cropPlanningCalendarEvents' => $this->getCropPlanningCalendarEvents(),
+        ];
     }
     
     protected function getActiveCropsCount(): int
@@ -320,14 +326,23 @@ class Dashboard extends BaseDashboard
     {
         $groupedAlerts = [];
         
+        // Pre-load all crops to avoid N+1 queries
+        $cropIds = $alerts->map(fn($alert) => $alert->conditions['crop_id'] ?? null)->filter()->unique();
+        $crops = Crop::with(['recipe.seedEntry'])->whereIn('id', $cropIds)->get()->keyBy('id');
+        
+        // Pre-load all batch crops to avoid N+1 queries
+        $allCrops = Crop::with(['recipe.seedEntry'])->get()->groupBy(function($crop) {
+            $plantedAt = $crop->planted_at ? $crop->planted_at->format('Y-m-d') : 'unknown';
+            return "{$crop->recipe_id}|{$plantedAt}|{$crop->current_stage}";
+        });
+        
         foreach ($alerts as $alert) {
             $cropId = $alert->conditions['crop_id'] ?? null;
-            $crop = $cropId ? Crop::with(['recipe.seedEntry'])->find($cropId) : null;
+            $crop = $cropId ? $crops->get($cropId) : null;
             
             if (!$crop) continue;
             
             // Create batch key: variety + planted date + current stage + target stage + task
-            $crop->load(['recipe.seedEntry']); // Ensure relationships are loaded
             
             // Try to get variety name from multiple sources in order of preference
             $variety = $crop->recipe?->seedEntry?->cultivar_name 
@@ -342,12 +357,9 @@ class Dashboard extends BaseDashboard
             $batchKey = "{$variety}|{$plantedAt}|{$currentStage}|{$targetStage}|{$taskName}";
             
             if (!isset($groupedAlerts[$batchKey])) {
-                // Get all crops in this batch  
-                $batchCrops = Crop::where('recipe_id', $crop->recipe_id)
-                    ->whereDate('planted_at', $crop->planted_at)
-                    ->where('current_stage', $crop->current_stage)
-                    ->with(['recipe.seedEntry'])
-                    ->get();
+                // Get all crops in this batch from pre-loaded data
+                $batchKey2 = "{$crop->recipe_id}|{$plantedAt}|{$crop->current_stage}";
+                $batchCrops = $allCrops->get($batchKey2, collect());
                 
                 // Get all tray numbers for this batch
                 $trayNumbers = $batchCrops->pluck('tray_number')->sort()->values()->toArray();
@@ -818,5 +830,119 @@ class Dashboard extends BaseDashboard
         }
         
         return round(($totalMinutes / 60) / $totalDays, 1);
+    }
+    
+    /**
+     * Get urgent crop plans that need to be planted soon (next 7 days)
+     */
+    protected function getUrgentCropPlans()
+    {
+        return CropPlan::with(['recipe.seedEntry', 'order.customer'])
+            ->where('status', 'approved')
+            ->where('plant_by_date', '<=', now()->addDays(7))
+            ->where('plant_by_date', '>=', now())
+            ->orderBy('plant_by_date', 'asc')
+            ->get()
+            ->groupBy(function ($plan) {
+                return $plan->plant_by_date->format('Y-m-d');
+            });
+    }
+
+    /**
+     * Get crop plans that should have been planted already (overdue)
+     */
+    protected function getOverdueCropPlans()
+    {
+        return CropPlan::with(['recipe.seedEntry', 'order.customer'])
+            ->where('status', 'approved')
+            ->where('plant_by_date', '<', now())
+            ->orderBy('plant_by_date', 'asc')
+            ->get();
+    }
+
+    /**
+     * Get orders for the next 14 days that might need crop plans
+     */
+    protected function getUpcomingOrdersNeedingPlans()
+    {
+        return Order::with(['customer', 'orderItems.product', 'cropPlans'])
+            ->whereIn('status', ['pending', 'confirmed', 'processing'])
+            ->where('status', '!=', 'template') // Exclude recurring order templates
+            ->whereNotNull('delivery_date') // Ensure there's a delivery date
+            ->where('delivery_date', '>=', now())
+            ->where('delivery_date', '<=', now()->addDays(14))
+            ->orderBy('delivery_date', 'asc')
+            ->get()
+            ->filter(function ($order) {
+                // Only include orders that don't have crop plans yet
+                return $order->cropPlans->isEmpty();
+            });
+    }
+
+    /**
+     * Get calendar events for crop planning (deliveries and plantings)
+     */
+    protected function getCropPlanningCalendarEvents(): array
+    {
+        $events = [];
+        
+        // Add order delivery dates
+        $orders = Order::with(['customer'])
+            ->whereIn('status', ['pending', 'confirmed', 'processing'])
+            ->where('delivery_date', '>=', now()->subDays(30))
+            ->where('delivery_date', '<=', now()->addDays(60))
+            ->get();
+            
+        foreach ($orders as $order) {
+            if ($order->delivery_date) {
+                $events[] = [
+                    'id' => 'order-' . $order->id,
+                    'title' => "Delivery: Order #{$order->id}",
+                    'start' => $order->delivery_date->format('Y-m-d'),
+                    'backgroundColor' => '#10b981', // green
+                    'borderColor' => '#059669',
+                    'textColor' => '#ffffff',
+                    'extendedProps' => [
+                        'type' => 'delivery',
+                        'orderId' => $order->id,
+                        'customer' => $order->customer->contact_name ?? 'Unknown',
+                    ],
+                ];
+            }
+        }
+        
+        // Add crop planting dates
+        $cropPlans = CropPlan::with(['recipe.seedEntry', 'order'])
+            ->where('plant_by_date', '>=', now()->subDays(30))
+            ->where('plant_by_date', '<=', now()->addDays(60))
+            ->get();
+            
+        foreach ($cropPlans as $plan) {
+            $color = match($plan->status) {
+                'draft' => '#6b7280', // gray
+                'approved' => '#3b82f6', // blue
+                'completed' => '#10b981', // green
+                'overdue' => '#ef4444', // red
+                default => '#6b7280',
+            };
+            
+            $events[] = [
+                'id' => 'plant-' . $plan->id,
+                'title' => "Plant: {$plan->recipe->seedEntry->common_name}",
+                'start' => $plan->plant_by_date->format('Y-m-d'),
+                'backgroundColor' => $color,
+                'borderColor' => $color,
+                'textColor' => '#ffffff',
+                'extendedProps' => [
+                    'type' => 'planting',
+                    'planId' => $plan->id,
+                    'variety' => $plan->recipe->seedEntry->common_name,
+                    'trays' => $plan->trays_needed,
+                    'status' => $plan->status,
+                ],
+            ];
+        }
+        
+        return $events;
     }
 } 

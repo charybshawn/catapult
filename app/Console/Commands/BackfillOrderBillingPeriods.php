@@ -36,7 +36,7 @@ class BackfillOrderBillingPeriods extends Command
         }
         
         // Find B2B recurring orders without billing periods
-        $ordersNeedingBillingPeriods = Order::where('order_type', 'b2b_recurring')
+        $ordersNeedingBillingPeriods = Order::where('order_type', 'b2b')
             ->where('billing_frequency', '!=', 'immediate')
             ->where(function ($query) {
                 $query->whereNull('billing_period_start')

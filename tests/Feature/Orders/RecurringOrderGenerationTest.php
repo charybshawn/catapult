@@ -167,14 +167,14 @@ class RecurringOrderGenerationTest extends TestCase
     public function it_preserves_b2b_order_properties()
     {
         $template = Order::factory()->b2bRecurring()->create([
-            'order_type' => 'b2b_recurring',
+            'order_type' => 'b2b',
             'billing_frequency' => 'monthly',
         ]);
 
         $newOrder = $template->generateNextRecurringOrder();
 
         $this->assertNotNull($newOrder);
-        $this->assertEquals('b2b_recurring', $newOrder->order_type);
+        $this->assertEquals('b2b', $newOrder->order_type);
         $this->assertEquals('monthly', $newOrder->billing_frequency);
         $this->assertFalse($newOrder->is_recurring);
         $this->assertEquals('pending', $newOrder->status);

@@ -203,6 +203,11 @@ class SlidingNavigationBuilder
             // Get resources
             $resources = $panel->getResources();
             foreach ($resources as $resource) {
+                // Skip resources that don't want to be in navigation
+                if (method_exists($resource, 'shouldRegisterNavigation') && !$resource::shouldRegisterNavigation()) {
+                    continue;
+                }
+                
                 $navigationGroup = $resource::getNavigationGroup();
                 $slidingGroup = self::mapNavigationGroupToSlidingGroup($navigationGroup, $resource);
                 

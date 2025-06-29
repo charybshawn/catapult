@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Services\DatabaseBackupService;
 use App\Services\SimpleBackupService;
 use Illuminate\Console\Command;
 
@@ -58,9 +57,8 @@ class DatabaseBackupCommand extends Command
         try {
             $filename = $this->backupService->createBackup();
             
-            $this->info("✅ Data-only backup created successfully!");
-            $this->line("📁 File: {$filename}");
-            $this->line("💡 Contains data only - schema will be created from migrations during restore");
+            $this->info("Backup created successfully!");
+            $this->line("File: {$filename}");
             
             // Handle custom output path
             if ($customPath = $this->option('output')) {
@@ -68,7 +66,7 @@ class DatabaseBackupCommand extends Command
                 $this->copyToCustomPath($backupPath, $customPath);
             }
         } catch (\Exception $e) {
-            $this->error("❌ Backup failed: {$e->getMessage()}");
+            $this->error("Backup failed: {$e->getMessage()}");
         }
     }
 
@@ -81,7 +79,7 @@ class DatabaseBackupCommand extends Command
             return;
         }
 
-        $this->info('📋 Available Database Backups:');
+        $this->info('Available Database Backups:');
         $this->newLine();
 
         $headers = ['Filename', 'Size', 'Created At'];
@@ -107,9 +105,9 @@ class DatabaseBackupCommand extends Command
 
         try {
             $this->backupService->deleteBackup($filename);
-            $this->info("✅ Backup '{$filename}' deleted successfully.");
+            $this->info("Backup '{$filename}' deleted successfully.");
         } catch (\Exception $e) {
-            $this->error("❌ Failed to delete backup '{$filename}': {$e->getMessage()}");
+            $this->error("Failed to delete backup '{$filename}': {$e->getMessage()}");
         }
     }
 
@@ -121,12 +119,12 @@ class DatabaseBackupCommand extends Command
             }
 
             if (copy($sourcePath, $customPath)) {
-                $this->info("📤 Backup also saved to: {$customPath}");
+                $this->info("Backup also saved to: {$customPath}");
             } else {
-                $this->warn("⚠️  Could not copy backup to custom path: {$customPath}");
+                $this->warn("Could not copy backup to custom path: {$customPath}");
             }
         } catch (\Exception $e) {
-            $this->warn("⚠️  Error copying to custom path: {$e->getMessage()}");
+            $this->warn("Error copying to custom path: {$e->getMessage()}");
         }
     }
 }

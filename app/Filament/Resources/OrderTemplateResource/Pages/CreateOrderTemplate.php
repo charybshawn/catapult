@@ -4,9 +4,9 @@ namespace App\Filament\Resources\OrderTemplateResource\Pages;
 
 use App\Filament\Resources\OrderTemplateResource;
 use Filament\Actions;
-use Filament\Resources\Pages\CreateRecord;
+use App\Filament\Pages\Base\BaseCreateRecord;
 
-class CreateOrderTemplate extends CreateRecord
+class CreateOrderTemplate extends BaseCreateRecord
 {
     protected static string $resource = OrderTemplateResource::class;
 }

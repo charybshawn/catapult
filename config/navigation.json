@@ -150,12 +150,6 @@
         ]
       },
       {
-        "label": "Master Cultivars",
-        "url": "/admin/master-cultivars",
-        "icon": "heroicon-o-beaker",
-        "routes": ["filament.admin.resources.master-cultivars.*"]
-      },
-      {
         "resource": "ConsumableResource"
       },
       {
@@ -201,9 +195,9 @@
           },
           {
             "label": "Database Management",
-            "url": "/admin/database-management",
+            "url": "/admin/database-console",
             "icon": "heroicon-o-circle-stack",
-            "routes": ["filament.admin.pages.database-management"]
+            "routes": ["filament.admin.pages.database-console"]
           },
           {
             "label": "Scheduled Tasks",

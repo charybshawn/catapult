@@ -4,9 +4,9 @@ namespace App\Filament\Resources\HarvestResource\Pages;
 
 use App\Filament\Resources\HarvestResource;
 use Filament\Actions;
-use Filament\Resources\Pages\CreateRecord;
+use App\Filament\Pages\Base\BaseCreateRecord;
 
-class CreateHarvest extends CreateRecord
+class CreateHarvest extends BaseCreateRecord
 {
     protected static string $resource = HarvestResource::class;
 }

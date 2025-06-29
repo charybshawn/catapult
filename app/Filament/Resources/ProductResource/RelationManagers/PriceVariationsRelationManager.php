@@ -41,7 +41,7 @@ class PriceVariationsRelationManager extends RelationManager
                             ->label('SKU/UPC Code')
                             ->maxLength(255)
                             ->columnSpan(1),
-                        Forms\Components\TextInput::make('fill_weight_grams')
+                        Forms\Components\TextInput::make('fill_weight')
                             ->label('Fill Weight / Quantity')
                             ->numeric()
                             ->minValue(0)
@@ -88,7 +88,7 @@ class PriceVariationsRelationManager extends RelationManager
                     ->label('SKU/UPC')
                     ->searchable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('fill_weight_grams')
+                Tables\Columns\TextColumn::make('fill_weight')
                     ->label('Weight/Qty')
                     ->formatStateUsing(function ($state, $record) {
                         if (!$state) {
@@ -198,7 +198,7 @@ class PriceVariationsRelationManager extends RelationManager
                             ->label('Variation Name')
                             ->required()
                             ->maxLength(255),
-                        Forms\Components\TextInput::make('fill_weight_grams')
+                        Forms\Components\TextInput::make('fill_weight')
                             ->label('Fill Weight (grams)')
                             ->numeric()
                             ->minValue(0)
@@ -238,7 +238,7 @@ class PriceVariationsRelationManager extends RelationManager
                             'packaging_type_id' => $template->packaging_type_id,
                             'name' => $data['name'],
                             'sku' => $data['sku'],
-                            'fill_weight_grams' => $data['fill_weight_grams'],
+                            'fill_weight' => $data['fill_weight_grams'],
                             'price' => $data['price'],
                             'is_default' => $data['is_default'],
                             'is_global' => false,

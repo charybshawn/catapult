@@ -436,10 +436,6 @@ class CreateConsumable extends BaseCreateRecord
         }
     }
     
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
-    }
     
     // Override the create method to provide better feedback
     protected function onCreate(array $data): mixed

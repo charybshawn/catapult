@@ -4,9 +4,9 @@ namespace App\Filament\Resources\OrderTemplateResource\Pages;
 
 use App\Filament\Resources\OrderTemplateResource;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Pages\Base\BaseEditRecord;
 
-class EditOrderTemplate extends EditRecord
+class EditOrderTemplate extends BaseEditRecord
 {
     protected static string $resource = OrderTemplateResource::class;
 

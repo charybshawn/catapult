@@ -4,14 +4,14 @@ namespace App\Filament\Resources\InvoiceResource\Pages;
 
 use App\Filament\Resources\InvoiceResource;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Pages\Base\BaseEditRecord;
 use Filament\Forms\Form;
 use Filament\Forms;
 use Filament\Infolists\Infolist;
 use Filament\Infolists\Components;
 use Livewire\Attributes\Computed;
 
-class EditInvoice extends EditRecord
+class EditInvoice extends BaseEditRecord
 {
     protected static string $resource = InvoiceResource::class;
     protected static string $view = 'filament.resources.invoice-resource.pages.edit-invoice';

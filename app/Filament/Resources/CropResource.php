@@ -370,7 +370,7 @@ class CropResource extends BaseResource
                                         'Time Remaining' => $timeRemaining . ' minutes',
                                         'Human Format' => $daysRemaining . 'd ' . $hoursRemaining . 'h ' . $minutesRemaining . 'm',
                                         'DB Stored Value' => $record->time_to_next_stage_minutes . ' minutes',
-                                        'DB Display Value' => $record->time_to_next_stage_status,
+                                        'DB Display Value' => $record->time_to_next_stage_display,
                                     ];
                                 }
                             }

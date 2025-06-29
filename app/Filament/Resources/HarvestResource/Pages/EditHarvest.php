@@ -4,9 +4,9 @@ namespace App\Filament\Resources\HarvestResource\Pages;
 
 use App\Filament\Resources\HarvestResource;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Pages\Base\BaseEditRecord;
 
-class EditHarvest extends EditRecord
+class EditHarvest extends BaseEditRecord
 {
     protected static string $resource = HarvestResource::class;
 

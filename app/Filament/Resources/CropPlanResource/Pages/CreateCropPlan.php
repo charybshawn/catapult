@@ -4,9 +4,9 @@ namespace App\Filament\Resources\CropPlanResource\Pages;
 
 use App\Filament\Resources\CropPlanResource;
 use Filament\Actions;
-use Filament\Resources\Pages\CreateRecord;
+use App\Filament\Pages\Base\BaseCreateRecord;
 
-class CreateCropPlan extends CreateRecord
+class CreateCropPlan extends BaseCreateRecord
 {
     protected static string $resource = CropPlanResource::class;
 }

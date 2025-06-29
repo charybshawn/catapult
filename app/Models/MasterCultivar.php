@@ -10,7 +10,7 @@ class MasterCultivar extends Model
 {
     protected $fillable = [
         'master_seed_catalog_id',
-        'cultivar_name',
+        'name',
         'aliases',
         'description',
         'growing_notes',
@@ -29,7 +29,7 @@ class MasterCultivar extends Model
 
     public function getFullNameAttribute(): string
     {
-        return $this->masterSeedCatalog->common_name . ' (' . $this->cultivar_name . ')';
+        return $this->masterSeedCatalog->common_name . ' (' . $this->name . ')';
     }
 
     public function harvests(): HasMany

@@ -3,112 +3,153 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Collection;
 use Carbon\Carbon;
-use Ifsnop\Mysqldump\Mysqldump;
+use Symfony\Component\Process\Process;
 
 class SimpleBackupService
 {
-    private $disk;
     private $backupPath;
 
     public function __construct()
     {
-        $this->disk = Storage::disk('local');
+        // Use direct file system instead of Laravel disk to avoid path confusion
         $this->backupPath = 'backups/database';
     }
 
     /**
-     * Create a database backup using mysqldump-php
+     * Create a database backup using native mysqldump
      */
     public function createBackup(?string $name = null): string
     {
-        $timestamp = Carbon::now()->format('Y-m-d_H-i-s');
-        $filename = $name ?? "database_backup_{$timestamp}.sql";
-        
-        // Ensure the filename ends with .sql
-        if (!str_ends_with($filename, '.sql')) {
-            $filename .= '.sql';
-        }
-
-        // Ensure directory exists
-        $this->disk->makeDirectory($this->backupPath);
-        
-        // Get database connection details
-        $config = config('database.connections.mysql');
-        $dsn = "mysql:host={$config['host']};port={$config['port']};dbname={$config['database']};charset={$config['charset']}";
-        
-        // Create temp file in system temp directory
-        $tempFilePath = tempnam(sys_get_temp_dir(), 'backup_');
+        $lockFile = storage_path('app/backups/.backup.lock');
+        $lockHandle = null;
         
         try {
-            // Create mysqldump instance for data-only backup (exclude structure and migrations)
-            $dump = new Mysqldump($dsn, $config['username'], $config['password'], [
-                'compress' => Mysqldump::NONE,
-                'single-transaction' => true,
-                'lock-tables' => false,
-                'no-create-info' => true, // Data only, no CREATE TABLE statements
-                'add-drop-table' => false, // No DROP TABLE statements since no structure
-                'default-character-set' => Mysqldump::UTF8,
-                'exclude-tables' => ['crop_batches', 'product_inventory_summary', 'migrations'], // Exclude views and migration tracking
-            ]);
+            // Ensure backup directory exists
+            $fullBackupDir = storage_path('app/' . $this->backupPath);
+            if (!is_dir($fullBackupDir)) {
+                mkdir($fullBackupDir, 0755, true);
+            }
             
-            // Create the backup to temp file
-            $dump->start($tempFilePath);
+            // Create lock directory if it doesn't exist
+            $lockDir = dirname($lockFile);
+            if (!is_dir($lockDir)) {
+                mkdir($lockDir, 0755, true);
+            }
             
-            // Move the file to Laravel storage
-            $finalPath = $this->backupPath . '/' . $filename;
-            $this->disk->put($finalPath, file_get_contents($tempFilePath));
+            // Acquire exclusive lock to prevent concurrent backups
+            $lockHandle = fopen($lockFile, 'w');
+            if (!$lockHandle || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
+                throw new \Exception('Another backup operation is already in progress. Please wait and try again.');
+            }
             
-            // Clean up temp file
-            unlink($tempFilePath);
+            $timestamp = Carbon::now()->format('Y-m-d_H-i-s');
+            $filename = $name ?? "database_backup_{$timestamp}.sql";
+            
+            // Validate and sanitize filename
+            $filename = $this->sanitizeFilename($filename);
+            
+            // Ensure the filename ends with .sql
+            if (!str_ends_with($filename, '.sql')) {
+                $filename .= '.sql';
+            }
+            
+            // Get database connection details
+            $config = config('database.connections.mysql');
+            
+            // Full path to backup file
+            $backupPath = storage_path('app/' . $this->backupPath . '/' . $filename);
+            
+            // Create mysqldump command
+            $command = [
+                'mysqldump',
+                '--host=' . $config['host'],
+                '--port=' . $config['port'],
+                '--user=' . $config['username'],
+                '--password=' . $config['password'],
+                '--single-transaction',
+                '--no-tablespaces',
+                '--skip-add-locks',
+                '--set-gtid-purged=OFF',
+                '--column-statistics=0',
+                '--skip-routines',
+                '--skip-triggers',
+                '--skip-events',
+                $config['database']
+            ];
+            
+            $process = new Process($command, base_path());
+            
+            // Set memory and time limits for large databases
+            $process->setTimeout(3600); // 1 hour timeout
+            
+            // Enhance PATH for web server environment
+            $process->setEnv(['PATH' => self::getEnhancedPath()]);
+            
+            $process->run();
+            
+            if (!$process->isSuccessful()) {
+                throw new \Exception('mysqldump failed: ' . $process->getErrorOutput());
+            }
+            
+            $output = $process->getOutput();
+            
+            // Check output size (warn if > 100MB)
+            $outputSize = strlen($output);
+            if ($outputSize > 100 * 1024 * 1024) {
+                error_log("Large backup created: " . $this->formatBytes($outputSize));
+            }
+            
+            // Save output to file
+            file_put_contents($backupPath, $output);
+            
+            // Validate file was written correctly
+            if (!file_exists($backupPath) || filesize($backupPath) === 0) {
+                throw new \Exception('Backup file was not created successfully');
+            }
+            
+            // Basic SQL validation
+            if (!$this->validateBackupFile($backupPath)) {
+                throw new \Exception('Backup file appears to be corrupted or invalid');
+            }
             
             return $filename;
             
         } catch (\Exception $e) {
-            // Clean up temp file if it exists
-            if (file_exists($tempFilePath)) {
-                unlink($tempFilePath);
-            }
             throw new \Exception("Backup failed: " . $e->getMessage());
+        } finally {
+            // Always release the lock
+            if ($lockHandle) {
+                flock($lockHandle, LOCK_UN);
+                fclose($lockHandle);
+                if (file_exists($lockFile)) {
+                    unlink($lockFile);
+                }
+            }
         }
     }
 
     /**
      * Restore database from backup
-     * This performs a complete restore: fresh migrations + data import
      */
     public function restoreBackup(string $filename): bool
     {
         $filepath = $this->backupPath . '/' . $filename;
-        $sqlContent = null;
         
-        // Try private location first
-        if ($this->disk->exists($filepath)) {
-            $sqlContent = $this->disk->get($filepath);
-        } else {
-            // Try main location
-            $mainFilePath = storage_path('app/backups/database/' . $filename);
-            if (file_exists($mainFilePath)) {
-                $sqlContent = file_get_contents($mainFilePath);
-            }
-        }
+        $fullFilepath = storage_path('app/' . $filepath);
         
-        if (!$sqlContent) {
+        if (!file_exists($fullFilepath)) {
             throw new \Exception("Backup file not found: {$filename}");
         }
+
+        $sqlContent = file_get_contents($fullFilepath);
         
         if (empty($sqlContent)) {
             throw new \Exception("Backup file is empty or corrupted");
         }
 
         try {
-            // Step 1: Reset database to clean state and run fresh migrations
-            $this->runPreRestoreMigrations();
-            
-            // Step 2: Import data
             // Get database connection
             $config = config('database.connections.mysql');
             $pdo = new \PDO(
@@ -133,9 +174,11 @@ class SimpleBackupService
                     try {
                         $pdo->exec($statement);
                     } catch (\Exception $e) {
-                        // Log individual statement errors but continue
-                        Log::warning("SQL statement failed during restore: " . $e->getMessage());
-                        Log::warning("Statement: " . substr($statement, 0, 200) . "...");
+                        // Log failed statement to error log (not Laravel Log to avoid class issues)
+                        $errorMsg = "SQL statement failed during restore: " . $e->getMessage();
+                        $stmtPreview = substr($statement, 0, 100) . "...";
+                        error_log("Database Restore Warning: {$errorMsg} | Statement: {$stmtPreview}");
+                        // Continue with next statement
                     }
                 }
             }
@@ -144,53 +187,10 @@ class SimpleBackupService
             $pdo->exec('COMMIT');
             $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
             
-            // Step 3: Run post-restore operations
-            $this->runPostRestoreOperations();
-            
             return true;
             
         } catch (\Exception $e) {
             throw new \Exception("Restore failed: " . $e->getMessage());
-        }
-    }
-
-    /**
-     * Prepare database for restore by resetting and running fresh migrations
-     */
-    private function runPreRestoreMigrations(): void
-    {
-        try {
-            Log::info("Starting pre-restore migrations");
-            
-            // Use migrate:fresh instead of reset to avoid foreign key issues
-            Artisan::call('migrate:fresh', ['--force' => true]);
-            Log::info("Fresh migrations completed - database reset and migrated");
-            
-        } catch (\Exception $e) {
-            Log::error("Pre-restore migrations failed: " . $e->getMessage());
-            throw new \Exception("Failed to prepare database for restore: " . $e->getMessage());
-        }
-    }
-
-    /**
-     * Run any necessary post-restore operations
-     */
-    private function runPostRestoreOperations(): void
-    {
-        try {
-            Log::info("Running post-restore operations");
-            
-            // Clear any cached data
-            Artisan::call('cache:clear');
-            Artisan::call('config:clear');
-            Artisan::call('route:clear');
-            Artisan::call('view:clear');
-            
-            Log::info("Post-restore operations completed");
-            
-        } catch (\Exception $e) {
-            Log::warning("Some post-restore operations failed: " . $e->getMessage());
-            // Don't throw exception here as restore was successful
         }
     }
 
@@ -245,43 +245,21 @@ class SimpleBackupService
      */
     public function listBackups(): Collection
     {
-        $allFiles = collect();
-
-        // Check private backups directory (storage/app/private/backups/database)
-        if ($this->disk->exists($this->backupPath)) {
-            $files = $this->disk->allFiles($this->backupPath);
-            $allFiles = $allFiles->merge($files);
+        $fullBackupDir = storage_path('app/' . $this->backupPath);
+        
+        if (!is_dir($fullBackupDir)) {
+            return collect();
         }
 
-        // Check main backups directory (storage/app/backups/database) using direct file system
-        $mainBackupPath = storage_path('app/backups/database');
-        if (is_dir($mainBackupPath)) {
-            $mainFiles = glob($mainBackupPath . '/*.{sql,json}', GLOB_BRACE);
-            foreach ($mainFiles as $fullPath) {
-                $allFiles->push('backups/database/' . basename($fullPath));
-            }
-        }
-
-        return $allFiles
-            ->filter(fn($file) => str_ends_with($file, '.sql') || str_ends_with($file, '.json'))
-            ->unique(fn($file) => basename($file)) // Remove duplicates based on filename
+        $files = glob($fullBackupDir . '/*.{sql,json}', GLOB_BRACE);
+        
+        return collect($files)
             ->map(function($file) {
-                // Determine which disk/path this file is in
-                $filename = basename($file);
-                
-                // Try private location first
-                if ($this->disk->exists($this->backupPath . '/' . $filename)) {
-                    $size = $this->disk->size($this->backupPath . '/' . $filename);
-                    $timestamp = $this->disk->lastModified($this->backupPath . '/' . $filename);
-                } else {
-                    // Try main location using direct file system
-                    $mainFilePath = storage_path('app/backups/database/' . $filename);
-                    $size = filesize($mainFilePath);
-                    $timestamp = filemtime($mainFilePath);
-                }
+                $size = filesize($file);
+                $timestamp = filemtime($file);
                 
                 return [
-                    'name' => $filename,
+                    'name' => basename($file),
                     'path' => $file,
                     'size' => $this->formatBytes($size),
                     'size_bytes' => $size,
@@ -297,8 +275,11 @@ class SimpleBackupService
      */
     public function deleteBackup(string $filename): bool
     {
-        $filepath = $this->backupPath . '/' . $filename;
-        return $this->disk->delete($filepath);
+        $filepath = storage_path('app/' . $this->backupPath . '/' . $filename);
+        if (file_exists($filepath)) {
+            return unlink($filepath);
+        }
+        return false;
     }
 
     /**
@@ -306,20 +287,86 @@ class SimpleBackupService
      */
     public function downloadBackup(string $filename)
     {
-        $filepath = $this->backupPath . '/' . $filename;
+        $filepath = storage_path('app/' . $this->backupPath . '/' . $filename);
         
-        // Try private location first
-        if ($this->disk->exists($filepath)) {
-            return $this->disk->download($filepath);
+        if (!file_exists($filepath)) {
+            throw new \Exception("Backup file not found: {$filename}");
+        }
+
+        return response()->download($filepath);
+    }
+
+    /**
+     * Validate backup file integrity
+     */
+    private function validateBackupFile(string $filePath): bool
+    {
+        try {
+            $content = file_get_contents($filePath);
+            
+            // Check if file contains SQL dump markers
+            if (!str_contains($content, 'mysqldump') && !str_contains($content, 'CREATE TABLE') && !str_contains($content, 'INSERT INTO')) {
+                return false;
+            }
+            
+            // Check for basic SQL syntax (must contain at least one semicolon)
+            if (!str_contains($content, ';')) {
+                return false;
+            }
+            
+            // Check for obvious corruption markers
+            if (str_contains($content, 'mysqldump: Error') || str_contains($content, 'ERROR')) {
+                return false;
+            }
+            
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Sanitize filename to prevent path traversal and invalid characters
+     */
+    private function sanitizeFilename(string $filename): string
+    {
+        // Remove any path separators and parent directory references
+        $filename = basename($filename);
+        $filename = str_replace(['../', '../', '..\\', '..'], '', $filename);
+        
+        // Remove or replace invalid characters for filesystem
+        $filename = preg_replace('/[^a-zA-Z0-9\-_.]/', '_', $filename);
+        
+        // Ensure filename isn't empty after sanitization
+        if (empty(trim($filename, '._'))) {
+            $filename = 'backup_' . Carbon::now()->format('Y-m-d_H-i-s');
         }
         
-        // Try main location
-        $mainFilePath = storage_path('app/backups/database/' . $filename);
-        if (file_exists($mainFilePath)) {
-            return response()->download($mainFilePath);
+        // Limit filename length
+        if (strlen($filename) > 100) {
+            $filename = substr($filename, 0, 100);
         }
         
-        throw new \Exception("Backup file not found: {$filename}");
+        return $filename;
+    }
+
+    /**
+     * Get enhanced PATH for mysqldump execution
+     */
+    public static function getEnhancedPath(?array $additionalPaths = null): string
+    {
+        $currentPath = $_SERVER['PATH'] ?? getenv('PATH') ?? '';
+        $defaultPaths = [
+            '/opt/homebrew/bin',
+            '/opt/homebrew/opt/mysql-client/bin',
+            '/usr/local/bin',
+            '/usr/local/opt/mysql-client/bin',
+            '/Applications/Herd.app/Contents/Resources/bin',
+        ];
+        
+        $pathsToAdd = $additionalPaths ?? $defaultPaths;
+        
+        return $currentPath . ':' . implode(':', $pathsToAdd);
     }
 
     /**

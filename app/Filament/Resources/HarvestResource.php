@@ -82,6 +82,9 @@ class HarvestResource extends BaseResource
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query) => $query->with([
+                'masterCultivar.masterSeedCatalog'
+            ]))
             ->columns([
                 Tables\Columns\TextColumn::make('harvest_date')
                     ->label('Date')
@@ -91,7 +94,7 @@ class HarvestResource extends BaseResource
                     ->label('Variety')
                     ->searchable(query: function (Builder $query, string $search): Builder {
                         return $query->whereHas('masterCultivar', function (Builder $query) use ($search) {
-                            $query->where('cultivar_name', 'like', "%{$search}%")
+                            $query->where('name', 'like', "%{$search}%")
                                 ->orWhereHas('masterSeedCatalog', function (Builder $query) use ($search) {
                                     $query->where('common_name', 'like', "%{$search}%");
                                 });
@@ -111,7 +114,7 @@ class HarvestResource extends BaseResource
                         
                         return $query
                             ->orderBy('master_seed_catalog.common_name', $direction)
-                            ->orderBy('master_cultivars.cultivar_name', $direction);
+                            ->orderBy('master_cultivars.name', $direction);
                     }),
                 Tables\Columns\TextColumn::make('total_weight_grams')
                     ->label('Total Weight')
@@ -180,7 +183,7 @@ class HarvestResource extends BaseResource
                         return $query
                             ->orderBy('harvests.harvest_date', $direction)
                             ->orderBy('master_seed_catalog.common_name', $direction)
-                            ->orderBy('master_cultivars.cultivar_name', $direction);
+                            ->orderBy('master_cultivars.name', $direction);
                     })
                     ->collapsible(),
                 Tables\Grouping\Group::make('harvest_date')
@@ -204,7 +207,7 @@ class HarvestResource extends BaseResource
                         
                         return $query
                             ->orderBy('master_seed_catalog.common_name', $direction)
-                            ->orderBy('master_cultivars.cultivar_name', $direction);
+                            ->orderBy('master_cultivars.name', $direction);
                     })
                     ->collapsible(),
             ])

@@ -45,6 +45,12 @@ class ProductResource extends BaseResource
     public static function table(Table $table): Table
     {
         return static::configureTableDefaults($table)
+            ->modifyQueryUsing(fn (Builder $query) => $query->with([
+                'category',
+                'masterSeedCatalog',
+                'productMix',
+                'priceVariations.packagingType'
+            ]))
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->searchable(),
@@ -509,13 +515,8 @@ class ProductResource extends BaseResource
                             Forms\Components\Select::make('master_seed_catalog_id')
                                 ->label('Single Variety')
                                 ->options(function () {
-                                    // Get master catalog entries that have seed inventory
-                                    return \App\Models\MasterSeedCatalog::whereHas('consumables', function ($query) {
-                                        $query->where('type', 'seed')
-                                            ->where('is_active', true)
-                                            ->whereRaw('(total_quantity - consumed_quantity) > 0');
-                                    })
-                                    ->where('is_active', true)
+                                    // Get all active master catalog entries
+                                    return \App\Models\MasterSeedCatalog::where('is_active', true)
                                     ->orderBy('common_name', 'asc')
                                     ->get()
                                     ->mapWithKeys(function ($catalog) {
@@ -533,7 +534,7 @@ class ProductResource extends BaseResource
                                 ->helperText(fn (Forms\Get $get): string => 
                                     !empty($get('product_mix_id')) 
                                         ? 'Disabled: Product already has a mix assigned' 
-                                        : 'Select variety from master catalog with available inventory'
+                                        : 'Select variety from master catalog'
                                 ),
                             Forms\Components\Select::make('product_mix_id')
                                 ->label('Product Mix')
@@ -608,7 +609,7 @@ class ProductResource extends BaseResource
                                     ->mapWithKeys(function ($template) {
                                         $packagingName = $template->packagingType?->display_name ?? 'No packaging';
                                         $price = '$' . number_format($template->price, 2);
-                                        $weight = $template->fill_weight_grams ? ' - ' . $template->fill_weight_grams . 'g' : '';
+                                        $weight = $template->fill_weight ? ' - ' . $template->fill_weight . 'g' : '';
                                         
                                         return [$template->id => "{$template->name} ({$packagingName}){$weight} - {$price}"];
                                     });
@@ -691,7 +692,7 @@ class ProductResource extends BaseResource
                                     ->mapWithKeys(function ($template) {
                                         $packagingName = $template->packagingType?->display_name ?? 'No packaging';
                                         $price = '$' . number_format($template->price, 2);
-                                        $weight = $template->fill_weight_grams ? ' - ' . $template->fill_weight_grams . 'g' : '';
+                                        $weight = $template->fill_weight ? ' - ' . $template->fill_weight . 'g' : '';
                                         
                                         return [$template->id => "{$template->name} ({$packagingName}){$weight} - {$price}"];
                                     });
@@ -761,7 +762,7 @@ class ProductResource extends BaseResource
                                 'name' => $template->name,
                                 'packaging_type_id' => $template->packaging_type_id,
                                 'sku' => $template->sku,
-                                'fill_weight_grams' => $template->fill_weight_grams,
+                                'fill_weight' => $template->fill_weight,
                                 'price' => $template->price,
                                 'is_default' => !$hasDefault && $createdCount === 0, // First one becomes default if no default exists
                                 'is_active' => true,

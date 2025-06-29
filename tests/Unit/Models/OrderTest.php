@@ -68,7 +68,7 @@ class OrderTest extends TestCase
             'is_default' => true,
             'is_global' => false,
             'is_active' => true,
-            'fill_weight_grams' => 113.4,
+            'fill_weight' => 113.4,
         ]);
         
         $priceVar2 = PriceVariation::create([
@@ -79,7 +79,7 @@ class OrderTest extends TestCase
             'is_default' => true,
             'is_global' => false,
             'is_active' => true,
-            'fill_weight_grams' => 113.4,
+            'fill_weight' => 113.4,
         ]);
         
         // Create order items manually with controlled prices
@@ -116,7 +116,7 @@ class OrderTest extends TestCase
     }
 
     /** @test */
-    public function it_correctly_identifies_b2b_recurring_templates()
+    public function it_correctly_identifies_b2b_templates()
     {
         $b2bRecurring = Order::factory()->b2bRecurring()->create();
         $regularRecurring = Order::factory()->recurring()->create([

@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Services\DatabaseBackupService;
 use App\Services\SimpleBackupService;
 use Illuminate\Console\Command;
 
@@ -73,12 +72,11 @@ class DatabaseRestoreCommand extends Command
             return;
         }
 
-        // Safety confirmation
-        if (!$this->option('force')) {
-            $this->warn('⚠️  WARNING: This will completely replace your current database!');
-            $this->line("📁 Backup file: " . basename($fullPath));
-            $this->line("📍 Full path: {$fullPath}");
-            $this->line("🔄 Process: Reset DB → Run Migrations → Import Data");
+        // Safety confirmation - skip if no STDIN available (web interface)
+        if (!$this->option('force') && defined('STDIN')) {
+            $this->warn('WARNING: This will completely replace your current database!');
+            $this->line("Backup file: " . basename($fullPath));
+            $this->line("Full path: {$fullPath}");
             $this->newLine();
             
             if (!$this->confirm('Are you sure you want to proceed?')) {
@@ -87,21 +85,16 @@ class DatabaseRestoreCommand extends Command
             }
         }
 
-        $this->info('🔄 Starting seamless database restore...');
-        $this->line('   Step 1: Resetting database and running fresh migrations');
-        $this->line('   Step 2: Importing data from backup');
-        $this->line('   Step 3: Clearing caches and optimizing');
+        $this->info('Restoring database...');
         
         try {
             $filename = basename($fullPath);
             $this->backupService->restoreBackup($filename);
             
-            $this->info("✅ Seamless database restore completed successfully!");
-            $this->line("🗃️  Schema: Created from current migrations");
-            $this->line("📊 Data: Imported from backup file");
-            $this->line("🕒 Completed at: " . now()->format('M j, Y g:i A'));
+            $this->info("Database restored successfully!");
+            $this->line("Restored at: " . now()->format('M j, Y g:i A'));
         } catch (\Exception $e) {
-            $this->error("❌ Restore failed: {$e->getMessage()}");
+            $this->error("Restore failed: {$e->getMessage()}");
         }
     }
 
@@ -110,12 +103,12 @@ class DatabaseRestoreCommand extends Command
         $backups = $this->backupService->listBackups();
 
         if ($backups->isEmpty()) {
-            $this->error('❌ No backups found.');
+            $this->error('No backups found.');
             return;
         }
 
         $latestBackup = $backups->first(); // Already sorted by creation time, newest first
-        $this->info("📋 Found latest backup: {$latestBackup['name']} ({$latestBackup['size']})");
+        $this->info("Found latest backup: {$latestBackup['name']} ({$latestBackup['size']})");
         
         $this->restoreBackup($latestBackup['name']);
     }
@@ -125,11 +118,11 @@ class DatabaseRestoreCommand extends Command
         $backups = $this->backupService->listBackups();
 
         if ($backups->isEmpty()) {
-            $this->error('❌ No backups found.');
+            $this->error('No backups found.');
             return null;
         }
 
-        $this->info('📋 Available backups:');
+        $this->info('Available backups:');
         
         $choices = [];
         foreach ($backups as $index => $backup) {
@@ -157,7 +150,7 @@ class DatabaseRestoreCommand extends Command
             return;
         }
 
-        $this->info('📋 Available Database Backups:');
+        $this->info('Available Database Backups:');
         $this->newLine();
 
         $headers = ['#', 'Filename', 'Size', 'Created At'];
@@ -174,8 +167,8 @@ class DatabaseRestoreCommand extends Command
 
         $this->table($headers, $rows);
         $this->newLine();
-        $this->line('💡 Use: php artisan db:restore [filename] to restore a specific backup');
-        $this->line('💡 Use: php artisan db:restore --latest to restore the most recent backup');
+        $this->line('Use: php artisan db:restore [filename] to restore a specific backup');
+        $this->line('Use: php artisan db:restore --latest to restore the most recent backup');
     }
 
     protected function resolveBackupPath(string $file): ?string
@@ -185,18 +178,10 @@ class DatabaseRestoreCommand extends Command
             return $file;
         }
 
-        // Check multiple possible locations for backup files
-        $possiblePaths = [
-            // Check in private/backups/database (where restore command expects them)
-            \Illuminate\Support\Facades\Storage::disk('local')->path("backups/database/{$file}"),
-            // Check in main backups/database (where most backups are stored)
-            storage_path("app/backups/database/{$file}"),
-        ];
-
-        foreach ($possiblePaths as $backupPath) {
-            if (file_exists($backupPath)) {
-                return $backupPath;
-            }
+        // Check standardized backup directory
+        $backupPath = storage_path("app/backups/database/{$file}");
+        if (file_exists($backupPath)) {
+            return $backupPath;
         }
 
         // Check if user provided just the filename without extension

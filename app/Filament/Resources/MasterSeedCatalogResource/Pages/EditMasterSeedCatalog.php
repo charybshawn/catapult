@@ -4,9 +4,9 @@ namespace App\Filament\Resources\MasterSeedCatalogResource\Pages;
 
 use App\Filament\Resources\MasterSeedCatalogResource;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Pages\Base\BaseEditRecord;
 
-class EditMasterSeedCatalog extends EditRecord
+class EditMasterSeedCatalog extends BaseEditRecord
 {
     protected static string $resource = MasterSeedCatalogResource::class;
 
@@ -17,8 +17,4 @@ class EditMasterSeedCatalog extends EditRecord
         ];
     }
     
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
-    }
 }

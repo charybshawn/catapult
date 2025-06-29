@@ -42,7 +42,7 @@ class WeeklyHarvestStats extends BaseWidget
         $varietyBreakdown = $currentWeekHarvests->groupBy('master_cultivar_id')
             ->map(function ($harvests, $cultivarId) {
                 $cultivar = MasterCultivar::with('masterSeedCatalog')->find($cultivarId);
-                $varietyName = $cultivar ? $cultivar->cultivar_name : 'Unknown';
+                $varietyName = $cultivar ? $cultivar->name : 'Unknown';
 
                 return [
                     'name' => $varietyName,
@@ -81,11 +81,16 @@ class WeeklyHarvestStats extends BaseWidget
 
         // Add top varieties
         foreach ($varietyBreakdown as $variety) {
+            // Skip if name is null or empty
+            if (empty($variety['name'])) {
+                continue;
+            }
+            
             $stats[] = Stat::make(
                 $variety['name'],
                 number_format($variety['weight'] / 1000, 2).' kg'
             )
-                ->description($variety['trays'].' trays • '.number_format($variety['weight'] / $variety['trays'], 1).'g avg')
+                ->description($variety['trays'].' trays • '.number_format($variety['weight'] / ($variety['trays'] ?: 1), 1).'g avg')
                 ->icon('heroicon-o-beaker');
         }
 

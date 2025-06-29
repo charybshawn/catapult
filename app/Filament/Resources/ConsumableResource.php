@@ -700,6 +700,12 @@ class ConsumableResource extends BaseResource
     public static function table(Table $table): Table
     {
         return static::configureTableDefaults($table)
+            ->modifyQueryUsing(fn (Builder $query) => $query->with([
+                'supplier',
+                'masterSeedCatalog',
+                'seedEntry',
+                'packagingType'
+            ]))
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->label('Name')
@@ -805,7 +811,7 @@ class ConsumableResource extends BaseResource
                 Tables\Columns\TextColumn::make('percentage_remaining')
                     ->label('% Remaining')
                     ->getStateUsing(function ($record) {
-                        if (!$record || $record->type !== 'seed' || !$record->total_quantity) return null;
+                        if (!$record || $record->type !== 'seed' || !$record->total_quantity || $record->total_quantity <= 0) return null;
                         
                         $remaining = max(0, $record->total_quantity - $record->consumed_quantity);
                         $percentage = ($remaining / $record->total_quantity) * 100;

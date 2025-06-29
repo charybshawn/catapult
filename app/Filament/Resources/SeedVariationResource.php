@@ -39,7 +39,7 @@ class SeedVariationResource extends Resource
                     ->required()
                     ->searchable()
                     ->preload(),
-                Forms\Components\TextInput::make('size_description')
+                Forms\Components\TextInput::make('size')
                     ->required()
                     ->maxLength(255),
                 Forms\Components\TextInput::make('sku')
@@ -67,7 +67,7 @@ class SeedVariationResource extends Resource
                     ])
                     ->default('USD')
                     ->required(),
-                Forms\Components\Toggle::make('is_in_stock')
+                Forms\Components\Toggle::make('is_available')
                     ->required()
                     ->default(true),
                 Forms\Components\DateTimePicker::make('last_checked_at')
@@ -104,7 +104,7 @@ class SeedVariationResource extends Resource
                     ->searchable()
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('size_description')
+                Tables\Columns\TextColumn::make('size')
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('weight_kg')
@@ -137,7 +137,7 @@ class SeedVariationResource extends Resource
                             END ' . $direction
                         );
                     }),
-                Tables\Columns\IconColumn::make('is_in_stock')
+                Tables\Columns\IconColumn::make('is_available')
                     ->boolean()
                     ->label('In Stock')
                     ->sortable(),
@@ -173,9 +173,9 @@ class SeedVariationResource extends Resource
                 Tables\Filters\SelectFilter::make('stock_status')
                     ->options([
                         '1' => 'In Stock',
-                        '0' => 'Out of Stock',
+                        'unit' => 'Out of Stock',
                     ])
-                    ->attribute('is_in_stock'),
+                    ->attribute('is_available'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

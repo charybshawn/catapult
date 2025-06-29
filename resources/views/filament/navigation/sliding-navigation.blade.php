@@ -83,7 +83,7 @@
                     '/master-seed-catalogs': 'inventory',
                     '/products': 'products',
                     '/product-mixes': 'products',
-                    '/categories': 'system',
+                    '/categories': 'products',
                     '/database-management': 'system'
                 };
                 
@@ -199,7 +199,7 @@
                     </div>
                     
                     <div class="flex items-center space-x-2">
-                        @if($group['badge'])
+                        @if(isset($group['badge']) && $group['badge'])
                             <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
                                 @if($group['badge']['color'] === 'danger') bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
                                 @elseif($group['badge']['color'] === 'warning') bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200

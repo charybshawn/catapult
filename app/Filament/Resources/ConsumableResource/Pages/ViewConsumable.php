@@ -131,7 +131,7 @@ class ViewConsumable extends ViewRecord
         // Format numbers depending on their type
         $formatNumber = function($value) {
             if (is_null($value)) {
-                return '0';
+                return 'unit';
             }
             
             if (floor($value) == $value) {
@@ -231,7 +231,7 @@ class ViewConsumable extends ViewRecord
                                     
                                     // Format numbers 
                                     $formatNumber = function($value) {
-                                        if (is_null($value)) return '0';
+                                        if (is_null($value)) return 'unit';
                                         return floor($value) == $value 
                                             ? number_format($value, 0) 
                                             : number_format($value, 2);

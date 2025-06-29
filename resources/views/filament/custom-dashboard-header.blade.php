@@ -1,4 +1,6 @@
 @php
+    use Illuminate\Support\Str;
+    
     $activeTab = request()->query('tab', session('dashboard_tab', 'operations'));
     session(['dashboard_tab' => $activeTab]);
 @endphp
@@ -921,7 +923,228 @@
 
         <!-- Planning & Predictions Tab -->
         <div x-show="activeTab === 'planning'" x-cloak>
-            <p class="text-gray-500 text-center py-8">Planning & Predictions content will go here</p>
+            @php
+                $urgentCrops = $urgentCropPlans ?? collect();
+                $overdueCrops = $overdueCropPlans ?? collect();
+                $upcomingOrders = $upcomingOrdersNeedingPlans ?? collect();
+                $calendarEvents = $cropPlanningCalendarEvents ?? [];
+            @endphp
+            
+            <div class="space-y-8">
+                <!-- Header Section -->
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Crop Planning & Predictions</h2>
+                    <div class="flex gap-3">
+                        <a href="{{ route('filament.admin.resources.crop-plans.index') }}" 
+                           class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                            </svg>
+                            All Crop Plans
+                        </a>
+                    </div>
+                </div>
+
+                {{-- Overdue Crops Alert --}}
+                @if($overdueCrops->isNotEmpty())
+                    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
+                        <div class="flex items-center mb-4">
+                            <svg class="w-6 h-6 text-red-600 dark:text-red-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                            </svg>
+                            <h3 class="text-lg font-medium text-red-900 dark:text-red-100">
+                                ⚠️ Overdue Plantings ({{ $overdueCrops->count() }})
+                            </h3>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            @foreach($overdueCrops->take(6) as $plan)
+                                <div class="bg-white dark:bg-red-900/40 border border-red-200 dark:border-red-700 rounded-lg p-3">
+                                    <div class="flex justify-between items-center">
+                                        <div>
+                                            <span class="font-medium text-red-900 dark:text-red-100">
+                                                {{ $plan->recipe->seedEntry->common_name }}
+                                            </span>
+                                            <span class="text-sm text-red-700 dark:text-red-300 ml-2">
+                                                {{ $plan->trays_needed }} trays
+                                            </span>
+                                        </div>
+                                        <div class="text-right">
+                                            <div class="text-sm font-medium text-red-900 dark:text-red-100">
+                                                Due: {{ $plan->plant_by_date->format('M j') }}
+                                            </div>
+                                            <div class="text-xs text-red-700 dark:text-red-300">
+                                                {{ $plan->plant_by_date->diffForHumans() }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                        @if($overdueCrops->count() > 6)
+                            <div class="mt-3 text-sm text-red-700 dark:text-red-300">
+                                And {{ $overdueCrops->count() - 6 }} more overdue plans...
+                            </div>
+                        @endif
+                    </div>
+                @endif
+                
+                {{-- Urgent Crops Section --}}
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+                    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+                                    🌱 Crops to Plant Soon
+                                </h3>
+                                <p class="text-sm text-gray-600 dark:text-gray-400">
+                                    Next 7 days planting schedule
+                                </p>
+                            </div>
+                            @if($urgentCrops->isNotEmpty())
+                                <div class="text-right">
+                                    <div class="text-2xl font-bold text-green-600 dark:text-green-400">
+                                        {{ $urgentCrops->flatten()->count() }}
+                                    </div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                                        {{ Str::plural('plan', $urgentCrops->flatten()->count()) }}
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                    
+                    <div class="p-6">
+                        @if($urgentCrops->isNotEmpty())
+                            <div class="space-y-4">
+                                @foreach($urgentCrops as $date => $plansForDate)
+                                    <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+                                        <div class="flex justify-between items-center mb-3">
+                                            <h4 class="font-medium text-gray-900 dark:text-gray-100">
+                                                {{ \Carbon\Carbon::parse($date)->format('l, F j') }}
+                                            </h4>
+                                            <span class="text-sm text-gray-600 dark:text-gray-400">
+                                                {{ $plansForDate->count() }} {{ Str::plural('variety', $plansForDate->count()) }}
+                                            </span>
+                                        </div>
+                                        
+                                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                            @foreach($plansForDate as $plan)
+                                                <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                                                    <div class="font-medium text-gray-900 dark:text-gray-100">
+                                                        {{ $plan->recipe->seedEntry->common_name }}
+                                                    </div>
+                                                    <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                                        {{ $plan->trays_needed }} trays needed
+                                                    </div>
+                                                    <div class="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                                        Order #{{ $plan->order_id }}
+                                                    </div>
+                                                    <div class="mt-2">
+                                                        <x-filament::badge color="success" size="sm">
+                                                            {{ ucfirst($plan->status) }}
+                                                        </x-filament::badge>
+                                                    </div>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @else
+                            <div class="text-center py-8">
+                                <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No urgent plantings</h3>
+                                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                    All crops are on schedule for the next 7 days.
+                                </p>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+                
+                {{-- Upcoming Orders Needing Plans --}}
+                @if($upcomingOrders->isNotEmpty())
+                    <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6">
+                        <div class="flex items-center mb-4">
+                            <svg class="w-6 h-6 text-yellow-600 dark:text-yellow-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <h3 class="text-lg font-medium text-yellow-900 dark:text-yellow-100">
+                                📋 Orders Needing Crop Plans ({{ $upcomingOrders->count() }})
+                            </h3>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            @foreach($upcomingOrders->take(6) as $order)
+                                <div class="bg-white dark:bg-yellow-900/40 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
+                                    <div class="flex justify-between items-start mb-3">
+                                        <div>
+                                            <div class="font-medium text-yellow-900 dark:text-yellow-100">
+                                                Order #{{ $order->id }}
+                                            </div>
+                                            <div class="text-sm text-yellow-700 dark:text-yellow-300">
+                                                {{ $order->customer->contact_name }}
+                                            </div>
+                                            <div class="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
+                                                Delivery: {{ $order->delivery_date->format('M j, Y') }}
+                                            </div>
+                                            <div class="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+                                                {{ $order->orderItems->count() }} {{ Str::plural('item', $order->orderItems->count()) }}
+                                            </div>
+                                        </div>
+                                        <div class="flex flex-col gap-1">
+                                            <button 
+                                                onclick="generateCropPlan({{ $order->id }})"
+                                                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                                                title="Generate crop plan for this order"
+                                            >
+                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                                                </svg>
+                                                Plan
+                                            </button>
+                                            <a 
+                                                href="{{ route('filament.admin.resources.orders.edit', $order->id) }}"
+                                                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                                                title="View order details"
+                                            >
+                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                                </svg>
+                                                View
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                        @if($upcomingOrders->count() > 6)
+                            <div class="mt-3 text-sm text-yellow-700 dark:text-yellow-300">
+                                And {{ $upcomingOrders->count() - 6 }} more orders needing plans...
+                            </div>
+                        @endif
+                    </div>
+                @endif
+                
+                {{-- Calendar Section --}}
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+                    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+                            📅 Planting & Delivery Calendar
+                        </h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            View delivery dates (green) and planting schedules (blue/red). Click events for details.
+                        </p>
+                    </div>
+                    
+                    <div class="p-6">
+                        @livewire('crop-planning-calendar', ['events' => $calendarEvents])
+                    </div>
+                </div>
+                
+            </div>
         </div>
 
         <!-- Time Management Tab -->
@@ -1110,4 +1333,72 @@
         </div>
     </div>
 </div>
+
+<script>
+function generateCropPlan(orderId) {
+    // Show loading state
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = `
+        <svg class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+        </svg>
+        Generating...
+    `;
+    
+    // Get CSRF token
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') 
+        || document.querySelector('input[name="_token"]')?.value 
+        || '{{ csrf_token() }}';
+    
+    // Make AJAX request to generate crop plan
+    fetch(`/admin/generate-crop-plan/${orderId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show success message
+            button.innerHTML = `
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                Generated!
+            `;
+            button.className = button.className.replace('bg-green-600 hover:bg-green-700', 'bg-green-500');
+            
+            // Refresh the dashboard after a short delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            throw new Error(data.message || 'Failed to generate crop plan');
+        }
+    })
+    .catch(error => {
+        console.error('Error generating crop plan:', error);
+        
+        // Show error state
+        button.innerHTML = `
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+            Error
+        `;
+        button.className = button.className.replace('bg-green-600 hover:bg-green-700', 'bg-red-500');
+        
+        // Reset button after delay
+        setTimeout(() => {
+            button.disabled = false;
+            button.innerHTML = originalText;
+            button.className = button.className.replace('bg-red-500', 'bg-green-600 hover:bg-green-700');
+        }, 3000);
+    });
+}
+</script>
 </x-filament-panels::page>
