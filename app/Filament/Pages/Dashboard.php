@@ -149,7 +149,7 @@ class Dashboard extends BaseDashboard
     protected function getRecentlySowedCrops()
     {
         return Crop::where('current_stage', 'planting')
-            ->orderBy('planted_at', 'desc')
+            ->orderBy('planting_at', 'desc')
             ->with(['recipe.seedEntry'])
             ->take(5)
             ->get();
@@ -307,7 +307,7 @@ class Dashboard extends BaseDashboard
             
             if ($crop) {
                 $batchCount = Crop::where('recipe_id', $crop->recipe_id)
-                    ->where('planted_at', $crop->planted_at)
+                    ->where('planting_at', $crop->planting_at)
                     ->where('current_stage', $crop->current_stage)
                     ->count();
                     
@@ -319,7 +319,7 @@ class Dashboard extends BaseDashboard
     }
     
     /**
-     * Group alerts by batch (variety + planted_at + current_stage + target_stage)
+     * Group alerts by batch (variety + planting_at + current_stage + target_stage)
      */
     protected function groupAlertsByBatch($alerts, $isOverdue = false)
     {
@@ -331,7 +331,7 @@ class Dashboard extends BaseDashboard
         
         // Pre-load all batch crops to avoid N+1 queries
         $allCrops = Crop::with(['recipe.seedEntry'])->get()->groupBy(function($crop) {
-            $plantedAt = $crop->planted_at ? $crop->planted_at->format('Y-m-d') : 'unknown';
+            $plantedAt = $crop->planting_at ? $crop->planting_at->format('Y-m-d') : 'unknown';
             return "{$crop->recipe_id}|{$plantedAt}|{$crop->current_stage}";
         });
         
@@ -348,7 +348,7 @@ class Dashboard extends BaseDashboard
                 ?? $alert->conditions['variety'] 
                 ?? $crop->recipe?->name 
                 ?? 'Unknown';
-            $plantedAt = $crop->planted_at ? $crop->planted_at->format('Y-m-d') : 'unknown';
+            $plantedAt = $crop->planting_at ? $crop->planting_at->format('Y-m-d') : 'unknown';
             $currentStage = $crop->current_stage;
             $targetStage = $alert->conditions['target_stage'] ?? 'unknown';
             $taskName = $alert->task_name;
@@ -379,7 +379,7 @@ class Dashboard extends BaseDashboard
                     'variety' => $variety,
                     'target_stage' => $targetStage,
                     'current_stage' => $currentStage,
-                    'planted_at' => $crop->planted_at,
+                    'planting_at' => $crop->planting_at,
                     'recipe_name' => $crop->recipe->name ?? 'Unknown Recipe',
                     'tray_count' => count($trayNumbers),
                     'tray_numbers' => $trayNumbers,

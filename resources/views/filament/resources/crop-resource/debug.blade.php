@@ -5,10 +5,10 @@
             <h4 class="text-md font-medium text-blue-700 dark:text-blue-300 mb-2">Step-by-step calculation:</h4>
             <ol class="list-decimal list-inside space-y-2 text-sm text-blue-700 dark:text-blue-300">
                 <li>Get current stage: <code class="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 rounded">{{ $crop->current_stage }}</code></li>
-                <li>Get timestamp when stage started: <code class="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 rounded">{{ $stageStartTime ? $stageStartTime->format('Y-m-d H:i:s') : 'null' }}</code></li>
+                <li>Get timestamp when stage started: <code class="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 rounded">{{ $stageStartTime ? $stageStartTime->format('Y-m-d H:i') : 'null' }}</code></li>
                 <li>Get recipe's duration for this stage: <code class="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 rounded">{{ $stageDuration }} days</code></li>
                 <li>Convert to hours: <code class="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 rounded">{{ $stageDuration }} days × 24 = {{ $hourDuration }} hours</code></li>
-                <li>Calculate expected end date: <code class="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 rounded">{{ $stageStartTime ? $stageStartTime->format('Y-m-d H:i:s') : 'null' }} + {{ $hourDuration }} hours = {{ $expectedEndDate ? $expectedEndDate->format('Y-m-d H:i:s') : 'null' }}</code></li>
+                <li>Calculate expected end date: <code class="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 rounded">{{ $stageStartTime ? $stageStartTime->format('Y-m-d H:i') : 'null' }} + {{ $hourDuration }} hours = {{ $expectedEndDate ? $expectedEndDate->format('Y-m-d H:i') : 'null' }}</code></li>
                 <li>Calculate total stage time: <code class="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 rounded">{{ $totalStageDiff ? $totalStageDiff->format('%d days, %h hours, %i minutes') : 'null' }}</code></li>
                 <li>Calculate progress: <code class="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 rounded">{{ $elapsedHours }} hours elapsed out of {{ $totalHours }} hours = {{ $elapsedPercent }}%</code></li>
                 <li>Display format: Total stage time with progress percentage</li>
@@ -54,8 +54,8 @@ $now = now();
 $elapsedPercent = 0;
 
 if ($now->gt($stageStartTime)) {
-    $totalDuration = $stageStartTime->diffInSeconds($expectedEndDate);
-    $elapsed = $stageStartTime->diffInSeconds($now);
+    $totalDuration = $stageStartTime->diffInMinutes($expectedEndDate);
+    $elapsed = $stageStartTime->diffInMinutes($now);
     $elapsedPercent = min(100, round(($elapsed / $totalDuration) * 100));
 }
 

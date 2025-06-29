@@ -108,7 +108,7 @@ class CropAlertResource extends Resource
                             if ($crop) {
                                 // Get all crops with the same batch identifier
                                 $batchCount = Crop::where('recipe_id', $crop->recipe_id)
-                                    ->where('planted_at', $crop->planted_at)
+                                    ->where('planting_at', $crop->planting_at)
                                     ->where('current_stage', $crop->current_stage)
                                     ->count();
                                     
@@ -257,8 +257,8 @@ class CropAlertResource extends Resource
                             'Resource Type' => $record->resource_type,
                             'Frequency' => $record->frequency,
                             'Is Active' => $record->is_active ? 'Yes' : 'No',
-                            'Scheduled For' => $record->next_run_at->format('Y-m-d H:i:s'),
-                            'Last Executed' => $record->last_run_at ? $record->last_run_at->format('Y-m-d H:i:s') : 'Never',
+                            'Scheduled For' => $record->next_run_at->format('Y-m-d H:i'),
+                            'Last Executed' => $record->last_run_at ? $record->last_run_at->format('Y-m-d H:i') : 'Never',
                             'Conditions' => json_encode($record->conditions, JSON_PRETTY_PRINT),
                         ];
                         
@@ -269,11 +269,11 @@ class CropAlertResource extends Resource
                                 'ID' => $crop->id,
                                 'Tray Number' => $crop->tray_number,
                                 'Current Stage' => $crop->current_stage,
-                                'Planted At' => $crop->planted_at->format('Y-m-d H:i:s'),
-                                'Germination At' => $crop->germination_at ? $crop->germination_at->format('Y-m-d H:i:s') : 'N/A',
-                                'Blackout At' => $crop->blackout_at ? $crop->blackout_at->format('Y-m-d H:i:s') : 'N/A',
-                                'Light At' => $crop->light_at ? $crop->light_at->format('Y-m-d H:i:s') : 'N/A',
-                                'Harvested At' => $crop->harvested_at ? $crop->harvested_at->format('Y-m-d H:i:s') : 'N/A',
+                                'Planted At' => $crop->planting_at->format('Y-m-d H:i'),
+                                'Germination At' => $crop->germination_at ? $crop->germination_at->format('Y-m-d H:i') : 'N/A',
+                                'Blackout At' => $crop->blackout_at ? $crop->blackout_at->format('Y-m-d H:i') : 'N/A',
+                                'Light At' => $crop->light_at ? $crop->light_at->format('Y-m-d H:i') : 'N/A',
+                                'Harvested At' => $crop->harvested_at ? $crop->harvested_at->format('Y-m-d H:i') : 'N/A',
                                 'Recipe ID' => $crop->recipe_id,
                                 'Recipe Name' => $crop->recipe?->name ?? 'N/A',
                                 'Seed Entry ID' => $crop->recipe?->seed_entry_id ?? 'N/A',

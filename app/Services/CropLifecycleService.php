@@ -97,11 +97,11 @@ class CropLifecycleService
      */
     public function calculateExpectedHarvestDate(Crop $crop): ?Carbon
     {
-        if (!$crop->recipe || !$crop->planted_at) {
+        if (!$crop->recipe || !$crop->planting_at) {
             return null;
         }
 
-        $plantedAt = Carbon::parse($crop->planted_at);
+        $plantedAt = Carbon::parse($crop->planting_at);
         $daysToMaturity = $crop->recipe->days_to_maturity ?? 0;
 
         if ($daysToMaturity <= 0) {

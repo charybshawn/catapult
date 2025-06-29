@@ -39,6 +39,11 @@ class CropTimeCalculator
      */
     public function calculateTimeToNextStage(Crop $crop): ?int
     {
+        // Ensure recipe is loaded to avoid lazy loading violations
+        if (!$crop->relationLoaded('recipe')) {
+            $crop->load('recipe');
+        }
+
         if (!$crop->recipe || $crop->current_stage === 'harvested') {
             return null;
         }
@@ -75,12 +80,12 @@ class CropTimeCalculator
      */
     public function calculateTotalAge(Crop $crop): ?int
     {
-        if (!$crop->planted_at) {
+        if (!$crop->planting_at) {
             return null;
         }
 
         // Calculate minutes FROM planted time TO now (positive value)
-        return (int) Carbon::parse($crop->planted_at)->diffInMinutes(Carbon::now());
+        return (int) Carbon::parse($crop->planting_at)->diffInMinutes(Carbon::now());
     }
 
     /**
@@ -195,7 +200,7 @@ class CropTimeCalculator
     private function getCurrentStageStartTime(Crop $crop): ?Carbon
     {
         $timestamp = match ($crop->current_stage) {
-            'germination' => $crop->germination_at ?? $crop->planted_at,
+            'germination' => $crop->germination_at ?? $crop->planting_at,
             'blackout' => $crop->blackout_at,
             'light' => $crop->light_at,
             'harvested' => $crop->harvested_at,
@@ -210,6 +215,11 @@ class CropTimeCalculator
      */
     private function getExpectedStageDuration(Crop $crop): ?int
     {
+        // Ensure recipe is loaded to avoid lazy loading violations
+        if (!$crop->relationLoaded('recipe')) {
+            $crop->load('recipe');
+        }
+
         if (!$crop->recipe) {
             return null;
         }

@@ -56,7 +56,7 @@ class CreateCrop extends BaseCreateRecord
             'original_data' => $data['tray_numbers'] ?? 'none',
             'processed_array' => $trayNumbers,
             'recipe_id' => $data['recipe_id'] ?? 'none',
-            'planted_at' => $data['planted_at'] ?? 'none'
+            'planting_at' => $data['planting_at'] ?? 'none'
         ]);
         
         // Remove the tray_numbers field from the data
@@ -94,7 +94,7 @@ class CreateCrop extends BaseCreateRecord
         $firstCrop = DB::transaction(function () use ($data, $trayNumbers, $recipe, $varietyName, $recipeName) {
             $firstCrop = null;
             $createdRecords = [];
-            $plantedAt = Carbon::parse($data['planted_at']);
+            $plantedAt = Carbon::parse($data['planting_at']);
             
             // Enable bulk operation mode to prevent memory issues from model events
             Crop::enableBulkOperation();

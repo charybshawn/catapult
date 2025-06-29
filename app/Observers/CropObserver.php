@@ -20,6 +20,11 @@ class CropObserver
      */
     protected function updateCalculatedColumns(Crop $crop): void
     {
+        // Ensure recipe is loaded to avoid lazy loading violations
+        if (!$crop->relationLoaded('recipe')) {
+            $crop->load('recipe');
+        }
+
         // Always use the current time for calculations
         $now = now();
 
@@ -65,15 +70,15 @@ class CropObserver
         }
 
         // Update total age
-        if ($crop->planted_at) {
-            $plantedAt = Carbon::parse($crop->planted_at);
+        if ($crop->planting_at) {
+            $plantedAt = Carbon::parse($crop->planting_at);
             $crop->total_age_minutes = abs($now->diffInMinutes($plantedAt));
             $crop->total_age_display = $this->formatDuration($now->diff($plantedAt));
         }
 
         // Update expected harvest date
-        if ($crop->recipe && $crop->planted_at) {
-            $plantedAt = Carbon::parse($crop->planted_at);
+        if ($crop->recipe && $crop->planting_at) {
+            $plantedAt = Carbon::parse($crop->planting_at);
             $daysToMaturity = $crop->recipe->days_to_maturity ?? 0;
             if ($daysToMaturity > 0) {
                 $crop->expected_harvest_at = $plantedAt->copy()->addDays($daysToMaturity);

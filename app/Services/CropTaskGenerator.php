@@ -19,12 +19,12 @@ class CropTaskGenerator
      */
     public function generateTasksForBatch(Crop $firstCrop, Recipe $recipe): void
     {
-        if (!$firstCrop->planted_at) {
-            Log::error("Cannot generate tasks: Crop ID {$firstCrop->id} missing planted_at timestamp.");
+        if (!$firstCrop->planting_at) {
+            Log::error("Cannot generate tasks: Crop ID {$firstCrop->id} missing planting_at timestamp.");
             return;
         }
         
-        $plantedAt = Carbon::parse($firstCrop->planted_at); // Ensure it's a Carbon instance
+        $plantedAt = Carbon::parse($firstCrop->planting_at); // Ensure it's a Carbon instance
         $tasksToCreate = [];
         Log::debug("Generating CropTasks for Crop ID: {$firstCrop->id}, Planted At: {$plantedAt->toDateTimeString()}, Recipe ID: {$recipe->id}");
 

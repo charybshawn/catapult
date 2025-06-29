@@ -23,7 +23,7 @@ class EditCrop extends BaseEditRecord
                     // Get all trays in this grow batch
                     $record = $this->getRecord();
                     Crop::where('recipe_id', $record->recipe_id)
-                        ->where('planted_at', $record->planted_at)
+                        ->where('planting_at', $record->planting_at)
                         ->delete();
                     
                     $this->redirect($this->getResource()::getUrl('index'));
@@ -38,7 +38,7 @@ class EditCrop extends BaseEditRecord
         
         // Get all trays in this grow batch
         $allTrays = Crop::where('recipe_id', $record->recipe_id)
-            ->where('planted_at', $record->planted_at)
+            ->where('planting_at', $record->planting_at)
             ->where('current_stage', $record->current_stage)
             ->pluck('tray_number')
             ->toArray();
@@ -53,7 +53,7 @@ class EditCrop extends BaseEditRecord
         
         // Get the first actual record from this group to ensure we have complete data
         $firstRecord = Crop::where('recipe_id', $record->recipe_id)
-            ->where('planted_at', $record->planted_at)
+            ->where('planting_at', $record->planting_at)
             ->where('current_stage', $record->current_stage)
             ->first();
             
@@ -69,7 +69,7 @@ class EditCrop extends BaseEditRecord
     {
         // Get all current trays in this grow batch
         $currentTrays = Crop::where('recipe_id', $record->recipe_id)
-            ->where('planted_at', $record->planted_at)
+            ->where('planting_at', $record->planting_at)
             ->where('current_stage', $record->current_stage)
             ->get();
             

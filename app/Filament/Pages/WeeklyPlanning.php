@@ -102,7 +102,7 @@ class WeeklyPlanning extends Page
         // Get active crops (not harvested)
         $activeCrops = Crop::whereNotIn('current_stage', ['harvested'])
             ->with(['recipe', 'order.user'])
-            ->orderBy('planted_at', 'desc')
+            ->orderBy('planting_at', 'desc')
             ->get();
         
         // Calculate planting recommendations
