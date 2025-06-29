@@ -4,7 +4,9 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\Crop;
+use App\Services\CropTimeCalculator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class UpdateCropTimeFields extends Command
 {
@@ -13,7 +15,9 @@ class UpdateCropTimeFields extends Command
      *
      * @var string
      */
-    protected $signature = 'app:update-crop-time-fields';
+    protected $signature = 'app:update-crop-time-fields 
+                            {--batch-size=100 : Number of crops to process in each batch}
+                            {--quiet-mode : Only show summary, not individual updates}';
 
     /**
      * The console command description.
@@ -23,125 +27,136 @@ class UpdateCropTimeFields extends Command
     protected $description = 'Updates time-related fields for all crops (time_to_next_stage, stage_age, total_age)';
 
     /**
+     * The crop time calculator service.
+     *
+     * @var CropTimeCalculator
+     */
+    protected $calculator;
+
+    /**
+     * Create a new command instance.
+     */
+    public function __construct(CropTimeCalculator $calculator)
+    {
+        parent::__construct();
+        $this->calculator = $calculator;
+    }
+
+    /**
      * Execute the console command.
      */
     public function handle()
     {
         $this->info('Updating time fields for all crops...');
-        $this->info('This may take a moment for large datasets.');
         
-        $total = Crop::count();
-        $this->info("Found {$total} crops to update.");
+        $total = Crop::whereNotIn('current_stage', ['harvested'])->count();
+        $this->info("Found {$total} active crops to update.");
+        
+        if ($total === 0) {
+            $this->info('No active crops to update.');
+            return Command::SUCCESS;
+        }
         
         $bar = $this->output->createProgressBar($total);
         $bar->start();
         
         $updatedCount = 0;
-        $now = now(); // Capture current time once for consistent calculations
+        $errorCount = 0;
+        $batchSize = (int) $this->option('batch-size');
+        $quietMode = $this->option('quiet-mode');
         
         // Process in batches to avoid memory issues
-        Crop::chunk(100, function ($crops) use ($bar, &$updatedCount, $now) {
-            foreach ($crops as $crop) {
-                // Track original values for logging
-                $originalTimeToNextStage = $crop->time_to_next_stage_minutes;
-                $originalStageAge = $crop->stage_age_minutes;
-                $originalTotalAge = $crop->total_age_minutes;
-                
-                // Update time to next stage
-                $timeToNextStage = $crop->timeToNextStage();
-                $crop->time_to_next_stage_display = $timeToNextStage;
-                
-                // Calculate minutes for sorting
-                if (str_contains($timeToNextStage, 'Ready to advance')) {
-                    // Highest priority (lowest minutes) for ready to advance
-                    $crop->time_to_next_stage_minutes = 0;
-                } elseif ($timeToNextStage === '-' || $timeToNextStage === 'No recipe' || $timeToNextStage === 'Unknown') {
-                    // Lowest priority (highest minutes) for special statuses
-                    $crop->time_to_next_stage_minutes = 2147483647; // Max integer value
-                } else {
-                    // Extract time components
-                    $days = preg_match('/(\d+)d/', $timeToNextStage, $dayMatches) ? (int)$dayMatches[1] : 0;
-                    $hours = preg_match('/(\d+)h/', $timeToNextStage, $hourMatches) ? (int)$hourMatches[1] : 0;
-                    $minutes = preg_match('/(\d+)m/', $timeToNextStage, $minuteMatches) ? (int)$minuteMatches[1] : 0;
+        Crop::whereNotIn('current_stage', ['harvested'])
+            ->with('recipe') // Eager load recipe to avoid N+1 queries
+            ->chunk($batchSize, function ($crops) use ($bar, &$updatedCount, &$errorCount, $quietMode) {
+                foreach ($crops as $crop) {
+                    try {
+                        // Track original values for comparison
+                        $originalTimeToNextStage = $crop->time_to_next_stage_minutes;
+                        $originalStageAge = $crop->stage_age_minutes;
+                        $originalTotalAge = $crop->total_age_minutes;
+                        
+                        // Use the CropTimeCalculator service to update all time fields
+                        $this->calculator->updateTimeCalculations($crop);
+                        
+                        // Check if there were significant changes
+                        if (abs($originalTimeToNextStage - $crop->time_to_next_stage_minutes) > 60 || 
+                            abs($originalStageAge - $crop->stage_age_minutes) > 60 || 
+                            abs($originalTotalAge - $crop->total_age_minutes) > 60) {
+                            
+                            $updatedCount++;
+                            
+                            if (!$quietMode) {
+                                $this->info(sprintf(
+                                    "\nCrop #%d (%s): Time to next: %s → %s, Stage age: %s → %s",
+                                    $crop->id,
+                                    $crop->recipe ? $crop->recipe->name : 'No Recipe',
+                                    $this->formatMinutes($originalTimeToNextStage),
+                                    $crop->time_to_next_stage_display,
+                                    $this->formatMinutes($originalStageAge),
+                                    $crop->stage_age_display
+                                ));
+                            }
+                        }
+                        
+                    } catch (\Exception $e) {
+                        $errorCount++;
+                        Log::error('Failed to update crop time fields', [
+                            'crop_id' => $crop->id,
+                            'error' => $e->getMessage()
+                        ]);
+                        
+                        if (!$quietMode) {
+                            $this->error("\nFailed to update Crop #{$crop->id}: " . $e->getMessage());
+                        }
+                    }
                     
-                    // Calculate total minutes
-                    $totalMinutes = ($days * 24 * 60) + ($hours * 60) + $minutes;
-                    $crop->time_to_next_stage_minutes = $totalMinutes;
+                    $bar->advance();
                 }
-                
-                // Update stage age using the current time
-                $stageField = "{$crop->current_stage}_at";
-                if ($crop->$stageField) {
-                    $stageStart = \Carbon\Carbon::parse($crop->$stageField);
-                    // Calculate real-time stage age 
-                    $stageAgeMinutes = abs($now->diffInMinutes($stageStart));
-                    $stageAgeDisplay = $this->formatDuration($now->diff($stageStart));
-                    
-                    $crop->stage_age_minutes = $stageAgeMinutes;
-                    $crop->stage_age_display = $stageAgeDisplay;
-                    
-                    $this->info(sprintf(
-                        "Crop #%d: Stage %s, Age: %s (%d minutes), Started: %s",
-                        $crop->id,
-                        $crop->current_stage,
-                        $stageAgeDisplay,
-                        $stageAgeMinutes,
-                        $crop->$stageField
-                    ));
-                }
-                
-                // Update total age using the current time
-                if ($crop->planting_at) {
-                    $plantedAt = \Carbon\Carbon::parse($crop->planting_at);
-                    $totalAgeMinutes = abs($now->diffInMinutes($plantedAt));
-                    $totalAgeDisplay = $this->formatDuration($now->diff($plantedAt));
-                    
-                    $crop->total_age_minutes = $totalAgeMinutes;
-                    $crop->total_age_display = $totalAgeDisplay;
-                }
-                
-                // Log significant changes for debugging
-                if (abs($originalTimeToNextStage - $crop->time_to_next_stage_minutes) > 60 || 
-                    abs($originalStageAge - $crop->stage_age_minutes) > 60 || 
-                    abs($originalTotalAge - $crop->total_age_minutes) > 60) {
-                    $this->info("Significant update for Crop #{$crop->id}: " . 
-                        "Stage age: {$originalStageAge}m → {$crop->stage_age_minutes}m, " .
-                        "Time to next: {$originalTimeToNextStage}m → {$crop->time_to_next_stage_minutes}m, " .
-                        "Total age: {$originalTotalAge}m → {$crop->total_age_minutes}m");
-                    $updatedCount++;
-                }
-                
-                // Save the crop with the updated times
-                $crop->save();
-                
-                $bar->advance();
-            }
-        });
+            });
         
         $bar->finish();
-        $this->newLine();
-        $this->info("All crop time fields have been updated successfully! {$updatedCount} crops had significant changes.");
+        $this->newLine(2);
         
-        return Command::SUCCESS;
+        // Summary
+        $this->info("Update completed!");
+        $this->info("- Total crops processed: {$total}");
+        $this->info("- Crops with significant changes: {$updatedCount}");
+        
+        if ($errorCount > 0) {
+            $this->error("- Errors encountered: {$errorCount}");
+            $this->error("Check the logs for details.");
+        }
+        
+        // Log summary for monitoring
+        Log::info('Crop time fields update completed', [
+            'total_crops' => $total,
+            'updated_count' => $updatedCount,
+            'error_count' => $errorCount
+        ]);
+        
+        return $errorCount > 0 ? Command::FAILURE : Command::SUCCESS;
     }
     
     /**
-     * Format a DateInterval into a human-readable duration.
+     * Format minutes into a readable string.
      */
-    protected function formatDuration(\DateInterval $interval): string
+    protected function formatMinutes(?int $minutes): string
     {
-        $parts = [];
-        
-        if ($interval->d > 0) {
-            $parts[] = $interval->d . 'd';
-        }
-        if ($interval->h > 0) {
-            $parts[] = $interval->h . 'h';
-        }
-        if ($interval->i > 0 && empty($parts)) {
-            $parts[] = $interval->i . 'm';
+        if ($minutes === null) {
+            return 'N/A';
         }
         
-        return implode(' ', $parts) ?: '0m';
+        if ($minutes < 60) {
+            return "{$minutes}m";
+        }
+        
+        $hours = intval($minutes / 60);
+        if ($hours < 24) {
+            return "{$hours}h";
+        }
+        
+        $days = intval($hours / 24);
+        return "{$days}d";
     }
 }

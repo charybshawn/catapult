@@ -473,7 +473,7 @@
                             <!-- Right Side: Timing & Planted Date -->
                             <div class="text-right space-y-1">
                                 <div class="text-red-600 dark:text-red-400 font-semibold text-lg">{{ $alert->time_until }}</div>
-                                <div class="text-xs text-gray-500 dark:text-gray-400">Planted: {{ $alert->planted_at ? $alert->planted_at->format('M j') : 'Unknown' }}</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">Planted: {{ $alert->planting_at ? \Carbon\Carbon::parse($alert->planting_at)->format('M j') : 'Unknown' }}</div>
                             </div>
                         </div>
                         
@@ -531,7 +531,7 @@
                                         
                                         <div>
                                             <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Planted Date</div>
-                                            <div class="text-gray-900 dark:text-white">{{ $alert->planted_at ? $alert->planted_at->format('M j, Y') : 'Unknown' }}</div>
+                                            <div class="text-gray-900 dark:text-white">{{ $alert->planting_at ? \Carbon\Carbon::parse($alert->planting_at)->format('M j, Y') : 'Unknown' }}</div>
                                         </div>
                                         
                                         <div>
@@ -622,7 +622,7 @@
                             <!-- Right Side: Timing & Planted Date -->
                             <div class="text-right space-y-1">
                                 <div class="text-orange-600 dark:text-orange-400 font-semibold text-lg">{{ $alert->time_until }}</div>
-                                <div class="text-xs text-gray-500 dark:text-gray-400">Planted: {{ $alert->planted_at ? $alert->planted_at->format('M j') : 'Unknown' }}</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">Planted: {{ $alert->planting_at ? \Carbon\Carbon::parse($alert->planting_at)->format('M j') : 'Unknown' }}</div>
                             </div>
                         </div>
                         
@@ -680,7 +680,7 @@
                                         
                                         <div>
                                             <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Planted Date</div>
-                                            <div class="text-gray-900 dark:text-white">{{ $alert->planted_at ? $alert->planted_at->format('M j, Y') : 'Unknown' }}</div>
+                                            <div class="text-gray-900 dark:text-white">{{ $alert->planting_at ? \Carbon\Carbon::parse($alert->planting_at)->format('M j, Y') : 'Unknown' }}</div>
                                         </div>
                                         
                                         <div>
@@ -777,7 +777,7 @@
                             <!-- Right Side: Timing & Planted Date -->
                             <div class="text-right space-y-1">
                                 <div class="text-blue-600 dark:text-blue-400 font-semibold text-lg">{{ $alert->time_until }}</div>
-                                <div class="text-xs text-gray-500 dark:text-gray-400">Planted: {{ $alert->planted_at ? $alert->planted_at->format('M j') : 'Unknown' }}</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">Planted: {{ $alert->planting_at ? \Carbon\Carbon::parse($alert->planting_at)->format('M j') : 'Unknown' }}</div>
                             </div>
                         </div>
                         
@@ -841,7 +841,7 @@
                                         
                                         <div>
                                             <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Planted Date</div>
-                                            <div class="text-gray-900 dark:text-white">{{ $alert->planted_at ? $alert->planted_at->format('M j, Y') : 'Unknown' }}</div>
+                                            <div class="text-gray-900 dark:text-white">{{ $alert->planting_at ? \Carbon\Carbon::parse($alert->planting_at)->format('M j, Y') : 'Unknown' }}</div>
                                         </div>
                                         
                                         <div>

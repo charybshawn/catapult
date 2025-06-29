@@ -46,9 +46,6 @@ class AppServiceProvider extends ServiceProvider
         Model::preventLazyLoading(! app()->isProduction());
 
         if ($this->app->environment('production') && !$this->app->runningInConsole()) {
-            // Disable database statements in production to prevent changes
-            DB::preventLazyLoading(!$this->app->environment('production'));
-
             // Prevent migrations in production unless explicitly overridden
             if (app()->environment('production') &&
                 !config('app.allow_migrations_in_production', false)) {
