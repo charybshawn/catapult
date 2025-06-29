@@ -12,18 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('seed_scrape_uploads', function (Blueprint $table) {
-            // Only add columns that don't exist yet
-            if (!Schema::hasColumn('seed_scrape_uploads', 'original_filename') && Schema::hasColumn('seed_scrape_uploads', 'filename')) {
-                $table->renameColumn('filename', 'original_filename');
-            }
-            
-            if (!Schema::hasColumn('seed_scrape_uploads', 'successful_entries') && Schema::hasColumn('seed_scrape_uploads', 'new_entries')) {
-                $table->renameColumn('new_entries', 'successful_entries');
-            }
-            
-            if (Schema::hasColumn('seed_scrape_uploads', 'updated_entries')) {
-                $table->dropColumn('updated_entries');
-            }
+            // Keep original column names from main branch
+            // Only add new columns needed for import functionality
             
             if (!Schema::hasColumn('seed_scrape_uploads', 'status')) {
                 $table->string('status')->default('pending')->after('supplier_id');
@@ -36,6 +26,15 @@ return new class extends Migration
             if (!Schema::hasColumn('seed_scrape_uploads', 'processed_at')) {
                 $table->timestamp('processed_at')->nullable()->after('uploaded_at');
             }
+            
+            // Add virtual columns for backward compatibility if needed
+            if (!Schema::hasColumn('seed_scrape_uploads', 'original_filename')) {
+                $table->string('original_filename')->virtualAs('filename')->nullable();
+            }
+            
+            if (!Schema::hasColumn('seed_scrape_uploads', 'successful_entries')) {
+                $table->integer('successful_entries')->virtualAs('new_entries')->nullable();
+            }
         });
     }
 
@@ -45,12 +44,14 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('seed_scrape_uploads', function (Blueprint $table) {
-            // Reverse the column renames
-            $table->renameColumn('original_filename', 'filename');
-            $table->renameColumn('successful_entries', 'new_entries');
+            // Drop virtual columns
+            if (Schema::hasColumn('seed_scrape_uploads', 'original_filename')) {
+                $table->dropColumn('original_filename');
+            }
             
-            // Add back dropped column
-            $table->integer('updated_entries')->default(0)->after('successful_entries');
+            if (Schema::hasColumn('seed_scrape_uploads', 'successful_entries')) {
+                $table->dropColumn('successful_entries');
+            }
             
             // Drop added columns
             $table->dropColumn([

@@ -92,7 +92,7 @@ class VariationsRelationManager extends RelationManager
                 Tables\Filters\SelectFilter::make('stock_status')
                     ->options([
                         '1' => 'In Stock',
-                        '0' => 'Out of Stock',
+                        'unit' => 'Out of Stock',
                     ])
                     ->attribute('is_in_stock'),
             ])

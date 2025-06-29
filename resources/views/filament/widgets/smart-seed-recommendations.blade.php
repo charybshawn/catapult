@@ -43,9 +43,9 @@
                                 <div>Per KG: <span class="font-medium">{{ $topChoice->currency_symbol }}{{ number_format($topChoice->price_per_kg, 0) }} {{ $topChoice->display_currency }}</span></div>
                             </div>
                             
-                            @if($topChoice->supplier_product_url)
+                            @if($topChoice->url)
                                 <div class="mt-2">
-                                    <a href="{{ $topChoice->supplier_product_url }}" target="_blank"
+                                    <a href="{{ $topChoice->url }}" target="_blank"
                                        class="inline-flex items-center px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded">
                                         View Product
                                     </a>
@@ -93,9 +93,9 @@
                                 <div>Per KG: <span class="font-medium">{{ $bestValue->currency_symbol }}{{ number_format($bestValue->price_per_kg, 0) }} {{ $bestValue->display_currency }}</span></div>
                             </div>
                             
-                            @if($bestValue->supplier_product_url)
+                            @if($bestValue->url)
                                 <div class="mt-2">
-                                    <a href="{{ $bestValue->supplier_product_url }}" target="_blank"
+                                    <a href="{{ $bestValue->url }}" target="_blank"
                                        class="inline-flex items-center px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded">
                                         View Product
                                     </a>
@@ -138,9 +138,9 @@
                                 <div>Per KG: <span class="font-medium">{{ $alternative->currency_symbol }}{{ number_format($alternative->price_per_kg, 0) }} {{ $alternative->display_currency }}</span></div>
                             </div>
                             
-                            @if($alternative->supplier_product_url)
+                            @if($alternative->url)
                                 <div class="mt-2">
-                                    <a href="{{ $alternative->supplier_product_url }}" target="_blank"
+                                    <a href="{{ $alternative->url }}" target="_blank"
                                        class="inline-flex items-center px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded">
                                         View Product
                                     </a>

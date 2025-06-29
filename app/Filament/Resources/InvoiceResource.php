@@ -74,7 +74,7 @@ class InvoiceResource extends Resource
                             ->required()
                             ->maxLength(255)
                             ->unique(ignoreRecord: true)
-                            ->default(fn () => 'INV-' . str_pad(random_int(1, 99999), 5, '0', STR_PAD_LEFT)),
+                            ->default(fn () => 'INV-' . str_pad(random_int(1, 99999), 5, 'unit', STR_PAD_LEFT)),
                             
                         Forms\Components\TextInput::make('amount')
                             ->numeric()

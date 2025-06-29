@@ -112,7 +112,7 @@ class PackagingTypeResource extends Resource
                     ->label('Status')
                     ->options([
                         '1' => 'Active',
-                        '0' => 'Inactive',
+                        'unit' => 'Inactive',
                     ]),
             ])
             ->actions([

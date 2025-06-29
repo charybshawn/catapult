@@ -399,7 +399,7 @@ class SeedEntryResource extends Resource
                     ->label('Status')
                     ->options([
                         '1' => 'Active',
-                        '0' => 'Inactive',
+                        'unit' => 'Inactive',
                     ]),
                 Tables\Filters\SelectFilter::make('usage_status')
                     ->label('Usage Status')

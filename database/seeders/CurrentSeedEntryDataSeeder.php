@@ -141,8 +141,8 @@ class CurrentSeedEntryDataSeeder extends Seeder
                     'cultivar_name' => $entry['cultivar_name'],
                     'common_name' => $entry['common_name'],
                     'supplier_id' => $supplier->id,
-                    'supplier_product_title' => $entry['common_name'] . ' - ' . $entry['cultivar_name'] . ' - Organic Sprouting Seeds',
-                    'supplier_product_url' => 'https://sprouting.com/product/' . strtolower(str_replace([' ', "'"], ['-', ''], $entry['cultivar_name'] . '-' . $entry['common_name'])),
+                    'supplier_sku' => strtolower(str_replace([' ', "'"], ['-', ''], $entry['cultivar_name'] . '-' . $entry['common_name'])),
+                    'url' => 'https://sprouting.com/product/' . strtolower(str_replace([' ', "'"], ['-', ''], $entry['cultivar_name'] . '-' . $entry['common_name'])),
                     'image_url' => null,
                     'description' => null,
                     'tags' => [],
@@ -213,14 +213,14 @@ class CurrentSeedEntryDataSeeder extends Seeder
                 SeedVariation::updateOrCreate(
                     [
                         'seed_entry_id' => $seedEntryId,
-                        'size_description' => $size['size'],
+                        'size' => $size['size'],
                     ],
                     [
                         'weight_kg' => $size['weight'],
                         'original_weight_value' => $size['weight'] >= 1 ? $size['weight'] : $size['weight'] * 1000,
                         'original_weight_unit' => $size['weight'] >= 1 ? 'kg' : 'g',
                         'current_price' => $size['price'],
-                        'is_in_stock' => true,
+                        'is_available' => true,
                         'last_checked_at' => now(),
                     ]
                 );
