@@ -218,6 +218,31 @@ class Crop extends Model
     }
     
     /**
+     * Determine the previous stage in the growth cycle.
+     *
+     * @return string|null The name of the previous stage, or null if at first stage.
+     */
+    public function getPreviousStage(): ?string
+    {
+        $order = ['germination', 'blackout', 'light', 'harvested'];
+        $currentIndex = array_search($this->current_stage, $order);
+
+        if ($currentIndex === false || $currentIndex === 0) {
+            return null; // Already at first stage or invalid stage
+        }
+        
+        // Check if we should skip blackout stage when going backwards
+        if ($this->current_stage === 'light' && $this->recipe && $this->recipe->blackout_days <= 0) {
+            // If blackout was skipped going forward, skip it going backward too
+            if (!$this->blackout_at) {
+                return 'germination';
+            }
+        }
+        
+        return $order[$currentIndex - 1];
+    }
+    
+    /**
      * Calculate the expected harvest date.
      */
     public function expectedHarvestDate(): ?Carbon

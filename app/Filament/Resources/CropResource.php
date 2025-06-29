@@ -615,6 +615,91 @@ class CropResource extends BaseResource
                                 ->send();
                         }
                     }),
+                Action::make('rollbackStage')
+                    ->label(function (Crop $record): string {
+                        $previousStage = $record->getPreviousStage();
+                        return $previousStage ? 'Rollback to ' . ucfirst($previousStage) : 'Cannot Rollback';
+                    })
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('warning')
+                    ->visible(fn (Crop $record): bool => $record->current_stage !== 'germination')
+                    ->requiresConfirmation()
+                    ->modalHeading(function (Crop $record): string {
+                        $previousStage = $record->getPreviousStage();
+                        return 'Rollback to ' . ucfirst($previousStage) . '?';
+                    })
+                    ->modalDescription('This will revert all crops in this batch to the previous stage.')
+                    ->form([
+                        Forms\Components\DateTimePicker::make('rollback_timestamp')
+                            ->label('When should this rollback to?')
+                            ->default(now())
+                            ->seconds(false)
+                            ->required()
+                            ->maxDate(now())
+                            ->helperText('Specify when the stage should have started'),
+                    ])
+                    ->action(function (Crop $record, array $data) {
+                        $previousStage = $record->getPreviousStage();
+                        
+                        if (!$previousStage) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('Cannot Rollback')
+                                ->body('This crop is already at the first stage.')
+                                ->warning()
+                                ->send();
+                            return;
+                        }
+
+                        // Begin transaction for safety
+                        DB::beginTransaction();
+                        
+                        try {
+                            // Find all crops in this batch with eager loading to avoid lazy loading violations
+                            $crops = Crop::with('recipe')
+                                ->where('recipe_id', $record->recipe_id)
+                                ->where('planting_at', $record->planting_at)
+                                ->where('current_stage', $record->current_stage)
+                                ->get();
+                            
+                            $count = $crops->count();
+                            $trayNumbers = $crops->pluck('tray_number')->toArray();
+                            
+                            // Update all crops in this batch
+                            $rollbackTime = $data['rollback_timestamp'];
+                            foreach ($crops as $crop) {
+                                // Clear the timestamp for the current stage
+                                $currentTimestampField = "{$record->current_stage}_at";
+                                $crop->$currentTimestampField = null;
+                                
+                                // Set the previous stage
+                                $crop->current_stage = $previousStage;
+                                
+                                // Update the timestamp for the previous stage if not already set
+                                $previousTimestampField = "{$previousStage}_at";
+                                if (!$crop->$previousTimestampField) {
+                                    $crop->$previousTimestampField = $rollbackTime;
+                                }
+                                
+                                $crop->save();
+                            }
+                            
+                            DB::commit();
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('Batch Rolled Back')
+                                ->body("Successfully rolled back {$count} tray(s) to {$previousStage}.")
+                                ->success()
+                                ->send();
+                        } catch (\Exception $e) {
+                            DB::rollBack();
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('Error')
+                                ->body('Failed to rollback stage: ' . $e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
                 Action::make('suspendWatering')
                     ->label('Suspend Watering')
                     ->icon('heroicon-o-no-symbol')
@@ -807,6 +892,88 @@ class CropResource extends BaseResource
                         ->requiresConfirmation()
                         ->modalHeading('Advance Selected Batches?')
                         ->modalDescription('This will advance all trays in the selected batches to their next stage.'),
+                    Tables\Actions\BulkAction::make('rollback_stage_bulk')
+                        ->label('Rollback Stage')
+                        ->icon('heroicon-o-arrow-uturn-left')
+                        ->color('warning')
+                        ->form([
+                            Forms\Components\DateTimePicker::make('rollback_timestamp')
+                                ->label('When should this rollback to?')
+                                ->default(now())
+                                ->seconds(false)
+                                ->required()
+                                ->maxDate(now())
+                                ->helperText('Specify when the stage should have started'),
+                        ])
+                        ->action(function ($records, array $data) {
+                            $totalCount = 0;
+                            $batchCount = 0;
+                            $skippedCount = 0;
+                            
+                            DB::beginTransaction();
+                            try {
+                                foreach ($records as $record) {
+                                    $previousStage = $record->getPreviousStage();
+                                    if (!$previousStage) {
+                                        $skippedCount++;
+                                        continue;
+                                    }
+                                    
+                                    // Find ALL crops in this batch
+                                    $crops = Crop::with('recipe')
+                                        ->where('recipe_id', $record->recipe_id)
+                                        ->where('planting_at', $record->planting_at)
+                                        ->where('current_stage', $record->current_stage)
+                                        ->get();
+                                    
+                                    if ($crops->isNotEmpty()) {
+                                        $rollbackTime = $data['rollback_timestamp'];
+                                        foreach ($crops as $crop) {
+                                            // Clear the timestamp for the current stage
+                                            $currentTimestampField = "{$crop->current_stage}_at";
+                                            $crop->$currentTimestampField = null;
+                                            
+                                            // Set the previous stage
+                                            $crop->current_stage = $previousStage;
+                                            
+                                            // Update the timestamp for the previous stage if not already set
+                                            $previousTimestampField = "{$previousStage}_at";
+                                            if (!$crop->$previousTimestampField) {
+                                                $crop->$previousTimestampField = $rollbackTime;
+                                            }
+                                            
+                                            $crop->save();
+                                        }
+                                        $totalCount += $crops->count();
+                                        $batchCount++;
+                                    }
+                                }
+                                
+                                DB::commit();
+                                
+                                $message = "Successfully rolled back {$batchCount} batch(es) containing {$totalCount} tray(s).";
+                                if ($skippedCount > 0) {
+                                    $message .= " Skipped {$skippedCount} batch(es) already at first stage.";
+                                }
+                                
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Batches Rolled Back')
+                                    ->body($message)
+                                    ->success()
+                                    ->send();
+                            } catch (\Exception $e) {
+                                DB::rollBack();
+                                
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Error')
+                                    ->body('Failed to rollback batches: ' . $e->getMessage())
+                                    ->danger()
+                                    ->send();
+                            }
+                        })
+                        ->requiresConfirmation()
+                        ->modalHeading('Rollback Selected Batches?')
+                        ->modalDescription('This will revert all trays in the selected batches to their previous stage.'),
                 ]),
             ]);
     }
