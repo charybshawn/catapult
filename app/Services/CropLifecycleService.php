@@ -20,8 +20,12 @@ class CropLifecycleService
 
     /**
      * Advance a crop to the next stage in its lifecycle
+     * IMPORTANT: This advances ALL crops in the batch to maintain batch integrity
+     * 
+     * @param Crop $crop The crop to advance (will advance entire batch)
+     * @param Carbon|null $timestamp Optional timestamp for when the advancement occurred
      */
-    public function advanceStage(Crop $crop): void
+    public function advanceStage(Crop $crop, ?Carbon $timestamp = null): void
     {
         $currentStage = $crop->current_stage;
         $nextStage = $this->getNextStage($currentStage);
@@ -34,23 +38,38 @@ class CropLifecycleService
             return;
         }
 
-        $now = Carbon::now();
-        $crop->current_stage = $nextStage;
+        // Find ALL crops in this batch to maintain batch integrity
+        $batchCrops = Crop::where('recipe_id', $crop->recipe_id)
+            ->where('planting_at', $crop->planting_at)
+            ->where('current_stage', $crop->current_stage)
+            ->get();
+
+        $advancementTime = $timestamp ?? Carbon::now();
+        $count = 0;
         
-        // Set stage-specific timestamps
-        match ($nextStage) {
-            'germination' => $crop->germination_at = $now,
-            'blackout' => $crop->blackout_at = $now,
-            'light' => $crop->light_at = $now,
-            'harvested' => $crop->harvested_at = $now,
-            default => null
-        };
+        // Advance all crops in the batch together
+        foreach ($batchCrops as $batchCrop) {
+            $batchCrop->current_stage = $nextStage;
+            
+            // Set stage-specific timestamps
+            match ($nextStage) {
+                'germination' => $batchCrop->germination_at = $advancementTime,
+                'blackout' => $batchCrop->blackout_at = $advancementTime,
+                'light' => $batchCrop->light_at = $advancementTime,
+                'harvested' => $batchCrop->harvested_at = $advancementTime,
+                default => null
+            };
 
-        $crop->stage_updated_at = $now;
-        $crop->save();
+            $batchCrop->stage_updated_at = $advancementTime;
+            $batchCrop->save();
+            $count++;
+        }
 
-        Log::info('Crop stage advanced', [
-            'crop_id' => $crop->id,
+        Log::info('Crop batch stage advanced', [
+            'initiating_crop_id' => $crop->id,
+            'batch_size' => $count,
+            'recipe_id' => $crop->recipe_id,
+            'planting_at' => $crop->planting_at,
             'from_stage' => $currentStage,
             'to_stage' => $nextStage
         ]);
@@ -153,32 +172,78 @@ class CropLifecycleService
 
     /**
      * Suspend watering for a crop
+     * IMPORTANT: This suspends watering for ALL crops in the batch to maintain batch integrity
+     * 
+     * @param Crop $crop The crop to suspend watering for (will suspend entire batch)
+     * @param Carbon|null $timestamp Optional timestamp for when watering was suspended
      */
-    public function suspendWatering(Crop $crop): void
+    public function suspendWatering(Crop $crop, ?Carbon $timestamp = null): void
     {
-        if ($crop->watering_suspended_at) {
-            return; // Already suspended
+        // Find ALL crops in this batch to maintain batch integrity
+        $batchCrops = Crop::where('recipe_id', $crop->recipe_id)
+            ->where('planting_at', $crop->planting_at)
+            ->where('current_stage', $crop->current_stage)
+            ->get();
+
+        $suspensionTime = $timestamp ?? Carbon::now();
+        $count = 0;
+        $alreadySuspended = 0;
+        
+        foreach ($batchCrops as $batchCrop) {
+            if ($batchCrop->watering_suspended_at) {
+                $alreadySuspended++;
+                continue;
+            }
+            
+            $batchCrop->watering_suspended_at = $suspensionTime;
+            $batchCrop->save();
+            $count++;
         }
 
-        $crop->watering_suspended_at = Carbon::now();
-        $crop->save();
-
-        Log::info('Watering suspended for crop', ['crop_id' => $crop->id]);
+        Log::info('Watering suspended for crop batch', [
+            'initiating_crop_id' => $crop->id,
+            'batch_size' => $batchCrops->count(),
+            'newly_suspended' => $count,
+            'already_suspended' => $alreadySuspended,
+            'recipe_id' => $crop->recipe_id,
+            'planting_at' => $crop->planting_at
+        ]);
     }
 
     /**
      * Resume watering for a crop
+     * IMPORTANT: This resumes watering for ALL crops in the batch to maintain batch integrity
      */
     public function resumeWatering(Crop $crop): void
     {
-        if (!$crop->watering_suspended_at) {
-            return; // Not suspended
+        // Find ALL crops in this batch to maintain batch integrity
+        $batchCrops = Crop::where('recipe_id', $crop->recipe_id)
+            ->where('planting_at', $crop->planting_at)
+            ->where('current_stage', $crop->current_stage)
+            ->get();
+
+        $count = 0;
+        $alreadyActive = 0;
+        
+        foreach ($batchCrops as $batchCrop) {
+            if (!$batchCrop->watering_suspended_at) {
+                $alreadyActive++;
+                continue;
+            }
+            
+            $batchCrop->watering_suspended_at = null;
+            $batchCrop->save();
+            $count++;
         }
 
-        $crop->watering_suspended_at = null;
-        $crop->save();
-
-        Log::info('Watering resumed for crop', ['crop_id' => $crop->id]);
+        Log::info('Watering resumed for crop batch', [
+            'initiating_crop_id' => $crop->id,
+            'batch_size' => $batchCrops->count(),
+            'newly_resumed' => $count,
+            'already_active' => $alreadyActive,
+            'recipe_id' => $crop->recipe_id,
+            'planting_at' => $crop->planting_at
+        ]);
     }
 
     /**

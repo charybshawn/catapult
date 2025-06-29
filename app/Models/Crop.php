@@ -169,10 +169,12 @@ class Crop extends Model
     
     /**
      * Suspend watering.
+     * 
+     * @param Carbon|null $timestamp Optional timestamp for when watering was suspended
      */
-    public function suspendWatering(): void
+    public function suspendWatering($timestamp = null): void
     {
-        app(CropLifecycleService::class)->suspendWatering($this);
+        app(CropLifecycleService::class)->suspendWatering($this, $timestamp);
     }
     
     /**
@@ -185,10 +187,12 @@ class Crop extends Model
     
     /**
      * Advance to the next stage.
+     * 
+     * @param Carbon|null $timestamp Optional timestamp for when the advancement occurred
      */
-    public function advanceStage(): void
+    public function advanceStage($timestamp = null): void
     {
-        app(CropLifecycleService::class)->advanceStage($this);
+        app(CropLifecycleService::class)->advanceStage($this, $timestamp);
     }
     
     /**
