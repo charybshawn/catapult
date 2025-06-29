@@ -11,7 +11,7 @@ class FilamentPermissionSeeder extends Seeder
     public function run(): void
     {
         // Create the access filament permission
-        Permission::create(['name' => 'access filament']);
+        Permission::firstOrCreate(['name' => 'access filament']);
 
         // Create admin role if it doesn't exist
         $adminRole = Role::firstOrCreate(['name' => 'admin']);

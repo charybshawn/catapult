@@ -24,19 +24,7 @@ class DatabaseSeeder extends Seeder
             // DevelopmentSeeder::class, // Disabled until updated to match simplified schema
         ]);
 
-        // Create crop stage transition notification settings
-        NotificationSetting::updateOrCreate(
-            [
-                'resource_type' => 'crops',
-                'event_type' => 'stage_transition',
-            ],
-            [
-                'recipients' => ['admin@example.com'],
-                'email_enabled' => true,
-                'email_subject_template' => 'Crop #{crop_id} Ready for {stage} Stage',
-                'email_body_template' => "Tray {tray_number} of {variety} is ready to be moved to the {stage} stage.\n\nIt has been in the previous stage for {days_in_previous_stage} days.",
-                'is_active' => true,
-            ]
-        );
+        // Note: NotificationSetting creation removed as the table structure doesn't match
+        // The current notification_settings table is for user-specific settings with channels
     }
 }

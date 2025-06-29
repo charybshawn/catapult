@@ -216,9 +216,7 @@ class CurrentSeedEntryDataSeeder extends Seeder
                         'size' => $size['size'],
                     ],
                     [
-                        'weight_kg' => $size['weight'],
-                        'original_weight_value' => $size['weight'] >= 1 ? $size['weight'] : $size['weight'] * 1000,
-                        'original_weight_unit' => $size['weight'] >= 1 ? 'kg' : 'g',
+                        'unit' => $size['weight'] >= 1 ? 'kg' : 'g',
                         'current_price' => $size['price'],
                         'is_available' => true,
                         'last_checked_at' => now(),

@@ -8,6 +8,29 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+// Debug route to test login POST
+Route::post('/debug-login', function (Illuminate\Http\Request $request) {
+    \Log::info('Debug login POST received', [
+        'data' => $request->all(),
+        'headers' => $request->headers->all()
+    ]);
+    return response()->json(['status' => 'received', 'data' => $request->all()]);
+});
+
+// Debug route to test CSRF
+Route::get('/debug-csrf', function () {
+    return response()->json([
+        'csrf_token' => csrf_token(),
+        'session_id' => session()->getId(),
+        'session_driver' => config('session.driver'),
+        'app_url' => config('app.url'),
+        'session_domain' => config('session.domain'),
+        'session_secure' => config('session.secure'),
+        'is_https' => request()->isSecure(),
+        'headers' => request()->headers->all()
+    ]);
+});
+
 Route::get('/dashboard', function () {
     return view('dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');

@@ -24,7 +24,19 @@ class AuthenticatedSessionController extends Controller
      */
     public function store(LoginRequest $request): RedirectResponse
     {
-        $request->authenticate();
+        \Log::info('Login attempt', [
+            'email' => $request->email,
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent()
+        ]);
+        
+        try {
+            $request->authenticate();
+            \Log::info('Authentication successful');
+        } catch (\Exception $e) {
+            \Log::error('Authentication failed', ['error' => $e->getMessage()]);
+            throw $e;
+        }
 
         $request->session()->regenerate();
 

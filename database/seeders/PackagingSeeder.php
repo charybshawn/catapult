@@ -28,32 +28,27 @@ class PackagingSeeder extends Seeder
         $clamshells = [
             [
                 'name' => '16oz Clamshell',
-                'capacity_volume' => 16,
-                'volume_unit' => 'oz',
+                'volume' => 16,
                 'is_active' => true,
             ],
             [
                 'name' => '24oz Clamshell',
-                'capacity_volume' => 24,
-                'volume_unit' => 'oz',
+                'volume' => 24,
                 'is_active' => true,
             ],
             [
                 'name' => '32oz Clamshell',
-                'capacity_volume' => 32,
-                'volume_unit' => 'oz',
+                'volume' => 32,
                 'is_active' => true,
             ],
             [
                 'name' => '48oz Clamshell',
-                'capacity_volume' => 48,
-                'volume_unit' => 'oz',
+                'volume' => 48,
                 'is_active' => true,
             ],
             [
                 'name' => '64oz Clamshell',
-                'capacity_volume' => 64,
-                'volume_unit' => 'oz',
+                'volume' => 64,
                 'is_active' => true,
             ],
         ];
@@ -67,12 +62,12 @@ class PackagingSeeder extends Seeder
                 'type' => 'packaging',
                 'supplier_id' => $supplier->id,
                 'packaging_type_id' => $packagingType->id,
-                'initial_stock' => 100,
+                'current_stock' => 100,
                 'consumed_quantity' => 0,
-                'unit' => 'case',
+                'unit' => 'unit',
                 'restock_threshold' => 10,
                 'restock_quantity' => 50,
-                'cost_per_unit' => match($clamshell['capacity_volume']) {
+                'cost_per_unit' => match($clamshell['volume']) {
                     16 => 0.35,
                     24 => 0.45,
                     32 => 0.55,
