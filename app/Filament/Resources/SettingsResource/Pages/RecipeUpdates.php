@@ -230,8 +230,8 @@ class RecipeUpdates extends Page
                 if ($data['update_days_to_maturity'] || $recalculateHarvestDate) {
                     $needsUpdate = true;
                     // Recalculate expected harvest date
-                    if ($crop->planted_at && $recipe->days_to_maturity) {
-                        $crop->expected_harvest_at = $crop->planted_at->copy()->addDays($recipe->days_to_maturity);
+                    if ($crop->planting_at && $recipe->days_to_maturity) {
+                        $crop->expected_harvest_at = $crop->planting_at->copy()->addDays($recipe->days_to_maturity);
                     }
                 }
                 

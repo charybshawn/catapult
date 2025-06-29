@@ -91,8 +91,8 @@ class UpdateCropTimeFields extends Command
                 }
                 
                 // Update total age using the current time
-                if ($crop->planted_at) {
-                    $plantedAt = \Carbon\Carbon::parse($crop->planted_at);
+                if ($crop->planting_at) {
+                    $plantedAt = \Carbon\Carbon::parse($crop->planting_at);
                     $totalAgeMinutes = abs($now->diffInMinutes($plantedAt));
                     $totalAgeDisplay = $this->formatDuration($now->diff($plantedAt));
                     

@@ -54,10 +54,11 @@ class CropResource extends BaseResource
                             ->preload()
                             ->createOptionForm(RecipeResource::getFormSchema()),
 
-                        Forms\Components\DateTimePicker::make('planted_at')
+                        Forms\Components\DateTimePicker::make('planting_at')
                             ->label('Planted At')
                             ->required()
-                            ->default(now()),
+                            ->default(now())
+                            ->seconds(false),
                         Forms\Components\Select::make('current_stage')
                             ->label('Current Stage')
                             ->options([
@@ -117,19 +118,24 @@ class CropResource extends BaseResource
                             ->schema([
                                 Forms\Components\DateTimePicker::make('planting_at')
                                     ->label('Planting')
-                                    ->disabled(),
+                                    ->helperText('Changes to planting date will adjust all stage timestamps proportionally')
+                                    ->seconds(false),
                                 Forms\Components\DateTimePicker::make('germination_at')
                                     ->label('Germination')
-                                    ->disabled(),
+                                    ->helperText('When germination stage began')
+                                    ->seconds(false),
                                 Forms\Components\DateTimePicker::make('blackout_at')
                                     ->label('Blackout')
-                                    ->disabled(),
+                                    ->helperText('When blackout stage began')
+                                    ->seconds(false),
                                 Forms\Components\DateTimePicker::make('light_at')
                                     ->label('Light')
-                                    ->disabled(),
+                                    ->helperText('When light stage began')
+                                    ->seconds(false),
                                 Forms\Components\DateTimePicker::make('harvested_at')
                                     ->label('Harvested')
-                                    ->disabled(),
+                                    ->helperText('When crop was harvested')
+                                    ->seconds(false),
                             ])
                             ->columns(3),
                     ])
@@ -142,17 +148,17 @@ class CropResource extends BaseResource
     public static function table(Table $table): Table
     {
         return static::configureTableDefaults($table)
-            ->defaultSort('planted_at', 'desc')
+            ->defaultSort('planting_at', 'desc')
+            ->deferLoading()
             ->modifyQueryUsing(function (Builder $query): Builder {
                 // Build the query
                 return $query->select([
                         'crops.recipe_id',
-                        'crops.planted_at',
+                        'crops.planting_at',
                         'crops.current_stage',
                         DB::raw('MIN(crops.id) as id'),
                         DB::raw('MIN(crops.created_at) as created_at'),
                         DB::raw('MIN(crops.updated_at) as updated_at'),
-                        DB::raw('MIN(crops.planting_at) as planting_at'),
                         DB::raw('MIN(crops.germination_at) as germination_at'),
                         DB::raw('MIN(crops.blackout_at) as blackout_at'),
                         DB::raw('MIN(crops.light_at) as light_at'),
@@ -164,7 +170,7 @@ class CropResource extends BaseResource
                         DB::raw('MIN(crops.stage_age_display) as stage_age_display'),
                         DB::raw('MIN(crops.total_age_minutes) as total_age_minutes'),
                         DB::raw('MIN(crops.total_age_display) as total_age_display'),
-                        DB::raw('NULL as expected_harvest_at'),
+                        DB::raw('MIN(crops.expected_harvest_at) as expected_harvest_at'),
                         DB::raw('MIN(crops.watering_suspended_at) as watering_suspended_at'),
                         DB::raw('MIN(crops.notes) as notes'),
                         DB::raw('COUNT(crops.id) as tray_count'),
@@ -172,7 +178,7 @@ class CropResource extends BaseResource
                         DB::raw('(SELECT recipes.name FROM recipes WHERE recipes.id = crops.recipe_id) as recipe_name')
                     ])
                     ->from('crops')
-                    ->groupBy(['crops.recipe_id', 'crops.planted_at', 'crops.current_stage']);
+                    ->groupBy(['crops.recipe_id', 'crops.planting_at', 'crops.current_stage']);
             })
             ->recordUrl(fn ($record) => static::getUrl('edit', ['record' => $record]))
             ->columns([
@@ -191,10 +197,12 @@ class CropResource extends BaseResource
                         return $query->orderBy('tray_count', $direction);
                     })
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('planted_at')
+                Tables\Columns\TextColumn::make('planting_at')
                     ->label('Planted')
                     ->date()
-                    ->sortable()
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderBy('crops.planting_at', $direction);
+                    })
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('current_stage')
                     ->label('Current Stage')
@@ -248,7 +256,7 @@ class CropResource extends BaseResource
             ->groups([
                 Tables\Grouping\Group::make('recipe_name')
                     ->label('Recipe'),
-                Tables\Grouping\Group::make('planted_at')
+                Tables\Grouping\Group::make('planting_at')
                     ->label('Plant Date')
                     ->date(),
                 Tables\Grouping\Group::make('current_stage')
@@ -292,13 +300,13 @@ class CropResource extends BaseResource
                             'ID' => $record->id,
                             'Tray Number' => $record->tray_number,
                             'Current Stage' => $record->current_stage,
-                            'Planted At' => $record->planted_at ? $record->planted_at->format('Y-m-d H:i:s') : 'N/A',
-                            'Germination At' => $record->germination_at ? $record->germination_at->format('Y-m-d H:i:s') : 'N/A',
-                            'Blackout At' => $record->blackout_at ? $record->blackout_at->format('Y-m-d H:i:s') : 'N/A',
-                            'Light At' => $record->light_at ? $record->light_at->format('Y-m-d H:i:s') : 'N/A',
-                            'Harvested At' => $record->harvested_at ? $record->harvested_at->format('Y-m-d H:i:s') : 'N/A',
-                            'Stage Updated At' => $record->stage_updated_at ? $record->stage_updated_at->format('Y-m-d H:i:s') : 'N/A',
-                            'Current Time' => $now->format('Y-m-d H:i:s'),
+                            'Planted At' => $record->planting_at ? $record->planting_at->format('Y-m-d H:i') : 'N/A',
+                            'Germination At' => $record->germination_at ? $record->germination_at->format('Y-m-d H:i') : 'N/A',
+                            'Blackout At' => $record->blackout_at ? $record->blackout_at->format('Y-m-d H:i') : 'N/A',
+                            'Light At' => $record->light_at ? $record->light_at->format('Y-m-d H:i') : 'N/A',
+                            'Harvested At' => $record->harvested_at ? $record->harvested_at->format('Y-m-d H:i') : 'N/A',
+                            'Stage Updated At' => $record->stage_updated_at ? $record->stage_updated_at->format('Y-m-d H:i') : 'N/A',
+                            'Current Time' => $now->format('Y-m-d H:i'),
                         ];
                         
                         // Prepare recipe data if available
@@ -455,8 +463,17 @@ class CropResource extends BaseResource
                         $nextStage = $record->getNextStage();
                         return 'Advance to ' . ucfirst($nextStage) . '?';
                     })
-                    ->modalDescription('This will update the current stage of the crop and mark the corresponding task as completed.')
-                    ->action(function (Crop $record) {
+                    ->modalDescription('This will update the current stage of all crops in this batch.')
+                    ->form([
+                        Forms\Components\DateTimePicker::make('advancement_timestamp')
+                            ->label('When did this advancement occur?')
+                            ->default(now())
+                            ->seconds(false)
+                            ->required()
+                            ->maxDate(now())
+                            ->helperText('Specify the actual time when the stage advancement happened'),
+                    ])
+                    ->action(function (Crop $record, array $data) {
                         $nextStage = $record->getNextStage();
                         
                         if (!$nextStage) {
@@ -472,9 +489,10 @@ class CropResource extends BaseResource
                         DB::beginTransaction();
                         
                         try {
-                            // Find all crops in this batch
-                            $crops = Crop::where('recipe_id', $record->recipe_id)
-                                ->where('planted_at', $record->planted_at)
+                            // Find all crops in this batch with eager loading to avoid lazy loading violations
+                            $crops = Crop::with('recipe')
+                                ->where('recipe_id', $record->recipe_id)
+                                ->where('planting_at', $record->planting_at)
                                 ->where('current_stage', $record->current_stage)
                                 ->get();
                             
@@ -482,10 +500,11 @@ class CropResource extends BaseResource
                             $trayNumbers = $crops->pluck('tray_number')->toArray();
                             
                             // Update all crops in this batch
+                            $advancementTime = $data['advancement_timestamp'];
                             foreach ($crops as $crop) {
                                 $timestampField = "{$nextStage}_at";
                                 $crop->current_stage = $nextStage;
-                                $crop->$timestampField = now();
+                                $crop->$timestampField = $advancementTime;
                                 $crop->save();
                                 
                                 // Deactivate the corresponding TaskSchedule
@@ -527,7 +546,7 @@ class CropResource extends BaseResource
                     ->visible(fn (Crop $record): bool => $record->current_stage === 'light')
                     ->requiresConfirmation()
                     ->modalHeading('Harvest Crop?')
-                    ->modalDescription('This will mark the crop as harvested and record the harvest weight.')
+                    ->modalDescription('This will mark all crops in this batch as harvested.')
                     ->form([
                         Forms\Components\TextInput::make('harvest_weight_grams')
                             ->label('Harvest Weight Per Tray (grams)')
@@ -535,15 +554,23 @@ class CropResource extends BaseResource
                             ->required()
                             ->minValue(0)
                             ->maxValue(10000),
+                        Forms\Components\DateTimePicker::make('harvest_timestamp')
+                            ->label('When was this harvested?')
+                            ->default(now())
+                            ->seconds(false)
+                            ->required()
+                            ->maxDate(now())
+                            ->helperText('Specify the actual time when the harvest occurred'),
                     ])
                     ->action(function (Crop $record, array $data) {
                         // Begin transaction for safety
                         DB::beginTransaction();
                         
                         try {
-                            // Find all crops in this batch
-                            $crops = Crop::where('recipe_id', $record->recipe_id)
-                                ->where('planted_at', $record->planted_at)
+                            // Find all crops in this batch with eager loading to avoid lazy loading violations
+                            $crops = Crop::with('recipe')
+                                ->where('recipe_id', $record->recipe_id)
+                                ->where('planting_at', $record->planting_at)
                                 ->where('current_stage', $record->current_stage)
                                 ->get();
                             
@@ -551,9 +578,10 @@ class CropResource extends BaseResource
                             $trayNumbers = $crops->pluck('tray_number')->toArray();
                             
                             // Update all crops in this batch
+                            $harvestTime = $data['harvest_timestamp'];
                             foreach ($crops as $crop) {
                                 $crop->current_stage = 'harvested';
-                                $crop->harvested_at = now();
+                                $crop->harvested_at = $harvestTime;
                                 $crop->harvest_weight_grams = $data['harvest_weight_grams'];
                                 $crop->save();
                                 
@@ -594,15 +622,25 @@ class CropResource extends BaseResource
                     ->visible(fn (Crop $record): bool => $record->current_stage === 'light' && !$record->isWateringSuspended())
                     ->requiresConfirmation()
                     ->modalHeading('Suspend Watering?')
-                    ->modalDescription('This will mark watering as suspended for this crop and complete the corresponding task.')
-                    ->action(function (Crop $record) {
+                    ->modalDescription('This will mark watering as suspended for all crops in this batch.')
+                    ->form([
+                        Forms\Components\DateTimePicker::make('suspension_timestamp')
+                            ->label('When was watering suspended?')
+                            ->default(now())
+                            ->seconds(false)
+                            ->required()
+                            ->maxDate(now())
+                            ->helperText('Specify the actual time when watering was suspended'),
+                    ])
+                    ->action(function (Crop $record, array $data) {
                         // Begin transaction for safety
                         DB::beginTransaction();
                         
                         try {
-                            // Find all crops in this batch
-                            $crops = Crop::where('recipe_id', $record->recipe_id)
-                                ->where('planted_at', $record->planted_at)
+                            // Find all crops in this batch with eager loading to avoid lazy loading violations
+                            $crops = Crop::with('recipe')
+                                ->where('recipe_id', $record->recipe_id)
+                                ->where('planting_at', $record->planting_at)
                                 ->where('current_stage', $record->current_stage)
                                 ->get();
                             
@@ -610,9 +648,10 @@ class CropResource extends BaseResource
                             $trayNumbers = $crops->pluck('tray_number')->toArray();
                             
                             // Update all crops in this batch
+                            $suspensionTime = $data['suspension_timestamp'];
                             foreach ($crops as $crop) {
-                                // Suspend watering on the Crop model
-                                $crop->suspendWatering(); // This method should set the timestamp and save
+                                // Suspend watering on the Crop model with custom timestamp
+                                $crop->suspendWatering($suspensionTime);
                                 
                                 // Deactivate the corresponding TaskSchedule
                                 $task = \App\Models\TaskSchedule::where('resource_type', 'crops')
@@ -659,14 +698,14 @@ class CropResource extends BaseResource
                         try {
                             // Find all tray numbers in this batch
                             $trayNumbers = Crop::where('recipe_id', $record->recipe_id)
-                                ->where('planted_at', $record->planted_at)
+                                ->where('planting_at', $record->planting_at)
                                 ->where('current_stage', $record->current_stage)
                                 ->pluck('tray_number')
                                 ->toArray();
                             
                             // Delete all crops in this batch
                             $count = Crop::where('recipe_id', $record->recipe_id)
-                                ->where('planted_at', $record->planted_at)
+                                ->where('planting_at', $record->planting_at)
                                 ->where('current_stage', $record->current_stage)
                                 ->delete();
                             
@@ -695,24 +734,79 @@ class CropResource extends BaseResource
                     Tables\Actions\BulkAction::make('advance_stage_bulk')
                         ->label('Advance Stage')
                         ->icon('heroicon-o-arrow-right')
-                        ->action(function ($records) {
-                            $count = 0;
-                            foreach ($records as $record) {
-                                if ($record->current_stage !== 'harvested') {
-                                    $record->advanceStage();
-                                    $count++;
-                                }
-                            }
+                        ->form([
+                            Forms\Components\DateTimePicker::make('advancement_timestamp')
+                                ->label('When did this advancement occur?')
+                                ->default(now())
+                                ->seconds(false)
+                                ->required()
+                                ->maxDate(now())
+                                ->helperText('Specify the actual time when the stage advancement happened'),
+                        ])
+                        ->action(function ($records, array $data) {
+                            $totalCount = 0;
+                            $batchCount = 0;
                             
-                            \Filament\Notifications\Notification::make()
-                                ->title('Trays Advanced')
-                                ->body("Successfully advanced {$count} trays to the next stage.")
-                                ->success()
-                                ->send();
+                            DB::beginTransaction();
+                            try {
+                                foreach ($records as $record) {
+                                    if ($record->current_stage !== 'harvested') {
+                                        // Find ALL crops in this batch
+                                        $crops = Crop::with('recipe')
+                                            ->where('recipe_id', $record->recipe_id)
+                                            ->where('planting_at', $record->planting_at)
+                                            ->where('current_stage', $record->current_stage)
+                                            ->get();
+                                        
+                                        $nextStage = $crops->first()->getNextStage();
+                                        if ($nextStage) {
+                                            $advancementTime = $data['advancement_timestamp'];
+                                            foreach ($crops as $crop) {
+                                                $timestampField = "{$nextStage}_at";
+                                                $crop->current_stage = $nextStage;
+                                                $crop->$timestampField = $advancementTime;
+                                                $crop->save();
+                                                
+                                                // Deactivate the corresponding TaskSchedule
+                                                $task = \App\Models\TaskSchedule::where('resource_type', 'crops')
+                                                    ->where('conditions->crop_id', $crop->id)
+                                                    ->where('conditions->target_stage', $nextStage)
+                                                    ->where('is_active', true)
+                                                    ->first();
+                                                    
+                                                if ($task) {
+                                                    $task->update([
+                                                        'is_active' => false,
+                                                        'last_run_at' => now(),
+                                                    ]);
+                                                }
+                                            }
+                                            $totalCount += $crops->count();
+                                            $batchCount++;
+                                        }
+                                    }
+                                }
+                                
+                                DB::commit();
+                                
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Batches Advanced')
+                                    ->body("Successfully advanced {$batchCount} batch(es) containing {$totalCount} tray(s) to the next stage.")
+                                    ->success()
+                                    ->send();
+                            } catch (\Exception $e) {
+                                DB::rollBack();
+                                
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Error')
+                                    ->body('Failed to advance batches: ' . $e->getMessage())
+                                    ->danger()
+                                    ->send();
+                            }
                         })
                         ->requiresConfirmation()
-                        ->modalHeading('Advance Selected Trays?')
-                        ->modalDescription('This will advance all selected trays to their next stage.'),
+                        ->modalHeading('Advance Selected Batches?')
+                        ->modalDescription('This will advance all trays in the selected batches to their next stage.'),
                 ]),
             ]);
     }

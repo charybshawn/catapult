@@ -31,7 +31,6 @@ class Crop extends Model
         'order_id',
         'crop_plan_id',
         'tray_number',
-        'planted_at',
         'current_stage',
         'planting_at',
         'germination_at',
@@ -62,7 +61,6 @@ class Crop extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'planted_at' => 'datetime',
         'planting_at' => 'datetime',
         'germination_at' => 'datetime',
         'blackout_at' => 'datetime',
@@ -171,10 +169,12 @@ class Crop extends Model
     
     /**
      * Suspend watering.
+     * 
+     * @param Carbon|null $timestamp Optional timestamp for when watering was suspended
      */
-    public function suspendWatering(): void
+    public function suspendWatering($timestamp = null): void
     {
-        app(CropLifecycleService::class)->suspendWatering($this);
+        app(CropLifecycleService::class)->suspendWatering($this, $timestamp);
     }
     
     /**
@@ -187,10 +187,12 @@ class Crop extends Model
     
     /**
      * Advance to the next stage.
+     * 
+     * @param Carbon|null $timestamp Optional timestamp for when the advancement occurred
      */
-    public function advanceStage(): void
+    public function advanceStage($timestamp = null): void
     {
-        app(CropLifecycleService::class)->advanceStage($this);
+        app(CropLifecycleService::class)->advanceStage($this, $timestamp);
     }
     
     /**
@@ -241,7 +243,6 @@ class Crop extends Model
                 'recipe_id', 
                 'order_id', 
                 'tray_number',
-                'planted_at',
                 'current_stage',
                 'planting_at',
                 'germination_at',
@@ -262,19 +263,14 @@ class Crop extends Model
     {
         // Add our existing boot logic
         static::creating(function (Crop $crop) {
-            // Set planted_at if not provided
-            if (!$crop->planted_at) {
-                $crop->planted_at = now();
-            }
-            
-            // Set planting_at timestamp for record-keeping
+            // Set planting_at if not provided
             if (!$crop->planting_at) {
-                $crop->planting_at = $crop->planted_at;
+                $crop->planting_at = now();
             }
             
             // Set germination_at and current_stage to germination automatically
-            if ($crop->planted_at && !$crop->germination_at) {
-                $crop->germination_at = $crop->planted_at;
+            if ($crop->planting_at && !$crop->germination_at) {
+                $crop->germination_at = $crop->planting_at;
             }
             
             // Always start at germination stage if not set
@@ -374,25 +370,36 @@ class Crop extends Model
             }
         });
         
-        static::updating(function ($crop) {
-            // If planted_at has changed, recalculate stage dates
-            if ($crop->isDirty('planted_at') && $crop->recipe) {
+        static::saving(function ($crop) {
+            // Validate timestamp sequence for manual edits (both new crops and timestamp updates)
+            if (!$crop->exists || $crop->isDirty(['planting_at', 'germination_at', 'blackout_at', 'light_at', 'harvested_at'])) {
                 try {
-                    // Get original planted_at
-                    $originalPlantedAt = $crop->getOriginal('planted_at');
+                    static::validateTimestampSequence($crop);
+                } catch (\Exception $e) {
+                    throw new \Exception($e->getMessage());
+                }
+            }
+        });
+        
+        static::updating(function ($crop) {
+            // If planting_at has changed, recalculate stage dates
+            if ($crop->isDirty('planting_at') && $crop->recipe) {
+                try {
+                    // Get original planting_at
+                    $originalPlantingAt = $crop->getOriginal('planting_at');
                     
-                    // Get the new planted_at
-                    $newPlantedAt = $crop->planted_at;
+                    // Get the new planting_at
+                    $newPlantingAt = $crop->planting_at;
                     
-                    // Calculate time difference in seconds
-                    $originalDateTime = new \Carbon\Carbon($originalPlantedAt);
-                    $timeDiff = $originalDateTime->diffInSeconds($newPlantedAt, false);
+                    // Calculate time difference in minutes
+                    $originalDateTime = new \Carbon\Carbon($originalPlantingAt);
+                    $timeDiff = $originalDateTime->diffInMinutes($newPlantingAt, false);
                     
                     // Adjust all stage timestamps by the same amount
                     foreach (['germination_at', 'blackout_at', 'light_at'] as $stageField) {
                         if ($crop->$stageField) {
                             $stageTime = new \Carbon\Carbon($crop->$stageField);
-                            $crop->$stageField = $stageTime->addSeconds($timeDiff);
+                            $crop->$stageField = $stageTime->addMinutes($timeDiff);
                         }
                     }
                 } catch (\Exception $e) {
@@ -405,8 +412,8 @@ class Crop extends Model
         });
         
         static::updated(function ($crop) {
-            // If the stage has changed or planted_at has changed, recalculate tasks
-            if (($crop->isDirty('current_stage') || $crop->isDirty('planted_at')) && 
+            // If the stage has changed or planting_at has changed, recalculate tasks
+            if (($crop->isDirty('current_stage') || $crop->isDirty('planting_at')) && 
                 config('app.env') !== 'testing') {
                 try {
                     app(\App\Services\CropTaskService::class)->scheduleAllStageTasks($crop);
@@ -544,6 +551,58 @@ class Crop extends Model
     public function getTotalAgeStatus(): string
     {
         return app(CropTimeCalculator::class)->getTotalAgeStatus($this);
+    }
+
+    /**
+     * Validate that timestamps are in chronological order
+     * 
+     * @param Crop $crop
+     * @throws \Exception
+     */
+    protected static function validateTimestampSequence(Crop $crop): void
+    {
+        $timestamps = [];
+        
+        // Build array of non-null timestamps with their labels
+        if ($crop->planting_at) {
+            $timestamps['planting_at'] = $crop->planting_at;
+        }
+        if ($crop->germination_at) {
+            $timestamps['germination_at'] = $crop->germination_at;
+        }
+        if ($crop->blackout_at) {
+            $timestamps['blackout_at'] = $crop->blackout_at;
+        }
+        if ($crop->light_at) {
+            $timestamps['light_at'] = $crop->light_at;
+        }
+        if ($crop->harvested_at) {
+            $timestamps['harvested_at'] = $crop->harvested_at;
+        }
+        
+        // Skip validation if we have fewer than 2 timestamps
+        if (count($timestamps) < 2) {
+            return;
+        }
+        
+        // Convert to Carbon instances for comparison
+        $carbonTimestamps = array_map(function($timestamp) {
+            return $timestamp instanceof \Carbon\Carbon ? $timestamp : \Carbon\Carbon::parse($timestamp);
+        }, $timestamps);
+        
+        // Check if timestamps are in order (allow same timestamp for flexibility)
+        $previousTimestamp = null;
+        $previousLabel = null;
+        
+        foreach ($carbonTimestamps as $label => $timestamp) {
+            if ($previousTimestamp && $timestamp->lt($previousTimestamp)) {
+                $readableLabel = str_replace('_at', '', str_replace('_', ' ', $label));
+                $readablePrevious = str_replace('_at', '', str_replace('_', ' ', $previousLabel));
+                throw new \Exception("Growth stage timestamps must be in chronological order. {$readableLabel} cannot be before {$readablePrevious}.");
+            }
+            $previousTimestamp = $timestamp;
+            $previousLabel = $label;
+        }
     }
 
 }

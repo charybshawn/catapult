@@ -19,7 +19,7 @@ class ListCrops extends ListRecords
     // Set default sort for the page
     protected function getDefaultTableSortColumn(): ?string
     {
-        return 'planted_at';
+        return 'planting_at';
     }
 
     protected function getDefaultTableSortDirection(): ?string
@@ -60,12 +60,8 @@ class ListCrops extends ListRecords
         ]);
         
         // Override default ordering to prevent ONLY_FULL_GROUP_BY errors
-        // By default, Filament will order by 'id' which isn't in the GROUP BY clause
-        $sortColumn = $this->getTableSortColumn();
-        if (!$sortColumn) {
-            // Force ordering by a column that's part of the GROUP BY
-            $query->reorder('planted_at', 'desc');
-        }
+        // Force ordering by a column that's part of the GROUP BY
+        $query->reorder('crops.planting_at', 'desc');
         
         return $query->with(['recipe.seedEntry']);
     }

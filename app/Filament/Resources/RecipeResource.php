@@ -472,8 +472,8 @@ class RecipeResource extends Resource
                                 if (($data['update_days_to_maturity'] ?? false) || $recalculateHarvestDate) {
                                     $needsUpdate = true;
                                     // Recalculate expected harvest date
-                                    if ($crop->planted_at && $record->days_to_maturity) {
-                                        $crop->expected_harvest_at = $crop->planted_at->copy()->addDays($record->days_to_maturity);
+                                    if ($crop->planting_at && $record->days_to_maturity) {
+                                        $crop->expected_harvest_at = $crop->planting_at->copy()->addDays($record->days_to_maturity);
                                     }
                                 }
                                 

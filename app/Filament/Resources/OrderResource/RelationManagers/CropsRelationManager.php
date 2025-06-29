@@ -34,7 +34,7 @@ class CropsRelationManager extends RelationManager
                     ->label('Tray Number')
                     ->required()
                     ->integer(),
-                Forms\Components\DateTimePicker::make('planted_at')
+                Forms\Components\DateTimePicker::make('planting_at')
                     ->label('Planted At')
                     ->required()
                     ->default(now()),
@@ -83,7 +83,7 @@ class CropsRelationManager extends RelationManager
                         'harvested' => 'gray',
                         default => 'gray',
                     }),
-                Tables\Columns\TextColumn::make('planted_at')
+                Tables\Columns\TextColumn::make('planting_at')
                     ->dateTime()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('expectedHarvestDate')

@@ -42,7 +42,7 @@ class CropTaskService
         }
         
         $recipe = $crop->recipe;
-        $plantedAt = $crop->planted_at;
+        $plantedAt = $crop->planting_at;
         $currentStage = $crop->current_stage;
         
         // Get durations from recipe
@@ -135,9 +135,9 @@ class CropTaskService
             }
         }
 
-        // Find other crops in the same batch (same recipe, planted_at date, and current_stage)
+        // Find other crops in the same batch (same recipe, planting_at date, and current_stage)
         $batchTrays = Crop::where('recipe_id', $crop->recipe_id)
-            ->where('planted_at', $crop->planted_at)
+            ->where('planting_at', $crop->planting_at)
             ->where('current_stage', $crop->current_stage)
             ->pluck('tray_number')
             ->toArray();
@@ -148,7 +148,7 @@ class CropTaskService
         // Create conditions for the task - using batch information instead of individual tray
         $conditions = [
             'crop_id' => (int) $crop->id, // Keep main crop ID as reference
-            'batch_identifier' => "{$crop->recipe_id}_{$crop->planted_at->format('Y-m-d')}_{$crop->current_stage}",
+            'batch_identifier' => "{$crop->recipe_id}_{$crop->planting_at->format('Y-m-d')}_{$crop->current_stage}",
             'target_stage' => $targetStage,
             'tray_numbers' => $batchTrays,
             'tray_count' => $batchSize,
@@ -174,7 +174,7 @@ class CropTaskService
     protected function deleteExistingTasks(Crop $crop): void
     {
         // Create a batch identifier
-        $batchIdentifier = "{$crop->recipe_id}_{$crop->planted_at->format('Y-m-d')}_{$crop->current_stage}";
+        $batchIdentifier = "{$crop->recipe_id}_{$crop->planting_at->format('Y-m-d')}_{$crop->current_stage}";
         
         // Find and delete all tasks related to this batch
         TaskSchedule::where('resource_type', 'crops')
@@ -214,7 +214,7 @@ class CropTaskService
                 list($recipeId, $plantedAtDate, $currentStage) = $batchParts;
                 
                 $crops = Crop::where('recipe_id', $recipeId)
-                    ->where('planted_at', $plantedAtDate)
+                    ->where('planting_at', $plantedAtDate)
                     ->where('current_stage', $currentStage)
                     ->whereIn('tray_number', $trayNumbers)
                     ->get();
