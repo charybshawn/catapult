@@ -156,9 +156,12 @@ class HarvestResource extends BaseResource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('harvest_date', 'desc')
-            ->modifyQueryUsing(fn (Builder $query) => $query->with([
-                'masterCultivar.masterSeedCatalog'
-            ]))
+            ->modifyQueryUsing(function (Builder $query) {
+                return $query->selectRaw("
+                    harvests.*,
+                    CONCAT(harvests.master_cultivar_id, '_', DATE_FORMAT(harvests.harvest_date, '%Y-%m-%d')) as variety_date_key
+                ");
+            })
             ->groups([
                 Tables\Grouping\Group::make('variety_date_key')
                     ->label('Variety & Date')
