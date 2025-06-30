@@ -1140,7 +1140,11 @@
                     </div>
                     
                     <div class="p-6">
-                        @livewire('crop-planning-calendar', ['events' => $calendarEvents])
+                        {{-- Temporarily disabled until FullCalendar package is installed --}}
+                        {{-- @livewire('crop-planning-calendar', ['events' => $calendarEvents]) --}}
+                        <div class="text-center text-gray-500 py-8">
+                            Calendar view temporarily unavailable
+                        </div>
                     </div>
                 </div>
                 
