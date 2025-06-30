@@ -49,6 +49,10 @@ Route::middleware('auth')->group(function () {
     // Dashboard AJAX endpoint
     Route::get('/admin/dashboard/data', [\App\Filament\Pages\Dashboard::class, 'getDashboardDataAjax'])->name('dashboard.data');
     
+    // Dashboard crop stage actions
+    Route::post('/admin/dashboard/advance-crops', [\App\Filament\Pages\Dashboard::class, 'advanceCropsFromAlert'])->name('dashboard.advance-crops');
+    Route::post('/admin/dashboard/rollback-crops', [\App\Filament\Pages\Dashboard::class, 'rollbackCropFromAlert'])->name('dashboard.rollback-crops');
+    
     // Admin-specific routes that need Filament middleware
     Route::middleware(['web'])->prefix('admin')->group(function () {
         Route::post('/generate-crop-plan/{order}', [\App\Http\Controllers\CropPlanningController::class, 'generateCropPlan'])->name('crop-planning.generate');

@@ -559,15 +559,84 @@
                                         </div>
                                         
                                         <div class="pt-4 border-t">
-                                            <div class="flex gap-3">
-                                                <a href="{{ route('filament.admin.resources.crop-alerts.edit', ['record' => $alert->id]) }}" 
-                                                   class="flex-1 text-center py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                                                    Edit Alert
-                                                </a>
-                                                <a href="{{ route('filament.admin.resources.crops.index') }}" 
-                                                   class="flex-1 text-center py-2 px-4 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
-                                                    View Batch
-                                                </a>
+                                            <div class="space-y-3">
+                                                <!-- Action Buttons -->
+                                                <div class="flex gap-3">
+                                                    <button type="button"
+                                                            x-data
+                                                            @click="
+                                                                if (confirm('Advance {{ $alert->tray_count }} crops to {{ $alert->target_stage }}?')) {
+                                                                    fetch('{{ route('dashboard.advance-crops') }}', {
+                                                                        method: 'POST',
+                                                                        headers: {
+                                                                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                                                            'Content-Type': 'application/json',
+                                                                        },
+                                                                        body: JSON.stringify({
+                                                                            alert_ids: {{ json_encode($alert->alert_ids) }}
+                                                                        })
+                                                                    })
+                                                                    .then(response => response.json())
+                                                                    .then(data => {
+                                                                        if (data.success) {
+                                                                            alert(data.message);
+                                                                            window.location.reload();
+                                                                        } else {
+                                                                            alert('Error: ' + data.message);
+                                                                        }
+                                                                    })
+                                                                    .catch(error => {
+                                                                        alert('Error: ' + error);
+                                                                    });
+                                                                }
+                                                            "
+                                                            class="flex-1 text-center py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                                                        Advance Stage
+                                                    </button>
+                                                    <button type="button"
+                                                            x-data
+                                                            @click="
+                                                                if (confirm('Rollback {{ $alert->tray_count }} crops to previous stage?')) {
+                                                                    fetch('{{ route('dashboard.rollback-crops') }}', {
+                                                                        method: 'POST',
+                                                                        headers: {
+                                                                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                                                            'Content-Type': 'application/json',
+                                                                        },
+                                                                        body: JSON.stringify({
+                                                                            alert_ids: {{ json_encode($alert->alert_ids) }}
+                                                                        })
+                                                                    })
+                                                                    .then(response => response.json())
+                                                                    .then(data => {
+                                                                        if (data.success) {
+                                                                            alert(data.message);
+                                                                            window.location.reload();
+                                                                        } else {
+                                                                            alert('Error: ' + data.message);
+                                                                        }
+                                                                    })
+                                                                    .catch(error => {
+                                                                        alert('Error: ' + error);
+                                                                    });
+                                                                }
+                                                            "
+                                                            class="flex-1 text-center py-2 px-4 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors">
+                                                        Rollback Stage
+                                                    </button>
+                                                </div>
+                                                
+                                                <!-- Other Links -->
+                                                <div class="flex gap-3">
+                                                    <a href="{{ route('filament.admin.resources.crop-alerts.edit', ['record' => $alert->id]) }}" 
+                                                       class="flex-1 text-center py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                                                        Edit Alert
+                                                    </a>
+                                                    <a href="{{ route('filament.admin.resources.crops.index') }}" 
+                                                       class="flex-1 text-center py-2 px-4 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                                                        View Batch
+                                                    </a>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -708,15 +777,84 @@
                                         </div>
                                         
                                         <div class="pt-4 border-t">
-                                            <div class="flex gap-3">
-                                                <a href="{{ route('filament.admin.resources.crop-alerts.edit', ['record' => $alert->id]) }}" 
-                                                   class="flex-1 text-center py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                                                    Edit Alert
-                                                </a>
-                                                <a href="{{ route('filament.admin.resources.crops.index') }}" 
-                                                   class="flex-1 text-center py-2 px-4 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
-                                                    View Batch
-                                                </a>
+                                            <div class="space-y-3">
+                                                <!-- Action Buttons -->
+                                                <div class="flex gap-3">
+                                                    <button type="button"
+                                                            x-data
+                                                            @click="
+                                                                if (confirm('Advance {{ $alert->tray_count }} crops to {{ $alert->target_stage }}?')) {
+                                                                    fetch('{{ route('dashboard.advance-crops') }}', {
+                                                                        method: 'POST',
+                                                                        headers: {
+                                                                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                                                            'Content-Type': 'application/json',
+                                                                        },
+                                                                        body: JSON.stringify({
+                                                                            alert_ids: {{ json_encode($alert->alert_ids) }}
+                                                                        })
+                                                                    })
+                                                                    .then(response => response.json())
+                                                                    .then(data => {
+                                                                        if (data.success) {
+                                                                            alert(data.message);
+                                                                            window.location.reload();
+                                                                        } else {
+                                                                            alert('Error: ' + data.message);
+                                                                        }
+                                                                    })
+                                                                    .catch(error => {
+                                                                        alert('Error: ' + error);
+                                                                    });
+                                                                }
+                                                            "
+                                                            class="flex-1 text-center py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                                                        Advance Stage
+                                                    </button>
+                                                    <button type="button"
+                                                            x-data
+                                                            @click="
+                                                                if (confirm('Rollback {{ $alert->tray_count }} crops to previous stage?')) {
+                                                                    fetch('{{ route('dashboard.rollback-crops') }}', {
+                                                                        method: 'POST',
+                                                                        headers: {
+                                                                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                                                            'Content-Type': 'application/json',
+                                                                        },
+                                                                        body: JSON.stringify({
+                                                                            alert_ids: {{ json_encode($alert->alert_ids) }}
+                                                                        })
+                                                                    })
+                                                                    .then(response => response.json())
+                                                                    .then(data => {
+                                                                        if (data.success) {
+                                                                            alert(data.message);
+                                                                            window.location.reload();
+                                                                        } else {
+                                                                            alert('Error: ' + data.message);
+                                                                        }
+                                                                    })
+                                                                    .catch(error => {
+                                                                        alert('Error: ' + error);
+                                                                    });
+                                                                }
+                                                            "
+                                                            class="flex-1 text-center py-2 px-4 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors">
+                                                        Rollback Stage
+                                                    </button>
+                                                </div>
+                                                
+                                                <!-- Other Links -->
+                                                <div class="flex gap-3">
+                                                    <a href="{{ route('filament.admin.resources.crop-alerts.edit', ['record' => $alert->id]) }}" 
+                                                       class="flex-1 text-center py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                                                        Edit Alert
+                                                    </a>
+                                                    <a href="{{ route('filament.admin.resources.crops.index') }}" 
+                                                       class="flex-1 text-center py-2 px-4 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                                                        View Batch
+                                                    </a>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -869,15 +1007,84 @@
                                         </div>
                                         
                                         <div class="pt-4 border-t">
-                                            <div class="flex gap-3">
-                                                <a href="{{ route('filament.admin.resources.crop-alerts.edit', ['record' => $alert->id]) }}" 
-                                                   class="flex-1 text-center py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                                                    Edit Alert
-                                                </a>
-                                                <a href="{{ route('filament.admin.resources.crops.index') }}" 
-                                                   class="flex-1 text-center py-2 px-4 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
-                                                    View Batch
-                                                </a>
+                                            <div class="space-y-3">
+                                                <!-- Action Buttons -->
+                                                <div class="flex gap-3">
+                                                    <button type="button"
+                                                            x-data
+                                                            @click="
+                                                                if (confirm('Advance {{ $alert->tray_count }} crops to {{ $alert->target_stage }}?')) {
+                                                                    fetch('{{ route('dashboard.advance-crops') }}', {
+                                                                        method: 'POST',
+                                                                        headers: {
+                                                                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                                                            'Content-Type': 'application/json',
+                                                                        },
+                                                                        body: JSON.stringify({
+                                                                            alert_ids: {{ json_encode($alert->alert_ids) }}
+                                                                        })
+                                                                    })
+                                                                    .then(response => response.json())
+                                                                    .then(data => {
+                                                                        if (data.success) {
+                                                                            alert(data.message);
+                                                                            window.location.reload();
+                                                                        } else {
+                                                                            alert('Error: ' + data.message);
+                                                                        }
+                                                                    })
+                                                                    .catch(error => {
+                                                                        alert('Error: ' + error);
+                                                                    });
+                                                                }
+                                                            "
+                                                            class="flex-1 text-center py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                                                        Advance Stage
+                                                    </button>
+                                                    <button type="button"
+                                                            x-data
+                                                            @click="
+                                                                if (confirm('Rollback {{ $alert->tray_count }} crops to previous stage?')) {
+                                                                    fetch('{{ route('dashboard.rollback-crops') }}', {
+                                                                        method: 'POST',
+                                                                        headers: {
+                                                                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                                                            'Content-Type': 'application/json',
+                                                                        },
+                                                                        body: JSON.stringify({
+                                                                            alert_ids: {{ json_encode($alert->alert_ids) }}
+                                                                        })
+                                                                    })
+                                                                    .then(response => response.json())
+                                                                    .then(data => {
+                                                                        if (data.success) {
+                                                                            alert(data.message);
+                                                                            window.location.reload();
+                                                                        } else {
+                                                                            alert('Error: ' + data.message);
+                                                                        }
+                                                                    })
+                                                                    .catch(error => {
+                                                                        alert('Error: ' + error);
+                                                                    });
+                                                                }
+                                                            "
+                                                            class="flex-1 text-center py-2 px-4 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors">
+                                                        Rollback Stage
+                                                    </button>
+                                                </div>
+                                                
+                                                <!-- Other Links -->
+                                                <div class="flex gap-3">
+                                                    <a href="{{ route('filament.admin.resources.crop-alerts.edit', ['record' => $alert->id]) }}" 
+                                                       class="flex-1 text-center py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                                                        Edit Alert
+                                                    </a>
+                                                    <a href="{{ route('filament.admin.resources.crops.index') }}" 
+                                                       class="flex-1 text-center py-2 px-4 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                                                        View Batch
+                                                    </a>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

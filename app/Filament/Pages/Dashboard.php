@@ -945,4 +945,174 @@ class Dashboard extends BaseDashboard
         
         return $events;
     }
+    
+    /**
+     * Advance crops to next stage from alert
+     */
+    public function advanceCropsFromAlert(Request $request): JsonResponse
+    {
+        $alertIds = $request->input('alert_ids', []);
+        
+        if (empty($alertIds)) {
+            return response()->json(['success' => false, 'message' => 'No alerts provided']);
+        }
+        
+        try {
+            // Get all task schedules for these alerts
+            $alerts = TaskSchedule::whereIn('id', $alertIds)->get();
+            
+            $processedCount = 0;
+            $failedCount = 0;
+            $errors = [];
+            
+            foreach ($alerts as $alert) {
+                $cropId = $alert->conditions['crop_id'] ?? null;
+                
+                if (!$cropId) {
+                    $failedCount++;
+                    continue;
+                }
+                
+                $crop = Crop::find($cropId);
+                
+                if (!$crop) {
+                    $failedCount++;
+                    continue;
+                }
+                
+                try {
+                    // Advance the crop stage
+                    $crop->advanceStage();
+                    
+                    // Mark the alert as completed
+                    $alert->update([
+                        'is_active' => false,
+                        'completed_at' => now(),
+                    ]);
+                    
+                    $processedCount++;
+                } catch (\Exception $e) {
+                    $failedCount++;
+                    $errors[] = "Crop #{$crop->id}: " . $e->getMessage();
+                }
+            }
+            
+            $message = "Advanced {$processedCount} crops successfully.";
+            if ($failedCount > 0) {
+                $message .= " {$failedCount} failed.";
+            }
+            
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'processed' => $processedCount,
+                'failed' => $failedCount,
+                'errors' => $errors,
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to advance crops: ' . $e->getMessage(),
+            ]);
+        }
+    }
+    
+    /**
+     * Rollback crop stage from alert
+     */
+    public function rollbackCropFromAlert(Request $request): JsonResponse
+    {
+        $alertIds = $request->input('alert_ids', []);
+        
+        if (empty($alertIds)) {
+            return response()->json(['success' => false, 'message' => 'No alerts provided']);
+        }
+        
+        try {
+            // Get all task schedules for these alerts
+            $alerts = TaskSchedule::whereIn('id', $alertIds)->get();
+            
+            $processedCount = 0;
+            $failedCount = 0;
+            $errors = [];
+            
+            foreach ($alerts as $alert) {
+                $cropId = $alert->conditions['crop_id'] ?? null;
+                
+                if (!$cropId) {
+                    $failedCount++;
+                    continue;
+                }
+                
+                $crop = Crop::find($cropId);
+                
+                if (!$crop) {
+                    $failedCount++;
+                    continue;
+                }
+                
+                try {
+                    // Rollback the crop stage
+                    $previousStage = $this->getPreviousStage($crop->current_stage);
+                    
+                    if (!$previousStage) {
+                        throw new \Exception('Cannot rollback from current stage');
+                    }
+                    
+                    // Update crop stage and timestamp
+                    $crop->update([
+                        'current_stage' => $previousStage,
+                        'stage_updated_at' => now(),
+                        "{$previousStage}_at" => now(),
+                    ]);
+                    
+                    // Reschedule the alert
+                    $alert->update([
+                        'next_run_at' => now()->addDays(1), // Reschedule for tomorrow
+                    ]);
+                    
+                    $processedCount++;
+                } catch (\Exception $e) {
+                    $failedCount++;
+                    $errors[] = "Crop #{$crop->id}: " . $e->getMessage();
+                }
+            }
+            
+            $message = "Rolled back {$processedCount} crops successfully.";
+            if ($failedCount > 0) {
+                $message .= " {$failedCount} failed.";
+            }
+            
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'processed' => $processedCount,
+                'failed' => $failedCount,
+                'errors' => $errors,
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to rollback crops: ' . $e->getMessage(),
+            ]);
+        }
+    }
+    
+    /**
+     * Get the previous stage for a given stage
+     */
+    protected function getPreviousStage(string $currentStage): ?string
+    {
+        $stages = [
+            'planting' => null,
+            'germination' => 'planting',
+            'blackout' => 'germination',
+            'light' => 'blackout',
+            'harvested' => 'light',
+        ];
+        
+        return $stages[$currentStage] ?? null;
+    }
 } 
