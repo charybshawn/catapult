@@ -32,14 +32,14 @@ return new class extends Migration
         Schema::create('master_cultivars', function (Blueprint $table) {
             $table->id();
             $table->foreignId('master_seed_catalog_id')->constrained('master_seed_catalog')->onDelete('cascade');
-            $table->string('name');
+            $table->string('cultivar_name');
             $table->foreignId('supplier_id')->nullable()->constrained('suppliers')->onDelete('set null');
             $table->integer('days_to_maturity')->nullable();
             $table->text('description')->nullable();
             $table->boolean('is_active')->default(true);
             $table->timestamps();
             
-            $table->index(['master_seed_catalog_id', 'name']);
+            $table->index(['master_seed_catalog_id', 'cultivar_name']);
             $table->index('supplier_id');
         });
 

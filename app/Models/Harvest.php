@@ -58,6 +58,11 @@ class Harvest extends Model
         return $this->masterCultivar ? $this->masterCultivar->full_name : 'Unknown Variety';
     }
 
+    public function getVarietyDateKeyAttribute(): string
+    {
+        return $this->master_cultivar_id . '_' . $this->harvest_date->format('Y-m-d');
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
