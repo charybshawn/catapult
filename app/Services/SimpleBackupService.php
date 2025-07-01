@@ -20,7 +20,7 @@ class SimpleBackupService
     /**
      * Create a database backup using native mysqldump
      */
-    public function createBackup(?string $name = null): string
+    public function createBackup(?string $name = null, bool $excludeViews = false): string
     {
         $lockFile = storage_path('app/backups/.backup.lock');
         $lockHandle = null;
@@ -76,8 +76,15 @@ class SimpleBackupService
                 '--skip-routines',
                 '--skip-triggers',
                 '--skip-events',
-                $config['database']
             ];
+            
+            // Add views exclusion if requested
+            if ($excludeViews) {
+                $command[] = '--ignore-table=catapult.product_inventory_summary';
+                $command[] = '--ignore-table=catapult.crop_batches';
+            }
+            
+            $command[] = $config['database'];
             
             $process = new Process($command, base_path());
             
