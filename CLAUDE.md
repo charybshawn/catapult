@@ -23,6 +23,7 @@
 2. **Look for existing solutions** - can you extend/fix what's there?
 3. **Plan your approach** - don't code until you have a clear plan
 4. **Commit to ONE approach** - see it through to completion
+5. **Code changes require DB schema changes** - if a requested code change, absolutely requires a schema change at the DBMS level, then prompt the user to create a new git feature branch
 
 ### DURING coding:
 1. **Fix, don't replace** - prefer editing existing code over creating new files
@@ -35,64 +36,9 @@
 2. **Consolidate duplicated functionality** - merge similar files
 3. **Update documentation** - keep this file current
 
-## 📁 Current Database Backup System
-
-### Existing Files (DO NOT DUPLICATE):
-- `app/Filament/Pages/DatabaseConsole.php` - Main backup management page ✅ WORKING
-- `app/Console/Commands/DatabaseBackupCommand.php` - Backup CLI command
-- `app/Console/Commands/DatabaseRestoreCommand.php` - Restore CLI command  
-- `app/Console/Commands/SafeBackupCommand.php` - Git-integrated backup
-- `app/Services/SimpleBackupService.php` - Core backup logic
-- `resources/views/filament/pages/database-console.blade.php` - UI template
 
 ### 🗂️ STANDARDIZED BACKUP STORAGE LOCATION
 **ALL backup files MUST be stored in: `storage/app/backups/database/`**
-
-**NEVER use:**
-- `storage/app/private/backups/database/` 
-- Any other backup paths
-- Laravel disk abstractions for backup storage (causes path confusion)
-
-**ALWAYS use:**
-- Direct file system operations with `storage_path('app/backups/database/')`
-- This standardized path across ALL backup-related code
-
-### ❌ FAILED/ABANDONED Files (CLEANED UP):
-- ~~`app/Models/DatabaseBackup.php`~~ - Virtual model attempt (DELETED)
-- ~~`app/Filament/Resources/DatabaseBackupResource.php`~~ - Resource attempt (DELETED)
-- ~~`app/Filament/Pages/DatabaseBackups.php`~~ - Duplicate page attempt (DELETED)
-- ~~`resources/views/filament/pages/database-backups.blade.php`~~ - Duplicate view (DELETED)
-
-**Status: ✅ CLEANED UP - Only ONE working solution remains**
-
-## 🛠 Key Commands
-
-### Database Operations:
-```bash
-# Create backup
-php artisan db:backup
-
-# List backups  
-php artisan db:backup --list
-
-# Restore backup
-php artisan db:restore filename.sql --force
-
-# Safe backup with git
-php artisan safe:backup --commit-message="Description"
-```
-
-### Development:
-```bash
-# Test commands before implementing
-php artisan tinker
-
-# Check routes
-php artisan route:list | grep backup
-
-# Clear caches when things break
-php artisan optimize:clear
-```
 
 ## 🧹 Code Cleanup Checklist
 
@@ -122,32 +68,17 @@ Before marking any task complete:
 3. **Test early and often** - Don't write 100+ lines without testing
 4. **Clean up immediately** - Remove any failed attempts right away
 5. **Document your changes** - Update this file when you modify the system
-
-## 📋 Current Working Features
-
-### Database Console (`/admin/database-console`):
-- ✅ Create backups with custom paths
-- ✅ Safe backups with git integration  
-- ✅ List all available backups
-- ✅ Download backup files
-- ✅ Restore from backups
-- ✅ Mass delete with multiselect
-- ✅ Schema change workflow documentation
-- ✅ Full CLI flag support in UI
-
-### Tested Workflows:
-- ✅ Basic backup creation and restoration
-- ✅ Schema changes with data preservation  
-- ✅ Mass backup deletion
-- ✅ Git-integrated safe backups
+6. **Ask Questions** - Whenever you need to prompt the user for clarification
 
 ## 🔄 Future Development Guidelines
 
-1. **Always start with the existing DatabaseConsole page**
 2. **Extend functionality, don't replace it**
 3. **Test with real data and real workflows**
 4. **Keep the UI simple and intuitive**
 5. **Document any new features in this file**
+6. **Prefer code based solutions to altering database schema**
+7. **Don't change the names of existing database schema columns**
+
 
 ---
 

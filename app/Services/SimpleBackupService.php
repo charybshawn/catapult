@@ -80,8 +80,11 @@ class SimpleBackupService
             
             // Add views exclusion if requested
             if ($excludeViews) {
-                $command[] = '--ignore-table=catapult.product_inventory_summary';
-                $command[] = '--ignore-table=catapult.crop_batches';
+                // Get all views and exclude them
+                $views = $this->getDatabaseViews();
+                foreach ($views as $view) {
+                    $command[] = '--ignore-table=' . $config['database'] . '.' . $view;
+                }
             }
             
             $command[] = $config['database'];
@@ -374,6 +377,35 @@ class SimpleBackupService
         $pathsToAdd = $additionalPaths ?? $defaultPaths;
         
         return $currentPath . ':' . implode(':', $pathsToAdd);
+    }
+
+    /**
+     * Get all database views
+     */
+    private function getDatabaseViews(): array
+    {
+        try {
+            $config = config('database.connections.mysql');
+            $pdo = new \PDO(
+                "mysql:host={$config['host']};port={$config['port']};dbname={$config['database']};charset={$config['charset']}",
+                $config['username'],
+                $config['password'],
+                [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
+            );
+
+            $stmt = $pdo->query("SHOW FULL TABLES WHERE Table_type = 'VIEW'");
+            $views = [];
+            
+            while ($row = $stmt->fetch(\PDO::FETCH_NUM)) {
+                $views[] = $row[0];
+            }
+            
+            return $views;
+        } catch (\Exception $e) {
+            // If we can't get views, fall back to known problematic ones
+            error_log("Could not fetch database views: " . $e->getMessage());
+            return ['product_inventory_summary', 'crop_batches'];
+        }
     }
 
     /**
