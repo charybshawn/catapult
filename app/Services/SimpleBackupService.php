@@ -71,8 +71,6 @@ class SimpleBackupService
                 '--single-transaction',
                 '--no-tablespaces',
                 '--skip-add-locks',
-                '--set-gtid-purged=OFF',
-                '--column-statistics=0',
                 '--skip-routines',
                 '--skip-triggers',
                 '--skip-events',

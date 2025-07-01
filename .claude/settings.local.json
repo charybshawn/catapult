@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php artisan tinker:*)",
+      "Bash(sudo chown:*)",
+      "Bash(sudo chmod:*)",
+      "Bash(grep:*)",
+      "Bash(sudo setfacl:*)",
+      "Bash(php artisan migrate:*)",
+      "Bash(php artisan:*)",
+      "Bash(mysql:*)",
+      "Bash(php:*)",
+      "Bash(ls:*)",
+      "Bash(rm:*)",
+      "Bash(systemctl:*)",
+      "Bash(crontab:*)",
+      "Bash(chown:*)",
+      "Bash(chmod:*)",
+      "Bash(npm install)",
+      "Bash(npm run build:*)",
+      "Bash(curl:*)",
+      "Bash(rg:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": []
+  }
+}
