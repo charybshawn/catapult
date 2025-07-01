@@ -20,7 +20,7 @@ class SimpleBackupService
     /**
      * Create a database backup using native mysqldump
      */
-    public function createBackup(?string $name = null, bool $excludeViews = false): string
+    public function createBackup(?string $name = null, bool $excludeViews = true): string
     {
         $lockFile = storage_path('app/backups/.backup.lock');
         $lockHandle = null;

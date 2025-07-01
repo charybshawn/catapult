@@ -16,7 +16,7 @@ class DatabaseBackupCommand extends Command
                             {--output= : Custom output path for backup file}
                             {--list : List all existing backups}
                             {--delete= : Delete a specific backup file}
-                            {--exclude-views : Exclude views from backup to avoid permission issues}';
+                            {--include-views : Include views in backup (excluded by default to avoid permission issues)}';
 
     /**
      * The console command description.
@@ -56,10 +56,13 @@ class DatabaseBackupCommand extends Command
         $this->info('Creating data-only database backup...');
         
         try {
-            $excludeViews = $this->option('exclude-views');
+            $includeViews = $this->option('include-views');
+            $excludeViews = !$includeViews; // Exclude views by default
             
             if ($excludeViews) {
-                $this->warn('Creating backup with views excluded...');
+                $this->info('Creating backup with views excluded (default behavior)...');
+            } else {
+                $this->warn('Creating backup with views included (may cause issues)...');
             }
             
             $filename = $this->backupService->createBackup(null, $excludeViews);
