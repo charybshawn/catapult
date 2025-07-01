@@ -96,6 +96,10 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::USER_MENU_BEFORE,
                 fn () => Blade::render('@livewire(\'time-clock-widget\')')
+            )
+            ->renderHook(
+                PanelsRenderHook::PAGE_START,
+                fn () => view('components.dashboard-quick-link')->render()
             );
     }
 }
