@@ -104,10 +104,16 @@ class ConsumableResource extends BaseResource
                                                 Forms\Components\Select::make('master_cultivar_id')
                                                     ->label('Seed Cultivar')
                                                     ->helperText('Required: Please select from available cultivars or create new')
-                                                    ->relationship('masterCultivar', 'cultivar_name')
-                                                    ->getOptionLabelFromRecordUsing(fn ($record) => $record->full_name)
-                                                    ->searchable(['cultivar_name'])
-                                                    ->preload()
+                                                    ->options(function () {
+                                                        return \App\Models\MasterCultivar::query()
+                                                            ->with('masterSeedCatalog')
+                                                            ->where('is_active', true)
+                                                            ->get()
+                                                            ->mapWithKeys(function ($cultivar) {
+                                                                return [$cultivar->id => $cultivar->full_name];
+                                                            });
+                                                    })
+                                                    ->searchable()
                                                     ->required()
                                                     ->live()
                                                     ->createOptionForm([
