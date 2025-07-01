@@ -28,7 +28,8 @@ class Dashboard extends BaseDashboard
     protected static ?string $navigationIcon = 'heroicon-o-home';
     protected static ?string $navigationLabel = 'Dashboard';
     protected static ?string $title = 'Farm Dashboard';
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = -1000; // Ensure Dashboard is always first
+    protected static ?string $navigationGroup = null; // Keep Dashboard ungrouped at top level
     
     // Make dashboard use full width
     protected static bool $isWidgetFullWidth = true;
