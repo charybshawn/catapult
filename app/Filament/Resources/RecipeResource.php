@@ -45,13 +45,22 @@ class RecipeResource extends Resource
                         ->required()
                         ->maxLength(255),
 
-                    Forms\Components\Select::make('seed_entry_id')
-                        ->label('Seed Entry')
-                        ->relationship('seedEntry', 'common_name')
-                        ->getOptionLabelFromRecordUsing(fn ($record) => $record->common_name . ' - ' . $record->cultivar_name . ' (' . $record->supplier->name . ')')
-                        ->searchable(['common_name', 'cultivar_name'])
+                    Forms\Components\Select::make('seed_consumable_id')
+                        ->label('Seed Stock')
+                        ->relationship('seedConsumable', 'name', 
+                            modifyQueryUsing: fn ($query) => $query->where('type', 'seed')
+                                ->where('is_active', true)
+                                ->whereRaw('(total_quantity - consumed_quantity) > 0') // Only show seeds with available stock
+                        )
+                        ->getOptionLabelFromRecordUsing(function ($record) {
+                            $available = max(0, $record->total_quantity - $record->consumed_quantity);
+                            $unit = $record->quantity_unit ?? 'g';
+                            return $record->name . " ({$available} {$unit} available)";
+                        })
+                        ->searchable(['name'])
                         ->preload()
-                        ->nullable(),
+                        ->nullable()
+                        ->helperText('Shows only seeds with available stock'),
 
                     Forms\Components\Select::make('supplier_soil_id')
                         ->label('Soil Supplier')
@@ -175,7 +184,7 @@ class RecipeResource extends Resource
     {
         return $table
             ->modifyQueryUsing(fn (Builder $query) => $query->with([
-                'seedEntry',
+                'seedConsumable',
                 'soilConsumable'
             ]))
             ->persistFiltersInSession()
@@ -187,17 +196,17 @@ class RecipeResource extends Resource
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: false),
                     
-                Tables\Columns\TextColumn::make('seedEntry.common_name')
-                    ->label('Seed Type')
+                Tables\Columns\TextColumn::make('seedConsumable.name')
+                    ->label('Seed Stock')
                     ->searchable()
                     ->sortable()
-                    ->toggleable(),
-                    
-                Tables\Columns\TextColumn::make('seedEntry.cultivar_name')
-                    ->label('Cultivar')
-                    ->searchable()
-                    ->sortable()
-                    ->toggleable(),
+                    ->toggleable()
+                    ->formatStateUsing(function ($state, $record) {
+                        if (!$record->seedConsumable) return '-';
+                        $available = max(0, $record->seedConsumable->total_quantity - $record->seedConsumable->consumed_quantity);
+                        $unit = $record->seedConsumable->quantity_unit ?? 'g';
+                        return $state . " ({$available} {$unit} available)";
+                    }),
                     
                 Tables\Columns\TextColumn::make('soilConsumable.name')
                     ->label('Soil')
@@ -274,10 +283,16 @@ class RecipeResource extends Resource
                         'unit' => 'Inactive',
                     ]),
                     
-                Tables\Filters\SelectFilter::make('seed_entry_id')
-                    ->label('Seed Entry')
-                    ->relationship('seedEntry', 'common_name')
-                    ->getOptionLabelFromRecordUsing(fn ($record) => $record->common_name . ' - ' . $record->cultivar_name)
+                Tables\Filters\SelectFilter::make('seed_consumable_id')
+                    ->label('Seed Stock')
+                    ->relationship('seedConsumable', 'name', 
+                        modifyQueryUsing: fn ($query) => $query->where('type', 'seed')->where('is_active', true)
+                    )
+                    ->getOptionLabelFromRecordUsing(function ($record) {
+                        $available = max(0, $record->total_quantity - $record->consumed_quantity);
+                        $unit = $record->quantity_unit ?? 'g';
+                        return $record->name . " ({$available} {$unit})";
+                    })
                     ->searchable()
                     ->preload(),
             ])

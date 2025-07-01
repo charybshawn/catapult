@@ -101,36 +101,13 @@ class ConsumableResource extends BaseResource
                                     return [
                                         Forms\Components\Grid::make(2)
                                             ->schema([
-                                                Forms\Components\Select::make('master_seed_catalog_id')
-                                                    ->label('Master Seed Catalog')
-                                                    ->helperText('Required: Please select from master catalog or create new')
-                                                    ->options(function () {
-                                                        $options = [];
-                                                        $catalogs = \App\Models\MasterSeedCatalog::where('is_active', true)
-                                                            ->orderBy('common_name', 'asc')
-                                                            ->get();
-                                                        
-                                                        foreach ($catalogs as $catalog) {
-                                                            $cultivars = is_array($catalog->cultivars) ? $catalog->cultivars : [];
-                                                            $commonName = ucwords(strtolower($catalog->common_name));
-                                                            
-                                                            if (empty($cultivars)) {
-                                                                // If no cultivars, show just the common name
-                                                                $options[$catalog->id] = $commonName . ' (No cultivar)';
-                                                            } else {
-                                                                // Create separate options for each cultivar
-                                                                foreach ($cultivars as $index => $cultivar) {
-                                                                    // Use a composite key: catalog_id:cultivar_index
-                                                                    $key = $catalog->id . ':' . $index;
-                                                                    $cultivarName = ucwords(strtolower($cultivar));
-                                                                    $options[$key] = $commonName . ' (' . $cultivarName . ')';
-                                                                }
-                                                            }
-                                                        }
-                                                        
-                                                        return $options;
-                                                    })
-                                                    ->searchable()
+                                                Forms\Components\Select::make('master_cultivar_id')
+                                                    ->label('Seed Cultivar')
+                                                    ->helperText('Required: Please select from available cultivars or create new')
+                                                    ->relationship('masterCultivar', 'cultivar_name')
+                                                    ->getOptionLabelFromRecordUsing(fn ($record) => $record->full_name)
+                                                    ->searchable(['cultivar_name'])
+                                                    ->preload()
                                                     ->required()
                                                     ->live()
                                                     ->createOptionForm([
@@ -183,7 +160,7 @@ class ConsumableResource extends BaseResource
                                                                     $commonName = ucwords(strtolower($catalog->common_name));
                                                                     $set('name', $commonName . ' (' . ucwords(strtolower($cultivarName)) . ')');
                                                                     $set('cultivar', $cultivarName); // Set the cultivar field
-                                                                    $set('master_seed_catalog_id', $catalogId); // Set the actual catalog ID
+                                                                    // Don't override the field's display value - let it show the selected option text
                                                                 }
                                                             } else {
                                                                 // Fallback for simple catalog ID
@@ -194,7 +171,49 @@ class ConsumableResource extends BaseResource
                                                                     $commonName = ucwords(strtolower($catalog->common_name));
                                                                     $set('name', $commonName . ' (' . ucwords(strtolower($cultivarName)) . ')');
                                                                     $set('cultivar', $cultivarName); // Set the cultivar field
-                                                                    $set('master_seed_catalog_id', $state); // Keep the catalog ID as is
+                                                                    // Keep the original state
+                                                                }
+                                                            }
+                                                        }
+                                                    })
+                                                    ->dehydrateStateUsing(function ($state) {
+                                                        // When saving, extract just the catalog ID from composite key
+                                                        if ($state && strpos($state, ':') !== false) {
+                                                            [$catalogId] = explode(':', $state, 2);
+                                                            return $catalogId;
+                                                        }
+                                                        return $state;
+                                                    })
+                                                    ->afterStateHydrated(function ($component, $state) {
+                                                        // When loading existing record, convert catalog ID to composite key
+                                                        if ($state && is_numeric($state)) {
+                                                            $catalogId = $state;
+                                                            $masterCatalog = \App\Models\MasterSeedCatalog::find($catalogId);
+                                                            
+                                                            if ($masterCatalog) {
+                                                                $cultivars = is_array($masterCatalog->cultivars) ? $masterCatalog->cultivars : [];
+                                                                if (!empty($cultivars)) {
+                                                                    // For existing records, try to match the cultivar from the name
+                                                                    $record = $component->getRecord();
+                                                                    $cultivarIndex = 0; // Default to first cultivar
+                                                                    
+                                                                    if ($record && $record->name) {
+                                                                        // Extract cultivar name from stored name
+                                                                        if (preg_match('/\(([^)]+)\)$/', $record->name, $matches)) {
+                                                                            $storedCultivarName = strtolower(trim($matches[1]));
+                                                                            
+                                                                            // Find matching cultivar index
+                                                                            foreach ($cultivars as $index => $cultivar) {
+                                                                                if (strtolower(trim($cultivar)) === $storedCultivarName) {
+                                                                                    $cultivarIndex = $index;
+                                                                                    break;
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    
+                                                                    // Set the composite key format
+                                                                    $component->state($catalogId . ':' . $cultivarIndex);
                                                                 }
                                                             }
                                                         }

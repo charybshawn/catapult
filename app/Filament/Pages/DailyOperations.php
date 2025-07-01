@@ -14,8 +14,7 @@ class DailyOperations extends Page
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
     protected static ?string $navigationLabel = 'Daily Operations';
     protected static ?string $title = 'Daily Operations Center';
-    protected static ?int $navigationSort = 2;
-    protected static ?string $navigationGroup = 'Operations';
+    protected static bool $shouldRegisterNavigation = false;
     
     protected static string $view = 'filament.pages.daily-operations';
     
