@@ -23,9 +23,12 @@ use Filament\Notifications\Notification;
 use Carbon\Carbon;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Forms\Components\Common as FormCommon;
+use App\Filament\Traits\CsvExportAction;
 
 class CropResource extends BaseResource
 {
+    use CsvExportAction;
+    
     protected static ?string $model = Crop::class;
     
     protected static ?string $navigationIcon = 'heroicon-o-fire';
@@ -951,6 +954,9 @@ class CropResource extends BaseResource
                         ->modalHeading('Rollback Selected Batches?')
                         ->modalDescription('This will revert all trays in the selected batches to their previous stage by removing the current stage timestamp.'),
                 ]),
+            ])
+            ->headerActions([
+                static::getCsvExportAction(),
             ]);
     }
 
@@ -968,5 +974,28 @@ class CropResource extends BaseResource
             'create' => Pages\CreateCrop::route('/create'),
             'edit' => Pages\EditCrop::route('/{record}/edit'),
         ];
+    }
+    
+    /**
+     * Define CSV export columns for Crops
+     */
+    protected static function getCsvExportColumns(): array
+    {
+        $autoColumns = static::getColumnsFromSchema();
+        
+        return static::addRelationshipColumns($autoColumns, [
+            'recipe' => ['name', 'common_name', 'cultivar_name'],
+            'order' => ['id', 'customer_name'],
+            'masterCultivar' => ['common_name', 'cultivar_name'],
+            'harvests' => ['harvest_date', 'weight_g', 'yield_per_tray'],
+        ]);
+    }
+    
+    /**
+     * Define relationships to include in CSV export
+     */
+    protected static function getCsvExportRelationships(): array
+    {
+        return ['recipe', 'order', 'masterCultivar', 'harvests'];
     }
 } 

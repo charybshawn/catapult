@@ -12,9 +12,12 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use App\Filament\Traits\CsvExportAction;
 
 class PriceVariationResource extends Resource
 {
+    use CsvExportAction;
+    
     protected static ?string $model = PriceVariation::class;
 
     // Hide from navigation since price variations are managed within ProductResource
@@ -632,6 +635,9 @@ class PriceVariationResource extends Resource
                         ->icon('heroicon-o-x-circle')
                         ->action(fn (Builder $query) => $query->update(['is_active' => false])),
                 ]),
+            ])
+            ->headerActions([
+                static::getCsvExportAction(),
             ]);
     }
 
@@ -649,5 +655,26 @@ class PriceVariationResource extends Resource
             'create' => Pages\CreatePriceVariation::route('/create'),
             'edit' => Pages\EditPriceVariation::route('/{record}/edit'),
         ];
+    }
+    
+    /**
+     * Define CSV export columns for Price Variations
+     */
+    protected static function getCsvExportColumns(): array
+    {
+        $autoColumns = static::getColumnsFromSchema();
+        
+        return static::addRelationshipColumns($autoColumns, [
+            'product' => ['name', 'base_price'],
+            'packagingType' => ['name', 'capacity_volume', 'volume_unit'],
+        ]);
+    }
+    
+    /**
+     * Define relationships to include in CSV export
+     */
+    protected static function getCsvExportRelationships(): array
+    {
+        return ['product', 'packagingType'];
     }
 }

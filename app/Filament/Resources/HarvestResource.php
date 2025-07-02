@@ -11,9 +11,12 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Tables\Grouping\Group;
 use Illuminate\Database\Eloquent\Builder;
+use App\Filament\Traits\CsvExportAction;
 
 class HarvestResource extends BaseResource
 {
+    use CsvExportAction;
+    
     protected static ?string $model = Harvest::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-scale';
@@ -248,6 +251,9 @@ class HarvestResource extends BaseResource
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])
+            ->headerActions([
+                static::getCsvExportAction(),
+            ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
@@ -269,5 +275,27 @@ class HarvestResource extends BaseResource
             'create' => Pages\CreateHarvest::route('/create'),
             'edit' => Pages\EditHarvest::route('/{record}/edit'),
         ];
+    }
+    
+    /**
+     * Define CSV export columns for Harvests
+     */
+    protected static function getCsvExportColumns(): array
+    {
+        $autoColumns = static::getColumnsFromSchema();
+        
+        return static::addRelationshipColumns($autoColumns, [
+            'crop' => ['variety_name', 'date_seeded', 'recipe_name'],
+            'crop.recipe' => ['name'],
+            'masterCultivar' => ['common_name', 'cultivar_name'],
+        ]);
+    }
+    
+    /**
+     * Define relationships to include in CSV export
+     */
+    protected static function getCsvExportRelationships(): array
+    {
+        return ['crop.recipe', 'masterCultivar'];
     }
 }

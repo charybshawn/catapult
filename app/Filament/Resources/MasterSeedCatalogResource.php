@@ -12,9 +12,12 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use App\Filament\Traits\CsvExportAction;
 
 class MasterSeedCatalogResource extends Resource
 {
+    use CsvExportAction;
+    
     protected static ?string $model = MasterSeedCatalog::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
@@ -78,6 +81,9 @@ class MasterSeedCatalogResource extends Resource
             ->actions([
                 Tables\Actions\EditAction::make(),
             ])
+            ->headerActions([
+                static::getCsvExportAction(),
+            ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
@@ -99,5 +105,27 @@ class MasterSeedCatalogResource extends Resource
             'create' => Pages\CreateMasterSeedCatalog::route('/create'),
             'edit' => Pages\EditMasterSeedCatalog::route('/{record}/edit'),
         ];
+    }
+    
+    /**
+     * Define CSV export columns for Master Seed Catalog
+     */
+    protected static function getCsvExportColumns(): array
+    {
+        $autoColumns = static::getColumnsFromSchema();
+        
+        return static::addRelationshipColumns($autoColumns, [
+            'masterCultivars' => ['cultivar_name', 'is_active'],
+            'products' => ['name', 'base_price'],
+            'recipes' => ['name'],
+        ]);
+    }
+    
+    /**
+     * Define relationships to include in CSV export
+     */
+    protected static function getCsvExportRelationships(): array
+    {
+        return ['masterCultivars', 'products', 'recipes'];
     }
 }

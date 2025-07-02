@@ -15,9 +15,12 @@ use Illuminate\Database\Eloquent\Model;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Forms\Components\Common as FormCommon;
 use App\Filament\Tables\Components\Common as TableCommon;
+use App\Filament\Traits\CsvExportAction;
 
 class ConsumableResource extends BaseResource
 {
+    use CsvExportAction;
+    
     protected static ?string $model = Consumable::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-cube';
@@ -895,6 +898,9 @@ class ConsumableResource extends BaseResource
                         }),
                 ]),
             ])
+            ->headerActions([
+                static::getCsvExportAction(),
+            ])
             ->toggleColumnsTriggerAction(
                 fn (Tables\Actions\Action $action) => $action
                     ->button()
@@ -912,6 +918,29 @@ class ConsumableResource extends BaseResource
             'edit' => Pages\EditConsumable::route('/{record}/edit'),
             'adjust-stock' => Pages\AdjustStock::route('/{record}/adjust-stock'),
         ];
+    }
+    
+    /**
+     * Define CSV export columns for Consumables
+     */
+    protected static function getCsvExportColumns(): array
+    {
+        $autoColumns = static::getColumnsFromSchema();
+        
+        return static::addRelationshipColumns($autoColumns, [
+            'supplier' => ['name', 'email'],
+            'masterSeedCatalog' => ['common_name', 'category'],
+            'seedEntry' => ['common_name', 'cultivar_name'],
+            'packagingType' => ['name', 'capacity_volume', 'volume_unit'],
+        ]);
+    }
+    
+    /**
+     * Define relationships to include in CSV export
+     */
+    protected static function getCsvExportRelationships(): array
+    {
+        return ['supplier', 'masterSeedCatalog', 'seedEntry', 'packagingType'];
     }
 
     /**
