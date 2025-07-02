@@ -4,6 +4,8 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ConsumableResource\Pages;
 use App\Models\Consumable;
+use App\Models\ConsumableType;
+use App\Models\ConsumableUnit;
 use App\Models\PackagingType;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -37,29 +39,25 @@ class ConsumableResource extends BaseResource
             ->schema([
                 Forms\Components\Section::make('Basic Information')
                     ->schema([
-                        Forms\Components\Select::make('type')
+                        Forms\Components\Select::make('consumable_type_id')
                             ->label('Category')
-                            ->options([
-                                'seed' => 'Seed',
-                                'soil' => 'Soil',
-                                'packaging' => 'Packaging',
-                                'mix' => 'Product Mix',
-                                'label' => 'Label',
-                                'other' => 'Other',
-                            ])
+                            ->options(ConsumableType::options())
                             ->required()
                             ->reactive()
                             ->disabled($isEditMode)
                             ->dehydrated()
                             ->columnSpanFull()
                             ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                $type = ConsumableType::find($state);
+                                if (!$type) return;
+                                
                                 // Reset packaging type when type changes
-                                if ($state !== 'packaging') {
+                                if (!$type->isPackaging()) {
                                     $set('packaging_type_id', null);
                                 }
                                 
-                                // Reset mix when type changes
-                                if ($state !== 'mix') {
+                                // Reset mix when type changes - keeping this for backwards compatibility
+                                if ($type->code !== 'mix') {
                                     $set('product_mix_id', null);
                                 }
                                 
@@ -70,7 +68,10 @@ class ConsumableResource extends BaseResource
                         // Item Name Field - varies by type
                         Forms\Components\Grid::make()
                             ->schema(function (Forms\Get $get) {
-                                if ($get('type') === 'packaging') {
+                                $typeId = $get('consumable_type_id');
+                                $type = $typeId ? ConsumableType::find($typeId) : null;
+                                
+                                if ($type && $type->isPackaging()) {
                                     // Dropdown for packaging types
                                     return [
                                         Forms\Components\Select::make('packaging_type_id')
@@ -99,7 +100,7 @@ class ConsumableResource extends BaseResource
                                         // Hidden name field for packaging types
                                         Forms\Components\Hidden::make('name')
                                     ];
-                                } else if ($get('type') === 'seed') {
+                                } else if ($type && $type->isSeed()) {
                                     // Use master seed catalog for seed selection
                                     return [
                                         Forms\Components\Grid::make(2)
@@ -187,7 +188,7 @@ class ConsumableResource extends BaseResource
                                         Forms\Components\Hidden::make('name'),
                                         Forms\Components\Hidden::make('cultivar'),
                                     ];
-                                } else if ($get('type') === 'mix') {
+                                } else if ($type && $type->code === 'mix') {
                                     // Product mix selection
                                     return [
                                         Forms\Components\Select::make('product_mix_id')
@@ -222,8 +223,11 @@ class ConsumableResource extends BaseResource
                                             ->maxLength(255)
                                             ->datalist(function (Forms\Get $get) {
                                                 // Only provide autocomplete for certain types
-                                                if (in_array($get('type'), ['soil', 'label'])) {
-                                                    return Consumable::where('type', $get('type'))
+                                                $typeId = $get('consumable_type_id');
+                                                $type = $typeId ? ConsumableType::find($typeId) : null;
+                                                
+                                                if ($type && in_array($type->code, ['soil', 'label'])) {
+                                                    return Consumable::where('consumable_type_id', $typeId)
                                                         ->where('is_active', true)
                                                         ->pluck('name')
                                                         ->unique()
@@ -239,7 +243,10 @@ class ConsumableResource extends BaseResource
                         // Supplier field moved to be beside seed entry for seed type
                         Forms\Components\Grid::make()
                             ->schema(function (Forms\Get $get) {
-                                if ($get('type') === 'seed') {
+                                $typeId = $get('consumable_type_id');
+                                $type = $typeId ? ConsumableType::find($typeId) : null;
+                                
+                                if ($type && $type->isSeed()) {
                                     // For seed type, supplier is already in the grid with master_seed_catalog_id
                                     return [];
                                 } else {
@@ -261,10 +268,11 @@ class ConsumableResource extends BaseResource
                         // Conditional form fields based on consumable type
                         Forms\Components\Grid::make()
                             ->schema(function (Forms\Get $get) use ($isEditMode) {
-                                $type = $get('type');
+                                $typeId = $get('consumable_type_id');
+                                $type = $typeId ? ConsumableType::find($typeId) : null;
                                 
                                 // For seed consumables - simplified approach with direct total quantity
-                                if ($type === 'seed') {
+                                if ($type && $type->isSeed()) {
                                     return [
                                         // Grid for initial quantity and unit
                                         Forms\Components\Grid::make(2)
@@ -416,24 +424,14 @@ class ConsumableResource extends BaseResource
                                         ->visible($isEditMode),
                                     
                                     // Packaging type (unit type)
-                                    Forms\Components\Select::make('unit')
+                                    Forms\Components\Select::make('consumable_unit_id')
                                         ->label('Packaging Type')
                                         ->helperText('Container or form of packaging')
-                                        ->options([
-                                            'unit' => 'Unit(s)',
-                                            'bag' => 'Bag(s)',
-                                            'box' => 'Box(es)',
-                                            'bottle' => 'Bottle(s)',
-                                            'container' => 'Container(s)',
-                                            'roll' => 'Roll(s)',
-                                            'packet' => 'Packet(s)',
-                                            'kg' => 'Kilogram(s)',
-                                            'g' => 'Gram(s)',
-                                            'l' => 'Liter(s)',
-                                            'ml' => 'Milliliter(s)',
-                                        ])
+                                        ->options(ConsumableUnit::options())
                                         ->required()
-                                        ->default('unit'),
+                                        ->default(function () {
+                                            return ConsumableUnit::findByCode('unit')?->id;
+                                        }),
                                     
                                     // Unit size/capacity
                                     Forms\Components\TextInput::make('quantity_per_unit')
@@ -530,7 +528,10 @@ class ConsumableResource extends BaseResource
                                             : 'Restock Threshold'
                                     )
                                     ->helperText(function (Forms\Get $get) {
-                                        if ($get('type') === 'seed') {
+                                        $typeId = $get('consumable_type_id');
+                                        $type = $typeId ? ConsumableType::find($typeId) : null;
+                                        
+                                        if ($type && $type->isSeed()) {
                                             $unit = $get('quantity_unit') ?: 'g';
                                             $unitLabel = match($unit) {
                                                 'kg' => 'kilograms',
@@ -572,13 +573,20 @@ class ConsumableResource extends BaseResource
                                     )
                                     ->reactive(),
                                 Forms\Components\TextInput::make('restock_quantity')
-                                    ->label(fn (Forms\Get $get) => 
-                                        $get('type') === 'seed' 
-                                            ? 'Restock Quantity (' . ($get('quantity_unit') ?: 'g') . ')' 
-                                            : 'Restock Quantity'
-                                    )
+                                    ->label(function (Forms\Get $get) {
+                                        $typeId = $get('consumable_type_id');
+                                        $type = $typeId ? ConsumableType::find($typeId) : null;
+                                        
+                                        if ($type && $type->isSeed()) {
+                                            return 'Restock Quantity (' . ($get('quantity_unit') ?: 'g') . ')';
+                                        }
+                                        return 'Restock Quantity';
+                                    })
                                     ->helperText(function (Forms\Get $get) {
-                                        if ($get('type') === 'seed') {
+                                        $typeId = $get('consumable_type_id');
+                                        $type = $typeId ? ConsumableType::find($typeId) : null;
+                                        
+                                        if ($type && $type->isSeed()) {
                                             $unit = $get('quantity_unit') ?: 'g';
                                             $unitLabel = match($unit) {
                                                 'kg' => 'kilograms',
@@ -603,7 +611,10 @@ class ConsumableResource extends BaseResource
                                     ->numeric()
                                     ->required()
                                     ->default(function (Forms\Get $get) {
-                                        if ($get('type') === 'seed') {
+                                        $typeId = $get('consumable_type_id');
+                                        $type = $typeId ? ConsumableType::find($typeId) : null;
+                                        
+                                        if ($type && $type->isSeed()) {
                                             // Default based on unit
                                             return match($get('quantity_unit')) {
                                                 'kg' => 1,     // 1 kg
@@ -632,11 +643,18 @@ class ConsumableResource extends BaseResource
                                     ->numeric()
                                     ->minValue(0)
                                     ->step(0.01)
-                                    ->helperText(fn (Forms\Get $get) => 
-                                        $get('type') === 'seed' 
-                                            ? 'Cost per ' . ($get('quantity_unit') ?: 'unit')
-                                            : 'Cost per ' . ($get('unit') ?: 'unit')
-                                    ),
+                                    ->helperText(function (Forms\Get $get) {
+                                        $typeId = $get('consumable_type_id');
+                                        $type = $typeId ? ConsumableType::find($typeId) : null;
+                                        
+                                        if ($type && $type->isSeed()) {
+                                            return 'Cost per ' . ($get('quantity_unit') ?: 'unit');
+                                        } else {
+                                            $unitId = $get('consumable_unit_id');
+                                            $unit = $unitId ? ConsumableUnit::find($unitId) : null;
+                                            return 'Cost per ' . ($unit ? $unit->symbol : 'unit');
+                                        }
+                                    }),
                                 Forms\Components\TextInput::make('last_purchase_price')
                                     ->label('Last Purchase Price')
                                     ->prefix('$')
@@ -648,7 +666,10 @@ class ConsumableResource extends BaseResource
                                     ->label('Total Inventory Value')
                                     ->content(function (Forms\Get $get) {
                                         $costPerUnit = (float) $get('cost_per_unit');
-                                        if ($get('type') === 'seed') {
+                                        $typeId = $get('consumable_type_id');
+                                        $type = $typeId ? ConsumableType::find($typeId) : null;
+                                        
+                                        if ($type && $type->isSeed()) {
                                             $total = (float) $get('total_quantity');
                                             $consumed = (float) $get('consumed_quantity');
                                             $available = max(0, $total - $consumed);
@@ -664,7 +685,11 @@ class ConsumableResource extends BaseResource
                             ]),
                     ])
                     ->collapsed()
-                    ->visible(fn (Forms\Get $get) => $get('type') === 'seed'),
+                    ->visible(function (Forms\Get $get) {
+                        $typeId = $get('consumable_type_id');
+                        $type = $typeId ? ConsumableType::find($typeId) : null;
+                        return $type && $type->isSeed();
+                    }),
                     
                 Forms\Components\Section::make('Additional Information')
                     ->schema([
@@ -681,6 +706,8 @@ class ConsumableResource extends BaseResource
         return static::configureTableDefaults($table)
             ->modifyQueryUsing(fn (Builder $query) => $query->with([
                 'supplier',
+                'consumableType',
+                'consumableUnit',
                 'masterSeedCatalog',
                 'seedEntry',
                 'packagingType'
@@ -693,21 +720,24 @@ class ConsumableResource extends BaseResource
                     ->toggleable()
                     ->url(fn (Consumable $record): string => ConsumableResource::getUrl('edit', ['record' => $record]))
                     ->formatStateUsing(function ($state, $record) {
-                        if ($record->type === 'packaging' && $record->packagingType) {
+                        if ($record->consumableType && $record->consumableType->isPackaging() && $record->packagingType) {
                             return "{$state} ({$record->packagingType->capacity_volume} {$record->packagingType->volume_unit})";
                         }
                         return $state;
                     })
                     ->color('primary'),
-                Tables\Columns\TextColumn::make('type')
+                Tables\Columns\TextColumn::make('consumableType.name')
                     ->label('Type')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'packaging' => 'success',
-                        'label' => 'info',
-                        'soil' => 'warning',
-                        'seed' => 'primary',
-                        default => 'gray',
+                    ->color(function ($record): string {
+                        if (!$record->consumableType) return 'gray';
+                        return match ($record->consumableType->code) {
+                            'packaging' => 'success',
+                            'label' => 'info', 
+                            'soil' => 'warning',
+                            'seed' => 'primary',
+                            default => 'gray',
+                        };
                     })
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('supplier.name')
@@ -718,9 +748,9 @@ class ConsumableResource extends BaseResource
                 Tables\Columns\TextColumn::make('masterSeedCatalog.common_name')
                     ->label('Master Catalog')
                     ->getStateUsing(function ($record) {
-                        if ($record->type === 'seed' && $record->masterSeedCatalog) {
+                        if ($record->consumableType && $record->consumableType->isSeed() && $record->masterSeedCatalog) {
                             return $record->masterSeedCatalog->common_name;
-                        } elseif ($record->type === 'seed' && $record->seedEntry) {
+                        } elseif ($record->consumableType && $record->consumableType->isSeed() && $record->seedEntry) {
                             // Fallback for existing records
                             return $record->seedEntry->common_name . ' - ' . $record->seedEntry->cultivar_name;
                         }
@@ -746,20 +776,12 @@ class ConsumableResource extends BaseResource
                         if (!$record) return $state;
                         
                         // For seed consumables, show total weight
-                        if ($record->type === 'seed') {
+                        if ($record->consumableType && $record->consumableType->isSeed()) {
                             return "{$record->total_quantity} {$record->quantity_unit}";
                         }
                         
-                        // For other types, show units as before
-                        $unitMap = [
-                            'l' => 'litre(s)',
-                            'g' => 'gram(s)',
-                            'kg' => 'kilogram(s)',
-                            'oz' => 'ounce(s)',
-                            'unit' => 'unit(s)',
-                        ];
-                        
-                        $displayUnit = $unitMap[$record->unit] ?? $record->unit;
+                        // For other types, use the consumable unit symbol
+                        $displayUnit = $record->consumableUnit ? $record->consumableUnit->symbol : 'unit(s)';
                         
                         return "{$state} {$displayUnit}";
                     })
@@ -768,20 +790,20 @@ class ConsumableResource extends BaseResource
                 Tables\Columns\TextColumn::make('remaining_seed')
                     ->label('Remaining Seed')
                     ->getStateUsing(function ($record) {
-                        if (!$record || $record->type !== 'seed') return null;
+                        if (!$record || !$record->consumableType || !$record->consumableType->isSeed()) return null;
                         
                         // Calculate remaining from total_quantity minus consumed_quantity in same units
                         $remaining = max(0, $record->total_quantity - $record->consumed_quantity);
                         return $remaining;
                     })
                     ->formatStateUsing(function ($state, $record) {
-                        if (!$record || $record->type !== 'seed' || $state === null) return '-';
+                        if (!$record || !$record->consumableType || !$record->consumableType->isSeed() || $state === null) return '-';
                         
                         return "{$state} {$record->quantity_unit}";
                     })
                     ->numeric()
                     ->sortable(query: fn (Builder $query, string $direction): Builder => 
-                        $query->where('type', 'seed')
+                        $query->whereHas('consumableType', fn ($q) => $q->where('code', 'seed'))
                               ->orderByRaw("(total_quantity - consumed_quantity) {$direction}")
                     )
                     ->size('sm')
@@ -790,7 +812,7 @@ class ConsumableResource extends BaseResource
                 Tables\Columns\TextColumn::make('percentage_remaining')
                     ->label('% Remaining')
                     ->getStateUsing(function ($record) {
-                        if (!$record || $record->type !== 'seed' || !$record->total_quantity || $record->total_quantity <= 0) return null;
+                        if (!$record || !$record->consumableType || !$record->consumableType->isSeed() || !$record->total_quantity || $record->total_quantity <= 0) return null;
                         
                         $remaining = max(0, $record->total_quantity - $record->consumed_quantity);
                         $percentage = ($remaining / $record->total_quantity) * 100;
@@ -809,7 +831,7 @@ class ConsumableResource extends BaseResource
                         default => 'success',
                     })
                     ->sortable(query: fn (Builder $query, string $direction): Builder => 
-                        $query->where('type', 'seed')
+                        $query->whereHas('consumableType', fn ($q) => $q->where('code', 'seed'))
                               ->whereNotNull('total_quantity')
                               ->where('total_quantity', '>', 0)
                               ->orderByRaw("((total_quantity - consumed_quantity) / total_quantity * 100) {$direction}")
@@ -839,14 +861,9 @@ class ConsumableResource extends BaseResource
                 return $query->orderByRaw('(initial_stock - consumed_quantity) ASC');
             })
             ->filters([
-                Tables\Filters\SelectFilter::make('type')
-                    ->options([
-                        'packaging' => 'Packaging',
-                        'label' => 'Labels',
-                        'soil' => 'Soil',
-                        'seed' => 'Seeds',
-                        'other' => 'Other',
-                    ]),
+                Tables\Filters\SelectFilter::make('consumable_type_id')
+                    ->label('Type')
+                    ->options(ConsumableType::active()->pluck('name', 'id')),
                 Tables\Filters\Filter::make('needs_restock')
                     ->label('Needs Restock')
                     ->query(fn (Builder $query) => $query->whereRaw('initial_stock - consumed_quantity <= restock_threshold')),
@@ -951,24 +968,16 @@ class ConsumableResource extends BaseResource
      */
     public static function getCompatibleUnits(Consumable $record): array
     {
-        // Base units always include the record's own unit
-        $units = [$record->unit => self::getUnitLabel($record->unit)];
-        
-        // Add weight-based compatible units
-        if ($record->unit === 'kg') {
-            $units['g'] = 'Grams';
-        } else if ($record->unit === 'g') {
-            $units['kg'] = 'Kilograms';
+        if (!$record->consumableUnit) {
+            return ['unit' => 'Unit(s)'];
         }
         
-        // Add volume-based compatible units
-        if ($record->unit === 'l') {
-            $units['ml'] = 'Milliliters';
-        } else if ($record->unit === 'ml') {
-            $units['l'] = 'Liters';
-        }
+        // Get compatible units from the same category
+        $compatibleUnits = ConsumableUnit::byCategory($record->consumableUnit->category)
+            ->pluck('display_name', 'code')
+            ->toArray();
         
-        return $units;
+        return $compatibleUnits;
     }
 
     /**

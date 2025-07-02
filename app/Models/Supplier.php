@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -19,7 +20,7 @@ class Supplier extends Model
      */
     protected $fillable = [
         'name',
-        'type', // soil, seed, consumable
+        'supplier_type_id',
         'contact_name',
         'contact_email',
         'contact_phone',
@@ -37,6 +38,14 @@ class Supplier extends Model
         'is_active' => 'boolean',
     ];
     
+    /**
+     * Get the supplier type for this supplier.
+     */
+    public function supplierType(): BelongsTo
+    {
+        return $this->belongsTo(SupplierType::class);
+    }
+
     /**
      * Get the recipes where this supplier provides soil.
      */
@@ -62,12 +71,52 @@ class Supplier extends Model
     }
 
     /**
+     * Check if this supplier is a soil supplier.
+     */
+    public function isSoilSupplier(): bool
+    {
+        return $this->supplierType?->isSoil() ?? false;
+    }
+
+    /**
+     * Check if this supplier is a seed supplier.
+     */
+    public function isSeedSupplier(): bool
+    {
+        return $this->supplierType?->isSeed() ?? false;
+    }
+
+    /**
+     * Check if this supplier is a consumable supplier.
+     */
+    public function isConsumableSupplier(): bool
+    {
+        return $this->supplierType?->isConsumable() ?? false;
+    }
+
+    /**
+     * Check if this supplier is a packaging supplier.
+     */
+    public function isPackagingSupplier(): bool
+    {
+        return $this->supplierType?->isPackaging() ?? false;
+    }
+
+    /**
+     * Check if this supplier is an other supplier.
+     */
+    public function isOtherSupplier(): bool
+    {
+        return $this->supplierType?->isOther() ?? false;
+    }
+
+    /**
      * Configure the activity log options for this model.
      */
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'type', 'contact_name', 'contact_email', 'contact_phone', 'is_active'])
+            ->logOnly(['name', 'supplier_type_id', 'contact_name', 'contact_email', 'contact_phone', 'is_active'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
     }

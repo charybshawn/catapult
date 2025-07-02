@@ -14,6 +14,13 @@ class PriceVariation extends Model
     use HasFactory, LogsActivity;
 
     /**
+     * The table associated with the model.
+     *
+     * @var string
+     */
+    protected $table = 'product_price_variations';
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var array<int, string>

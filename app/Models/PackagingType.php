@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -19,8 +20,8 @@ class PackagingType extends Model
      */
     protected $fillable = [
         'name',
-        'type',
-        'unit_type',
+        'type_category_id',
+        'unit_type_id',
         'capacity_volume',
         'volume_unit',
         'description',
@@ -68,6 +69,22 @@ class PackagingType extends Model
     }
 
     /**
+     * Get the type category for this packaging type.
+     */
+    public function typeCategory(): BelongsTo
+    {
+        return $this->belongsTo(PackagingTypeCategory::class, 'type_category_id');
+    }
+
+    /**
+     * Get the unit type for this packaging type.
+     */
+    public function unitType(): BelongsTo
+    {
+        return $this->belongsTo(PackagingUnitType::class, 'unit_type_id');
+    }
+
+    /**
      * Get the order packagings for this packaging type.
      */
     public function orderPackagings(): HasMany
@@ -90,7 +107,7 @@ class PackagingType extends Model
      */
     public function allowsDecimalQuantity(): bool
     {
-        return in_array(strtolower($this->name), ['bulk']);
+        return $this->unitType && $this->unitType->isWeight();
     }
 
     /**

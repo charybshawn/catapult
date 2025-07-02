@@ -31,7 +31,7 @@ class User extends Authenticatable implements FilamentUser
         'email',
         'password',
         'phone',
-        'customer_type',
+        'customer_type_id',
         'wholesale_discount_percentage',
         'company_name',
         'address',
@@ -83,6 +83,14 @@ class User extends Authenticatable implements FilamentUser
     public function customer(): HasOne
     {
         return $this->hasOne(Customer::class);
+    }
+
+    /**
+     * Get the customer type for this user.
+     */
+    public function customerType(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(CustomerType::class);
     }
 
     /**
@@ -172,8 +180,8 @@ class User extends Authenticatable implements FilamentUser
             return min($this->wholesale_discount_percentage, 100);
         }
         
-        // If user is wholesale type but no specific discount, use product default (capped at 100%)
-        if ($this->customer_type === 'wholesale' && $product && $product->wholesale_discount_percentage > 0) {
+        // If user is wholesale or farmers market type but no specific discount, use product default (capped at 100%)
+        if ($this->customerType?->qualifiesForWholesalePricing() && $product && $product->wholesale_discount_percentage > 0) {
             return min($product->wholesale_discount_percentage, 100);
         }
         
@@ -185,8 +193,32 @@ class User extends Authenticatable implements FilamentUser
      */
     public function isWholesaleCustomer(): bool
     {
-        return $this->customer_type === 'wholesale' || 
+        return $this->customerType?->isWholesale() || 
                ($this->wholesale_discount_percentage !== null && $this->wholesale_discount_percentage > 0);
+    }
+
+    /**
+     * Check if this user is a farmers market customer.
+     */
+    public function isFarmersMarketCustomer(): bool
+    {
+        return $this->customerType?->isFarmersMarket() ?? false;
+    }
+
+    /**
+     * Check if this user is a retail customer.
+     */
+    public function isRetailCustomer(): bool
+    {
+        return $this->customerType?->isRetail() ?? true;
+    }
+
+    /**
+     * Check if this user should receive discounted pricing (wholesale or farmers market).
+     */
+    public function receivesDiscountPricing(): bool
+    {
+        return $this->customerType?->qualifiesForWholesalePricing() ?? false;
     }
 
 }

@@ -36,7 +36,7 @@ return new class extends Migration
             $table->foreignId('price_variation_id')->nullable(false)->change();
             
             // Re-add the foreign key constraint
-            $table->foreign('price_variation_id')->references('id')->on('price_variations')->onDelete('cascade');
+            $table->foreign('price_variation_id')->references('id')->on('product_price_variations')->onDelete('cascade');
             
             // Add unique constraint to prevent duplicates
             $table->unique(['product_id', 'price_variation_id'], 'product_price_variation_unique');
@@ -59,7 +59,7 @@ return new class extends Migration
             $table->foreignId('price_variation_id')->nullable()->change();
             
             // Re-add the foreign key with set null on delete
-            $table->foreign('price_variation_id')->references('id')->on('price_variations')->onDelete('set null');
+            $table->foreign('price_variation_id')->references('id')->on('product_price_variations')->onDelete('set null');
         });
     }
 };

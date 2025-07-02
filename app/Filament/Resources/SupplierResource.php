@@ -6,6 +6,7 @@ use App\Filament\Resources\SupplierResource\Pages;
 use App\Filament\Resources\Base\BaseResource;
 use App\Filament\Forms\Components\Common as FormCommon;
 use App\Models\Supplier;
+use App\Models\SupplierType;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Tables;
@@ -32,16 +33,14 @@ class SupplierResource extends BaseResource
                             ->required()
                             ->maxLength(255),
                             
-                        Forms\Components\Select::make('type')
+                        Forms\Components\Select::make('supplier_type_id')
                             ->label('Supplier Type')
-                            ->options([
-                                'seed' => 'Seed Supplier',
-                                'soil' => 'Soil Supplier',
-                                'packaging' => 'Packaging Supplier',
-                                'other' => 'Other',
-                            ])
-                            ->required()
-                            ->default('other'),
+                            ->relationship('supplierType', 'name')
+                            ->options(SupplierType::options())
+                            ->default(function () {
+                                return SupplierType::findByCode('other')?->id;
+                            })
+                            ->required(),
                             
                         FormCommon::activeToggle(),
                     ])
@@ -64,13 +63,14 @@ class SupplierResource extends BaseResource
                     ->url(fn (Supplier $record): string => SupplierResource::getUrl('edit', ['record' => $record]))
                     ->color('primary'),
                     
-                Tables\Columns\TextColumn::make('type')
+                Tables\Columns\TextColumn::make('supplierType.name')
                     ->label('Type')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        'seed' => 'success',
-                        'soil' => 'warning',
-                        'packaging' => 'info',
+                        'Seeds' => 'success',
+                        'Soil' => 'warning', 
+                        'Packaging' => 'info',
+                        'Consumables' => 'purple',
                         default => 'gray',
                     }),
                     
@@ -82,13 +82,10 @@ class SupplierResource extends BaseResource
             ])
             ->defaultSort('name', 'asc')
             ->filters([
-                Tables\Filters\SelectFilter::make('type')
-                    ->options([
-                        'seed' => 'Seed Supplier',
-                        'soil' => 'Soil Supplier',
-                        'packaging' => 'Packaging Supplier',
-                        'other' => 'Other',
-                    ]),
+                Tables\Filters\SelectFilter::make('supplier_type_id')
+                    ->label('Supplier Type')
+                    ->relationship('supplierType', 'name')
+                    ->options(SupplierType::options()),
                 Tables\Filters\Filter::make('inactive')
                     ->label('Inactive')
                     ->query(fn (Builder $query) => $query->where('is_active', false)),

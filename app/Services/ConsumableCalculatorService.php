@@ -171,7 +171,7 @@ class ConsumableCalculatorService
      */
     public function formatDisplayName(Consumable $consumable): string
     {
-        if ($consumable->type === 'seed') {
+        if ($consumable->consumableType && $consumable->consumableType->isSeed()) {
             // Seed consumables no longer have direct cultivar relationship
             return $consumable->name;
         }

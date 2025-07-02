@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\SupplierType;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -15,12 +16,17 @@ class SuppliersTableSeeder extends Seeder
         // Clear existing data
         DB::table('suppliers')->truncate();
 
+        // Get supplier type IDs
+        $seedTypeId = SupplierType::findByCode('seed')?->id;
+        $soilTypeId = SupplierType::findByCode('soil')?->id;
+        $packagingTypeId = SupplierType::findByCode('packaging')?->id;
+
         // Insert data
         DB::table('suppliers')->insert([
             [
                 'id' => 1,
                 'name' => 'Mumm\'s Sprouting Seeds',
-                'type' => 'seed',
+                'supplier_type_id' => $seedTypeId,
                 'contact_name' => null,
                 'contact_email' => null,
                 'contact_phone' => null,
@@ -33,7 +39,7 @@ class SuppliersTableSeeder extends Seeder
             [
                 'id' => 2,
                 'name' => 'Germina Seeds',
-                'type' => 'seed',
+                'supplier_type_id' => $seedTypeId,
                 'contact_name' => null,
                 'contact_email' => null,
                 'contact_phone' => null,
@@ -46,7 +52,7 @@ class SuppliersTableSeeder extends Seeder
             [
                 'id' => 3,
                 'name' => 'Britelands',
-                'type' => 'packaging',
+                'supplier_type_id' => $packagingTypeId,
                 'contact_name' => null,
                 'contact_email' => null,
                 'contact_phone' => null,
@@ -59,7 +65,7 @@ class SuppliersTableSeeder extends Seeder
             [
                 'id' => 4,
                 'name' => 'William Dam Seeds',
-                'type' => 'seed',
+                'supplier_type_id' => $seedTypeId,
                 'contact_name' => null,
                 'contact_email' => null,
                 'contact_phone' => null,
@@ -72,7 +78,7 @@ class SuppliersTableSeeder extends Seeder
             [
                 'id' => 5,
                 'name' => 'Ecoline',
-                'type' => 'soil',
+                'supplier_type_id' => $soilTypeId,
                 'contact_name' => null,
                 'contact_email' => null,
                 'contact_phone' => null,
@@ -85,7 +91,7 @@ class SuppliersTableSeeder extends Seeder
             [
                 'id' => 6,
                 'name' => 'Buckerfields',
-                'type' => 'soil',
+                'supplier_type_id' => $soilTypeId,
                 'contact_name' => null,
                 'contact_email' => null,
                 'contact_phone' => null,
@@ -98,7 +104,7 @@ class SuppliersTableSeeder extends Seeder
             [
                 'id' => 7,
                 'name' => 'Johnny\'s Seeds',
-                'type' => 'seed',
+                'supplier_type_id' => $seedTypeId,
                 'contact_name' => null,
                 'contact_email' => null,
                 'contact_phone' => null,
@@ -111,7 +117,7 @@ class SuppliersTableSeeder extends Seeder
             [
                 'id' => 8,
                 'name' => 'True Leaf Market',
-                'type' => 'seed',
+                'supplier_type_id' => $seedTypeId,
                 'contact_name' => null,
                 'contact_email' => null,
                 'contact_phone' => null,

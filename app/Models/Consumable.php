@@ -26,7 +26,7 @@ class Consumable extends Model
      */
     protected $fillable = [
         'name',
-        'type', // packaging, soil, seed, label, other
+        'consumable_type_id',
         'supplier_id',
         'packaging_type_id', // For packaging consumables only
         'seed_entry_id', // For seed consumables only (deprecated, use master_seed_catalog_id)
@@ -35,7 +35,7 @@ class Consumable extends Model
         'cultivar', // For seed consumables - specific cultivar name
         'initial_stock',
         'consumed_quantity',
-        'unit', // pieces, rolls, bags, etc.
+        'consumable_unit_id',
         'units_quantity', // How many units are in each package
         'restock_threshold',
         'restock_quantity',
@@ -91,7 +91,7 @@ class Consumable extends Model
     {
         static::saving(function (Consumable $consumable) {
             // For seeds, we now use total_quantity directly (no calculation needed)
-            if ($consumable->type === 'seed') {
+            if ($consumable->consumableType && $consumable->consumableType->isSeed()) {
                 // The total_quantity field is now managed directly by the user
                 return;
             }
@@ -110,6 +110,22 @@ class Consumable extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
+    }
+    
+    /**
+     * Get the consumable type for this consumable.
+     */
+    public function consumableType(): BelongsTo
+    {
+        return $this->belongsTo(ConsumableType::class);
+    }
+    
+    /**
+     * Get the consumable unit for this consumable.
+     */
+    public function consumableUnit(): BelongsTo
+    {
+        return $this->belongsTo(ConsumableUnit::class);
     }
     
     /**
@@ -250,7 +266,7 @@ class Consumable extends Model
         return LogOptions::defaults()
             ->logOnly([
                 'name', 
-                'type', 
+                'consumable_type_id', 
                 'supplier_id',
                 'packaging_type_id',
                 'seed_entry_id',
@@ -258,7 +274,7 @@ class Consumable extends Model
                 'cultivar',
                 'initial_stock',
                 'consumed_quantity',
-                'unit',
+                'consumable_unit_id',
                 'restock_threshold',
                 'restock_quantity',
                 'cost_per_unit',
@@ -318,7 +334,7 @@ class Consumable extends Model
     public function getFormattedCurrentStockAttribute(): string
     {
         // For seed consumables, show the total quantity with its unit
-        if ($this->type === 'seed') {
+        if ($this->consumableType && $this->consumableType->isSeed()) {
             $unit = $this->quantity_unit ?? 'g';
             $displayUnit = $unit;
             $availableStock = $this->total_quantity;
@@ -326,16 +342,8 @@ class Consumable extends Model
             return "{$availableStock} {$displayUnit}";
         }
         
-        // Map unit codes to their full names for other consumables
-        $unitMap = [
-            'l' => 'litre(s)',
-            'g' => 'gram(s)',
-            'kg' => 'kilogram(s)',
-            'oz' => 'ounce(s)',
-            'unit' => 'unit(s)',
-        ];
-        
-        $displayUnit = $unitMap[$this->unit] ?? $this->unit;
+        // Use the consumable unit's symbol for display
+        $displayUnit = $this->consumableUnit ? $this->consumableUnit->symbol : 'unit(s)';
         $availableStock = $this->current_stock; // This uses the accessor
         
         return "{$availableStock} {$displayUnit}";
@@ -347,7 +355,7 @@ class Consumable extends Model
     public function getCurrentStockAttribute()
     {
         // For seeds, return the total_quantity directly 
-        if ($this->type === 'seed') {
+        if ($this->consumableType && $this->consumableType->isSeed()) {
             return $this->total_quantity;
         }
         
@@ -424,10 +432,18 @@ class Consumable extends Model
                 ->default('g'),
                 
             // Hidden fields to maintain compatibility
+            Forms\Components\Hidden::make('consumable_type_id')
+                ->afterStateHydrated(function ($component, $state) {
+                    $seedType = \App\Models\ConsumableType::findByCode('seed');
+                    $component->state($seedType?->id);
+                }),
             Forms\Components\Hidden::make('initial_stock')
                 ->default(1),
-            Forms\Components\Hidden::make('unit')
-                ->default('unit'),
+            Forms\Components\Hidden::make('consumable_unit_id')
+                ->afterStateHydrated(function ($component, $state) {
+                    $unitType = \App\Models\ConsumableUnit::findByCode('unit');
+                    $component->state($unitType?->id);
+                }),
             Forms\Components\Hidden::make('quantity_per_unit')
                 ->default(1),
                 

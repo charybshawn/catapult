@@ -43,7 +43,7 @@ class Product extends Model
         'reserved_stock',
         'reorder_threshold',
         'track_inventory',
-        'stock_status',
+        'stock_status_id',
         'wholesale_discount_percentage',
     ];
     
@@ -334,11 +334,15 @@ class Product extends Model
      */
     public function getPriceForCustomerType(string $customerType, int $quantity = 1): float
     {
+        // Handle lookup by customer type code
+        $customerTypeModel = \App\Models\CustomerType::findByCode(strtolower($customerType));
+        
+        if ($customerTypeModel?->qualifiesForWholesalePricing()) {
+            $variation = $this->getPriceVariationByName('Wholesale');
+            return $variation ? $variation->price : ($this->wholesale_price ?? $this->base_price ?? 0);
+        }
+        
         switch (strtolower($customerType)) {
-            case 'wholesale':
-                $variation = $this->getPriceVariationByName('Wholesale');
-                return $variation ? $variation->price : ($this->wholesale_price ?? $this->base_price ?? 0);
-                
             case 'bulk':
                 $variation = $this->getPriceVariationByName('Bulk');
                 return $variation ? $variation->price : ($this->bulk_price ?? $this->base_price ?? 0);
@@ -420,13 +424,14 @@ class Product extends Model
      */
     public function getPriceForCustomer(string $customerType = 'retail', ?int $priceVariationId = null, ?int $packagingTypeId = null, ?User $customer = null): float
     {
-        switch (strtolower($customerType)) {
-            case 'wholesale':
-                return $this->getWholesalePrice($priceVariationId, $packagingTypeId, $customer);
-            case 'retail':
-            default:
-                return $this->getRetailPrice($priceVariationId, $packagingTypeId);
+        // Handle lookup by customer type code
+        $customerTypeModel = \App\Models\CustomerType::findByCode(strtolower($customerType));
+        
+        if ($customerTypeModel?->qualifiesForWholesalePricing()) {
+            return $this->getWholesalePrice($priceVariationId, $packagingTypeId, $customer);
         }
+        
+        return $this->getRetailPrice($priceVariationId, $packagingTypeId);
     }
 
     /**
@@ -580,6 +585,14 @@ class Product extends Model
     public function masterSeedCatalog(): BelongsTo
     {
         return $this->belongsTo(MasterSeedCatalog::class);
+    }
+
+    /**
+     * Get the stock status for this product.
+     */
+    public function stockStatus(): BelongsTo
+    {
+        return $this->belongsTo(ProductStockStatus::class, 'stock_status_id');
     }
 
     /**
@@ -977,21 +990,25 @@ class Product extends Model
     public function updateStockStatus(): void
     {
         if (!$this->track_inventory) {
-            $this->update(['stock_status' => 'in_stock']);
+            $inStockStatus = ProductStockStatus::findByCode('in_stock');
+            $this->update(['stock_status_id' => $inStockStatus?->id]);
             return;
         }
 
         $available = $this->available_stock;
 
         if ($available <= 0) {
-            $status = 'out_of_stock';
+            $statusCode = 'out_of_stock';
         } elseif ($available <= $this->reorder_threshold) {
-            $status = 'low_stock';
+            $statusCode = 'low_stock';
         } else {
-            $status = 'in_stock';
+            $statusCode = 'in_stock';
         }
 
-        $this->update(['stock_status' => $status]);
+        $status = ProductStockStatus::findByCode($statusCode);
+        if ($status) {
+            $this->update(['stock_status_id' => $status->id]);
+        }
     }
 
     /**
@@ -1019,7 +1036,7 @@ class Product extends Model
                 'deleted_at',
                 'total_stock',
                 'reserved_stock',
-                'stock_status',
+                'stock_status_id',
             ]);
             
             // Add " (Copy)" to the name to make it unique

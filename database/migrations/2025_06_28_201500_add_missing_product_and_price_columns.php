@@ -18,9 +18,9 @@ return new class extends Migration
             }
         });
         
-        // Add missing column to price_variations table
-        Schema::table('price_variations', function (Blueprint $table) {
-            if (!Schema::hasColumn('price_variations', 'fill_weight_grams')) {
+        // Add missing column to product_price_variations table
+        Schema::table('product_price_variations', function (Blueprint $table) {
+            if (!Schema::hasColumn('product_price_variations', 'fill_weight_grams')) {
                 $table->decimal('fill_weight_grams', 8, 2)->nullable()->after('packaging_type_id');
             }
         });
@@ -35,7 +35,7 @@ return new class extends Migration
             $table->dropColumn(['available_stock']);
         });
         
-        Schema::table('price_variations', function (Blueprint $table) {
+        Schema::table('product_price_variations', function (Blueprint $table) {
             $table->dropColumn(['fill_weight_grams']);
         });
     }

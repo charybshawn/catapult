@@ -17,8 +17,8 @@ return new class extends Migration
             $table->index(['billing_frequency', 'billing_period_end'], 'idx_orders_billing');
         });
 
-        Schema::table('price_variations', function (Blueprint $table) {
-            $table->index(['product_id', 'is_active', 'is_default'], 'idx_price_variations_product');
+        Schema::table('product_price_variations', function (Blueprint $table) {
+            $table->index(['product_id', 'is_active', 'is_default'], 'idx_product_price_variations_product');
         });
 
         Schema::table('order_products', function (Blueprint $table) {
@@ -51,8 +51,8 @@ return new class extends Migration
             $table->dropIndex('idx_orders_billing');
         });
 
-        Schema::table('price_variations', function (Blueprint $table) {
-            $table->dropIndex('idx_price_variations_product');
+        Schema::table('product_price_variations', function (Blueprint $table) {
+            $table->dropIndex('idx_product_price_variations_product');
         });
 
         Schema::table('order_products', function (Blueprint $table) {

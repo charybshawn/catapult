@@ -96,6 +96,14 @@ class Crop extends Model
     }
     
     /**
+     * Get the current stage for this crop.
+     */
+    public function currentStage(): BelongsTo
+    {
+        return $this->belongsTo(CropStage::class, 'current_stage_id');
+    }
+    
+    /**
      * Get the seed cultivar for this crop through the recipe.
      */
     public function seedEntry(): ?SeedEntry
@@ -200,21 +208,9 @@ class Crop extends Model
      *
      * @return string|null The name of the next stage, or null if harvested or invalid.
      */
-    public function getNextStage(): ?string
+    public function getNextStage(): ?CropStage
     {
-        $order = ['germination', 'blackout', 'light', 'harvested'];
-        $currentIndex = array_search($this->current_stage, $order);
-
-        // Handle cases where blackout might be skipped
-        if ($this->current_stage === 'germination' && $this->recipe && $this->recipe->blackout_days <= 0) {
-            return 'light'; // Skip blackout if duration is 0
-        }
-
-        if ($currentIndex === false || $currentIndex >= count($order) - 1) {
-            return null; // Already harvested or invalid stage
-        }
-        
-        return $order[$currentIndex + 1];
+        return $this->currentStage?->getNextStage();
     }
     
     /**
@@ -222,24 +218,9 @@ class Crop extends Model
      *
      * @return string|null The name of the previous stage, or null if at first stage.
      */
-    public function getPreviousStage(): ?string
+    public function getPreviousStage(): ?CropStage
     {
-        $order = ['germination', 'blackout', 'light', 'harvested'];
-        $currentIndex = array_search($this->current_stage, $order);
-
-        if ($currentIndex === false || $currentIndex === 0) {
-            return null; // Already at first stage or invalid stage
-        }
-        
-        // Check if we should skip blackout stage when going backwards
-        if ($this->current_stage === 'light' && $this->recipe && $this->recipe->blackout_days <= 0) {
-            // If blackout was skipped going forward, skip it going backward too
-            if (!$this->blackout_at) {
-                return 'germination';
-            }
-        }
-        
-        return $order[$currentIndex - 1];
+        return $this->currentStage?->getPreviousStage();
     }
     
     /**
@@ -268,7 +249,7 @@ class Crop extends Model
                 'recipe_id', 
                 'order_id', 
                 'tray_number',
-                'current_stage',
+                'current_stage_id',
                 'planting_at',
                 'germination_at',
                 'blackout_at',
@@ -299,8 +280,9 @@ class Crop extends Model
             }
             
             // Always start at germination stage if not set
-            if (!$crop->current_stage) {
-                $crop->current_stage = 'germination';
+            if (!$crop->current_stage_id) {
+                $germinationStage = CropStage::findByCode('germination');
+                $crop->current_stage_id = $germinationStage->id;
             }
             
             // Initialize computed time fields with safe values
@@ -438,7 +420,7 @@ class Crop extends Model
         
         static::updated(function ($crop) {
             // If the stage has changed or planting_at has changed, recalculate tasks
-            if (($crop->isDirty('current_stage') || $crop->isDirty('planting_at')) && 
+            if (($crop->isDirty('current_stage_id') || $crop->isDirty('planting_at')) && 
                 config('app.env') !== 'testing') {
                 try {
                     app(\App\Services\CropTaskService::class)->scheduleAllStageTasks($crop);
@@ -468,7 +450,7 @@ class Crop extends Model
     public function timeToNextStage(): ?string
     {
         // Skip if already harvested
-        if ($this->current_stage === 'harvested') {
+        if ($this->currentStage?->code === 'harvested') {
             return '-';
         }
         
@@ -477,7 +459,12 @@ class Crop extends Model
         }
         
         // Get the timestamp for the current stage
-        $stageField = "{$this->current_stage}_at";
+        $stageCode = $this->currentStage?->code;
+        if (!$stageCode) {
+            return 'No stage';
+        }
+        
+        $stageField = "{$stageCode}_at";
         $stageStartTime = $this->$stageField;
         
         if (!$stageStartTime) {
@@ -485,7 +472,7 @@ class Crop extends Model
         }
         
         // For blackout stage with 0 duration, require at least 1 hour
-        if ($this->current_stage === 'blackout' && $this->recipe->blackout_days === 0) {
+        if ($this->currentStage?->code === 'blackout' && $this->recipe->blackout_days === 0) {
             $minBlackoutTime = $stageStartTime->copy()->addHour();
             $now = now();
             
@@ -508,7 +495,7 @@ class Crop extends Model
         }
         
         // Get the duration for the current stage from the recipe
-        $stageDuration = match ($this->current_stage) {
+        $stageDuration = match ($this->currentStage?->code) {
             'germination' => $this->recipe->germination_days,
             'blackout' => $this->recipe->blackout_days,
             'light' => $this->recipe->light_days,

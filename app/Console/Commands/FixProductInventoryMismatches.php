@@ -160,7 +160,7 @@ class FixProductInventoryMismatches extends Command
     {
         $mismatched = ProductInventory::whereNotNull('price_variation_id')
             ->whereRaw('NOT EXISTS (
-                SELECT 1 FROM price_variations pv 
+                SELECT 1 FROM product_price_variations pv 
                 WHERE pv.id = product_inventories.price_variation_id 
                 AND pv.product_id = product_inventories.product_id
             )')

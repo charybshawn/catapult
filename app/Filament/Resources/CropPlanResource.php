@@ -108,16 +108,12 @@ class CropPlanResource extends Resource
                     ->schema([
                         Forms\Components\Grid::make(2)
                             ->schema([
-                                Forms\Components\Select::make('status')
+                                Forms\Components\Select::make('status_id')
                                     ->label('Status')
-                                    ->options([
-                                        'draft' => 'Draft',
-                                        'approved' => 'Approved',
-                                        'generating' => 'Generating Crops',
-                                        'completed' => 'Completed',
-                                        'cancelled' => 'Cancelled',
-                                    ])
-                                    ->default('draft')
+                                    ->relationship('status', 'name')
+                                    ->default(function () {
+                                        return \App\Models\CropPlanStatus::findByCode('draft')->id;
+                                    })
                                     ->required(),
 
                                 Forms\Components\Select::make('approved_by')
@@ -192,15 +188,10 @@ class CropPlanResource extends Resource
                     ->searchable()
                     ->sortable(),
 
-                Tables\Columns\BadgeColumn::make('status')
+                Tables\Columns\BadgeColumn::make('status.name')
                     ->label('Status')
-                    ->colors([
-                        'secondary' => 'draft',
-                        'success' => 'approved',
-                        'warning' => 'generating',
-                        'primary' => 'completed',
-                        'danger' => 'cancelled',
-                    ])
+                    ->getStateUsing(fn ($record) => $record->status?->name)
+                    ->color(fn ($record) => $record->status?->color ?? 'gray')
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('trays_needed')
@@ -230,14 +221,9 @@ class CropPlanResource extends Resource
             ])
             ->defaultSort('plant_by_date', 'asc')
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
-                    ->options([
-                        'draft' => 'Draft',
-                        'approved' => 'Approved',
-                        'generating' => 'Generating',
-                        'completed' => 'Completed',
-                        'cancelled' => 'Cancelled',
-                    ]),
+                Tables\Filters\SelectFilter::make('status_id')
+                    ->label('Status')
+                    ->relationship('status', 'name'),
 
                 Tables\Filters\Filter::make('urgent')
                     ->label('Urgent (Plant within 2 days)')
@@ -274,7 +260,7 @@ class CropPlanResource extends Resource
                     ->label('Recalculate with Latest Harvest Data')
                     ->icon('heroicon-o-calculator')
                     ->color('warning')
-                    ->visible(fn ($record) => $record->status === 'draft')
+                    ->visible(fn ($record) => $record->status?->code === 'draft')
                     ->action(function ($record) {
                         $yieldCalculator = app(HarvestYieldCalculator::class);
                         $recipe = $record->recipe;
@@ -392,7 +378,8 @@ class CropPlanResource extends Resource
 
     public static function getNavigationBadge(): ?string
     {
-        return static::getModel()::where('status', 'draft')->count() ?: null;
+        $draftStatusId = \App\Models\CropPlanStatus::findByCode('draft')->id;
+        return static::getModel()::where('status_id', $draftStatusId)->count() ?: null;
     }
 
     public static function getNavigationBadgeColor(): ?string

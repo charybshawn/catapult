@@ -43,7 +43,7 @@ class SupplierMatchingService
             Log::debug('SupplierMatchingService: Evaluating supplier', [
                 'supplier_id' => $supplier->id,
                 'supplier_name' => $supplier->name,
-                'supplier_type' => $supplier->type
+                'supplier_type' => $supplier->supplierType?->code
             ]);
             $confidence = $this->calculateMatchConfidence($supplier, $domain, $domainName, $sourceUrl);
             
@@ -199,11 +199,12 @@ class SupplierMatchingService
         }
         
         // Penalize if supplier has different type
-        if ($supplier->type && $supplier->type !== 'seed') {
+        $supplierTypeCode = $supplier->supplierType?->code;
+        if ($supplierTypeCode && $supplierTypeCode !== 'seed') {
             $originalConfidence = $confidence;
             $confidence *= 0.7;
             Log::debug('SupplierMatchingService: Penalized for non-seed type', [
-                'supplier_type' => $supplier->type,
+                'supplier_type' => $supplierTypeCode,
                 'original_confidence' => $originalConfidence,
                 'penalized_confidence' => $confidence
             ]);
@@ -247,7 +248,7 @@ class SupplierMatchingService
             $reasons[] = sprintf("High name similarity: %.1f%% match with domain name", $similarity);
         }
         
-        if ($supplier->type === 'seed') {
+        if ($supplier->supplierType?->code === 'seed') {
             $reasons[] = "Supplier type matches (seed supplier)";
         }
         

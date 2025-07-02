@@ -78,7 +78,7 @@ class OptimizeDatabase extends Command
         // Default important tables to optimize if no option is specified
         return [
             'products',
-            'price_variations',
+            'product_price_variations',
             'orders',
             'order_items',
             'crops',

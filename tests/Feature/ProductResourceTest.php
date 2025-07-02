@@ -126,7 +126,7 @@ class ProductResourceTest extends TestCase
         $variation->update(['price' => 149.99]);
         
         // Verify it was updated
-        $this->assertDatabaseHas('price_variations', [
+        $this->assertDatabaseHas('product_price_variations', [
             'id' => $variation->id,
             'price' => 149.99,
         ]);

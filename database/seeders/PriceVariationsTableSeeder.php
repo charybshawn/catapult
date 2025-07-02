@@ -13,10 +13,10 @@ class PriceVariationsTableSeeder extends Seeder
     public function run(): void
     {
         // Clear existing data
-        DB::table('price_variations')->truncate();
+        DB::table('product_price_variations')->truncate();
 
         // Insert data
-        DB::table('price_variations')->insert([
+        DB::table('product_price_variations')->insert([
             [
                 'id' => 1,
                 'name' => 'Clamshell (24oz) (Ret)',

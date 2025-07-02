@@ -68,7 +68,7 @@ return new class extends Migration
             $table->index('product_mix_id');
         });
 
-        Schema::create('price_variations', function (Blueprint $table) {
+        Schema::create('product_price_variations', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             $table->string('unit');
@@ -78,7 +78,7 @@ return new class extends Migration
             $table->decimal('price', 10, 2);
             $table->decimal('fill_weight', 10, 2)->nullable();
             $table->foreignId('packaging_type_id')->nullable()->constrained('packaging_types')->onDelete('set null');
-            $table->foreignId('template_id')->nullable()->constrained('price_variations')->onDelete('set null');
+            $table->foreignId('template_id')->nullable()->constrained('product_price_variations')->onDelete('set null');
             $table->boolean('is_default')->default(false);
             $table->boolean('is_global')->default(false);
             $table->boolean('is_active')->default(true);
@@ -103,7 +103,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('order_id')->constrained()->onDelete('cascade');
             $table->foreignId('product_id')->constrained()->onDelete('cascade');
-            $table->foreignId('price_variation_id')->nullable()->constrained('price_variations')->onDelete('set null');
+            $table->foreignId('price_variation_id')->nullable()->constrained('product_price_variations')->onDelete('set null');
             $table->integer('quantity');
             $table->decimal('price', 10, 2);
             $table->timestamps();
@@ -120,7 +120,7 @@ return new class extends Migration
     {
         Schema::dropIfExists('order_products');
         Schema::dropIfExists('product_photos');
-        Schema::dropIfExists('price_variations');
+        Schema::dropIfExists('product_price_variations');
         Schema::dropIfExists('product_mix_components');
         Schema::dropIfExists('products');
         Schema::dropIfExists('product_mixes');

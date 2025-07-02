@@ -30,7 +30,7 @@ class InventoryService
     public function getCurrentStock(Consumable $consumable): float
     {
         // For seeds, return the total_quantity directly 
-        if ($consumable->type === 'seed') {
+        if ($consumable->consumableType && $consumable->consumableType->isSeed()) {
             return $consumable->total_quantity;
         }
         
@@ -54,7 +54,7 @@ class InventoryService
     {
         $normalizedAmount = $this->normalizeQuantity($consumable, $amount, $unit);
         
-        if ($consumable->type === 'seed') {
+        if ($consumable->consumableType && $consumable->consumableType->isSeed()) {
             $this->deductSeedStock($consumable, $normalizedAmount);
         } else {
             $this->deductGeneralStock($consumable, $normalizedAmount);
@@ -76,7 +76,7 @@ class InventoryService
         $normalizedAmount = $this->normalizeQuantity($consumable, $amount, $unit);
         
         // For seed consumables, check lot number compatibility
-        if ($consumable->type === 'seed' && $lotNo !== null) {
+        if ($consumable->consumableType && $consumable->consumableType->isSeed() && $lotNo !== null) {
             if (!$this->isLotNumberCompatible($consumable, $lotNo)) {
                 return false; // Indicates new record should be created
             }

@@ -18,7 +18,7 @@ class Customer extends Model
         'email',
         'cc_email',
         'phone',
-        'customer_type',
+        'customer_type_id',
         'wholesale_discount_percentage',
         'address',
         'city',
@@ -38,6 +38,14 @@ class Customer extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the customer type for this customer.
+     */
+    public function customerType(): BelongsTo
+    {
+        return $this->belongsTo(CustomerType::class);
     }
 
     /**
@@ -104,7 +112,9 @@ class Customer extends Model
      */
     public function scopeRetail(Builder $query): Builder
     {
-        return $query->where('customer_type', 'retail');
+        return $query->whereHas('customerType', function ($q) {
+            $q->where('code', 'retail');
+        });
     }
 
     /**
@@ -112,7 +122,19 @@ class Customer extends Model
      */
     public function scopeWholesale(Builder $query): Builder
     {
-        return $query->where('customer_type', 'wholesale');
+        return $query->whereHas('customerType', function ($q) {
+            $q->where('code', 'wholesale');
+        });
+    }
+
+    /**
+     * Scope a query to only include farmers market customers.
+     */
+    public function scopeFarmersMarket(Builder $query): Builder
+    {
+        return $query->whereHas('customerType', function ($q) {
+            $q->where('code', 'farmers_market');
+        });
     }
 
     /**
@@ -120,7 +142,31 @@ class Customer extends Model
      */
     public function isWholesaleCustomer(): bool
     {
-        return $this->customer_type === 'wholesale';
+        return $this->customerType?->isWholesale() ?? false;
+    }
+
+    /**
+     * Check if this customer is a farmers market customer.
+     */
+    public function isFarmersMarketCustomer(): bool
+    {
+        return $this->customerType?->isFarmersMarket() ?? false;
+    }
+
+    /**
+     * Check if this customer is a retail customer.
+     */
+    public function isRetailCustomer(): bool
+    {
+        return $this->customerType?->isRetail() ?? true;
+    }
+
+    /**
+     * Check if this customer qualifies for wholesale pricing.
+     */
+    public function qualifiesForWholesalePricing(): bool
+    {
+        return $this->customerType?->qualifiesForWholesalePricing() ?? false;
     }
 
     /**
@@ -128,6 +174,9 @@ class Customer extends Model
      */
     public function getEffectiveDiscountAttribute(): float
     {
-        return $this->customer_type === 'wholesale' ? $this->wholesale_discount_percentage : 0;
+        if ($this->qualifiesForWholesalePricing()) {
+            return $this->wholesale_discount_percentage ?? 0;
+        }
+        return 0;
     }
 }

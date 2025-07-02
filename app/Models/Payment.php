@@ -20,8 +20,8 @@ class Payment extends Model
     protected $fillable = [
         'order_id',
         'amount',
-        'method',
-        'status',
+        'payment_method_id',
+        'status_id',
         'transaction_id',
         'paid_at',
         'notes',
@@ -44,13 +44,29 @@ class Payment extends Model
     {
         return $this->belongsTo(Order::class);
     }
+
+    /**
+     * Get the payment method for this payment.
+     */
+    public function paymentMethod(): BelongsTo
+    {
+        return $this->belongsTo(PaymentMethod::class);
+    }
+
+    /**
+     * Get the payment status for this payment.
+     */
+    public function paymentStatus(): BelongsTo
+    {
+        return $this->belongsTo(PaymentStatus::class, 'status_id');
+    }
     
     /**
      * Check if the payment is completed.
      */
     public function isCompleted(): bool
     {
-        return $this->status === 'completed';
+        return $this->paymentStatus?->isCompleted() ?? false;
     }
     
     /**
@@ -58,7 +74,7 @@ class Payment extends Model
      */
     public function isPending(): bool
     {
-        return $this->status === 'pending';
+        return $this->paymentStatus?->isPending() ?? false;
     }
     
     /**
@@ -66,7 +82,7 @@ class Payment extends Model
      */
     public function hasFailed(): bool
     {
-        return $this->status === 'failed';
+        return $this->paymentStatus?->isFailed() ?? false;
     }
     
     /**
@@ -74,7 +90,23 @@ class Payment extends Model
      */
     public function isRefunded(): bool
     {
-        return $this->status === 'refunded';
+        return $this->paymentStatus?->isRefunded() ?? false;
+    }
+
+    /**
+     * Check if this payment uses Stripe.
+     */
+    public function isStripePayment(): bool
+    {
+        return $this->paymentMethod?->isStripe() ?? false;
+    }
+
+    /**
+     * Check if this payment requires online processing.
+     */
+    public function requiresOnlineProcessing(): bool
+    {
+        return $this->paymentMethod?->requiresOnlineProcessing() ?? false;
     }
     
     /**
@@ -82,7 +114,7 @@ class Payment extends Model
      */
     public function markAsCompleted(): void
     {
-        $this->status = 'completed';
+        $this->status_id = PaymentStatus::findByCode('completed')?->id;
         $this->paid_at = now();
         $this->save();
     }
@@ -92,7 +124,7 @@ class Payment extends Model
      */
     public function markAsFailed(): void
     {
-        $this->status = 'failed';
+        $this->status_id = PaymentStatus::findByCode('failed')?->id;
         $this->save();
     }
     
@@ -101,7 +133,7 @@ class Payment extends Model
      */
     public function markAsRefunded(): void
     {
-        $this->status = 'refunded';
+        $this->status_id = PaymentStatus::findByCode('refunded')?->id;
         $this->save();
     }
     
@@ -111,7 +143,7 @@ class Payment extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['order_id', 'amount', 'method', 'status', 'transaction_id', 'paid_at'])
+            ->logOnly(['order_id', 'amount', 'payment_method_id', 'status_id', 'transaction_id', 'paid_at'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
     }

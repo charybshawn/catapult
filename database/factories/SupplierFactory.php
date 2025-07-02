@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Supplier;
+use App\Models\SupplierType;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -24,11 +25,12 @@ class SupplierFactory extends Factory
      */
     public function definition(): array
     {
-        $types = ['soil', 'seed', 'consumable'];
+        $typeCodes = ['soil', 'seed', 'consumable'];
+        $randomTypeCode = fake()->randomElement($typeCodes);
         
         return [
             'name' => fake()->company(),
-            'type' => fake()->randomElement($types),
+            'supplier_type_id' => SupplierType::findByCode($randomTypeCode)?->id ?? SupplierType::findByCode('other')?->id,
             'contact_name' => fake()->name(),
             'contact_email' => fake()->safeEmail(),
             'contact_phone' => fake()->phoneNumber(),
@@ -44,7 +46,7 @@ class SupplierFactory extends Factory
     public function soil(): static
     {
         return $this->state(fn (array $attributes) => [
-            'type' => 'soil',
+            'supplier_type_id' => SupplierType::findByCode('soil')?->id,
         ]);
     }
     
@@ -54,7 +56,7 @@ class SupplierFactory extends Factory
     public function seed(): static
     {
         return $this->state(fn (array $attributes) => [
-            'type' => 'seed',
+            'supplier_type_id' => SupplierType::findByCode('seed')?->id,
         ]);
     }
     
@@ -64,7 +66,27 @@ class SupplierFactory extends Factory
     public function consumable(): static
     {
         return $this->state(fn (array $attributes) => [
-            'type' => 'consumable',
+            'supplier_type_id' => SupplierType::findByCode('consumable')?->id,
+        ]);
+    }
+    
+    /**
+     * Indicate that the supplier is for packaging.
+     */
+    public function packaging(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'supplier_type_id' => SupplierType::findByCode('packaging')?->id,
+        ]);
+    }
+    
+    /**
+     * Indicate that the supplier is for other.
+     */
+    public function other(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'supplier_type_id' => SupplierType::findByCode('other')?->id,
         ]);
     }
     

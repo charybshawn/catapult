@@ -62,16 +62,13 @@ class CropResource extends BaseResource
                             ->required()
                             ->default(now())
                             ->seconds(false),
-                        Forms\Components\Select::make('current_stage')
+                        Forms\Components\Select::make('current_stage_id')
                             ->label('Current Stage')
-                            ->options([
-                                'germination' => 'Germination',
-                                'blackout' => 'Blackout',
-                                'light' => 'Light',
-                                'harvested' => 'Harvested',
-                            ])
+                            ->relationship('currentStage', 'name')
                             ->required()
-                            ->default('germination')
+                            ->default(function () {
+                                return \App\Models\CropStage::findByCode('germination')->id;
+                            })
                             ->visible(fn ($livewire) => !($livewire instanceof Pages\CreateCrop)),
                         Forms\Components\TextInput::make('harvest_weight_grams')
                             ->label('Harvest Weight Per Tray (grams)')
@@ -79,7 +76,12 @@ class CropResource extends BaseResource
                             ->minValue(0)
                             ->maxValue(10000)
                             ->helperText('Can be added at any stage, but required when harvested')
-                            ->required(fn (Forms\Get $get) => $get('current_stage') === 'harvested')
+                            ->required(function (Forms\Get $get) {
+                                $stageId = $get('current_stage_id');
+                                if (!$stageId) return false;
+                                $stage = \App\Models\CropStage::find($stageId);
+                                return $stage?->code === 'harvested';
+                            })
                             ->visible(fn ($livewire) => !($livewire instanceof Pages\CreateCrop)),
                         Forms\Components\Textarea::make('notes')
                             ->label('Notes')
@@ -158,7 +160,7 @@ class CropResource extends BaseResource
                 return $query->select([
                         'crops.recipe_id',
                         'crops.planting_at',
-                        'crops.current_stage',
+                        'crops.current_stage_id',
                         DB::raw('MIN(crops.id) as id'),
                         DB::raw('MIN(crops.created_at) as created_at'),
                         DB::raw('MIN(crops.updated_at) as updated_at'),
@@ -181,7 +183,7 @@ class CropResource extends BaseResource
                         DB::raw('(SELECT recipes.name FROM recipes WHERE recipes.id = crops.recipe_id) as recipe_name')
                     ])
                     ->from('crops')
-                    ->groupBy(['crops.recipe_id', 'crops.planting_at', 'crops.current_stage']);
+                    ->groupBy(['crops.recipe_id', 'crops.planting_at', 'crops.current_stage_id']);
             })
             ->recordUrl(fn ($record) => static::getUrl('edit', ['record' => $record]))
             ->columns([
@@ -214,17 +216,11 @@ class CropResource extends BaseResource
                         return $query->orderBy('crops.planting_at', $direction);
                     })
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('current_stage')
+                Tables\Columns\TextColumn::make('currentStage.name')
                     ->label('Current Stage')
                     ->badge()
-                    ->formatStateUsing(fn (string $state): string => ucfirst($state))
-                    ->color(fn (string $state): string => match ($state) {
-                        'germination' => 'info',
-                        'blackout' => 'warning',
-                        'light' => 'success',
-                        'harvested' => 'gray',
-                        default => 'gray',
-                    })
+                    ->getStateUsing(fn ($record) => $record->currentStage?->name)
+                    ->color(fn ($record) => $record->currentStage?->color ?? 'gray')
                     ->searchable()
                     ->sortable()
                     ->toggleable(),
@@ -274,22 +270,17 @@ class CropResource extends BaseResource
                     ->label('Growth Stage'),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('current_stage')
+                Tables\Filters\SelectFilter::make('current_stage_id')
                     ->label('Stage')
-                    ->options([
-                        'germination' => 'Germination',
-                        'blackout' => 'Blackout',
-                        'light' => 'Light',
-                        'harvested' => 'Harvested',
-                    ]),
+                    ->relationship('currentStage', 'name'),
                 Tables\Filters\TernaryFilter::make('active_crops')
                     ->label('Active Crops')
                     ->placeholder('All Crops')
                     ->trueLabel('Active Only')
                     ->falseLabel('Harvested Only')
                     ->queries(
-                        true: fn (Builder $query): Builder => $query->where('current_stage', '!=', 'harvested'),
-                        false: fn (Builder $query): Builder => $query->where('current_stage', '=', 'harvested'),
+                        true: fn (Builder $query): Builder => $query->whereHas('currentStage', fn ($q) => $q->where('code', '!=', 'harvested')),
+                        false: fn (Builder $query): Builder => $query->whereHas('currentStage', fn ($q) => $q->where('code', '=', 'harvested')),
                         blank: fn (Builder $query): Builder => $query,
                     )
                     ->default(true),
@@ -468,7 +459,7 @@ class CropResource extends BaseResource
                     })
                     ->icon('heroicon-o-chevron-double-right')
                     ->color('success')
-                    ->visible(fn (Crop $record): bool => $record->current_stage !== 'harvested')
+                    ->visible(fn (Crop $record): bool => $record->currentStage?->code !== 'harvested')
                     ->requiresConfirmation()
                     ->modalHeading(function (Crop $record): string {
                         $nextStage = $record->getNextStage();
@@ -504,7 +495,7 @@ class CropResource extends BaseResource
                             $crops = Crop::with('recipe')
                                 ->where('recipe_id', $record->recipe_id)
                                 ->where('planting_at', $record->planting_at)
-                                ->where('current_stage', $record->current_stage)
+                                ->where('current_stage_id', $record->current_stage_id)
                                 ->get();
                             
                             $count = $crops->count();
@@ -513,8 +504,8 @@ class CropResource extends BaseResource
                             // Update all crops in this batch
                             $advancementTime = $data['advancement_timestamp'];
                             foreach ($crops as $crop) {
-                                $timestampField = "{$nextStage}_at";
-                                $crop->current_stage = $nextStage;
+                                $timestampField = "{$nextStage->code}_at";
+                                $crop->current_stage_id = $nextStage->id;
                                 $crop->$timestampField = $advancementTime;
                                 $crop->save();
                                 
@@ -554,7 +545,7 @@ class CropResource extends BaseResource
                     ->label('Harvest')
                     ->icon('heroicon-o-scissors')
                     ->color('success')
-                    ->visible(fn (Crop $record): bool => $record->current_stage === 'light')
+                    ->visible(fn (Crop $record): bool => $record->currentStage?->code === 'light')
                     ->requiresConfirmation()
                     ->modalHeading('Harvest Crop?')
                     ->modalDescription('This will mark all crops in this batch as harvested.')
@@ -582,7 +573,7 @@ class CropResource extends BaseResource
                             $crops = Crop::with('recipe')
                                 ->where('recipe_id', $record->recipe_id)
                                 ->where('planting_at', $record->planting_at)
-                                ->where('current_stage', $record->current_stage)
+                                ->where('current_stage_id', $record->current_stage_id)
                                 ->get();
                             
                             $count = $crops->count();
@@ -590,8 +581,9 @@ class CropResource extends BaseResource
                             
                             // Update all crops in this batch
                             $harvestTime = $data['harvest_timestamp'];
+                            $harvestedStage = \App\Models\CropStage::findByCode('harvested');
                             foreach ($crops as $crop) {
-                                $crop->current_stage = 'harvested';
+                                $crop->current_stage_id = $harvestedStage->id;
                                 $crop->harvested_at = $harvestTime;
                                 $crop->harvest_weight_grams = $data['harvest_weight_grams'];
                                 $crop->save();
@@ -633,7 +625,7 @@ class CropResource extends BaseResource
                     })
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('warning')
-                    ->visible(fn (Crop $record): bool => $record->current_stage !== 'germination')
+                    ->visible(fn (Crop $record): bool => $record->currentStage?->code !== 'germination')
                     ->requiresConfirmation()
                     ->modalHeading(function (Crop $record): string {
                         $previousStage = $record->getPreviousStage();
@@ -660,7 +652,7 @@ class CropResource extends BaseResource
                             $crops = Crop::with('recipe')
                                 ->where('recipe_id', $record->recipe_id)
                                 ->where('planting_at', $record->planting_at)
-                                ->where('current_stage', $record->current_stage)
+                                ->where('current_stage_id', $record->current_stage_id)
                                 ->get();
                             
                             $count = $crops->count();
@@ -669,11 +661,11 @@ class CropResource extends BaseResource
                             // Update all crops in this batch
                             foreach ($crops as $crop) {
                                 // Clear the timestamp for the current stage
-                                $currentTimestampField = "{$record->current_stage}_at";
+                                $currentTimestampField = "{$record->currentStage->code}_at";
                                 $crop->$currentTimestampField = null;
                                 
                                 // Set the previous stage
-                                $crop->current_stage = $previousStage;
+                                $crop->current_stage_id = $previousStage->id;
                                 
                                 $crop->save();
                             }
@@ -699,7 +691,7 @@ class CropResource extends BaseResource
                     ->label('Suspend Watering')
                     ->icon('heroicon-o-no-symbol')
                     ->color('warning')
-                    ->visible(fn (Crop $record): bool => $record->current_stage === 'light' && !$record->isWateringSuspended())
+                    ->visible(fn (Crop $record): bool => $record->currentStage?->code === 'light' && !$record->isWateringSuspended())
                     ->requiresConfirmation()
                     ->modalHeading('Suspend Watering?')
                     ->modalDescription('This will mark watering as suspended for all crops in this batch.')
@@ -721,7 +713,7 @@ class CropResource extends BaseResource
                             $crops = Crop::with('recipe')
                                 ->where('recipe_id', $record->recipe_id)
                                 ->where('planting_at', $record->planting_at)
-                                ->where('current_stage', $record->current_stage)
+                                ->where('current_stage_id', $record->current_stage_id)
                                 ->get();
                             
                             $count = $crops->count();
@@ -779,14 +771,14 @@ class CropResource extends BaseResource
                             // Find all tray numbers in this batch
                             $trayNumbers = Crop::where('recipe_id', $record->recipe_id)
                                 ->where('planting_at', $record->planting_at)
-                                ->where('current_stage', $record->current_stage)
+                                ->where('current_stage_id', $record->current_stage_id)
                                 ->pluck('tray_number')
                                 ->toArray();
                             
                             // Delete all crops in this batch
                             $count = Crop::where('recipe_id', $record->recipe_id)
                                 ->where('planting_at', $record->planting_at)
-                                ->where('current_stage', $record->current_stage)
+                                ->where('current_stage_id', $record->current_stage_id)
                                 ->delete();
                             
                             DB::commit();
@@ -830,20 +822,20 @@ class CropResource extends BaseResource
                             DB::beginTransaction();
                             try {
                                 foreach ($records as $record) {
-                                    if ($record->current_stage !== 'harvested') {
+                                    if ($record->currentStage?->code !== 'harvested') {
                                         // Find ALL crops in this batch
                                         $crops = Crop::with('recipe')
                                             ->where('recipe_id', $record->recipe_id)
                                             ->where('planting_at', $record->planting_at)
-                                            ->where('current_stage', $record->current_stage)
+                                            ->where('current_stage_id', $record->current_stage_id)
                                             ->get();
                                         
                                         $nextStage = $crops->first()->getNextStage();
                                         if ($nextStage) {
                                             $advancementTime = $data['advancement_timestamp'];
                                             foreach ($crops as $crop) {
-                                                $timestampField = "{$nextStage}_at";
-                                                $crop->current_stage = $nextStage;
+                                                $timestampField = "{$nextStage->code}_at";
+                                                $crop->current_stage_id = $nextStage->id;
                                                 $crop->$timestampField = $advancementTime;
                                                 $crop->save();
                                                 
@@ -909,17 +901,17 @@ class CropResource extends BaseResource
                                     $crops = Crop::with('recipe')
                                         ->where('recipe_id', $record->recipe_id)
                                         ->where('planting_at', $record->planting_at)
-                                        ->where('current_stage', $record->current_stage)
+                                        ->where('current_stage_id', $record->current_stage_id)
                                         ->get();
                                     
                                     if ($crops->isNotEmpty()) {
                                         foreach ($crops as $crop) {
                                             // Clear the timestamp for the current stage
-                                            $currentTimestampField = "{$crop->current_stage}_at";
+                                            $currentTimestampField = "{$crop->currentStage->code}_at";
                                             $crop->$currentTimestampField = null;
                                             
                                             // Set the previous stage
-                                            $crop->current_stage = $previousStage;
+                                            $crop->current_stage_id = $previousStage->id;
                                             
                                             $crop->save();
                                         }
@@ -987,7 +979,7 @@ class CropResource extends BaseResource
             'recipe_id' => 'Recipe ID',
             'order_id' => 'Order ID', 
             'tray_number' => 'Tray Number',
-            'current_stage' => 'Current Stage',
+            'current_stage_id' => 'Current Stage ID',
             'planting_at' => 'Planted Date',
             'germination_at' => 'Germination Date',
             'blackout_at' => 'Blackout Date',

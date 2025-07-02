@@ -15,7 +15,7 @@ return new class extends Migration
         Schema::create('product_inventories', function (Blueprint $table) {
             $table->id();
             $table->foreignId('product_id')->constrained()->onDelete('cascade');
-            $table->foreignId('price_variation_id')->nullable()->constrained('price_variations')->onDelete('set null');
+            $table->foreignId('price_variation_id')->nullable()->constrained('product_price_variations')->onDelete('set null');
             $table->string('batch_number')->nullable();
             $table->string('lot_number')->nullable();
             $table->decimal('quantity', 10, 2);

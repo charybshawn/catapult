@@ -20,8 +20,8 @@ class ProductInventoryStats extends BaseWidget
             
         // Get inventory by packaging type
         $packagingStats = DB::table('product_inventories')
-            ->join('price_variations', 'product_inventories.price_variation_id', '=', 'price_variations.id')
-            ->leftJoin('packaging_types', 'price_variations.packaging_type_id', '=', 'packaging_types.id')
+            ->join('product_price_variations', 'product_inventories.price_variation_id', '=', 'product_price_variations.id')
+            ->leftJoin('packaging_types', 'product_price_variations.packaging_type_id', '=', 'packaging_types.id')
             ->where('product_inventories.status', 'active')
             ->select(
                 DB::raw('COALESCE(packaging_types.name, "No Packaging") as packaging'),

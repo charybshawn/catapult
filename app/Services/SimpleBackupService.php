@@ -179,7 +179,7 @@ class SimpleBackupService
             $tablesToClear = [
                 'activity_log', 'time_card_tasks', 'time_cards', 'crop_tasks', 'task_schedules',
                 'harvests', 'crops', 'seed_entries', 'recipes', 'consumables', 'suppliers',
-                'price_variations', 'products', 'categories', 'packaging_types',
+                'product_price_variations', 'products', 'categories', 'packaging_types',
                 'seed_variations', 'seed_price_history', 'product_inventories',
                 'cache', 'sessions', 'permissions', 'roles', 'role_has_permissions', 
                 'model_has_roles', 'master_cultivars', 'master_seed_catalog',

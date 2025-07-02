@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\CustomerResource\Pages;
 use App\Filament\Resources\CustomerResource\RelationManagers;
 use App\Models\Customer;
+use App\Models\CustomerType;
 use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -33,12 +34,13 @@ class CustomerResource extends Resource
                 Forms\Components\Section::make('Customer Information')
                     ->description('Basic customer details')
                     ->schema([
-                        Forms\Components\Select::make('customer_type')
-                            ->options([
-                                'retail' => 'Retail',
-                                'wholesale' => 'Wholesale',
-                            ])
-                            ->default('retail')
+                        Forms\Components\Select::make('customer_type_id')
+                            ->label('Customer Type')
+                            ->relationship('customerType', 'name')
+                            ->options(CustomerType::options())
+                            ->default(function () {
+                                return CustomerType::findByCode('retail')?->id;
+                            })
                             ->required()
                             ->reactive()
                             ->columnSpan(1),
@@ -96,7 +98,12 @@ class CustomerResource extends Resource
                             ->default(0)
                             ->helperText('Default discount percentage for wholesale orders'),
                     ])
-                    ->visible(fn (Forms\Get $get) => $get('customer_type') === 'wholesale'),
+                    ->visible(function (Forms\Get $get) {
+                        $customerTypeId = $get('customer_type_id');
+                        if (!$customerTypeId) return false;
+                        $customerType = CustomerType::find($customerTypeId);
+                        return $customerType?->qualifiesForWholesalePricing() ?? false;
+                    }),
                 
                 Forms\Components\Section::make('Delivery Address')
                     ->description('Where orders will be delivered')
@@ -229,11 +236,12 @@ class CustomerResource extends Resource
                 Tables\Columns\TextColumn::make('phone')
                     ->searchable()
                     ->formatStateUsing(fn ($state) => $state ? (new Customer(['phone' => $state]))->formatted_phone : null),
-                Tables\Columns\BadgeColumn::make('customer_type')
+                Tables\Columns\BadgeColumn::make('customerType.name')
                     ->label('Type')
                     ->colors([
-                        'success' => 'retail',
-                        'info' => 'wholesale',
+                        'success' => fn ($state) => $state === 'Retail',
+                        'info' => fn ($state) => $state === 'Wholesale',
+                        'warning' => fn ($state) => $state === 'Farmers Market',
                     ]),
                 Tables\Columns\TextColumn::make('city')
                     ->searchable()
@@ -244,7 +252,9 @@ class CustomerResource extends Resource
                     ->label('Discount %')
                     ->suffix('%')
                     ->toggleable()
-                    ->visible(fn () => Customer::where('customer_type', 'wholesale')->exists()),
+                    ->visible(fn () => Customer::whereHas('customerType', function ($q) {
+                        $q->whereIn('code', ['wholesale', 'farmers_market']);
+                    })->exists()),
                 Tables\Columns\IconColumn::make('has_user_account')
                     ->label('Login')
                     ->boolean()
@@ -262,11 +272,10 @@ class CustomerResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('customer_type')
-                    ->options([
-                        'retail' => 'Retail',
-                        'wholesale' => 'Wholesale',
-                    ]),
+                Tables\Filters\SelectFilter::make('customer_type_id')
+                    ->label('Customer Type')
+                    ->relationship('customerType', 'name')
+                    ->options(CustomerType::options()),
                 Tables\Filters\TernaryFilter::make('has_user_account')
                     ->label('Has Login')
                     ->placeholder('All customers')

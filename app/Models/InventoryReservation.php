@@ -16,7 +16,7 @@ class InventoryReservation extends Model
         'order_id',
         'order_item_id',
         'quantity',
-        'status',
+        'status_id',
         'expires_at',
         'fulfilled_at',
     ];
@@ -34,7 +34,7 @@ class InventoryReservation extends Model
     {
         // When a reservation is deleted, release the reserved quantity
         static::deleting(function ($reservation) {
-            if ($reservation->status === 'pending' || $reservation->status === 'confirmed') {
+            if ($reservation->status?->holdsInventory()) {
                 $reservation->release();
             }
         });
@@ -73,6 +73,14 @@ class InventoryReservation extends Model
     }
 
     /**
+     * Get the status for this reservation.
+     */
+    public function status(): BelongsTo
+    {
+        return $this->belongsTo(InventoryReservationStatus::class, 'status_id');
+    }
+
+    /**
      * Check if the reservation has expired.
      */
     public function isExpired(): bool
@@ -85,7 +93,7 @@ class InventoryReservation extends Model
      */
     public function isActive(): bool
     {
-        return in_array($this->status, ['pending', 'confirmed']) && !$this->isExpired();
+        return $this->status?->isActive() && !$this->isExpired();
     }
 
     /**
@@ -93,7 +101,8 @@ class InventoryReservation extends Model
      */
     public function confirm(): void
     {
-        $this->update(['status' => 'confirmed']);
+        $confirmedStatus = InventoryReservationStatus::findByCode('confirmed');
+        $this->update(['status_id' => $confirmedStatus->id]);
     }
 
     /**
@@ -120,8 +129,9 @@ class InventoryReservation extends Model
         );
 
         // Update reservation status
+        $fulfilledStatus = InventoryReservationStatus::findByCode('fulfilled');
         $this->update([
-            'status' => 'fulfilled',
+            'status_id' => $fulfilledStatus->id,
             'fulfilled_at' => now(),
         ]);
     }
@@ -131,7 +141,7 @@ class InventoryReservation extends Model
      */
     public function cancel(string $reason = null): void
     {
-        if ($this->status === 'fulfilled') {
+        if ($this->status?->isFulfilled()) {
             throw new \Exception('Cannot cancel fulfilled reservation');
         }
 
@@ -139,7 +149,8 @@ class InventoryReservation extends Model
         $this->release($reason ?? 'Reservation cancelled');
 
         // Update status
-        $this->update(['status' => 'cancelled']);
+        $cancelledStatus = InventoryReservationStatus::findByCode('cancelled');
+        $this->update(['status_id' => $cancelledStatus->id]);
     }
 
     /**
@@ -147,7 +158,7 @@ class InventoryReservation extends Model
      */
     protected function release(string $reason = null): void
     {
-        if ($this->status === 'pending' || $this->status === 'confirmed') {
+        if ($this->status?->holdsInventory()) {
             $this->productInventory->releaseReservation($this->quantity, $reason);
         }
     }
@@ -157,7 +168,9 @@ class InventoryReservation extends Model
      */
     public function scopeActive($query)
     {
-        return $query->whereIn('status', ['pending', 'confirmed'])
+        return $query->whereHas('status', function ($q) {
+                $q->where('code', 'pending')->orWhere('code', 'confirmed');
+            })
             ->where(function ($q) {
                 $q->whereNull('expires_at')
                     ->orWhere('expires_at', '>', now());
@@ -169,7 +182,9 @@ class InventoryReservation extends Model
      */
     public function scopeExpired($query)
     {
-        return $query->whereIn('status', ['pending', 'confirmed'])
+        return $query->whereHas('status', function ($q) {
+                $q->where('code', 'pending')->orWhere('code', 'confirmed');
+            })
             ->whereNotNull('expires_at')
             ->where('expires_at', '<=', now());
     }

@@ -15,7 +15,7 @@ class CropPlan extends Model
     protected $fillable = [
         'order_id',
         'recipe_id',
-        'status',
+        'status_id',
         'trays_needed',
         'grams_needed',
         'grams_per_tray',
@@ -60,6 +60,11 @@ class CropPlan extends Model
         return $this->belongsTo(User::class, 'approved_by');
     }
 
+    public function status(): BelongsTo
+    {
+        return $this->belongsTo(CropPlanStatus::class, 'status_id');
+    }
+
     public function crops(): HasMany
     {
         return $this->hasMany(Crop::class, 'crop_plan_id');
@@ -67,32 +72,33 @@ class CropPlan extends Model
 
     public function isApproved(): bool
     {
-        return $this->status === 'approved';
+        return $this->status?->code === 'active';
     }
 
     public function isDraft(): bool
     {
-        return $this->status === 'draft';
+        return $this->status?->code === 'draft';
     }
 
     public function canBeApproved(): bool
     {
-        return in_array($this->status, ['draft']);
+        return $this->status?->code === 'draft';
     }
 
     public function canGenerateCrops(): bool
     {
-        return $this->status === 'approved';
+        return $this->status?->code === 'active';
     }
 
     public function approve(User $user = null): void
     {
         if (!$this->canBeApproved()) {
-            throw new \Exception('Crop plan cannot be approved in current status: ' . $this->status);
+            throw new \Exception('Crop plan cannot be approved in current status: ' . $this->status?->name);
         }
 
+        $activeStatus = CropPlanStatus::findByCode('active');
         $this->update([
-            'status' => 'approved',
+            'status_id' => $activeStatus->id,
             'approved_by' => $user?->id,
             'approved_at' => now(),
         ]);
@@ -104,29 +110,26 @@ class CropPlan extends Model
             throw new \Exception('Crop plan must be approved before generating crops');
         }
 
-        $this->update(['status' => 'generating']);
+        // Note: 'generating' status doesn't exist in new system, using 'active'
+        $activeStatus = CropPlanStatus::findByCode('active');
+        $this->update(['status_id' => $activeStatus->id]);
     }
 
     public function markAsCompleted(): void
     {
-        $this->update(['status' => 'completed']);
+        $completedStatus = CropPlanStatus::findByCode('completed');
+        $this->update(['status_id' => $completedStatus->id]);
     }
 
     public function cancel(): void
     {
-        $this->update(['status' => 'cancelled']);
+        $cancelledStatus = CropPlanStatus::findByCode('cancelled');
+        $this->update(['status_id' => $cancelledStatus->id]);
     }
 
     public function getStatusColorAttribute(): string
     {
-        return match($this->status) {
-            'draft' => 'gray',
-            'approved' => 'success',
-            'generating' => 'warning',
-            'completed' => 'primary',
-            'cancelled' => 'danger',
-            default => 'gray',
-        };
+        return $this->status?->color ?? 'gray';
     }
 
     public function getDaysUntilPlantingAttribute(): int
@@ -136,11 +139,11 @@ class CropPlan extends Model
 
     public function isOverdue(): bool
     {
-        return $this->plant_by_date->isPast() && in_array($this->status, ['draft', 'approved']);
+        return $this->plant_by_date->isPast() && in_array($this->status?->code, ['draft', 'active']);
     }
 
     public function isUrgent(): bool
     {
-        return $this->days_until_planting <= 2 && in_array($this->status, ['draft', 'approved']);
+        return $this->days_until_planting <= 2 && in_array($this->status?->code, ['draft', 'active']);
     }
 }
