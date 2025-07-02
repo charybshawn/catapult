@@ -981,12 +981,28 @@ class CropResource extends BaseResource
      */
     protected static function getCsvExportColumns(): array
     {
-        $autoColumns = static::getColumnsFromSchema();
+        // Get core columns but exclude some redundant/confusing ones
+        $coreColumns = [
+            'id' => 'ID',
+            'recipe_id' => 'Recipe ID',
+            'order_id' => 'Order ID', 
+            'tray_number' => 'Tray Number',
+            'current_stage' => 'Current Stage',
+            'planting_at' => 'Planted Date',
+            'germination_at' => 'Germination Date',
+            'blackout_at' => 'Blackout Date',
+            'light_at' => 'Light Date',
+            'harvested_at' => 'Harvested Date',
+            'harvest_weight_grams' => 'Harvest Weight (g)',
+            'notes' => 'Notes',
+            'created_at' => 'Created At',
+            'updated_at' => 'Updated At',
+        ];
         
-        return static::addRelationshipColumns($autoColumns, [
+        return static::addRelationshipColumns($coreColumns, [
             'recipe' => ['name', 'common_name', 'cultivar_name'],
             'recipe.seedEntry' => ['common_name', 'cultivar_name'],
-            'order' => ['id', 'customer_name'],
+            'order' => ['customer_name'],
         ]);
     }
     
@@ -995,6 +1011,6 @@ class CropResource extends BaseResource
      */
     protected static function getCsvExportRelationships(): array
     {
-        return ['recipe.seedEntry', 'order'];
+        return ['recipe', 'recipe.seedEntry', 'order'];
     }
 } 

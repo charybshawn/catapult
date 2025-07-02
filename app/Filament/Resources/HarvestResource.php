@@ -282,9 +282,19 @@ class HarvestResource extends BaseResource
      */
     protected static function getCsvExportColumns(): array
     {
-        $autoColumns = static::getColumnsFromSchema();
+        $coreColumns = [
+            'id' => 'ID',
+            'master_cultivar_id' => 'Cultivar ID',
+            'total_weight_grams' => 'Total Weight (g)',
+            'tray_count' => 'Tray Count',
+            'harvest_date' => 'Harvest Date',
+            'user_id' => 'User ID',
+            'notes' => 'Notes',
+            'created_at' => 'Created At',
+            'updated_at' => 'Updated At',
+        ];
         
-        return static::addRelationshipColumns($autoColumns, [
+        return static::addRelationshipColumns($coreColumns, [
             'masterCultivar' => ['common_name', 'cultivar_name'],
             'user' => ['name', 'email'],
         ]);

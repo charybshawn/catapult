@@ -25,6 +25,9 @@ class CsvExportService
             throw new \Exception('No data to export');
         }
         
+        // Filter out columns that are mostly empty (optional optimization)
+        $filteredColumns = $this->filterMostlyEmptyColumns($data, $columns);
+        
         // Generate filename if not provided
         if (!$filename) {
             $modelName = Str::plural(Str::snake(class_basename($query->getModel())));
@@ -38,7 +41,7 @@ class CsvExportService
         }
         
         // Create CSV content
-        $csvContent = $this->generateCsvContent($data, $columns, $headers);
+        $csvContent = $this->generateCsvContent($data, $filteredColumns, $headers);
         
         // Save to storage
         $filePath = storage_path('app/exports/' . $filename);
@@ -87,11 +90,45 @@ class CsvExportService
     {
         // Handle dot notation for relationships
         if (str_contains($column, '.')) {
-            return data_get($item, $column);
+            $value = data_get($item, $column);
+            
+            // Return null for truly empty values
+            if ($value === null || $value === '' || $value === 0) {
+                return null;
+            }
+            
+            return $value;
         }
         
         // Handle direct attributes
-        return $item->getAttribute($column);
+        $value = $item->getAttribute($column);
+        
+        // Handle specific column types more intelligently
+        if ($value === null) {
+            return null;
+        }
+        
+        // Keep empty strings as empty for text fields that might legitimately be empty
+        if ($value === '') {
+            // Only convert to null for non-essential text fields
+            $textFields = ['notes', 'description', 'comments'];
+            if (in_array($column, $textFields)) {
+                return null;
+            }
+            return $value;
+        }
+        
+        // Handle zero values - keep zeros for numeric fields that should show zero
+        if ($value === 0) {
+            $numericFields = ['id', 'tray_number', 'tray_count', 'total_weight_grams', 'harvest_weight_grams', 'quantity', 'price'];
+            if (in_array($column, $numericFields)) {
+                return $value;
+            }
+            // Convert other zero values to null (like foreign keys that are 0)
+            return null;
+        }
+        
+        return $value;
     }
     
     /**
@@ -146,6 +183,43 @@ class CsvExportService
     public function getFilePath(string $filename): string
     {
         return storage_path('app/exports/' . $filename);
+    }
+    
+    /**
+     * Filter out columns that are mostly empty to reduce CSV clutter
+     */
+    private function filterMostlyEmptyColumns(Collection $data, array $columns): array
+    {
+        // Don't filter if we have very few records
+        if ($data->count() < 10) {
+            return $columns;
+        }
+        
+        $filtered = [];
+        $threshold = 0.8; // Remove columns that are 80% or more empty
+        
+        foreach ($columns as $column) {
+            $nonEmptyCount = 0;
+            
+            // Sample first 20 records to check for emptiness
+            $sampleSize = min(20, $data->count());
+            for ($i = 0; $i < $sampleSize; $i++) {
+                $value = $this->getColumnValue($data[$i], $column);
+                if ($value !== null && $value !== '') {
+                    $nonEmptyCount++;
+                }
+            }
+            
+            $emptyRatio = 1 - ($nonEmptyCount / $sampleSize);
+            
+            // Keep columns that have some data or are essential fields
+            $essentialFields = ['id', 'name', 'created_at', 'updated_at'];
+            if ($emptyRatio < $threshold || in_array($column, $essentialFields)) {
+                $filtered[] = $column;
+            }
+        }
+        
+        return $filtered;
     }
     
     /**

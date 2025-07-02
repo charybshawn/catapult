@@ -55,7 +55,8 @@ trait CsvExportAction
                     
                     // Include relationships if requested
                     if ($data['include_relationships'] && !empty(static::getCsvExportRelationships())) {
-                        $query = $query->with(static::getCsvExportRelationships());
+                        $relationships = static::getCsvExportRelationships();
+                        $query = $query->with($relationships);
                     }
                     
                     // Export the data
