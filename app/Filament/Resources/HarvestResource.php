@@ -285,9 +285,8 @@ class HarvestResource extends BaseResource
         $autoColumns = static::getColumnsFromSchema();
         
         return static::addRelationshipColumns($autoColumns, [
-            'crop' => ['variety_name', 'date_seeded', 'recipe_name'],
-            'crop.recipe' => ['name'],
             'masterCultivar' => ['common_name', 'cultivar_name'],
+            'user' => ['name', 'email'],
         ]);
     }
     
@@ -296,6 +295,6 @@ class HarvestResource extends BaseResource
      */
     protected static function getCsvExportRelationships(): array
     {
-        return ['crop.recipe', 'masterCultivar'];
+        return ['masterCultivar', 'user'];
     }
 }

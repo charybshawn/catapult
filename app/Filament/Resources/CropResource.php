@@ -985,9 +985,8 @@ class CropResource extends BaseResource
         
         return static::addRelationshipColumns($autoColumns, [
             'recipe' => ['name', 'common_name', 'cultivar_name'],
+            'recipe.seedEntry' => ['common_name', 'cultivar_name'],
             'order' => ['id', 'customer_name'],
-            'masterCultivar' => ['common_name', 'cultivar_name'],
-            'harvests' => ['harvest_date', 'weight_g', 'yield_per_tray'],
         ]);
     }
     
@@ -996,6 +995,6 @@ class CropResource extends BaseResource
      */
     protected static function getCsvExportRelationships(): array
     {
-        return ['recipe', 'order', 'masterCultivar', 'harvests'];
+        return ['recipe.seedEntry', 'order'];
     }
 } 
