@@ -188,11 +188,18 @@ class CropResource extends BaseResource
                     ->getStateUsing(function ($record) {
                         return $record->recipe_name ?? "Recipe #{$record->recipe_id}";
                     })
-                    ->searchable(false)
+                    ->searchable(query: function (Builder $query, string $search): Builder {
+                        return $query->whereHas('recipe', function (Builder $query) use ($search) {
+                            $query->where('name', 'like', "%{$search}%");
+                        });
+                    })
                     ->sortable(false),
                 Tables\Columns\ViewColumn::make('tray_numbers')
                     ->label('Trays')
                     ->view('components.tray-badges')
+                    ->searchable(query: function (Builder $query, string $search): Builder {
+                        return $query->where('tray_number', 'like', "%{$search}%");
+                    })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('tray_count', $direction);
                     })
@@ -215,6 +222,7 @@ class CropResource extends BaseResource
                         'harvested' => 'gray',
                         default => 'gray',
                     })
+                    ->searchable()
                     ->sortable()
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('stage_age_display')

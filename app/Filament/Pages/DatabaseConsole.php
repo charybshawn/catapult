@@ -7,9 +7,12 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\FileUpload;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class DatabaseConsole extends Page
 {
@@ -73,10 +76,16 @@ class DatabaseConsole extends Page
                 ->icon('heroicon-o-arrow-up-tray')
                 ->color('danger')
                 ->form([
-                    Toggle::make('use_latest')
-                        ->label('Use Latest Backup')
-                        ->helperText('Use the most recent backup instead of selecting specific file')
-                        ->reactive(),
+                    Select::make('restore_source')
+                        ->label('Restore Source')
+                        ->options([
+                            'latest' => 'Use Latest Backup',
+                            'existing' => 'Select Existing Backup',
+                            'upload' => 'Upload Backup File'
+                        ])
+                        ->default('existing')
+                        ->reactive()
+                        ->helperText('Choose the source for your backup file'),
                     Select::make('backup_file')
                         ->label('Select Backup File')
                         ->options(function () {
@@ -88,10 +97,17 @@ class DatabaseConsole extends Page
                             }
                             return $options;
                         })
-                        ->required(fn ($get) => !$get('use_latest'))
+                        ->required(fn ($get) => $get('restore_source') === 'existing')
                         ->searchable()
                         ->helperText('Select a backup file to restore from')
-                        ->hidden(fn ($get) => $get('use_latest')),
+                        ->visible(fn ($get) => $get('restore_source') === 'existing'),
+                    FileUpload::make('upload_file')
+                        ->label('Upload Backup File')
+                        ->maxSize(1024 * 1024) // 1GB max
+                        ->directory('temp-backups')
+                        ->required(fn ($get) => $get('restore_source') === 'upload')
+                        ->helperText('Upload a .sql backup file (max 1GB) - accepts any file type')
+                        ->visible(fn ($get) => $get('restore_source') === 'upload'),
                 ])
                 ->action(function (array $data) {
                     $this->restoreBackup($data);
@@ -222,26 +238,246 @@ class DatabaseConsole extends Page
         $this->dispatch('open-restore-modal');
         
         try {
-            $parameters = [];
+            $restoreSource = $data['restore_source'] ?? 'existing';
             
-            // Always use force mode in web interface (no STDIN available)
-            $parameters['--force'] = true;
-            
-            if ($data['use_latest'] ?? false) {
-                $parameters['--latest'] = true;
-            } else {
-                $file = $data['backup_file'] ?? null;
-                if ($file) {
-                    $parameters['file'] = $file;
+            if ($restoreSource === 'upload') {
+                // Handle uploaded file
+                $uploadedFile = $data['upload_file'] ?? null;
+                if ($uploadedFile) {
+                    $this->restoreOutput = "Processing uploaded file...\n";
+                    
+                    // Get the actual file path - Filament stores files in temp-backups directory
+                    $filePath = null;
+                    if (is_string($uploadedFile)) {
+                        $filePath = $uploadedFile;
+                    } elseif (is_array($uploadedFile) && !empty($uploadedFile)) {
+                        // Get the first uploaded file
+                        $filePath = reset($uploadedFile);
+                    }
+                    
+                    if (!$filePath) {
+                        throw new \Exception("No valid file path found in upload data: " . json_encode($uploadedFile));
+                    }
+                    
+                    $this->restoreOutput .= "File identifier: {$filePath}\n";
+                    
+                    // Debug: Check what's actually in storage - check all directories
+                    $this->restoreOutput .= "Debug: Checking storage directories:\n";
+                    try {
+                        // Check multiple possible storage locations
+                        $checkPaths = ['', 'temp-backups', 'public', 'private', 'livewire-tmp'];
+                        foreach ($checkPaths as $checkPath) {
+                            try {
+                                $files = Storage::files($checkPath);
+                                if (!empty($files)) {
+                                    $this->restoreOutput .= "Directory '{$checkPath}': " . count($files) . " files\n";
+                                    foreach ($files as $file) {
+                                        if (str_contains($file, $filePath) || str_contains($file, '.sql')) {
+                                            $this->restoreOutput .= "  - Relevant: {$file}\n";
+                                        }
+                                    }
+                                }
+                            } catch (\Exception $e) {
+                                // Skip directories that don't exist
+                            }
+                        }
+                        
+                        // Also check if it's a temporary file with livewire naming
+                        $this->restoreOutput .= "Checking for livewire-tmp files...\n";
+                        $livewireTmpFiles = Storage::files('livewire-tmp');
+                        foreach ($livewireTmpFiles as $tmpFile) {
+                            $this->restoreOutput .= "  - Livewire tmp: {$tmpFile}\n";
+                        }
+                    } catch (\Exception $e) {
+                        $this->restoreOutput .= "- Error checking storage: " . $e->getMessage() . "\n";
+                    }
+                    
+                    // Try to get file contents using multiple approaches
+                    $fileContents = null;
+                    try {
+                        // Approach 1: Try all possible storage paths based on actual filesystem
+                        $possiblePaths = [
+                            $filePath,                                    // Direct path as provided
+                            'public/' . $filePath,                       // Public disk (most likely)
+                            'private/' . $filePath,                      // Private disk
+                            'public/temp-backups/' . basename($filePath), // Public temp-backups with just filename
+                            'private/livewire-tmp/' . basename($filePath), // Livewire temp location
+                        ];
+                        
+                        foreach ($possiblePaths as $testPath) {
+                            $this->restoreOutput .= "Trying storage path: {$testPath}\n";
+                            if (Storage::exists($testPath)) {
+                                $fileContents = Storage::get($testPath);
+                                $this->restoreOutput .= "✓ Found file using Storage at: {$testPath}\n";
+                                $filePath = $testPath;
+                                break;
+                            }
+                        }
+                        
+                        // Approach 2: If Storage doesn't work, try direct filesystem access
+                        if (!$fileContents) {
+                            $this->restoreOutput .= "Storage approach failed, trying direct filesystem...\n";
+                            $directPaths = [
+                                storage_path('app/' . $filePath),
+                                storage_path('app/public/' . $filePath),
+                                storage_path('app/public/temp-backups/' . basename($filePath)),
+                                storage_path('app/private/livewire-tmp/' . basename($filePath)),
+                            ];
+                            
+                            foreach ($directPaths as $directPath) {
+                                $this->restoreOutput .= "Trying filesystem path: {$directPath}\n";
+                                if (file_exists($directPath)) {
+                                    $fileContents = file_get_contents($directPath);
+                                    $this->restoreOutput .= "✓ Found file using filesystem at: {$directPath}\n";
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (!$fileContents) {
+                            throw new \Exception("Could not locate uploaded file using Storage or direct filesystem access");
+                        }
+                        $this->restoreOutput .= "File size: " . strlen($fileContents) . " bytes\n";
+                        
+                        if (strlen($fileContents) == 0) {
+                            throw new \Exception("File is empty - upload may have failed");
+                        }
+                        
+                        // Show first 200 characters for debugging
+                        $preview = substr($fileContents, 0, 200);
+                        $this->restoreOutput .= "File preview: " . $preview . "...\n";
+                        
+                        // Create a temporary file in the backup directory
+                        $tempBackupName = 'uploaded_' . now()->format('Y-m-d_H-i-s') . '.sql';
+                        $backupDir = storage_path('app/backups/database');
+                        
+                        if (!is_dir($backupDir)) {
+                            mkdir($backupDir, 0755, true);
+                        }
+                        
+                        $tempBackupPath = $backupDir . '/' . $tempBackupName;
+                        file_put_contents($tempBackupPath, $fileContents);
+                        
+                        $uploadedFilePath = $tempBackupPath;
+                        
+                    } catch (\Exception $e) {
+                        throw new \Exception("Could not read uploaded file: " . $e->getMessage());
+                    }
+                    
+                    $this->restoreOutput .= "Analyzing backup file...\n";
+                    
+                    // Check file contents to understand what type of backup this is
+                    if (str_contains($fileContents, 'CREATE TABLE')) {
+                        $this->restoreOutput .= "Contains schema (CREATE TABLE statements)\n";
+                    } else {
+                        $this->restoreOutput .= "Data-only backup (no CREATE TABLE statements)\n";
+                    }
+                    
+                    if (str_contains($fileContents, 'INSERT INTO')) {
+                        $this->restoreOutput .= "Contains data (INSERT statements)\n";
+                    } else {
+                        $this->restoreOutput .= "No INSERT statements found\n";
+                    }
+                    
+                    $this->restoreOutput .= "Starting restore process...\n";
+                    
+                    // Before restore - check what's currently in the database
+                    $this->restoreOutput .= "Pre-restore counts:\n";
+                    try {
+                        $preCropCount = DB::table('crops')->count();
+                        $preUserCount = DB::table('users')->count();
+                        $preRecipeCount = DB::table('recipes')->count();
+                        
+                        $this->restoreOutput .= "- Crops: {$preCropCount} records\n";
+                        $this->restoreOutput .= "- Users: {$preUserCount} records\n";
+                        $this->restoreOutput .= "- Recipes: {$preRecipeCount} records\n";
+                    } catch (\Exception $e) {
+                        $this->restoreOutput .= "Could not get pre-restore counts: " . $e->getMessage() . "\n";
+                    }
+                    
+                    // Use backup service to restore from uploaded file
+                    $backupService = new SimpleBackupService();
+                    
+                    try {
+                        $this->restoreOutput .= "Calling backup service restore...\n";
+                        $result = $backupService->restoreBackup($tempBackupName);
+                        
+                        if ($result) {
+                            $this->restoreOutput .= "Backup service returned success - verifying data...\n";
+                            
+                            
+                            // Quick verification - check a few table row counts
+                            try {
+                                $cropCount = DB::table('crops')->count();
+                                $userCount = DB::table('users')->count();
+                                $recipeCount = DB::table('recipes')->count();
+                                
+                                $this->restoreOutput .= "Post-restore verification:\n";
+                                $this->restoreOutput .= "- Crops: {$cropCount} records\n";
+                                $this->restoreOutput .= "- Users: {$userCount} records\n";
+                                $this->restoreOutput .= "- Recipes: {$recipeCount} records\n";
+                                
+                                // Check if any data was actually restored
+                                $totalRestored = ($cropCount - $preCropCount) + ($userCount - $preUserCount) + ($recipeCount - $preRecipeCount);
+                                if ($totalRestored > 0) {
+                                    $this->restoreSuccess = true;
+                                    $this->restoreOutput .= "Successfully restored {$totalRestored} new records!\n";
+                                } else {
+                                    $this->restoreSuccess = false;
+                                    $this->restoreOutput .= "⚠️ WARNING: No new records were added. The SQL statements may have failed silently.\n";
+                                    $this->restoreOutput .= "Check the backup file format and database schema compatibility.\n";
+                                }
+                            } catch (\Exception $verifyException) {
+                                $this->restoreOutput .= "Verification failed: " . $verifyException->getMessage() . "\n";
+                                $this->restoreSuccess = false;
+                            }
+                        } else {
+                            $this->restoreOutput .= "Restore failed - backup service returned false\n";
+                            $this->restoreSuccess = false;
+                        }
+                    } catch (\Exception $restoreException) {
+                        $this->restoreOutput .= "Restore exception: " . $restoreException->getMessage() . "\n";
+                        $this->restoreSuccess = false;
+                    }
+                    
+                    // Clean up temp file
+                    if (file_exists($uploadedFilePath)) {
+                        unlink($uploadedFilePath);
+                    }
+                    
+                    // Clean up the uploaded file from storage
+                    try {
+                        Storage::delete($filePath);
+                    } catch (\Exception $e) {
+                        // Ignore cleanup errors
+                    }
+                } else {
+                    throw new \Exception('No file uploaded');
                 }
-            }
+            } else {
+                // Handle existing backup files or latest
+                $parameters = [];
+                
+                // Always use force mode in web interface (no STDIN available)
+                $parameters['--force'] = true;
+                
+                if ($restoreSource === 'latest') {
+                    $parameters['--latest'] = true;
+                } else {
+                    $file = $data['backup_file'] ?? null;
+                    if ($file) {
+                        $parameters['file'] = $file;
+                    }
+                }
 
-            $exitCode = Artisan::call('db:restore', $parameters);
-            $output = Artisan::output();
+                $exitCode = Artisan::call('db:restore', $parameters);
+                $output = Artisan::output();
+                
+                $this->restoreOutput = $output;
+                $this->restoreSuccess = ($exitCode === 0);
+            }
             
-            $this->restoreOutput = $output;
             $this->restoreRunning = false;
-            $this->restoreSuccess = ($exitCode === 0);
 
         } catch (\Exception $e) {
             $this->restoreOutput .= "\n\nError: " . $e->getMessage();

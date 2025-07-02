@@ -10,6 +10,7 @@ use Symfony\Component\Process\Process;
 class SimpleBackupService
 {
     private $backupPath;
+    public $lastRestoreSchemaFixes = [];
 
     public function __construct()
     {
@@ -167,33 +168,111 @@ class SimpleBackupService
                 [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
             );
 
-            // Disable foreign key checks
+            // Disable foreign key checks and configure for restore
             $pdo->exec('SET FOREIGN_KEY_CHECKS=0');
             $pdo->exec('SET SQL_MODE="NO_AUTO_VALUE_ON_ZERO"');
             $pdo->exec('SET AUTOCOMMIT=0');
+            $pdo->exec('SET UNIQUE_CHECKS=0');
             $pdo->exec('START TRANSACTION');
+            
+            // Clear existing data from main tables to avoid conflicts
+            $tablesToClear = [
+                'activity_log', 'time_card_tasks', 'time_cards', 'crop_tasks', 'task_schedules',
+                'harvests', 'crops', 'seed_entries', 'recipes', 'consumables', 'suppliers',
+                'price_variations', 'products', 'categories', 'packaging_types',
+                'seed_variations', 'seed_price_history', 'product_inventories',
+                'cache', 'sessions', 'permissions', 'roles', 'role_has_permissions', 
+                'model_has_roles', 'master_cultivars', 'master_seed_catalog',
+                'supplier_source_mappings', 'seed_scrape_uploads', 'task_types'
+            ];
+            
+            foreach ($tablesToClear as $table) {
+                try {
+                    $pdo->exec("DELETE FROM `{$table}`");
+                } catch (\Exception $e) {
+                    // Table might not exist, continue
+                }
+            }
 
             // Split SQL into individual statements
             $statements = $this->splitSqlStatements($sqlContent);
+            
+            $successCount = 0;
+            $failCount = 0;
+            $errors = [];
+            $schemaFixes = [];
             
             foreach ($statements as $statement) {
                 $statement = trim($statement);
                 if (!empty($statement) && $statement !== ';') {
                     try {
+                        // Check for column count mismatch and fix if needed
+                        if (str_contains($statement, 'Column count doesn\'t match') || 
+                            (str_contains($statement, 'INSERT INTO') && !str_contains($statement, 'INSERT INTO `migrations`'))) {
+                            $fixResult = $this->fixColumnCountMismatch($statement, $pdo);
+                            $statement = $fixResult['statement'];
+                            if (!empty($fixResult['fixes'])) {
+                                $schemaFixes = array_merge($schemaFixes, $fixResult['fixes']);
+                            }
+                        }
+                        
                         $pdo->exec($statement);
+                        $successCount++;
                     } catch (\Exception $e) {
-                        // Log failed statement to error log (not Laravel Log to avoid class issues)
-                        $errorMsg = "SQL statement failed during restore: " . $e->getMessage();
-                        $stmtPreview = substr($statement, 0, 100) . "...";
-                        error_log("Database Restore Warning: {$errorMsg} | Statement: {$stmtPreview}");
-                        // Continue with next statement
+                        // Check if it's a column count mismatch error
+                        if (str_contains($e->getMessage(), 'Column count doesn\'t match')) {
+                            try {
+                                $fixResult = $this->fixColumnCountMismatch($statement, $pdo);
+                                $pdo->exec($fixResult['statement']);
+                                $successCount++;
+                                if (!empty($fixResult['fixes'])) {
+                                    $schemaFixes = array_merge($schemaFixes, $fixResult['fixes']);
+                                }
+                                continue;
+                            } catch (\Exception $e2) {
+                                $failCount++;
+                                $errorMsg = $e2->getMessage();
+                                $stmtPreview = substr($statement, 0, 200) . "...";
+                                $errors[] = "SQL Error (after fix attempt): {$errorMsg} | Statement: {$stmtPreview}";
+                                error_log("Database Restore Warning (after fix): {$errorMsg} | Statement: {$stmtPreview}");
+                            }
+                        } else {
+                            $failCount++;
+                            // Log failed statement to error log
+                            $errorMsg = $e->getMessage();
+                            $stmtPreview = substr($statement, 0, 200) . "...";
+                            $errors[] = "SQL Error: {$errorMsg} | Statement: {$stmtPreview}";
+                            error_log("Database Restore Warning: {$errorMsg} | Statement: {$stmtPreview}");
+                        }
                     }
                 }
             }
+            
+            // Log summary
+            error_log("Database Restore Summary: {$successCount} successful, {$failCount} failed statements");
+            if (!empty($errors)) {
+                error_log("First few errors: " . implode(" | ", array_slice($errors, 0, 3)));
+            }
+            if (!empty($schemaFixes)) {
+                error_log("Schema fixes applied: " . implode(" | ", $schemaFixes));
+            }
 
-            // Commit transaction and re-enable foreign key checks
+            // Commit transaction and re-enable checks
             $pdo->exec('COMMIT');
             $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
+            $pdo->exec('SET UNIQUE_CHECKS=1');
+            
+            // If there were significant failures, throw an exception with details
+            if ($failCount > 0 && $successCount === 0) {
+                throw new \Exception("All SQL statements failed. First error: " . ($errors[0] ?? 'Unknown error'));
+            } elseif ($failCount > $successCount) {
+                throw new \Exception("More statements failed ({$failCount}) than succeeded ({$successCount}). First error: " . ($errors[0] ?? 'Unknown error'));
+            }
+            
+            // Store schema fixes for later retrieval
+            if (!empty($schemaFixes)) {
+                $this->lastRestoreSchemaFixes = $schemaFixes;
+            }
             
             return true;
             
@@ -405,6 +484,61 @@ class SimpleBackupService
             return ['product_inventory_summary', 'crop_batches'];
         }
     }
+
+    /**
+     * Fix column count mismatch by converting to column-specific INSERT
+     */
+    private function fixColumnCountMismatch(string $statement, \PDO $pdo): array
+    {
+        $fixes = [];
+        
+        // Only handle INSERT statements
+        if (!str_contains($statement, 'INSERT INTO')) {
+            return ['statement' => $statement, 'fixes' => $fixes];
+        }
+        
+        // Extract table name
+        if (preg_match('/INSERT INTO `([^`]+)`/', $statement, $matches)) {
+            $tableName = $matches[1];
+            
+            try {
+                // Skip system tables
+                if ($tableName === 'migrations') {
+                    return ['statement' => $statement, 'fixes' => $fixes];
+                }
+                
+                // Get current table columns
+                $result = $pdo->query("
+                    SELECT COLUMN_NAME 
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_NAME = '{$tableName}' AND TABLE_SCHEMA = DATABASE()
+                    ORDER BY ORDINAL_POSITION
+                ");
+                $columns = $result->fetchAll(\PDO::FETCH_COLUMN);
+                
+                if (!empty($columns)) {
+                    // Convert to column-specific INSERT using all available columns
+                    $columnNames = array_map(function($col) { return '`' . $col . '`'; }, $columns);
+                    $newStatement = str_replace(
+                        "INSERT INTO `{$tableName}` VALUES",
+                        "INSERT INTO `{$tableName}` (" . implode(', ', $columnNames) . ") VALUES",
+                        $statement
+                    );
+                    
+                    $fixes[] = "Table '{$tableName}': Converted to column-specific INSERT";
+                    return ['statement' => $newStatement, 'fixes' => $fixes];
+                }
+                
+            } catch (\Exception $e) {
+                // If we can't fix it, return original
+                $fixes[] = "Table '{$tableName}': Could not fix schema mismatch - {$e->getMessage()}";
+                return ['statement' => $statement, 'fixes' => $fixes];
+            }
+        }
+        
+        return ['statement' => $statement, 'fixes' => $fixes];
+    }
+
 
     /**
      * Format bytes to human readable format

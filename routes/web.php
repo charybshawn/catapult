@@ -43,6 +43,18 @@ Route::middleware('auth')->group(function () {
     // Invoice routes
     Route::get('/invoices/{invoice}/download', [InvoiceController::class, 'download'])->name('invoices.download');
     
+    // CSV Export download route
+    Route::get('/csv/download/{filename}', function ($filename) {
+        $csvService = new \App\Services\CsvExportService();
+        $filePath = $csvService->getFilePath($filename);
+        
+        if (!file_exists($filePath)) {
+            abort(404, 'Export file not found');
+        }
+        
+        return response()->download($filePath)->deleteFileAfterSend();
+    })->name('csv.download');
+    
     // Crop planning routes
     Route::get('/crop-planning/pdf', [\App\Http\Controllers\CropPlanningController::class, 'generatePdf'])->name('crop-planning.pdf');
     

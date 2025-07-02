@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\UserResource\Pages;
 use App\Filament\Support\SlideOverConfigurations;
 use App\Filament\Traits\HasConsistentSlideOvers;
+use App\Filament\Traits\CsvExportAction;
 use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -19,7 +20,7 @@ use Spatie\Permission\Models\Role;
 
 class UserResource extends Resource
 {
-    use HasConsistentSlideOvers;
+    use HasConsistentSlideOvers, CsvExportAction;
 
     protected static ?string $model = User::class;
 
@@ -134,6 +135,9 @@ class UserResource extends Resource
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn (User $record) => auth()->user()->hasRole('admin') && $record->id !== auth()->id()),
             ])
+            ->headerActions([
+                static::getCsvExportAction(),
+            ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make()
@@ -155,5 +159,39 @@ class UserResource extends Resource
             'index' => Pages\ListUsers::route('/'),
             'create' => Pages\CreateUser::route('/create'),
         ];
+    }
+    
+    /**
+     * Define CSV export columns for Users - uses automatic detection from schema
+     * Optionally add relationship columns manually
+     */
+    protected static function getCsvExportColumns(): array
+    {
+        // Get automatically detected columns from database schema
+        $autoColumns = static::getColumnsFromSchema();
+        
+        // Add relationship columns
+        return static::addRelationshipColumns($autoColumns, [
+            'roles' => ['name'],
+            'timeCards' => ['date', 'hours_worked', 'overtime_hours'],
+        ]);
+    }
+    
+    /**
+     * Define relationships to include in CSV export
+     */
+    protected static function getCsvExportRelationships(): array
+    {
+        return ['roles'];
+    }
+    
+    /**
+     * Custom query for CSV export - exclude customers
+     */
+    protected static function getTableQuery(): Builder
+    {
+        return static::getModel()::query()
+            ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'customer'))
+            ->with(['roles']);
     }
 } 

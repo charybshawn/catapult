@@ -26,9 +26,12 @@ use Filament\Forms\Components\Wizard\Step;
 use App\Http\Livewire\ProductPriceCalculator;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Forms\Components\Common as FormCommon;
+use App\Filament\Traits\CsvExportAction;
 
 class ProductResource extends BaseResource
 {
+    use CsvExportAction;
+    
     protected static ?string $model = Product::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-shopping-bag';
@@ -244,6 +247,9 @@ class ProductResource extends BaseResource
                             }
                         }),
                 ]),
+            ])
+            ->headerActions([
+                static::getCsvExportAction(),
             ]);
     }
 
@@ -252,6 +258,31 @@ class ProductResource extends BaseResource
         return [
             //
         ];
+    }
+    
+    /**
+     * Define CSV export columns for Products - uses automatic detection from schema
+     * Optionally add relationship columns manually
+     */
+    protected static function getCsvExportColumns(): array
+    {
+        // Get automatically detected columns from database schema
+        $autoColumns = static::getColumnsFromSchema();
+        
+        // Add relationship columns
+        return static::addRelationshipColumns($autoColumns, [
+            'category' => ['name'],
+            'masterSeedCatalog' => ['common_name', 'cultivars'],
+            'productMix' => ['name'],
+        ]);
+    }
+    
+    /**
+     * Define relationships to include in CSV export
+     */
+    protected static function getCsvExportRelationships(): array
+    {
+        return ['category', 'masterSeedCatalog', 'productMix'];
     }
 
     /**
