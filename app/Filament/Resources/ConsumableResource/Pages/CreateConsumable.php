@@ -310,6 +310,15 @@ class CreateConsumable extends BaseCreateRecord
             // For seed consumables, ensure we have a master seed catalog and properly set related fields
             if (isset($data['type']) && $data['type'] === 'seed') {
                 // If no master seed catalog, don't proceed
+                Log::info('Checking master_seed_catalog_id validation:', [
+                    'isset' => isset($data['master_seed_catalog_id']),
+                    'value' => $data['master_seed_catalog_id'] ?? 'NOT_SET',
+                    'type' => gettype($data['master_seed_catalog_id'] ?? null),
+                    'is_null' => ($data['master_seed_catalog_id'] ?? null) === null,
+                    'is_empty_string' => ($data['master_seed_catalog_id'] ?? null) === '',
+                    'all_data' => $data
+                ]);
+                
                 if (!isset($data['master_seed_catalog_id']) || $data['master_seed_catalog_id'] === null || $data['master_seed_catalog_id'] === '') {
                     Log::error('Master seed catalog ID missing in mutation');
                     
