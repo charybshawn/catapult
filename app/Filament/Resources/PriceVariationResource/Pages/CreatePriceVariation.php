@@ -14,9 +14,9 @@ class CreatePriceVariation extends BaseCreateRecord
     
     protected function handleRecordCreation(array $data): Model
     {
-        // Ensure item_id is null for global price variations
+        // Ensure product_id is null for global price variations
         if (isset($data['is_global']) && $data['is_global']) {
-            $data['item_id'] = null;
+            $data['product_id'] = null;
             $data['is_default'] = false; // Global variations can't be default for a specific product
         }
         
@@ -26,9 +26,9 @@ class CreatePriceVariation extends BaseCreateRecord
     protected function afterCreate(): void
     {
         // If this price variation is set as default, make sure no other variations 
-        // for the same item are also set as default
-        if ($this->record->is_default && $this->record->item_id) {
-            PriceVariation::where('item_id', $this->record->item_id)
+        // for the same product are also set as default
+        if ($this->record->is_default && $this->record->product_id) {
+            PriceVariation::where('product_id', $this->record->product_id)
                 ->where('id', '!=', $this->record->id)
                 ->where('is_default', true)
                 ->update(['is_default' => false]);

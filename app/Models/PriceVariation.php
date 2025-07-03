@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -29,7 +30,9 @@ class PriceVariation extends Model
         'product_id',
         'template_id',
         'packaging_type_id',
+        'pricing_type',
         'name',
+        'unit',
         'sku',
         'fill_weight',
         'price',
@@ -81,7 +84,7 @@ class PriceVariation extends Model
     {
         static::creating(function ($priceVariation) {
             // Debug: Log the data being saved
-            \Log::info('PriceVariation creating', [
+            Log::info('PriceVariation creating', [
                 'name' => $priceVariation->name,
                 'packaging_type_id' => $priceVariation->packaging_type_id,
                 'is_global' => $priceVariation->is_global,
@@ -95,17 +98,9 @@ class PriceVariation extends Model
                 $priceVariation->is_default = false;
             }
             
-            // Auto-set name based on packaging type if not provided (but only for non-template variations)
-            // Note: Global variations ARE templates, so we should not auto-name them
-            if ((empty($priceVariation->name) || $priceVariation->name === 'New Variation') && !$priceVariation->template_id && !$priceVariation->is_global) {
-                if ($priceVariation->packaging_type_id) {
-                    $packagingType = PackagingType::find($priceVariation->packaging_type_id);
-                    if ($packagingType) {
-                        $priceVariation->name = $packagingType->name;
-                    }
-                } else {
-                    $priceVariation->name = 'Default';
-                }
+            // Auto-generate name in format: "Pricing Type - Packaging (size) - $price"
+            if ((empty($priceVariation->name) || $priceVariation->name === 'New Variation' || $priceVariation->name === 'Auto-generated') && !$priceVariation->template_id && !$priceVariation->is_global) {
+                $priceVariation->name = $priceVariation->generateVariationName();
             }
             
             // Handle default pricing for product-specific variations
@@ -124,17 +119,9 @@ class PriceVariation extends Model
                 $priceVariation->is_default = false;
             }
             
-            // Auto-update name when packaging type changes (but only for non-template variations)
-            // Global variations are templates, so don't auto-update their names
-            if ($priceVariation->isDirty('packaging_type_id') && !$priceVariation->template_id && !$priceVariation->is_global) {
-                if ($priceVariation->packaging_type_id) {
-                    $packagingType = PackagingType::find($priceVariation->packaging_type_id);
-                    if ($packagingType) {
-                        $priceVariation->name = $packagingType->name;
-                    }
-                } else {
-                    $priceVariation->name = 'Default';
-                }
+            // Auto-update name when packaging type, pricing type, or price changes
+            if (($priceVariation->isDirty('packaging_type_id') || $priceVariation->isDirty('pricing_type') || $priceVariation->isDirty('price')) && !$priceVariation->template_id && !$priceVariation->is_global) {
+                $priceVariation->name = $priceVariation->generateVariationName();
             }
             
             // Handle default pricing for product-specific variations
@@ -296,5 +283,51 @@ class PriceVariation extends Model
         \App\Models\ProductInventory::where('product_id', $this->product_id)
             ->where('price_variation_id', $this->id)
             ->update(['status' => 'inactive']);
+    }
+
+    /**
+     * Generate variation name in format: "Pricing Type - Packaging (size) - $price"
+     * Example: "Retail - Clamshell (24oz) - $5.00"
+     */
+    public function generateVariationName(): string
+    {
+        $parts = [];
+        
+        // 1. Add pricing type (get from pricing_type attribute or infer from other fields)
+        $pricingType = $this->pricing_type ?? 'retail'; // Default to retail if not set
+        $pricingTypeNames = [
+            'retail' => 'Retail',
+            'wholesale' => 'Wholesale',
+            'bulk' => 'Bulk',
+            'special' => 'Special',
+            'custom' => 'Custom',
+        ];
+        $parts[] = $pricingTypeNames[$pricingType] ?? ucfirst($pricingType);
+        
+        // 2. Add packaging information
+        if ($this->packaging_type_id) {
+            $packaging = $this->packagingType;
+            if ($packaging) {
+                $packagingPart = $packaging->name;
+                
+                // Add size information in parentheses
+                if ($packaging->capacity_volume && $packaging->volume_unit) {
+                    $packagingPart .= ' (' . $packaging->capacity_volume . $packaging->volume_unit . ')';
+                }
+                
+                $parts[] = $packagingPart;
+            }
+        } else {
+            // Handle package-free variations
+            $parts[] = 'Package-Free';
+        }
+        
+        // 3. Add price
+        if ($this->price && is_numeric($this->price)) {
+            $parts[] = '$' . number_format((float)$this->price, 2);
+        }
+        
+        // Join with " - " separator
+        return implode(' - ', $parts);
     }
 }

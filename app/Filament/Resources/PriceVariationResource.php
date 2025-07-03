@@ -85,10 +85,8 @@ class PriceVariationResource extends Resource
                                     ->default('retail')
                                     ->reactive()
                                     ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                                        // Auto-generate name if not manually overridden
-                                        if (!$get('manual_name_override')) {
-                                            self::generateVariationName($get('packaging_type_id'), $state, $set, $get);
-                                        }
+                                        // Auto-generate name when pricing type changes
+                                        self::generateVariationName($get('packaging_type_id'), $state, $set, $get);
                                         // Show pricing unit for bulk
                                         if ($state === 'bulk') {
                                             $set('show_pricing_unit', true);
@@ -112,43 +110,17 @@ class PriceVariationResource extends Resource
                                         !$get('packaging_type_id')
                                     )
                                     ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                                        // Auto-generate name if not manually overridden
-                                        if (!$get('manual_name_override')) {
-                                            self::generateVariationName($get('packaging_type_id'), $get('pricing_type'), $set, $get);
-                                        }
+                                        // Auto-generate name when pricing unit changes
+                                        self::generateVariationName($get('packaging_type_id'), $get('pricing_type'), $set, $get);
                                     }),
                             ]),
                             
-                        // Hidden field to track manual override
-                        Forms\Components\Hidden::make('manual_name_override')
-                            ->default(false),
-
                         // Core fields in logical order
                         Forms\Components\Grid::make(3)
                             ->schema([
-                                Forms\Components\TextInput::make('name')
-                                    ->label('Variation Name')
-                                    ->placeholder('Auto-generated or enter custom name')
-                                    ->required()
-                                    ->maxLength(255)
-                                    ->autofocus()
-                                    ->reactive()
-                                    ->suffixAction(
-                                        Forms\Components\Actions\Action::make('regenerate_name')
-                                            ->icon('heroicon-m-arrow-path')
-                                            ->label('Regenerate')
-                                            ->action(function (callable $set, callable $get) {
-                                                $set('manual_name_override', false);
-                                                self::generateVariationName($get('packaging_type_id'), $get('pricing_type'), $set, $get);
-                                            })
-                                            ->visible(fn (callable $get): bool => (bool) $get('manual_name_override'))
-                                    )
-                                    ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                                        // Allow manual override - if user types, don't auto-generate
-                                        if ($state && strlen($state) > 1) {
-                                            $set('manual_name_override', true);
-                                        }
-                                    }),
+                                Forms\Components\Hidden::make('name')
+                                    ->default('Auto-generated')
+                                    ->required(),
 
                                 Forms\Components\TextInput::make('price')
                                     ->label(function (Forms\Get $get): string {
@@ -189,7 +161,11 @@ class PriceVariationResource extends Resource
                                         }
                                         return null;
                                     })
-                                    ->reactive(),
+                                    ->reactive()
+                                    ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                                        // Auto-generate name when price changes
+                                        self::generateVariationName($get('packaging_type_id'), $get('pricing_type'), $set, $get);
+                                    }),
 
                                 Forms\Components\Select::make('packaging_type_id')
                                     ->relationship('packagingType', 'name', function ($query) {
@@ -203,10 +179,8 @@ class PriceVariationResource extends Resource
                                     ->nullable()
                                     ->reactive()
                                     ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                                        // Only auto-generate name for non-global variations and if not manually overridden
-                                        if (!$get('manual_name_override') && !$get('is_global')) {
-                                            self::generateVariationName($state, $get('pricing_type'), $set, $get);
-                                        }
+                                        // Auto-generate name when packaging changes
+                                        self::generateVariationName($state, $get('pricing_type'), $set, $get);
                                     })
                                     ->hint('Optional')
                                     ->helperText('Choose the packaging type for this price variation')
@@ -296,13 +270,7 @@ class PriceVariationResource extends Resource
                                         return '';
                                     })
                                     ->required(fn (Forms\Get $get): bool => !$get('is_global'))
-                                    ->reactive()
-                                    ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                                        // Auto-generate name if not manually overridden and for bulk types
-                                        if (!$get('manual_name_override') && $get('pricing_type') === 'bulk' && !$get('packaging_type_id')) {
-                                            self::generateVariationName($get('packaging_type_id'), $get('pricing_type'), $set, $get);
-                                        }
-                                    }),
+                                    ->reactive(),
 
                                 Forms\Components\TextInput::make('sku')
                                     ->label('SKU / Barcode')
@@ -343,94 +311,51 @@ class PriceVariationResource extends Resource
     }
 
     /**
-     * Generate variation name based on packaging and pricing type
+     * Generate variation name in format: "Pricing Type - Packaging (size) - $price"
+     * Example: "Retail - Clamshell (24oz) - $5.00"
      */
     protected static function generateVariationName($packagingId, $pricingType, callable $set, callable $get): void
     {
         $parts = [];
-        $pricingUnit = $get('pricing_unit');
         
-        // Get packaging info if selected
+        // 1. Add pricing type (capitalized)
+        if ($pricingType) {
+            $pricingTypeNames = [
+                'retail' => 'Retail',
+                'wholesale' => 'Wholesale',
+                'bulk' => 'Bulk',
+                'special' => 'Special',
+                'custom' => 'Custom',
+            ];
+            $parts[] = $pricingTypeNames[$pricingType] ?? ucfirst($pricingType);
+        }
+        
+        // 2. Add packaging information
         if ($packagingId) {
             $packaging = \App\Models\PackagingType::find($packagingId);
             if ($packaging) {
-                // Add packaging type
-                $parts[] = $packaging->name;
+                $packagingPart = $packaging->name;
                 
-                // Add size if available and not already in packaging name
+                // Add size information in parentheses
                 if ($packaging->capacity_volume && $packaging->volume_unit) {
-                    $sizeString = $packaging->capacity_volume . $packaging->volume_unit;
-                    if (!str_contains(strtolower($packaging->name), strtolower($sizeString))) {
-                        $parts[] = '(' . $sizeString . ')';
-                    }
-                } elseif ($packaging->capacity_weight) {
-                    // Convert grams to oz for display
-                    $oz = round($packaging->capacity_weight / 28.35, 1);
-                    $ozString = $oz . 'oz';
-                    if (!str_contains(strtolower($packaging->name), strtolower($ozString))) {
-                        $parts[] = '(' . $ozString . ')';
-                    }
+                    $packagingPart .= ' (' . $packaging->capacity_volume . $packaging->volume_unit . ')';
                 }
+                
+                $parts[] = $packagingPart;
             }
         } else {
             // Handle package-free variations
-            $fillWeight = $get('fill_weight');
-            if ($fillWeight || $pricingUnit !== 'per_item') {
-                if (str_contains(strtolower($pricingType ?? ''), 'bulk')) {
-                    // For bulk, show pricing unit
-                    if ($pricingUnit && $pricingUnit !== 'per_item') {
-                        $unitLabels = [
-                            'per_g' => 'per gram',
-                            'per_kg' => 'per kg',
-                            'per_lb' => 'per lb',
-                            'per_oz' => 'per oz',
-                        ];
-                        $parts[] = 'Bulk';
-                        $parts[] = '(' . ($unitLabels[$pricingUnit] ?? '') . ')';
-                    } elseif ($fillWeight) {
-                        // Show total weight if no unit pricing
-                        $lbs = round($fillWeight / 453.592, 2);
-                        $parts[] = 'Bulk';
-                        $parts[] = '(' . $lbs . 'lb)';
-                    }
-                } else {
-                    // For other package-free, just use type
-                    $parts[] = 'Package-Free';
-                }
-            }
+            $parts[] = 'Package-Free';
         }
         
-        // Add pricing unit indicator for unit-based pricing
-        if ($pricingUnit && $pricingUnit !== 'per_item' && !str_contains(strtolower($pricingType ?? ''), 'bulk')) {
-            $unitLabels = [
-                'per_g' => '/g',
-                'per_kg' => '/kg',
-                'per_lb' => '/lb',
-                'per_oz' => '/oz',
-            ];
-            if (isset($unitLabels[$pricingUnit])) {
-                $parts[] = $unitLabels[$pricingUnit];
-            }
+        // 3. Add price
+        $price = $get('price');
+        if ($price && is_numeric($price)) {
+            $parts[] = '$' . number_format((float)$price, 2);
         }
         
-        // Add pricing type abbreviation
-        if ($pricingType) {
-            $abbreviations = [
-                'retail' => '(Ret)',
-                'wholesale' => '(Wh)',
-                'bulk' => '(Bulk)',
-                'special' => '(Spec)',
-                'custom' => '',
-            ];
-            
-            $abbr = $abbreviations[$pricingType] ?? '';
-            if ($abbr) {
-                $parts[] = $abbr;
-            }
-        }
-        
-        // Set the generated name
-        $generatedName = implode(' ', $parts);
+        // Join with " - " separator
+        $generatedName = implode(' - ', $parts);
         if ($generatedName) {
             $set('name', $generatedName);
         }

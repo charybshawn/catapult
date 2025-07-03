@@ -5,6 +5,8 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\PackagingTypeResource\Pages;
 use App\Filament\Resources\PackagingTypeResource\RelationManagers;
 use App\Models\PackagingType;
+use App\Models\PackagingTypeCategory;
+use App\Models\PackagingUnitType;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -36,6 +38,20 @@ class PackagingTypeResource extends Resource
                             ->required()
                             ->maxLength(255)
                             ->helperText('Name of the packaging type (e.g., "Clamshell")'),
+                            
+                        Forms\Components\Select::make('type_category_id')
+                            ->label('Category')
+                            ->required()
+                            ->relationship('typeCategory', 'name')
+                            ->options(PackagingTypeCategory::where('is_active', true)->orderBy('sort_order')->pluck('name', 'id'))
+                            ->helperText('Select the category that best describes this packaging type'),
+                            
+                        Forms\Components\Select::make('unit_type_id')
+                            ->label('Unit Type')
+                            ->required()
+                            ->relationship('unitType', 'name')
+                            ->options(PackagingUnitType::where('is_active', true)->orderBy('sort_order')->pluck('name', 'id'))
+                            ->helperText('Select whether this packaging is sold by count or weight'),
                             
                         Forms\Components\Grid::make()
                             ->schema([
@@ -84,6 +100,20 @@ class PackagingTypeResource extends Resource
                     ->label('Name')
                     ->searchable()
                     ->sortable(),
+                    
+                Tables\Columns\TextColumn::make('typeCategory.name')
+                    ->label('Category')
+                    ->badge()
+                    ->color(fn (PackagingType $record): string => $record->typeCategory?->color ?? 'gray')
+                    ->sortable()
+                    ->toggleable(),
+                    
+                Tables\Columns\TextColumn::make('unitType.name')
+                    ->label('Unit Type')
+                    ->badge()
+                    ->color(fn (PackagingType $record): string => $record->unitType?->color ?? 'gray')
+                    ->sortable()
+                    ->toggleable(),
                 
                 Tables\Columns\TextColumn::make('capacity_volume')
                     ->label('Volume')
