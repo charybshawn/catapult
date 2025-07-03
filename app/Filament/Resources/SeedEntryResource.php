@@ -13,6 +13,8 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Filament\Support\Enums\FontWeight;
 use Filament\Forms\Components\Repeater;
+use App\Forms\Components\SeedVariations;
+use Filament\Notifications\Notification;
 
 class SeedEntryResource extends Resource
 {
@@ -30,7 +32,9 @@ class SeedEntryResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\Section::make('Seed Entry Details')
+                Forms\Components\Section::make('Seed Identification')
+                    ->description('Identify the seed type and variety. Both common name and cultivar are required.')
+                    ->icon('heroicon-o-identification')
                     ->schema([
                         Forms\Components\Grid::make(2)
                             ->schema([
@@ -96,7 +100,14 @@ class SeedEntryResource extends Resource
                                     ->disabled(fn (Forms\Get $get): bool => empty($get('common_name')))
                                     ->helperText('Cultivar options will filter based on your common name selection'),
                             ]),
+                    ]),
+                
+                Forms\Components\Section::make('Supplier Information')
+                    ->description('Specify the supplier and their product details.')
+                    ->icon('heroicon-o-building-storefront')
+                    ->schema([
                         Forms\Components\Select::make('supplier_id')
+                            ->label('Supplier')
                             ->relationship('supplier', 'name')
                             ->required()
                             ->searchable()
@@ -113,114 +124,86 @@ class SeedEntryResource extends Resource
                             ]),
                         Forms\Components\Grid::make(2)
                             ->schema([
-                                Forms\Components\TextInput::make('supplier_product_title')
+                                Forms\Components\TextInput::make('supplier_sku')
                                     ->maxLength(255)
-                                    ->label('Product Title'),
-                                Forms\Components\TextInput::make('supplier_product_url')
+                                    ->label('Supplier SKU')
+                                    ->placeholder('e.g., BSL-001, BASIL-25G')
+                                    ->helperText('Supplier\'s product code or identifier'),
+                                Forms\Components\TextInput::make('url')
                                     ->url()
                                     ->maxLength(255)
-                                    ->label('Product URL'),
+                                    ->label('Product URL')
+                                    ->placeholder('https://supplier.com/product-page')
+                                    ->helperText('Link to supplier\'s product page'),
                             ]),
+                    ]),
+                
+                Forms\Components\Section::make('Additional Details')
+                    ->description('Optional information to enhance the seed entry.')
+                    ->icon('heroicon-o-document-text')
+                    ->schema([
                         Forms\Components\TextInput::make('image_url')
                             ->url()
                             ->maxLength(255)
-                            ->label('Image URL'),
+                            ->label('Image URL')
+                            ->placeholder('https://example.com/seed-image.jpg')
+                            ->helperText('URL to product image'),
                         Forms\Components\Textarea::make('description')
                             ->maxLength(65535)
                             ->rows(3)
+                            ->placeholder('Optional description of this seed variety...')
                             ->columnSpanFull(),
                         Forms\Components\TagsInput::make('tags')
+                            ->placeholder('organic, heirloom, fast-growing')
+                            ->helperText('Add tags to categorize this seed')
                             ->columnSpanFull(),
                     ]),
                 
-                Forms\Components\Section::make('Pricing Variations')
+                Forms\Components\Section::make('Seed Variations & Pricing')
                     ->schema([
-                        Repeater::make('variations')
-                            ->relationship()
-                            ->itemLabel(fn (array $state): ?string => 
-                                isset($state['size_description']) && isset($state['current_price']) 
-                                    ? ($state['size_description'] . ' - $' . number_format($state['current_price'], 2))
-                                    : (isset($state['size_description']) ? $state['size_description'] : 'New Variation')
-                            )
-                            ->collapsed()
+                        Forms\Components\Grid::make(2)
                             ->schema([
-                                Forms\Components\Grid::make(3)
-                                    ->schema([
-                                        Forms\Components\TextInput::make('size_description')
-                                            ->required()
-                                            ->maxLength(255)
-                                            ->label('Size Description')
-                                            ->placeholder('e.g., 25 grams, 1 kg, 5 lb bag'),
-                                        Forms\Components\TextInput::make('weight_kg')
-                                            ->numeric()
-                                            ->step('0.0001')
-                                            ->label('Weight (kg)')
-                                            ->placeholder('0.025')
-                                            ->helperText('Common conversions: 25g = 0.025kg, 100g = 0.1kg, 1lb = 0.454kg')
-                                            ->live(),
-                                        Forms\Components\TextInput::make('sku')
-                                            ->maxLength(255)
-                                            ->label('SKU')
-                                            ->placeholder('Optional'),
-                                    ]),
-                                Forms\Components\Grid::make(4)
-                                    ->schema([
-                                        Forms\Components\TextInput::make('current_price')
-                                            ->required()
-                                            ->numeric()
-                                            ->prefix('$')
-                                            ->label('Current Price')
-                                            ->live(),
-                                        Forms\Components\Select::make('currency')
-                                            ->options([
-                                                'USD' => 'USD',
-                                                'CAD' => 'CAD',
-                                                'EUR' => 'EUR',
-                                                'GBP' => 'GBP',
-                                            ])
-                                            ->default('CAD')
-                                            ->required(),
-                                        Forms\Components\Toggle::make('is_in_stock')
-                                            ->label('In Stock')
-                                            ->default(true)
-                                            ->inline(false),
-                                        Forms\Components\Placeholder::make('price_per_kg_display')
-                                            ->label('Price per kg')
-                                            ->content(function (Forms\Get $get): string {
-                                                $price = $get('current_price');
-                                                $weight = $get('weight_kg');
-                                                $currency = $get('currency') ?? 'CAD';
-                                                
-                                                if ($price && $weight && $weight > 0) {
-                                                    $pricePerKg = $price / $weight;
-                                                    return $currency . ' $' . number_format($pricePerKg, 2);
-                                                }
-                                                
-                                                return 'Enter price and weight';
-                                            })
-                                            ->live(),
-                                    ]),
-                                Forms\Components\Grid::make(2)
-                                    ->schema([
-                                        Forms\Components\TextInput::make('original_weight_value')
-                                            ->numeric()
-                                            ->label('Original Weight Value')
-                                            ->placeholder('25'),
-                                        Forms\Components\TextInput::make('original_weight_unit')
-                                            ->maxLength(255)
-                                            ->label('Original Weight Unit')
-                                            ->placeholder('grams'),
-                                    ]),
-                            ])
-                            ->cloneable()
-                            ->reorderableWithButtons()
-                            ->addActionLabel('Add Another Variation')
-                            ->defaultItems(1)
+                                Forms\Components\Placeholder::make('variations_count')
+                                    ->label('Seed Variations')
+                                    ->content(function ($record) {
+                                        if (!$record) return '0 variations';
+                                        $count = $record->variations()->count();
+                                        $activeCount = $record->variations()->where('is_available', true)->count();
+                                        return "{$activeCount} available / {$count} total";
+                                    }),
+                                Forms\Components\Placeholder::make('default_variation_display')
+                                    ->label('Primary Variation')
+                                    ->content(function ($record) {
+                                        if (!$record) return 'No variations yet';
+                                        $defaultVariation = $record->variations()->first();
+                                        return $defaultVariation 
+                                            ? $defaultVariation->size . ' - $' . number_format($defaultVariation->current_price, 2)
+                                            : 'No variations created';
+                                    }),
+                            ]),
+                        Forms\Components\Placeholder::make('variations_info')
+                            ->content(function ($record) {
+                                $content = "Seed variations allow you to offer different package sizes, weights, and prices for the same seed type.";
+                                
+                                if ($record) {
+                                    $variationTypes = $record->variations()->pluck('size')->toArray();
+                                    if (!empty($variationTypes)) {
+                                        $content .= "<br><br>Current variations: <span class='text-primary-500'>" . implode(', ', $variationTypes) . "</span>";
+                                    }
+                                } else {
+                                    $content .= "<br><br>Common variation types: <span class='text-primary-500'>25g packet, 100g bag, 1kg bulk, Trial size</span>";
+                                }
+                                
+                                return $content;
+                            })
                             ->columnSpanFull()
-                            ->live(),
+                            ->extraAttributes(['class' => 'prose']),
+                        Forms\Components\ViewField::make('seed_variations_panel')
+                            ->view('filament.resources.seed-entry-resource.partials.seed-variations')
+                            ->columnSpanFull(),
                     ])
                     ->collapsible()
-                    ->description('Add different sizes and pricing options for this seed entry. You can add as many variations as needed.'),
+                    ->description('Manage different sizes, weights, and pricing options for this seed entry.'),
             ]);
     }
 
@@ -247,13 +230,12 @@ class SeedEntryResource extends Resource
                     ->searchable()
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('supplier_product_title')
-                    ->label('Product Title')
+                Tables\Columns\TextColumn::make('supplier_sku')
+                    ->label('Supplier SKU')
                     ->searchable()
                     ->sortable()
-                    ->limit(30)
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('supplier_product_url')
+                Tables\Columns\TextColumn::make('url')
                     ->label('Product URL')
                     ->searchable()
                     ->limit(50)
@@ -471,7 +453,6 @@ class SeedEntryResource extends Resource
                     }),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make()
                     ->requiresConfirmation()
@@ -531,9 +512,9 @@ class SeedEntryResource extends Resource
                 Tables\Actions\Action::make('visit_url')
                     ->label('Visit URL')
                     ->icon('heroicon-o-arrow-top-right-on-square')
-                    ->url(fn (SeedEntry $record) => $record->supplier_product_url)
+                    ->url(fn (SeedEntry $record) => $record->url)
                     ->openUrlInNewTab()
-                    ->visible(fn (SeedEntry $record) => !empty($record->supplier_product_url)),
+                    ->visible(fn (SeedEntry $record) => !empty($record->url)),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -656,7 +637,9 @@ class SeedEntryResource extends Resource
                             }
                         }),
                 ]),
-            ]);
+            ])
+            ->modifyQueryUsing(fn (Builder $query) => $query->with('variations'))
+            ->recordAction(Tables\Actions\EditAction::class);
     }
 
     public static function getRelations(): array
@@ -671,7 +654,6 @@ class SeedEntryResource extends Resource
         return [
             'index' => Pages\ListSeedEntries::route('/'),
             'create' => Pages\CreateSeedEntry::route('/create'),
-            'view' => Pages\ViewSeedEntry::route('/{record}'),
             'edit' => Pages\EditSeedEntry::route('/{record}/edit'),
         ];
     }
