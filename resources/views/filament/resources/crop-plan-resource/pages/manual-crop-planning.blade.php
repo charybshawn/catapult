@@ -13,7 +13,7 @@
                         Orders for {{ \Carbon\Carbon::parse($this->data['delivery_date'])->format('F j, Y') }}
                     </h3>
                     <p class="text-sm text-gray-600">
-                        {{ $this->orders->count() }} {{ Str::plural('order', $this->orders->count()) }} found
+                        {{ $this->orders->count() }} {{ $this->orders->count() === 1 ? 'order' : 'orders' }} found
                     </p>
                 </div>
                 
@@ -30,7 +30,7 @@
                                             <span class="text-sm text-gray-600">{{ $order->user->name }}</span>
                                         </div>
                                         <div class="text-sm text-gray-600">
-                                            {{ $order->orderItems->count() }} {{ Str::plural('item', $order->orderItems->count()) }}
+                                            {{ $order->orderItems->count() }} {{ $order->orderItems->count() === 1 ? 'item' : 'items' }}
                                         </div>
                                         <div class="mt-2 space-y-1">
                                             @foreach($order->orderItems as $item)
@@ -98,7 +98,7 @@
                                 {{ count($this->plantingPlan) }}
                             </div>
                             <div class="text-sm text-green-700">
-                                {{ Str::plural('Variety', count($this->plantingPlan)) }} to Plant
+                                {{ count($this->plantingPlan) === 1 ? 'Variety' : 'Varieties' }} to Plant
                             </div>
                         </div>
                         <div class="text-center">

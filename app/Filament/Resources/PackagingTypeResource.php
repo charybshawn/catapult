@@ -64,14 +64,7 @@ class PackagingTypeResource extends Resource
                                     
                                 Forms\Components\Select::make('volume_unit')
                                     ->label('Unit')
-                                    ->options([
-                                        'oz' => 'Ounces (oz)',
-                                        'ml' => 'Milliliters (ml)',
-                                        'l' => 'Liters (l)',
-                                        'pt' => 'Pints (pt)',
-                                        'qt' => 'Quarts (qt)',
-                                        'gal' => 'Gallons (gal)',
-                                    ])
+                                    ->options(\App\Models\VolumeUnit::options())
                                     ->default('oz')
                                     ->required(),
                             ])
@@ -142,7 +135,7 @@ class PackagingTypeResource extends Resource
                     ->label('Status')
                     ->options([
                         '1' => 'Active',
-                        'unit' => 'Inactive',
+                        '0' => 'Inactive',
                     ]),
             ])
             ->actions([

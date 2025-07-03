@@ -37,7 +37,7 @@ class ProcessUploadedFile extends Command
         $this->info('Creating seed scrape upload record...');
         
         $upload = SeedScrapeUpload::create([
-            'original_filename' => $filename,
+            'filename' => $filename,
             'status' => SeedScrapeUpload::STATUS_PENDING,
             'uploaded_at' => now(),
         ]);

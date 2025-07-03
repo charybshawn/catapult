@@ -160,50 +160,69 @@ class SeedEntryResource extends Resource
                     ]),
                 
                 Forms\Components\Section::make('Seed Variations & Pricing')
+                    ->description('Manage different sizes, weights, and pricing options for this seed entry.')
                     ->schema([
-                        Forms\Components\Grid::make(2)
-                            ->schema([
-                                Forms\Components\Placeholder::make('variations_count')
-                                    ->label('Seed Variations')
-                                    ->content(function ($record) {
-                                        if (!$record) return '0 variations';
-                                        $count = $record->variations()->count();
-                                        $activeCount = $record->variations()->where('is_available', true)->count();
-                                        return "{$activeCount} available / {$count} total";
-                                    }),
-                                Forms\Components\Placeholder::make('default_variation_display')
-                                    ->label('Primary Variation')
-                                    ->content(function ($record) {
-                                        if (!$record) return 'No variations yet';
-                                        $defaultVariation = $record->variations()->first();
-                                        return $defaultVariation 
-                                            ? $defaultVariation->size . ' - $' . number_format($defaultVariation->current_price, 2)
-                                            : 'No variations created';
-                                    }),
-                            ]),
-                        Forms\Components\Placeholder::make('variations_info')
-                            ->content(function ($record) {
-                                $content = "Seed variations allow you to offer different package sizes, weights, and prices for the same seed type.";
+                        // Show different UI for create vs edit mode (following ProductResource pattern)
+                        Forms\Components\Group::make([
+                            // For create mode: show simple info message
+                            Forms\Components\Placeholder::make('create_mode_info')
+                                ->label('Price Variations')
+                                ->content('Save the seed entry first, then you can add price variations for different sizes and weights.')
+                                ->extraAttributes(['class' => 'text-sm text-gray-600'])
+                                ->visible(function ($livewire) {
+                                    // Check if we have a record - if not, we're in create mode
+                                    $record = method_exists($livewire, 'getRecord') ? $livewire->getRecord() : null;
+                                    return !$record || !$record->exists;
+                                }),
                                 
-                                if ($record) {
-                                    $variationTypes = $record->variations()->pluck('size')->toArray();
-                                    if (!empty($variationTypes)) {
-                                        $content .= "<br><br>Current variations: <span class='text-primary-500'>" . implode(', ', $variationTypes) . "</span>";
-                                    }
-                                } else {
-                                    $content .= "<br><br>Common variation types: <span class='text-primary-500'>25g packet, 100g bag, 1kg bulk, Trial size</span>";
-                                }
-                                
-                                return $content;
-                            })
-                            ->columnSpanFull()
-                            ->extraAttributes(['class' => 'prose']),
-                        Forms\Components\ViewField::make('seed_variations_panel')
-                            ->view('filament.resources.seed-entry-resource.partials.seed-variations')
-                            ->columnSpanFull(),
+                            // For edit mode: show the full variations management
+                            Forms\Components\Group::make([
+                                Forms\Components\Grid::make(2)
+                                    ->schema([
+                                        Forms\Components\Placeholder::make('variations_count')
+                                            ->label('Seed Variations')
+                                            ->content(function ($record) {
+                                                if (!$record) return '0 variations';
+                                                $count = $record->variations()->count();
+                                                $activeCount = $record->variations()->where('is_available', true)->count();
+                                                return "{$activeCount} available / {$count} total";
+                                            }),
+                                        Forms\Components\Placeholder::make('default_variation_display')
+                                            ->label('Primary Variation')
+                                            ->content(function ($record) {
+                                                if (!$record) return 'No variations yet';
+                                                $defaultVariation = $record->variations()->first();
+                                                return $defaultVariation 
+                                                    ? $defaultVariation->size . ' - $' . number_format($defaultVariation->current_price, 2)
+                                                    : 'No variations created';
+                                            }),
+                                    ]),
+                                Forms\Components\Placeholder::make('variations_info')
+                                    ->content(function ($record) {
+                                        $content = "Seed variations allow you to offer different package sizes, weights, and prices for the same seed type.";
+                                        
+                                        if ($record) {
+                                            $variationTypes = $record->variations()->pluck('size')->toArray();
+                                            if (!empty($variationTypes)) {
+                                                $content .= "<br><br>Current variations: <span class='text-primary-500'>" . implode(', ', $variationTypes) . "</span>";
+                                            }
+                                        }
+                                        
+                                        return $content;
+                                    })
+                                    ->columnSpanFull()
+                                    ->extraAttributes(['class' => 'prose']),
+                                Forms\Components\ViewField::make('seed_variations_panel')
+                                    ->view('filament.resources.seed-entry-resource.partials.seed-variations')
+                                    ->columnSpanFull(),
+                            ])->visible(function ($livewire) {
+                                // Check if we have a record - if so, we're in edit mode
+                                $record = method_exists($livewire, 'getRecord') ? $livewire->getRecord() : null;
+                                return $record && $record->exists;
+                            }),
+                        ])
                     ])
-                    ->collapsible()
-                    ->description('Manage different sizes, weights, and pricing options for this seed entry.'),
+                    ->collapsible(),
             ]);
     }
 
@@ -381,7 +400,7 @@ class SeedEntryResource extends Resource
                     ->label('Status')
                     ->options([
                         '1' => 'Active',
-                        'unit' => 'Inactive',
+                        '0' => 'Inactive',
                     ]),
                 Tables\Filters\SelectFilter::make('usage_status')
                     ->label('Usage Status')
@@ -645,7 +664,7 @@ class SeedEntryResource extends Resource
     public static function getRelations(): array
     {
         return [
-            RelationManagers\VariationsRelationManager::class,
+            // Variations are now managed inline in the form using the custom component
         ];
     }
 

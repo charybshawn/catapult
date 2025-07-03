@@ -64,6 +64,7 @@ class SeedVariation extends Model
         'weight_kg',
         'original_weight_value', 
         'original_weight_unit',
+        'unit',
         'current_price',
         'currency',
         'is_available', 

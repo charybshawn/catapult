@@ -131,15 +131,7 @@ class ConsumableResource extends BaseResource
                                                             ->maxLength(255)
                                                             ->helperText('Single cultivar name, e.g. Cherry Belle, French Breakfast, Watermelon'),
                                                         Forms\Components\Select::make('category')
-                                                            ->options([
-                                                                'Herbs' => 'Herbs',
-                                                                'Brassicas' => 'Brassicas',
-                                                                'Legumes' => 'Legumes',
-                                                                'Greens' => 'Greens',
-                                                                'Grains' => 'Grains',
-                                                                'Shoots' => 'Shoots',
-                                                                'Other' => 'Other',
-                                                            ])
+                                                            ->options(\App\Models\SeedCategory::options())
                                                             ->searchable(),
                                                         Forms\Components\TagsInput::make('aliases')
                                                             ->helperText('Alternative names for this seed type'),

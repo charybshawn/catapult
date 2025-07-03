@@ -51,7 +51,7 @@ class ProcessSeedScrapeUpload implements ShouldQueue
         Log::info('ProcessSeedScrapeUpload: Starting job execution', [
             'job_id' => $this->job->getJobId(),
             'upload_id' => $this->scrapeUpload->id, 
-            'file_name' => $this->scrapeUpload->original_filename,
+            'file_name' => $this->scrapeUpload->filename,
             'file_path' => $this->filePath,
             'file_exists' => file_exists($this->filePath),
             'file_size' => file_exists($this->filePath) ? filesize($this->filePath) : 0,

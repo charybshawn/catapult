@@ -11,15 +11,19 @@ class SupplierSourceMapping extends Model
     use HasFactory;
     
     protected $fillable = [
-        'source_url',
-        'domain', 
         'supplier_id',
+        'source_name',
+        'source_identifier',
+        'source_url',
+        'domain',
+        'mapping_data',
         'is_active',
         'metadata'
     ];
     
     protected $casts = [
         'is_active' => 'boolean',
+        'mapping_data' => 'array',
         'metadata' => 'array'
     ];
     
@@ -69,6 +73,8 @@ class SupplierSourceMapping extends Model
                 'domain' => $domain
             ],
             [
+                'source_name' => $domainName,
+                'source_identifier' => $domain,
                 'source_url' => $sourceUrl,
                 'domain' => $domain,
                 'is_active' => true,

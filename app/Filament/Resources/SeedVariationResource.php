@@ -39,32 +39,36 @@ class SeedVariationResource extends Resource
                     ->required()
                     ->searchable()
                     ->preload(),
-                Forms\Components\TextInput::make('size')
+                Forms\Components\Grid::make(2)
+                    ->schema([
+                        Forms\Components\TextInput::make('size')
+                            ->label('Size Description')
+                            ->placeholder('e.g., 25g, 1 oz, Large packet')
+                            ->helperText('Descriptive size as shown to customers')
+                            ->required()
+                            ->maxLength(255),
+                        Forms\Components\TextInput::make('sku')
+                            ->maxLength(255)
+                            ->placeholder('SKU-001'),
+                        Forms\Components\TextInput::make('weight_kg')
+                            ->numeric()
+                            ->step('0.0001')
+                            ->label('Weight (kg)')
+                            ->placeholder('0.025')
+                            ->helperText('Weight in kilograms for calculations'),
+                    ]),
+                Forms\Components\Select::make('unit')
+                    ->label('Unit')
+                    ->options(\App\Models\WeightUnit::options())
+                    ->default('g')
                     ->required()
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('sku')
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('weight_kg')
-                    ->numeric()
-                    ->step('0.0001')
-                    ->label('Weight (kg)'),
-                Forms\Components\TextInput::make('original_weight_value')
-                    ->numeric()
-                    ->label('Original Weight Value'),
-                Forms\Components\TextInput::make('original_weight_unit')
-                    ->maxLength(255)
-                    ->label('Original Weight Unit'),
+                    ->helperText('Unit for database storage'),
                 Forms\Components\TextInput::make('current_price')
                     ->required()
                     ->numeric()
                     ->prefix('$'),
                 Forms\Components\Select::make('currency')
-                    ->options([
-                        'USD' => 'USD',
-                        'CAD' => 'CAD',
-                        'EUR' => 'EUR',
-                        'GBP' => 'GBP',
-                    ])
+                    ->options(\App\Models\Currency::options())
                     ->default('USD')
                     ->required(),
                 Forms\Components\Toggle::make('is_available')
@@ -173,7 +177,7 @@ class SeedVariationResource extends Resource
                 Tables\Filters\SelectFilter::make('stock_status')
                     ->options([
                         '1' => 'In Stock',
-                        'unit' => 'Out of Stock',
+                        '0' => 'Out of Stock',
                     ])
                     ->attribute('is_available'),
             ])
@@ -202,5 +206,20 @@ class SeedVariationResource extends Resource
             'create' => Pages\CreateSeedVariation::route('/create'),
             'edit' => Pages\EditSeedVariation::route('/{record}/edit'),
         ];
+    }
+    
+    /**
+     * Convert weight to kilograms
+     */
+    public static function convertToKg(float $value, string $unit): float
+    {
+        return match (strtolower($unit)) {
+            'kg', 'kilogram', 'kilograms' => $value,
+            'g', 'gram', 'grams' => $value / 1000,
+            'mg', 'milligram', 'milligrams' => $value / 1000000,
+            'oz', 'ounce', 'ounces' => $value * 0.0283495,
+            'lb', 'lbs', 'pound', 'pounds' => $value * 0.453592,
+            default => $value / 1000, // Default to grams
+        };
     }
 }

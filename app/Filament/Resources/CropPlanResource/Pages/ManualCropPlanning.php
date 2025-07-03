@@ -16,6 +16,7 @@ use Filament\Notifications\Notification;
 use Illuminate\Support\Collection;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ManualCropPlanning extends Page
 {
@@ -68,11 +69,14 @@ class ManualCropPlanning extends Page
 
         $this->orders = Order::with([
             'customer',
+            'orderStatus',
             'orderItems.product.productMix.seedEntries',
             'orderItems.priceVariation.packagingType'
         ])
-            ->where('delivery_date', $this->data['delivery_date'])
-            ->where('status', '!=', 'cancelled')
+            ->whereDate('delivery_date', $this->data['delivery_date'])
+            ->whereHas('orderStatus', function ($query) {
+                $query->where('code', '<>', 'cancelled');
+            })
             ->get();
 
         $this->calculatePlantingPlan();

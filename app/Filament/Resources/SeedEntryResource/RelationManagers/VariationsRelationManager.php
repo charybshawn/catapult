@@ -18,35 +18,58 @@ class VariationsRelationManager extends RelationManager
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('size_description')
-                    ->required()
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('sku')
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('weight_kg')
-                    ->numeric()
-                    ->step('0.0001')
-                    ->label('Weight (kg)'),
-                Forms\Components\TextInput::make('original_weight_value')
-                    ->numeric()
-                    ->label('Original Weight Value'),
-                Forms\Components\TextInput::make('original_weight_unit')
-                    ->maxLength(255)
-                    ->label('Original Weight Unit'),
+                Forms\Components\Grid::make(2)
+                    ->schema([
+                        Forms\Components\TextInput::make('size')
+                            ->label('Size Description')
+                            ->placeholder('e.g., 25g, 1 oz, Large packet')
+                            ->helperText('Descriptive size as shown to customers')
+                            ->required()
+                            ->maxLength(255),
+                        Forms\Components\TextInput::make('sku')
+                            ->maxLength(255)
+                            ->placeholder('SKU-001'),
+                    ]),
+                Forms\Components\Grid::make(3)
+                    ->schema([
+                        Forms\Components\TextInput::make('weight_kg')
+                            ->numeric()
+                            ->step('0.0001')
+                            ->label('Weight (kg)')
+                            ->placeholder('0.025')
+                            ->helperText('Weight in kilograms for calculations'),
+                        Forms\Components\Select::make('unit')
+                            ->label('Unit')
+                            ->options([
+                                'grams' => 'Grams',
+                                'kg' => 'Kilograms', 
+                                'oz' => 'Ounces',
+                                'lbs' => 'Pounds',
+                                'mg' => 'Milligrams',
+                            ])
+                            ->default('grams')
+                            ->required()
+                            ->helperText('Unit for database storage'),
+                        Forms\Components\Select::make('currency')
+                            ->options([
+                                'USD' => 'USD',
+                                'CAD' => 'CAD',
+                                'EUR' => 'EUR',
+                                'GBP' => 'GBP',
+                            ])
+                            ->default('CAD')
+                            ->required(),
+                    ]),
+                
+                // Hidden fields - kept for data integrity but not shown to user
+                Forms\Components\Hidden::make('original_weight_value'),
+                Forms\Components\Hidden::make('original_weight_unit'),
                 Forms\Components\TextInput::make('current_price')
                     ->required()
                     ->numeric()
                     ->prefix('$'),
-                Forms\Components\Select::make('currency')
-                    ->options([
-                        'USD' => 'USD',
-                        'CAD' => 'CAD',
-                        'EUR' => 'EUR',
-                        'GBP' => 'GBP',
-                    ])
-                    ->default('USD')
-                    ->required(),
-                Forms\Components\Toggle::make('is_in_stock')
+                Forms\Components\Toggle::make('is_available')
+                    ->label('Available')
                     ->required()
                     ->default(true),
                 Forms\Components\DateTimePicker::make('last_checked_at')
@@ -58,9 +81,10 @@ class VariationsRelationManager extends RelationManager
     public function table(Table $table): Table
     {
         return $table
-            ->recordTitleAttribute('size_description')
+            ->recordTitleAttribute('size')
             ->columns([
-                Tables\Columns\TextColumn::make('size_description')
+                Tables\Columns\TextColumn::make('size')
+                    ->label('Size Description')
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('weight_kg')
@@ -80,21 +104,21 @@ class VariationsRelationManager extends RelationManager
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderByRaw('current_price / NULLIF(weight_kg, 0) ' . $direction);
                     }),
-                Tables\Columns\IconColumn::make('is_in_stock')
+                Tables\Columns\IconColumn::make('is_available')
                     ->boolean()
-                    ->label('In Stock')
+                    ->label('Available')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('last_checked_at')
                     ->dateTime()
                     ->sortable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('stock_status')
+                Tables\Filters\SelectFilter::make('availability')
                     ->options([
-                        '1' => 'In Stock',
-                        'unit' => 'Out of Stock',
+                        '1' => 'Available',
+                        '0' => 'Not Available',
                     ])
-                    ->attribute('is_in_stock'),
+                    ->attribute('is_available'),
             ])
             ->headerActions([
                 Tables\Actions\CreateAction::make(),

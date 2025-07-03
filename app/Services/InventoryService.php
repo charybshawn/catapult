@@ -194,7 +194,7 @@ class InventoryService
             'initial_stock' => $consumable->initial_stock + $normalizedAmount,
         ];
 
-        if ($consumable->type === 'seed') {
+        if ($consumable->consumableType && $consumable->consumableType->isSeed()) {
             $data['total_quantity'] = $consumable->total_quantity + $normalizedAmount;
             
             if ($lotNo) {
@@ -218,7 +218,7 @@ class InventoryService
     {
         return Consumable::whereRaw('
             CASE 
-                WHEN type = "seed" THEN total_quantity <= restock_threshold
+                WHEN consumable_type_id = (SELECT id FROM consumable_types WHERE code = "seed") THEN total_quantity <= restock_threshold
                 ELSE (initial_stock - consumed_quantity) <= restock_threshold
             END
         ')->count();
@@ -231,12 +231,12 @@ class InventoryService
     {
         $query = Consumable::whereRaw('
             CASE 
-                WHEN type = "seed" THEN total_quantity <= restock_threshold
+                WHEN consumable_type_id = (SELECT id FROM consumable_types WHERE code = "seed") THEN total_quantity <= restock_threshold
                 ELSE (initial_stock - consumed_quantity) <= restock_threshold
             END
         ')->orderByRaw('
             CASE 
-                WHEN type = "seed" THEN (total_quantity / NULLIF(restock_threshold, 0))
+                WHEN consumable_type_id = (SELECT id FROM consumable_types WHERE code = "seed") THEN (total_quantity / NULLIF(restock_threshold, 0))
                 ELSE ((initial_stock - consumed_quantity) / NULLIF(restock_threshold, 0))
             END ASC
         ');

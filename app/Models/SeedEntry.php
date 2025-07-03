@@ -32,7 +32,7 @@ class SeedEntry extends Model
             }
             
             // Validate URL format if provided
-            if ($entry->supplier_product_url && !filter_var($entry->supplier_product_url, FILTER_VALIDATE_URL)) {
+            if ($entry->url && !filter_var($entry->url, FILTER_VALIDATE_URL)) {
                 throw new \InvalidArgumentException('Supplier product URL must be a valid URL');
             }
             
@@ -68,8 +68,8 @@ class SeedEntry extends Model
         'cultivar_name',
         'common_name',
         'supplier_id', 
-        'supplier_product_title', 
-        'supplier_product_url', 
+        'supplier_sku', 
+        'url', 
         'image_url', 
         'description', 
         'tags',

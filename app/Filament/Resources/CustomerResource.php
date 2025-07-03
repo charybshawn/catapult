@@ -186,7 +186,7 @@ class CustomerResource extends Resource
                                 'WI' => 'Wisconsin',
                                 'WY' => 'Wyoming',
                             ])
-                            ->default('ON'),
+                            ->default('BC'),
                         Forms\Components\TextInput::make('postal_code')
                             ->label('Postal/ZIP Code')
                             ->maxLength(20)

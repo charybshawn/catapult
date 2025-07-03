@@ -58,6 +58,12 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
     // Refresh interval in seconds
     public $refreshInterval = 10;
     
+    // Upload processing modal state
+    public $uploadOutput = '';
+    public $uploadRunning = false;
+    public $uploadSuccess = false;
+    public $showUploadModal = false;
+    
     public function mount(): void
     {
         Log::info('SeedScrapeUploader: Page mounted', [
@@ -196,9 +202,16 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                                     'source_url' => $this->currentSourceUrl
                                 ]);
                                 
+                                // Look up the supplier type ID based on the type code
+                                $supplierType = \App\Models\SupplierType::findByCode($data['type']);
+
+                                if (!$supplierType) {
+                                    throw new \Exception("Invalid supplier type: {$data['type']}");
+                                }
+
                                 $supplier = Supplier::create([
                                     'name' => $data['name'],
-                                    'type' => $data['type'],
+                                    'supplier_type_id' => $supplierType->id,
                                     'contact_name' => $data['contact_name'] ?? null,
                                     'contact_email' => $data['contact_email'] ?? null,
                                     'contact_phone' => $data['contact_phone'] ?? null,
@@ -337,7 +350,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                         'supplier_name' => $existingMapping->supplier->name,
                         'source_url' => $sourceUrl
                     ]);
-                    $this->processFileWithSupplier($file, $existingMapping->supplier);
+                    $this->processFileWithSupplierModal($file, $existingMapping->supplier);
                 } else {
                     Log::info('SeedScrapeUploader: No existing mapping found, requiring supplier selection', [
                         'source_url' => $sourceUrl
@@ -434,20 +447,8 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                 ['created_via' => 'upload_interface', 'created_at' => now()->toISOString()]
             );
             
-            // Process all pending files
-            Log::info('SeedScrapeUploader: Processing pending files', [
-                'file_count' => count($this->pendingFiles),
-                'supplier_id' => $supplier->id
-            ]);
-            
-            foreach ($this->pendingFiles as $index => $file) {
-                Log::debug('SeedScrapeUploader: Processing file in batch', [
-                    'file_index' => $index,
-                    'file_name' => $file->getClientOriginalName(),
-                    'supplier_id' => $supplier->id
-                ]);
-                $this->processFileWithSupplier($file, $supplier);
-            }
+            // Process all pending files using modal
+            $this->processFilesWithSupplierModal($supplier);
             
             // Reset state
             Log::info('SeedScrapeUploader: Batch processing completed, resetting state');
@@ -480,7 +481,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
             $originalFilename = $file->getClientOriginalName();
             
             Log::info('SeedScrapeUploader: Starting individual file processing', [
-                'original_filename' => $originalFilename,
+                'filename' => $originalFilename,
                 'supplier_id' => $supplier->id,
                 'supplier_name' => $supplier->name,
                 'temp_path' => $file->getRealPath(),
@@ -489,7 +490,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
             ]);
             
             $scrapeUpload = SeedScrapeUpload::create([
-                'original_filename' => $originalFilename,
+                'filename' => $originalFilename,
                 'supplier_id' => $supplier->id,
                 'uploaded_by' => auth()->id(),
                 'status' => SeedScrapeUpload::STATUS_PROCESSING,
@@ -587,17 +588,292 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
         $this->supplierMatches = [];
     }
     
+    /**
+     * Close upload modal and reset state
+     */
+    public function closeUploadModal(): void
+    {
+        $this->showUploadModal = false;
+        $this->uploadOutput = '';
+        $this->uploadRunning = false;
+        $this->uploadSuccess = false;
+    }
+    
+    /**
+     * Process a single file with modal display
+     */
+    protected function processFileWithSupplierModal(TemporaryUploadedFile $file, Supplier $supplier): void
+    {
+        $this->uploadOutput = '';
+        $this->uploadRunning = true;
+        $this->uploadSuccess = false;
+        $this->showUploadModal = true;
+        
+        $this->dispatch('open-upload-modal');
+        
+        try {
+            $originalFilename = $file->getClientOriginalName();
+            
+            $this->uploadOutput = "Starting upload processing...\n";
+            $this->uploadOutput .= "File: {$originalFilename}\n";
+            $this->uploadOutput .= "Supplier: {$supplier->name}\n";
+            $this->uploadOutput .= "Size: " . number_format($file->getSize()) . " bytes\n\n";
+            
+            Log::info('SeedScrapeUploader: Starting individual file processing', [
+                'filename' => $originalFilename,
+                'supplier_id' => $supplier->id,
+                'supplier_name' => $supplier->name,
+            ]);
+            
+            $this->uploadOutput .= "Creating upload record...\n";
+            
+            $scrapeUpload = SeedScrapeUpload::create([
+                'filename' => $originalFilename,
+                'supplier_id' => $supplier->id,
+                'uploaded_by' => auth()->id(),
+                'status' => SeedScrapeUpload::STATUS_PROCESSING,
+                'uploaded_at' => now(),
+            ]);
+            
+            $this->uploadOutput .= "Upload record created (ID: {$scrapeUpload->id})\n";
+            $this->uploadOutput .= "Starting data import...\n\n";
+            
+            // Use enhanced importer with supplier override
+            $importer = new SeedScrapeImporter();
+            $importer->importWithSupplier($file->getRealPath(), $scrapeUpload, $supplier);
+            
+            $scrapeUpload->refresh();
+            
+            $this->uploadOutput .= "\n=== IMPORT COMPLETED ===\n";
+            $this->uploadOutput .= "Status: {$scrapeUpload->status}\n";
+            $this->uploadOutput .= "Total entries: " . number_format($scrapeUpload->total_entries) . "\n";
+            $this->uploadOutput .= "Successful imports: " . number_format($scrapeUpload->successful_entries) . "\n";
+            $this->uploadOutput .= "Failed imports: " . number_format($scrapeUpload->failed_entries_count) . "\n";
+            
+            if ($scrapeUpload->status === SeedScrapeUpload::STATUS_COMPLETED) {
+                $this->uploadOutput .= "\n✅ Upload processed successfully!\n";
+                $this->uploadSuccess = true;
+            } else {
+                $this->uploadOutput .= "\n⚠️ Upload completed with issues.\n";
+                
+                // Show detailed error information
+                if ($scrapeUpload->failed_entries && is_array($scrapeUpload->failed_entries)) {
+                    $this->uploadOutput .= "\n=== ERROR DETAILS ===\n";
+                    
+                    // Group errors by type to avoid repetition
+                    $errorGroups = [];
+                    foreach ($scrapeUpload->failed_entries as $failedEntry) {
+                        $error = $failedEntry['error'] ?? 'Unknown error';
+                        $title = $failedEntry['data']['title'] ?? 'Unknown product';
+                        
+                        if (!isset($errorGroups[$error])) {
+                            $errorGroups[$error] = [];
+                        }
+                        $errorGroups[$error][] = $title;
+                    }
+                    
+                    // Display grouped errors
+                    foreach ($errorGroups as $error => $products) {
+                        $count = count($products);
+                        $this->uploadOutput .= "\n❌ {$error} ({$count} products)\n";
+                        
+                        // Show first few product names as examples
+                        $examples = array_slice($products, 0, 3);
+                        foreach ($examples as $product) {
+                            $this->uploadOutput .= "   - {$product}\n";
+                        }
+                        
+                        if ($count > 3) {
+                            $remaining = $count - 3;
+                            $this->uploadOutput .= "   ... and {$remaining} more\n";
+                        }
+                        $this->uploadOutput .= "\n";
+                    }
+                } elseif ($scrapeUpload->notes) {
+                    $this->uploadOutput .= "\nGeneral error:\n" . $scrapeUpload->notes . "\n";
+                }
+                
+                $this->uploadSuccess = false;
+            }
+            
+            $this->uploadRunning = false;
+            
+            Log::info('SeedScrapeUploader: File processing completed', [
+                'upload_id' => $scrapeUpload->id,
+                'filename' => $originalFilename,
+                'final_status' => $scrapeUpload->status,
+                'total_entries' => $scrapeUpload->total_entries,
+                'successful_entries' => $scrapeUpload->successful_entries,
+            ]);
+                
+        } catch (\Exception $e) {
+            $this->uploadOutput .= "\n❌ ERROR: " . $e->getMessage() . "\n";
+            $this->uploadRunning = false;
+            $this->uploadSuccess = false;
+            
+            // Update upload status if record was created
+            if (isset($scrapeUpload)) {
+                $scrapeUpload->update([
+                    'status' => SeedScrapeUpload::STATUS_ERROR,
+                    'notes' => 'Error: ' . $e->getMessage()
+                ]);
+            }
+            
+            Log::error('SeedScrapeUploader: Error processing individual file', [
+                'error' => $e->getMessage(),
+                'file' => $file->getClientOriginalName(),
+            ]);
+        }
+    }
+    
+    /**
+     * Process multiple files with modal display
+     */
+    protected function processFilesWithSupplierModal(Supplier $supplier): void
+    {
+        $this->uploadOutput = '';
+        $this->uploadRunning = true;
+        $this->uploadSuccess = false;
+        $this->showUploadModal = true;
+        
+        $this->dispatch('open-upload-modal');
+        
+        try {
+            $fileCount = count($this->pendingFiles);
+            
+            $this->uploadOutput = "Starting batch upload processing...\n";
+            $this->uploadOutput .= "Supplier: {$supplier->name}\n";
+            $this->uploadOutput .= "Files to process: {$fileCount}\n\n";
+            
+            Log::info('SeedScrapeUploader: Processing pending files', [
+                'file_count' => $fileCount,
+                'supplier_id' => $supplier->id
+            ]);
+            
+            $successCount = 0;
+            $failCount = 0;
+            
+            foreach ($this->pendingFiles as $index => $file) {
+                $fileName = $file->getClientOriginalName();
+                $this->uploadOutput .= "=== Processing file " . ($index + 1) . " of {$fileCount} ===\n";
+                $this->uploadOutput .= "File: {$fileName}\n";
+                
+                try {
+                    $scrapeUpload = SeedScrapeUpload::create([
+                        'filename' => $fileName,
+                        'supplier_id' => $supplier->id,
+                        'uploaded_by' => auth()->id(),
+                        'status' => SeedScrapeUpload::STATUS_PROCESSING,
+                        'uploaded_at' => now(),
+                    ]);
+                    
+                    $this->uploadOutput .= "Upload record created (ID: {$scrapeUpload->id})\n";
+                    $this->uploadOutput .= "Starting import...\n";
+                    
+                    $importer = new SeedScrapeImporter();
+                    $importer->importWithSupplier($file->getRealPath(), $scrapeUpload, $supplier);
+                    
+                    $scrapeUpload->refresh();
+                    
+                    $this->uploadOutput .= "Import completed!\n";
+                    $this->uploadOutput .= "- Status: {$scrapeUpload->status}\n";
+                    $this->uploadOutput .= "- Total: " . number_format($scrapeUpload->total_entries) . "\n";
+                    $this->uploadOutput .= "- Success: " . number_format($scrapeUpload->successful_entries) . "\n";
+                    $this->uploadOutput .= "- Failed: " . number_format($scrapeUpload->failed_entries_count) . "\n\n";
+                    
+                    if ($scrapeUpload->status === SeedScrapeUpload::STATUS_COMPLETED) {
+                        $successCount++;
+                    } else {
+                        $failCount++;
+                        
+                        // Show error details for failed imports
+                        if ($scrapeUpload->failed_entries && is_array($scrapeUpload->failed_entries)) {
+                            $errorGroups = [];
+                            foreach ($scrapeUpload->failed_entries as $failedEntry) {
+                                $error = $failedEntry['error'] ?? 'Unknown error';
+                                if (!isset($errorGroups[$error])) {
+                                    $errorGroups[$error] = 0;
+                                }
+                                $errorGroups[$error]++;
+                            }
+                            
+                            $this->uploadOutput .= "  Error breakdown:\n";
+                            foreach ($errorGroups as $error => $count) {
+                                $this->uploadOutput .= "    • {$error} ({$count} products)\n";
+                            }
+                        }
+                        $this->uploadOutput .= "\n";
+                    }
+                    
+                } catch (\Exception $e) {
+                    $this->uploadOutput .= "❌ Error processing {$fileName}: " . $e->getMessage() . "\n\n";
+                    $failCount++;
+                    
+                    if (isset($scrapeUpload)) {
+                        $scrapeUpload->update([
+                            'status' => SeedScrapeUpload::STATUS_ERROR,
+                            'notes' => 'Error: ' . $e->getMessage()
+                        ]);
+                    }
+                }
+            }
+            
+            $this->uploadOutput .= "=== BATCH PROCESSING COMPLETED ===\n";
+            $this->uploadOutput .= "Successfully processed: {$successCount} files\n";
+            $this->uploadOutput .= "Failed: {$failCount} files\n";
+            
+            if ($failCount === 0) {
+                $this->uploadOutput .= "\n✅ All files processed successfully!\n";
+                $this->uploadSuccess = true;
+            } else {
+                $this->uploadOutput .= "\n⚠️ Some files had issues during processing.\n";
+                $this->uploadSuccess = false;
+            }
+            
+            $this->uploadRunning = false;
+            
+        } catch (\Exception $e) {
+            $this->uploadOutput .= "\n❌ BATCH ERROR: " . $e->getMessage() . "\n";
+            $this->uploadRunning = false;
+            $this->uploadSuccess = false;
+            
+            Log::error('SeedScrapeUploader: Error processing batch files', [
+                'error' => $e->getMessage(),
+                'supplier_id' => $supplier->id,
+            ]);
+        }
+    }
+    
     public function table(Table $table): Table
     {
         return $table
-            ->query(SeedScrapeUpload::query())
+            ->query(SeedScrapeUpload::query()->with(['supplier', 'uploadedBy']))
             ->columns([
-                Tables\Columns\TextColumn::make('original_filename')
-                    ->label('Filename')
+                Tables\Columns\TextColumn::make('filename')
+                    ->label('File')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->icon('heroicon-o-document-text')
+                    ->weight('medium'),
+                    
+                Tables\Columns\TextColumn::make('supplier.name')
+                    ->label('Supplier')
+                    ->searchable()
+                    ->sortable()
+                    ->icon('heroicon-o-building-storefront')
+                    ->placeholder('Not assigned')
+                    ->color('gray'),
+                    
                 Tables\Columns\TextColumn::make('status')
+                    ->label('Status')
                     ->badge()
+                    ->icon(fn (string $state): string => match ($state) {
+                        SeedScrapeUpload::STATUS_PENDING => 'heroicon-o-clock',
+                        SeedScrapeUpload::STATUS_PROCESSING => 'heroicon-o-cog-8-tooth',
+                        SeedScrapeUpload::STATUS_COMPLETED => 'heroicon-o-check-circle',
+                        SeedScrapeUpload::STATUS_ERROR => 'heroicon-o-x-circle',
+                        default => 'heroicon-o-question-mark-circle',
+                    })
                     ->color(fn (string $state): string => match ($state) {
                         SeedScrapeUpload::STATUS_PENDING => 'gray',
                         SeedScrapeUpload::STATUS_PROCESSING => 'warning',
@@ -605,69 +881,418 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                         SeedScrapeUpload::STATUS_ERROR => 'danger',
                         default => 'gray',
                     }),
+                    
                 Tables\Columns\TextColumn::make('progress')
-                    ->label('Progress')
+                    ->label('Import Results')
                     ->state(function (SeedScrapeUpload $record): string {
+                        if ($record->status === SeedScrapeUpload::STATUS_PENDING) {
+                            return 'Waiting to process';
+                        }
+                        
+                        if ($record->status === SeedScrapeUpload::STATUS_PROCESSING) {
+                            return 'Processing...';
+                        }
+                        
+                        if ($record->total_entries === 0 && $record->status === SeedScrapeUpload::STATUS_ERROR) {
+                            return 'Import failed';
+                        }
+                        
                         if ($record->total_entries === 0) {
-                            return 'N/A';
+                            return 'No data';
                         }
                         
                         $successful = $record->successful_entries;
                         $failed = $record->failed_entries_count;
                         $total = $record->total_entries;
                         
-                        return "{$successful}/{$total} success" . ($failed > 0 ? ", {$failed} failed" : '');
+                        $result = "{$successful}/{$total} imported";
+                        
+                        if ($failed > 0) {
+                            $result .= ", {$failed} failed";
+                        }
+                        
+                        if ($successful === $total && $failed === 0) {
+                            $result .= " ✓";
+                        } elseif ($failed > 0) {
+                            $result .= " ⚠";
+                        }
+                        
+                        return $result;
                     })
+                    ->badge()
                     ->color(function (SeedScrapeUpload $record): string {
+                        if ($record->status === SeedScrapeUpload::STATUS_PROCESSING) {
+                            return 'info';
+                        }
+                        
+                        if ($record->status === SeedScrapeUpload::STATUS_ERROR) {
+                            return 'danger';
+                        }
+                        
                         if ($record->failed_entries_count > 0) {
                             return 'warning';
-                        } elseif ($record->successful_entries > 0) {
+                        }
+                        
+                        if ($record->successful_entries > 0) {
                             return 'success';
                         }
+                        
                         return 'gray';
+                    })
+                    ->icon(function (SeedScrapeUpload $record): string {
+                        if ($record->status === SeedScrapeUpload::STATUS_PROCESSING) {
+                            return 'heroicon-o-arrow-path';
+                        }
+                        
+                        if ($record->status === SeedScrapeUpload::STATUS_ERROR) {
+                            return 'heroicon-o-x-circle';
+                        }
+                        
+                        if ($record->failed_entries_count > 0) {
+                            return 'heroicon-o-exclamation-triangle';
+                        }
+                        
+                        if ($record->successful_entries > 0) {
+                            return 'heroicon-o-check-circle';
+                        }
+                        
+                        return 'heroicon-o-minus-circle';
                     }),
+                    
                 Tables\Columns\TextColumn::make('uploaded_at')
                     ->label('Uploaded')
-                    ->dateTime()
-                    ->sortable(),
+                    ->dateTime('M j, Y g:i A')
+                    ->description(fn (SeedScrapeUpload $record): string => 
+                        $record->uploadedBy ? "by {$record->uploadedBy->name}" : 'Unknown user'
+                    ),
+                    
                 Tables\Columns\TextColumn::make('processed_at')
-                    ->label('Processed')
-                    ->dateTime()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('notes')
-                    ->label('Notes')
-                    ->limit(50),
+                    ->label('Completed')
+                    ->dateTime('M j, Y g:i A')
+                    ->placeholder('Not processed')
+                    ->description(function (SeedScrapeUpload $record): ?string {
+                        if (!$record->processed_at) {
+                            return null;
+                        }
+                        
+                        $duration = $record->uploaded_at->diffForHumans($record->processed_at, true);
+                        return "took {$duration}";
+                    }),
+                    
+                Tables\Columns\TextColumn::make('error_summary')
+                    ->label('Issues')
+                    ->state(function (SeedScrapeUpload $record): ?string {
+                        if ($record->status === SeedScrapeUpload::STATUS_ERROR && $record->notes) {
+                            // Extract first error from notes
+                            $lines = explode("\n", $record->notes);
+                            foreach ($lines as $line) {
+                                if (str_contains(strtolower($line), 'error') || str_contains(strtolower($line), 'failed')) {
+                                    return trim($line);
+                                }
+                            }
+                            return 'Processing error occurred';
+                        }
+                        
+                        if ($record->failed_entries_count > 0) {
+                            return "{$record->failed_entries_count} entries failed to import";
+                        }
+                        
+                        return null;
+                    })
+                    ->placeholder('No issues')
+                    ->color('danger')
+                    ->icon('heroicon-o-exclamation-triangle')
+                    ->limit(40)
+                    ->tooltip(function (SeedScrapeUpload $record): ?string {
+                        if ($record->notes) {
+                            return $record->notes;
+                        }
+                        return null;
+                    }),
             ])
             ->filters([
                 //
             ])
             ->actions([
-                Tables\Actions\ViewAction::make()
-                    ->modalContent(fn (SeedScrapeUpload $record): string => $record->notes ?? 'No notes available.'),
-                Tables\Actions\Action::make('view_data')
-                    ->label('View Imported Data')
-                    ->url(route('filament.admin.resources.seed-variations.index'))
-                    ->icon('heroicon-m-eye')
-                    ->visible(fn (SeedScrapeUpload $record): bool => $record->status === SeedScrapeUpload::STATUS_COMPLETED),
-                Tables\Actions\Action::make('manage_failed')
-                    ->label('Manage Failed')
-                    ->url(route('filament.admin.pages.manage-failed-seed-entries'))
-                    ->icon('heroicon-m-exclamation-triangle')
-                    ->color('warning')
-                    ->visible(fn (SeedScrapeUpload $record): bool => $record->failed_entries_count > 0),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make()
+                        ->label('View Details')
+                        ->modalHeading(fn (SeedScrapeUpload $record): string => "Upload Details: {$record->filename}")
+                        ->modalContent(function (SeedScrapeUpload $record) {
+                            $content = '<div class="space-y-4">';
+                            
+                            // Basic info
+                            $content .= '<div class="grid grid-cols-2 gap-4 text-sm">';
+                            $content .= '<div><strong>File:</strong> ' . htmlspecialchars($record->filename) . '</div>';
+                            $content .= '<div><strong>Status:</strong> ' . htmlspecialchars($record->status) . '</div>';
+                            $content .= '<div><strong>Supplier:</strong> ' . htmlspecialchars($record->supplier?->name ?? 'Not assigned') . '</div>';
+                            $content .= '<div><strong>Uploaded:</strong> ' . $record->uploaded_at?->format('M j, Y g:i A') . '</div>';
+                            
+                            if ($record->processed_at) {
+                                $content .= '<div><strong>Processed:</strong> ' . $record->processed_at->format('M j, Y g:i A') . '</div>';
+                            }
+                            
+                            if ($record->total_entries > 0) {
+                                $content .= '<div><strong>Total Entries:</strong> ' . number_format($record->total_entries) . '</div>';
+                                $content .= '<div><strong>Successful:</strong> ' . number_format($record->successful_entries) . '</div>';
+                                $content .= '<div><strong>Failed:</strong> ' . number_format($record->failed_entries_count) . '</div>';
+                            }
+                            
+                            $content .= '</div>';
+                            
+                            // Notes/Errors
+                            if ($record->notes) {
+                                $content .= '<div><strong>Processing Log:</strong></div>';
+                                $content .= '<pre class="bg-gray-100 dark:bg-gray-800 p-3 rounded text-xs overflow-auto max-h-96">' . htmlspecialchars($record->notes) . '</pre>';
+                            }
+                            
+                            $content .= '</div>';
+                            
+                            return new \Illuminate\Support\HtmlString($content);
+                        }),
+                        
+                    Tables\Actions\Action::make('view_seed_entries')
+                        ->label('View Seed Entries')
+                        ->url(fn () => route('filament.admin.resources.seed-entries.index'))
+                        ->icon('heroicon-o-list-bullet')
+                        ->openUrlInNewTab()
+                        ->visible(fn (SeedScrapeUpload $record): bool => $record->successful_entries > 0),
+                        
+                    Tables\Actions\Action::make('view_variations')
+                        ->label('View Variations')
+                        ->url(fn () => route('filament.admin.resources.seed-variations.index'))
+                        ->icon('heroicon-o-squares-plus')
+                        ->openUrlInNewTab()
+                        ->visible(fn (SeedScrapeUpload $record): bool => $record->successful_entries > 0),
+                        
+                    Tables\Actions\Action::make('manage_failed')
+                        ->label('Manage Failed Entries')
+                        ->url(fn () => route('filament.admin.pages.manage-failed-seed-entries'))
+                        ->icon('heroicon-o-exclamation-triangle')
+                        ->color('warning')
+                        ->openUrlInNewTab()
+                        ->visible(fn (SeedScrapeUpload $record): bool => $record->failed_entries_count > 0),
+                        
+                    Tables\Actions\Action::make('retry_processing')
+                        ->label('Retry Processing')
+                        ->icon('heroicon-o-arrow-path')
+                        ->color('info')
+                        ->action('retryProcessing')
+                        ->visible(fn (SeedScrapeUpload $record): bool => 
+                            $record->status === SeedScrapeUpload::STATUS_ERROR || $record->failed_entries_count > 0
+                        ),
+                        
+                    Tables\Actions\DeleteAction::make()
+                        ->label('Delete Upload Record')
+                        ->modalHeading('Delete Upload Record')
+                        ->modalDescription('This will only delete the upload record, not the imported data.')
+                        ->successNotificationTitle('Upload record deleted'),
+                ])
+                ->icon('heroicon-o-ellipsis-vertical')
+                ->tooltip('Actions'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])
-            ->defaultSort('uploaded_at', 'desc')
-            ->poll();
+            ->defaultSort('id', 'desc')
+            ->paginated([10, 25, 50, 100])
+            ->poll()
+            ->striped()
+            ->emptyStateHeading('No uploads yet')
+            ->emptyStateDescription('Upload your first JSON file to get started with seed data import.')
+            ->emptyStateIcon('heroicon-o-arrow-up-tray')
+            ->recordUrl(null); // Disable row click navigation
     }
     
     public function getPollingInterval()
     {
         return $this->refreshInterval * 1000; // Convert to milliseconds
+    }
+    
+    public function retryProcessing(SeedScrapeUpload $record): void
+    {
+        if (!$record->failed_entries || empty($record->failed_entries)) {
+            Notification::make()
+                ->title('No Failed Entries')
+                ->body('This upload has no failed entries to retry.')
+                ->warning()
+                ->send();
+            return;
+        }
+        
+        $this->uploadOutput = '';
+        $this->uploadRunning = true;
+        $this->uploadSuccess = false;
+        $this->showUploadModal = true;
+        
+        $this->dispatch('open-upload-modal');
+        
+        try {
+            $this->uploadOutput = "Retrying failed entries...\n";
+            $this->uploadOutput .= "Upload ID: {$record->id}\n";
+            $this->uploadOutput .= "Original file: {$record->filename}\n";
+            $this->uploadOutput .= "Failed entries: " . count($record->failed_entries) . "\n\n";
+            
+            Log::info('SeedScrapeUploader: Starting retry processing', [
+                'upload_id' => $record->id,
+                'failed_count' => count($record->failed_entries),
+                'supplier_id' => $record->supplier_id,
+            ]);
+            
+            if (!$record->supplier) {
+                throw new \Exception('No supplier assigned to this upload record');
+            }
+            
+            $importer = new SeedScrapeImporter();
+            $successfulRetries = 0;
+            $stillFailed = [];
+            $totalRetries = count($record->failed_entries);
+            
+            $this->uploadOutput .= "Processing failed entries with supplier: {$record->supplier->name}\n\n";
+            
+            foreach ($record->failed_entries as $index => $failedEntry) {
+                $entryIndex = $failedEntry['index'] ?? $index;
+                $productData = $failedEntry['data'] ?? [];
+                $productTitle = $productData['title'] ?? "Entry #{$entryIndex}";
+                
+                $this->uploadOutput .= "Retrying: {$productTitle}\n";
+                
+                try {
+                    // Create a minimal JSON structure for this single product
+                    $tempJson = [
+                        'timestamp' => now()->toIso8601String(),
+                        'source_site' => $record->supplier->name,
+                        'data' => [$productData]
+                    ];
+                    
+                    // Create temporary file
+                    $tempFile = tempnam(sys_get_temp_dir(), 'retry_') . '.json';
+                    file_put_contents($tempFile, json_encode($tempJson));
+                    
+                    // Process this single entry
+                    $importer->processProduct(
+                        $productData,
+                        $record->supplier,
+                        $tempJson['timestamp'],
+                        $this->detectCurrencyFromProduct($productData)
+                    );
+                    
+                    $successfulRetries++;
+                    $this->uploadOutput .= "  ✓ Success\n";
+                    
+                    // Clean up
+                    if (file_exists($tempFile)) {
+                        unlink($tempFile);
+                    }
+                    
+                } catch (\Exception $e) {
+                    $this->uploadOutput .= "  ✗ Failed: " . $e->getMessage() . "\n";
+                    $stillFailed[] = [
+                        'index' => $entryIndex,
+                        'data' => $productData,
+                        'error' => $e->getMessage(),
+                        'error_type' => get_class($e),
+                        'timestamp' => now()->toIso8601String(),
+                        'retry_attempt' => ($failedEntry['retry_attempt'] ?? 0) + 1
+                    ];
+                    
+                    Log::warning('Retry failed for product entry', [
+                        'upload_id' => $record->id,
+                        'entry_index' => $entryIndex,
+                        'title' => $productTitle,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+            
+            // Update the record with retry results
+            $newSuccessfulCount = $record->successful_entries + $successfulRetries;
+            $newFailedCount = count($stillFailed);
+            $newStatus = $newFailedCount === 0 ? SeedScrapeUpload::STATUS_COMPLETED : SeedScrapeUpload::STATUS_COMPLETED;
+            
+            $record->update([
+                'successful_entries' => $newSuccessfulCount,
+                'failed_entries_count' => $newFailedCount,
+                'failed_entries' => $stillFailed,
+                'status' => $newStatus,
+                'notes' => ($record->notes ?? '') . "\n\n--- RETRY RESULTS ---\n" . 
+                          "Retried {$totalRetries} failed entries.\n" .
+                          "Successful: {$successfulRetries}\n" . 
+                          "Still failed: {$newFailedCount}\n" .
+                          "Updated at: " . now()->format('Y-m-d H:i:s')
+            ]);
+            
+            $this->uploadOutput .= "\n=== RETRY COMPLETED ===\n";
+            $this->uploadOutput .= "Successfully retried: {$successfulRetries}\n";
+            $this->uploadOutput .= "Still failed: {$newFailedCount}\n";
+            $this->uploadOutput .= "Total successful entries: {$newSuccessfulCount}\n";
+            
+            if ($successfulRetries > 0) {
+                $this->uploadOutput .= "\n✅ Retry processing completed with improvements!\n";
+                $this->uploadSuccess = true;
+            } else {
+                $this->uploadOutput .= "\n⚠️ No entries could be successfully retried.\n";
+                $this->uploadSuccess = false;
+            }
+            
+            $this->uploadRunning = false;
+            
+            // Show notification
+            if ($successfulRetries > 0) {
+                Notification::make()
+                    ->title('Retry Successful')
+                    ->body("Successfully imported {$successfulRetries} previously failed entries.")
+                    ->success()
+                    ->send();
+            } else {
+                Notification::make()
+                    ->title('Retry Failed')
+                    ->body('No failed entries could be successfully imported. Check the processing log for details.')
+                    ->warning()
+                    ->send();
+            }
+            
+        } catch (\Exception $e) {
+            $this->uploadOutput .= "\n\nRetry Error: " . $e->getMessage();
+            $this->uploadRunning = false;
+            $this->uploadSuccess = false;
+            
+            Log::error('SeedScrapeUploader: Retry processing failed', [
+                'upload_id' => $record->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            Notification::make()
+                ->title('Retry Failed')
+                ->body('An error occurred while retrying failed entries: ' . $e->getMessage())
+                ->danger()
+                ->send();
+        }
+    }
+    
+    private function detectCurrencyFromProduct(array $productData): string
+    {
+        // Try to detect currency from product variations
+        if (isset($productData['variants']) && is_array($productData['variants'])) {
+            foreach ($productData['variants'] as $variant) {
+                if (isset($variant['currency']) && !empty($variant['currency'])) {
+                    return $variant['currency'];
+                }
+            }
+        }
+        
+        if (isset($productData['variations']) && is_array($productData['variations'])) {
+            foreach ($productData['variations'] as $variant) {
+                if (isset($variant['currency']) && !empty($variant['currency'])) {
+                    return $variant['currency'];
+                }
+            }
+        }
+        
+        // Default to USD
+        return 'USD';
     }
 } 

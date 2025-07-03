@@ -19,7 +19,7 @@ class SeedScrapeUploadsTableSeeder extends Seeder
         DB::table('seed_scrape_uploads')->insert([
             [
                 'id' => 1,
-                'original_filename' => 'sprouting_com_detailed_20250609_103826.json',
+                'filename' => 'sprouting_com_detailed_20250609_103826.json',
                 'status' => 'processing',
                 'uploaded_at' => '2025-06-23 03:02:01',
                 'processed_at' => null,
@@ -33,7 +33,7 @@ class SeedScrapeUploadsTableSeeder extends Seeder
             ],
             [
                 'id' => 2,
-                'original_filename' => 'sprouting_com_detailed_20250603_103912.json',
+                'filename' => 'sprouting_com_detailed_20250603_103912.json',
                 'status' => 'completed',
                 'uploaded_at' => '2025-06-24 16:05:14',
                 'processed_at' => '2025-06-24 16:05:18',

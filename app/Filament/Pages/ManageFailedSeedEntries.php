@@ -60,10 +60,9 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
             ->query(
                 SeedScrapeUpload::query()
                     ->where('failed_entries_count', '>', 0)
-                    ->orderBy('processed_at', 'desc')
             )
             ->columns([
-                Tables\Columns\TextColumn::make('original_filename')
+                Tables\Columns\TextColumn::make('filename')
                     ->label('Upload File')
                     ->searchable()
                     ->sortable(),
@@ -107,7 +106,7 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                     ->label('Fix Failed Entries')
                     ->icon('heroicon-m-wrench-screwdriver')
                     ->color('warning')
-                    ->modalHeading(fn (SeedScrapeUpload $record) => "Fix Failed Entries - {$record->original_filename}")
+                    ->modalHeading(fn (SeedScrapeUpload $record) => "Fix Failed Entries - {$record->filename}")
                     ->modalDescription(fn (SeedScrapeUpload $record) => "Review and fix {$record->failed_entries_count} failed entries. You can edit the data and retry individual entries or ignore them.")
                     ->modalSubmitAction(false)
                     ->modalCancelAction(false)
@@ -314,7 +313,7 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                     ->action(function (SeedScrapeUpload $record) {
                         Log::info('ManageFailedSeedEntries: Retry all failed entries action triggered', [
                             'upload_id' => $record->id,
-                            'filename' => $record->original_filename,
+                            'filename' => $record->filename,
                             'failed_count' => $record->failed_entries_count
                         ]);
                         $this->retryAllFailedEntries($record);
@@ -330,7 +329,7 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                     ->action(function (SeedScrapeUpload $record) {
                         Log::info('ManageFailedSeedEntries: Clear failed entries action triggered', [
                             'upload_id' => $record->id,
-                            'filename' => $record->original_filename,
+                            'filename' => $record->filename,
                             'failed_count' => $record->failed_entries_count,
                             'user_id' => auth()->id()
                         ]);
@@ -347,7 +346,7 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                         
                         Notification::make()
                             ->title('Failed Entries Cleared')
-                            ->body("All failed entries have been removed from {$record->original_filename}")
+                            ->body("All failed entries have been removed from {$record->filename}")
                             ->success()
                             ->send();
                     }),
@@ -365,14 +364,16 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                             }
                         }),
                 ]),
-            ]);
+            ])
+            ->defaultSort('id', 'desc')
+            ->paginated([10, 25, 50]);
     }
     
     protected function retryAllFailedEntries(SeedScrapeUpload $upload): void
     {
         Log::info('ManageFailedSeedEntries: Starting retry all failed entries', [
             'upload_id' => $upload->id,
-            'filename' => $upload->original_filename,
+            'filename' => $upload->filename,
             'failed_entries_count' => count($upload->failed_entries ?? [])
         ]);
         
@@ -515,11 +516,11 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
         
         Log::debug('ManageFailedSeedEntries: Detecting supplier from upload', [
             'upload_id' => $upload->id,
-            'filename' => $upload->original_filename
+            'filename' => $upload->filename
         ]);
         
         // Check if we can parse the original filename for supplier info
-        if (preg_match('/^(.+?)_/', $upload->original_filename, $matches)) {
+        if (preg_match('/^(.+?)_/', $upload->filename, $matches)) {
             $supplierName = str_replace('_', '.', $matches[1]);
             $supplier = Supplier::where('name', 'LIKE', "%{$supplierName}%")->first();
             

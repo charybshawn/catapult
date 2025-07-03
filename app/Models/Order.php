@@ -20,14 +20,15 @@ class Order extends Model
      * @var array<int, string>
      */
     protected $fillable = [
+        'user_id',
         'customer_id',
         'harvest_date',
         'delivery_date',
-        'status',
-        'crop_status',
-        'fulfillment_status',
+        'order_status_id',
+        'crop_status_id',
+        'fulfillment_status_id',
         'customer_type',
-        'order_type',
+        'order_type_id',
         'billing_frequency',
         'requires_invoice',
         'billing_period_start',
@@ -54,8 +55,8 @@ class Order extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'harvest_date' => 'date',
-        'delivery_date' => 'date',
+        'harvest_date' => 'datetime',
+        'delivery_date' => 'datetime',
         'billing_period_start' => 'date',
         'billing_period_end' => 'date',
         'requires_invoice' => 'boolean',
@@ -77,9 +78,18 @@ class Order extends Model
         parent::boot();
         
         static::creating(function ($order) {
+            // Set user_id to current authenticated user if not set
+            if (!$order->user_id && auth()->check()) {
+                $order->user_id = auth()->id();
+            }
+            
             // Set default status for new orders
-            if (!$order->status) {
-                $order->status = $order->is_recurring ? 'template' : 'pending';
+            if (!$order->order_status_id) {
+                $defaultStatusCode = $order->is_recurring ? 'template' : 'pending';
+                $defaultStatus = \App\Models\OrderStatus::where('code', $defaultStatusCode)->first();
+                if ($defaultStatus) {
+                    $order->order_status_id = $defaultStatus->id;
+                }
             }
         });
         
@@ -90,11 +100,19 @@ class Order extends Model
             }
             
             // Automatically set status to template when marked as recurring (but not for B2B orders)
-            if ($order->is_recurring && $order->order_type !== 'b2b' && $order->status !== 'template') {
-                $order->status = 'template';
-            } elseif (!$order->is_recurring && $order->status === 'template') {
+            $orderTypeCode = $order->orderType?->code ?? null;
+            $currentStatus = $order->orderStatus?->code ?? null;
+            if ($order->is_recurring && $orderTypeCode !== 'b2b' && $currentStatus !== 'template') {
+                $templateStatus = \App\Models\OrderStatus::where('code', 'template')->first();
+                if ($templateStatus) {
+                    $order->order_status_id = $templateStatus->id;
+                }
+            } elseif (!$order->is_recurring && $currentStatus === 'template') {
                 // If no longer recurring, change status from template to pending
-                $order->status = 'pending';
+                $pendingStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
+                if ($pendingStatus) {
+                    $order->order_status_id = $pendingStatus->id;
+                }
             }
             
             // Automatically set customer_type from customer if not set
@@ -106,7 +124,8 @@ class Order extends Model
             }
             
             // Set billing periods for B2B orders
-            if ($order->order_type === 'b2b' && 
+            $orderTypeCode = $order->orderType?->code ?? null;
+            if ($orderTypeCode === 'b2b' && 
                 $order->billing_frequency !== 'immediate' && 
                 $order->delivery_date &&
                 (!$order->billing_period_start || !$order->billing_period_end)) {
@@ -137,11 +156,51 @@ class Order extends Model
     
     
     /**
+     * Get the user who created this order.
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+    
+    /**
      * Get the customer for this order.
      */
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+    
+    /**
+     * Get the order status for this order.
+     */
+    public function orderStatus(): BelongsTo
+    {
+        return $this->belongsTo(OrderStatus::class);
+    }
+    
+    /**
+     * Get the order type for this order.
+     */
+    public function orderType(): BelongsTo
+    {
+        return $this->belongsTo(OrderType::class);
+    }
+    
+    /**
+     * Get the crop status for this order.
+     */
+    public function cropStatus(): BelongsTo
+    {
+        return $this->belongsTo(CropStatus::class);
+    }
+    
+    /**
+     * Get the fulfillment status for this order.
+     */
+    public function fulfillmentStatus(): BelongsTo
+    {
+        return $this->belongsTo(FulfillmentStatus::class);
     }
     
     /**
@@ -318,7 +377,7 @@ class Order extends Model
      */
     public function isB2BRecurringTemplate(): bool
     {
-        return $this->order_type === 'b2b' && 
+        return $this->orderType?->code === 'b2b' && 
                $this->is_recurring && 
                $this->parent_recurring_order_id === null;
     }
@@ -405,13 +464,19 @@ class Order extends Model
         $newOrder->harvest_date = $nextDate->copy();
         $newOrder->delivery_date = $nextDate->copy()->addDay(); // Delivery next day
         
-        // For B2B orders, keep the same order_type and billing_frequency
+        // For B2B orders, keep the same order_type_id and billing_frequency
         // but don't make the generated order recurring itself
         if ($this->isB2BRecurringTemplate()) {
             $newOrder->is_recurring = false;
-            $newOrder->status = 'pending';
+            $pendingStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
+            if ($pendingStatus) {
+                $newOrder->order_status_id = $pendingStatus->id;
+            }
         } else {
-            $newOrder->status = 'pending';
+            $pendingStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
+            if ($pendingStatus) {
+                $newOrder->order_status_id = $pendingStatus->id;
+            }
         }
         
         $newOrder->save();
@@ -517,12 +582,7 @@ class Order extends Model
      */
     public function getOrderTypeDisplayAttribute(): string
     {
-        return match($this->order_type) {
-            'farmers_market' => 'Farmer\'s Market',
-            'b2b' => 'B2B',
-            'website' => 'Website Order',
-            default => 'Website Order',
-        };
+        return $this->orderType?->name ?? 'Unknown';
     }
     
     /**
@@ -544,7 +604,7 @@ class Order extends Model
      */
     public function requiresImmediateInvoicing(): bool
     {
-        return $this->order_type === 'website' || 
+        return $this->orderType?->code === 'website' || 
                $this->billing_frequency === 'immediate';
     }
     
@@ -553,7 +613,7 @@ class Order extends Model
      */
     public function isConsolidatedBilling(): bool
     {
-        return $this->order_type === 'b2b' && 
+        return $this->orderType?->code === 'b2b' && 
                in_array($this->billing_frequency, ['weekly', 'monthly', 'quarterly']);
     }
     
@@ -562,7 +622,7 @@ class Order extends Model
      */
     public function shouldBypassInvoicing(): bool
     {
-        return $this->order_type === 'farmers_market' && !$this->requires_invoice;
+        return $this->orderType?->code === 'farmers_market' && !$this->requires_invoice;
     }
     
     /**
@@ -620,7 +680,8 @@ class Order extends Model
         $statuses = [];
         
         // Add order status
-        $statuses[] = match($this->status) {
+        $statusCode = $this->orderStatus?->code;
+        $statuses[] = match($statusCode) {
             'draft' => 'Draft',
             'pending' => 'Pending',
             'confirmed' => 'Confirmed',
@@ -628,32 +689,19 @@ class Order extends Model
             'completed' => 'Completed',
             'cancelled' => 'Cancelled',
             'template' => 'Template',
-            default => ucfirst($this->status)
+            default => $this->orderStatus?->name ?? 'Unknown'
         };
         
         // Add crop status if applicable
-        if ($this->crop_status !== 'na' && $this->crop_status !== 'not_started') {
-            $statuses[] = match($this->crop_status) {
-                'planted' => 'Planted',
-                'growing' => 'Growing',
-                'ready_to_harvest' => 'Ready to Harvest',
-                'harvested' => 'Harvested',
-                default => ucfirst($this->crop_status)
-            };
+        $cropStatusCode = $this->cropStatus?->code;
+        if ($cropStatusCode && $cropStatusCode !== 'na' && $cropStatusCode !== 'not_started') {
+            $statuses[] = $this->cropStatus->name;
         }
         
         // Add fulfillment status if not pending
-        if ($this->fulfillment_status !== 'pending') {
-            $statuses[] = match($this->fulfillment_status) {
-                'processing' => 'Processing',
-                'packing' => 'Packing',
-                'packed' => 'Packed',
-                'ready_for_delivery' => 'Ready for Delivery',
-                'out_for_delivery' => 'Out for Delivery',
-                'delivered' => 'Delivered',
-                'cancelled' => 'Cancelled',
-                default => ucfirst($this->fulfillment_status)
-            };
+        $fulfillmentStatusCode = $this->fulfillmentStatus?->code;
+        if ($fulfillmentStatusCode && $fulfillmentStatusCode !== 'pending') {
+            $statuses[] = $this->fulfillmentStatus->name;
         }
         
         return implode(' - ', array_unique($statuses));

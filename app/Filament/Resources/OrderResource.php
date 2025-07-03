@@ -8,6 +8,7 @@ use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
+use Carbon\Carbon;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
@@ -16,6 +17,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class OrderResource extends Resource
@@ -139,24 +141,41 @@ class OrderResource extends Resource
                                 return Customer::create($data)->getKey();
                             })
                             ->helperText('Select existing customer or create a new one'),
-                        Forms\Components\DatePicker::make('harvest_date')
-                            ->label('Harvest Date')
-                            ->helperText('When this order should be harvested (used by crop planner)')
-                            ->required(fn (Forms\Get $get) => !$get('is_recurring'))
-                            ->visible(fn (Forms\Get $get) => !$get('is_recurring')),
-                        Forms\Components\DatePicker::make('delivery_date')
+                        Forms\Components\DateTimePicker::make('delivery_date')
                             ->label('Delivery Date')
                             ->required()
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                                if ($state) {
+                                    try {
+                                        // Calculate harvest date as the evening before delivery date
+                                        $deliveryDateTime = Carbon::parse($state);
+                                        $harvestDateTime = $deliveryDateTime->copy()->subDay()->setTime(16, 0); // 4:00 PM day before
+                                        $set('harvest_date', $harvestDateTime->toDateTimeString());
+                                    } catch (\Exception $e) {
+                                        // If parsing fails, don't update harvest_date
+                                        \Log::error('Failed to parse delivery date: ' . $e->getMessage());
+                                    }
+                                }
+                            })
+                            ->helperText('Select the date and time for delivery - harvest date will be automatically set to 4:00 PM the day before')
                             ->visible(fn (Forms\Get $get) => !$get('is_recurring')),
-                        Forms\Components\Select::make('order_type')
+                        Forms\Components\DateTimePicker::make('harvest_date')
+                            ->label('Harvest Date')
+                            ->helperText('When this order should be harvested (automatically set to evening before delivery, but can be overridden)')
+                            ->required(fn (Forms\Get $get) => !$get('is_recurring'))
+                            ->visible(fn (Forms\Get $get) => !$get('is_recurring')),
+                        Forms\Components\Select::make('order_type_id')
                             ->label('Order Type')
-                            ->options([
-                                'website' => 'Website Order',
-                                'farmers_market' => 'Farmer\'s Market',
-                                'b2b' => 'B2B',
-                            ])
-                            ->default('website')
-                            ->required(),
+                            ->relationship('orderType', 'name')
+                            ->searchable()
+                            ->preload()
+                            ->required()
+                            ->default(function () {
+                                // Set default to 'website' order type
+                                $websiteType = \App\Models\OrderType::where('code', 'website')->first();
+                                return $websiteType?->id;
+                            }),
                     ])
                     ->columns(2),
                 
@@ -243,97 +262,79 @@ class OrderResource extends Resource
                 Tables\Columns\TextColumn::make('order_type_display')
                     ->label('Type')
                     ->badge()
-                    ->color(fn (Order $record): string => match ($record->order_type) {
+                    ->color(fn (Order $record): string => match ($record->orderType?->code) {
                         'website' => 'success',
                         'farmers_market' => 'warning',
                         'b2b' => 'info',
                         default => 'gray',
                     }),
-                Tables\Columns\SelectColumn::make('status')
+                Tables\Columns\SelectColumn::make('order_status_id')
                     ->label('Order Status')
-                    ->options([
-                        'draft' => 'Draft',
-                        'pending' => 'Pending',
-                        'confirmed' => 'Confirmed',
-                        'processing' => 'Processing',
-                        'completed' => 'Completed',
-                        'cancelled' => 'Cancelled',
-                        'template' => 'Template',
-                    ])
-                    ->disabled(fn (Order $record): bool => $record->status === 'template')
+                    ->options(\App\Models\OrderStatus::options())
+                    ->disabled(fn (Order $record): bool => $record->orderStatus?->code === 'template')
                     ->selectablePlaceholder(false)
                     ->afterStateUpdated(function (Order $record, $state) {
                         // Log the status change
+                        $oldStatus = $record->orderStatus?->name ?? 'Unknown';
+                        $newStatus = \App\Models\OrderStatus::find($state)?->name ?? 'Unknown';
                         activity()
                             ->performedOn($record)
                             ->withProperties([
-                                'old_status' => $record->getOriginal('status'),
-                                'new_status' => $state,
+                                'old_status' => $oldStatus,
+                                'new_status' => $newStatus,
                                 'changed_by' => auth()->user()->name ?? 'System'
                             ])
                             ->log('Order status changed');
                             
                         Notification::make()
                             ->title('Order Status Updated')
-                            ->body("Order #{$record->id} status changed to: " . ucfirst($state))
+                            ->body("Order #{$record->id} status changed to: {$newStatus}")
                             ->success()
                             ->send();
                     }),
-                Tables\Columns\SelectColumn::make('crop_status')
+                Tables\Columns\SelectColumn::make('crop_status_id')
                     ->label('Crop Status')
-                    ->options([
-                        'not_started' => 'Not Started',
-                        'planted' => 'Planted',
-                        'growing' => 'Growing',
-                        'ready_to_harvest' => 'Ready to Harvest',
-                        'harvested' => 'Harvested',
-                        'na' => 'N/A',
-                    ])
-                    ->disabled(fn (Order $record): bool => $record->crop_status === 'na')
+                    ->options(\App\Models\CropStatus::options())
+                    ->disabled(fn (Order $record): bool => $record->cropStatus?->code === 'na')
                     ->selectablePlaceholder(false)
                     ->afterStateUpdated(function (Order $record, $state) {
+                        $oldStatus = $record->cropStatus?->name ?? 'Unknown';
+                        $newStatus = \App\Models\CropStatus::find($state)?->name ?? 'Unknown';
                         activity()
                             ->performedOn($record)
                             ->withProperties([
-                                'old_status' => $record->getOriginal('crop_status'),
-                                'new_status' => $state,
+                                'old_status' => $oldStatus,
+                                'new_status' => $newStatus,
                                 'changed_by' => auth()->user()->name ?? 'System'
                             ])
                             ->log('Crop status changed');
                             
                         Notification::make()
                             ->title('Crop Status Updated')
-                            ->body("Order #{$record->id} crop status changed to: " . str_replace('_', ' ', ucfirst($state)))
+                            ->body("Order #{$record->id} crop status changed to: {$newStatus}")
                             ->success()
                             ->send();
                     })
                     ->toggleable(),
-                Tables\Columns\SelectColumn::make('fulfillment_status')
+                Tables\Columns\SelectColumn::make('fulfillment_status_id')
                     ->label('Fulfillment')
-                    ->options([
-                        'pending' => 'Pending',
-                        'processing' => 'Processing',
-                        'packing' => 'Packing',
-                        'packed' => 'Packed',
-                        'ready_for_delivery' => 'Ready for Delivery',
-                        'out_for_delivery' => 'Out for Delivery',
-                        'delivered' => 'Delivered',
-                        'cancelled' => 'Cancelled',
-                    ])
+                    ->options(\App\Models\FulfillmentStatus::options())
                     ->selectablePlaceholder(false)
                     ->afterStateUpdated(function (Order $record, $state) {
+                        $oldStatus = $record->fulfillmentStatus?->name ?? 'Unknown';
+                        $newStatus = \App\Models\FulfillmentStatus::find($state)?->name ?? 'Unknown';
                         activity()
                             ->performedOn($record)
                             ->withProperties([
-                                'old_status' => $record->getOriginal('fulfillment_status'),
-                                'new_status' => $state,
+                                'old_status' => $oldStatus,
+                                'new_status' => $newStatus,
                                 'changed_by' => auth()->user()->name ?? 'System'
                             ])
                             ->log('Fulfillment status changed');
                             
                         Notification::make()
                             ->title('Fulfillment Status Updated')
-                            ->body("Order #{$record->id} fulfillment status changed to: " . str_replace('_', ' ', ucfirst($state)))
+                            ->body("Order #{$record->id} fulfillment status changed to: {$newStatus}")
                             ->success()
                             ->send();
                     })
@@ -348,10 +349,10 @@ class OrderResource extends Resource
                     ->money('USD')
                     ->getStateUsing(fn (Order $record) => $record->totalAmount()),
                 Tables\Columns\TextColumn::make('harvest_date')
-                    ->date()
+                    ->dateTime()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('delivery_date')
-                    ->date()
+                    ->dateTime()
                     ->sortable(),
                 Tables\Columns\IconColumn::make('isPaid')
                     ->label('Paid')
@@ -365,39 +366,21 @@ class OrderResource extends Resource
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                Tables\Filters\SelectFilter::make('order_status_id')
                     ->label('Order Status')
-                    ->options([
-                        'draft' => 'Draft',
-                        'pending' => 'Pending',
-                        'confirmed' => 'Confirmed',
-                        'processing' => 'Processing',
-                        'completed' => 'Completed',
-                        'cancelled' => 'Cancelled',
-                        'template' => 'Template',
-                    ]),
-                Tables\Filters\SelectFilter::make('crop_status')
+                    ->relationship('orderStatus', 'name')
+                    ->searchable()
+                    ->preload(),
+                Tables\Filters\SelectFilter::make('crop_status_id')
                     ->label('Crop Status')
-                    ->options([
-                        'not_started' => 'Not Started',
-                        'planted' => 'Planted',
-                        'growing' => 'Growing',
-                        'ready_to_harvest' => 'Ready to Harvest',
-                        'harvested' => 'Harvested',
-                        'na' => 'N/A',
-                    ]),
-                Tables\Filters\SelectFilter::make('fulfillment_status')
+                    ->relationship('cropStatus', 'name')
+                    ->searchable()
+                    ->preload(),
+                Tables\Filters\SelectFilter::make('fulfillment_status_id')
                     ->label('Fulfillment Status')
-                    ->options([
-                        'pending' => 'Pending',
-                        'processing' => 'Processing',
-                        'packing' => 'Packing',
-                        'packed' => 'Packed',
-                        'ready_for_delivery' => 'Ready for Delivery',
-                        'out_for_delivery' => 'Out for Delivery',
-                        'delivered' => 'Delivered',
-                        'cancelled' => 'Cancelled',
-                    ]),
+                    ->relationship('fulfillmentStatus', 'name')
+                    ->searchable()
+                    ->preload(),
                 Tables\Filters\TernaryFilter::make('parent_recurring_order_id')
                     ->label('Order Source')
                     ->nullable()
@@ -432,7 +415,7 @@ class OrderResource extends Resource
                     ->icon('heroicon-o-plus-circle')
                     ->color('success')
                     ->visible(fn (Order $record): bool => 
-                        $record->status === 'template' && 
+                        $record->orderStatus?->code === 'template' && 
                         $record->is_recurring
                     )
                     ->requiresConfirmation()
@@ -477,8 +460,8 @@ class OrderResource extends Resource
                     ->icon('heroicon-o-calculator')
                     ->color('info')
                     ->visible(fn (Order $record): bool => 
-                        $record->status !== 'template' && 
-                        $record->status !== 'cancelled' &&
+                        $record->orderStatus?->code !== 'template' && 
+                        $record->orderStatus?->code !== 'cancelled' &&
                         $record->customer->isWholesaleCustomer() &&
                         $record->orderItems->isNotEmpty()
                     )
@@ -543,7 +526,7 @@ class OrderResource extends Resource
                     ->icon('heroicon-o-document-text')
                     ->color('warning')
                     ->visible(fn (Order $record): bool => 
-                        $record->status !== 'template' && 
+                        $record->orderStatus?->code !== 'template' && 
                         $record->requires_invoice &&
                         !$record->invoice // Only show if no invoice exists yet
                     )

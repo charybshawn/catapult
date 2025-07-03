@@ -18,12 +18,13 @@ class SeedPriceHistory extends Model
         'price', 
         'currency',
         'is_in_stock', 
-        'scraped_at'
+        'checked_at'
     ];
     
     protected $casts = [
         'price' => 'decimal:2',
         'is_in_stock' => 'boolean',
+        'checked_at' => 'datetime',
         'scraped_at' => 'datetime',
     ];
     

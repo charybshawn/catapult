@@ -140,7 +140,7 @@ class TestSeedJsonStructure extends Command
         $this->info('Creating test upload record...');
         
         $upload = SeedScrapeUpload::create([
-            'original_filename' => basename($filePath),
+            'filename' => basename($filePath),
             'status' => SeedScrapeUpload::STATUS_PENDING,
             'uploaded_at' => now(),
         ]);

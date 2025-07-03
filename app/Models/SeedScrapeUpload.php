@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SeedScrapeUpload extends Model
 {
@@ -16,7 +17,7 @@ class SeedScrapeUpload extends Model
     public const STATUS_ERROR = 'error';
 
     protected $fillable = [
-        'original_filename', 
+        'filename', 
         'supplier_id',
         'uploaded_by',
         'status', 
@@ -36,4 +37,20 @@ class SeedScrapeUpload extends Model
         'processed_at' => 'datetime',
         'failed_entries' => 'array',
     ];
+    
+    /**
+     * Get the supplier that this upload is associated with
+     */
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
+    }
+    
+    /**
+     * Get the user who uploaded this file
+     */
+    public function uploadedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'uploaded_by');
+    }
 }

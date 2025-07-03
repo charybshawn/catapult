@@ -113,12 +113,16 @@ class Dashboard extends BaseDashboard
     
     protected function getActiveCropsCount(): int
     {
-        return Crop::whereNotIn('current_stage', ['harvested'])->count();
+        return Crop::whereHas('currentStage', function($query) {
+            $query->where('code', '!=', 'harvested');
+        })->count();
     }
     
     protected function getActiveTraysCount(): int
     {
-        return Crop::whereNotIn('current_stage', ['harvested'])->distinct('tray_number')->count();
+        return Crop::whereHas('currentStage', function($query) {
+            $query->where('code', '!=', 'harvested');
+        })->distinct('tray_number')->count();
     }
     
     protected function getTasksCount(): int
@@ -141,7 +145,9 @@ class Dashboard extends BaseDashboard
     
     protected function getCropsNeedingHarvest()
     {
-        return Crop::where('current_stage', 'light')
+        return Crop::whereHas('currentStage', function($query) {
+                $query->where('code', 'light');
+            })
             ->where('light_at', '<', now()->subDays(7)) // Example logic
             ->with(['recipe.seedEntry'])
             ->take(5)
@@ -150,7 +156,9 @@ class Dashboard extends BaseDashboard
     
     protected function getRecentlySowedCrops()
     {
-        return Crop::where('current_stage', 'planting')
+        return Crop::whereHas('currentStage', function($query) {
+                $query->where('code', 'planting');
+            })
             ->orderBy('planting_at', 'desc')
             ->with(['recipe.seedEntry'])
             ->take(5)
@@ -310,7 +318,7 @@ class Dashboard extends BaseDashboard
             if ($crop) {
                 $batchCount = Crop::where('recipe_id', $crop->recipe_id)
                     ->where('planting_at', $crop->planting_at)
-                    ->where('current_stage', $crop->current_stage)
+                    ->where('current_stage_id', $crop->current_stage_id)
                     ->count();
                     
                 return "{$batchCount} trays";
@@ -332,9 +340,9 @@ class Dashboard extends BaseDashboard
         $crops = Crop::with(['recipe.seedEntry'])->whereIn('id', $cropIds)->get()->keyBy('id');
         
         // Pre-load all batch crops to avoid N+1 queries
-        $allCrops = Crop::with(['recipe.seedEntry'])->get()->groupBy(function($crop) {
+        $allCrops = Crop::with(['recipe.seedEntry', 'currentStage'])->get()->groupBy(function($crop) {
             $plantedAt = $crop->planting_at ? $crop->planting_at->format('Y-m-d') : 'unknown';
-            return "{$crop->recipe_id}|{$plantedAt}|{$crop->current_stage}";
+            return "{$crop->recipe_id}|{$plantedAt}|{$crop->currentStage?->code}";
         });
         
         foreach ($alerts as $alert) {
@@ -351,7 +359,7 @@ class Dashboard extends BaseDashboard
                 ?? $crop->recipe?->name 
                 ?? 'Unknown';
             $plantedAt = $crop->planting_at ? $crop->planting_at->format('Y-m-d') : 'unknown';
-            $currentStage = $crop->current_stage;
+            $currentStage = $crop->currentStage?->code ?? 'unknown';
             $targetStage = $alert->conditions['target_stage'] ?? 'unknown';
             $taskName = $alert->task_name;
             
@@ -359,7 +367,7 @@ class Dashboard extends BaseDashboard
             
             if (!isset($groupedAlerts[$batchKey])) {
                 // Get all crops in this batch from pre-loaded data
-                $batchKey2 = "{$crop->recipe_id}|{$plantedAt}|{$crop->current_stage}";
+                $batchKey2 = "{$crop->recipe_id}|{$plantedAt}|{$crop->currentStage?->code}";
                 $batchCrops = $allCrops->get($batchKey2, collect());
                 
                 // Get all tray numbers for this batch
@@ -429,10 +437,14 @@ class Dashboard extends BaseDashboard
      */
     protected function getCropsByStage(): array
     {
-        $crops = Crop::whereNotIn('current_stage', ['harvested'])
-            ->with(['recipe.seedEntry'])
+        $crops = Crop::whereHas('currentStage', function($query) {
+                $query->where('code', '!=', 'harvested');
+            })
+            ->with(['recipe.seedEntry', 'currentStage'])
             ->get()
-            ->groupBy('current_stage');
+            ->groupBy(function($crop) {
+                return $crop->currentStage?->code ?? 'unknown';
+            });
             
         $stageData = [];
         foreach (['planting', 'germination', 'blackout', 'light'] as $stage) {
@@ -454,7 +466,9 @@ class Dashboard extends BaseDashboard
      */
     protected function getSeedInventoryAlerts()
     {
-        return Consumable::where('type', 'seed')
+        return Consumable::whereHas('consumableType', function($query) {
+                $query->where('code', 'seed');
+            })
             ->where(function ($query) {
                 $query->whereRaw('total_quantity <= restock_threshold')
                       ->orWhereRaw('(initial_stock - consumed_quantity) <= restock_threshold');
@@ -470,7 +484,9 @@ class Dashboard extends BaseDashboard
      */
     protected function getPackagingAlerts()
     {
-        return Consumable::where('type', 'packaging')
+        return Consumable::whereHas('consumableType', function($query) {
+                $query->where('code', 'packaging');
+            })
             ->whereRaw('(initial_stock - consumed_quantity) <= restock_threshold')
             ->with(['packagingType'])
             ->orderByRaw('(initial_stock - consumed_quantity) ASC')
@@ -485,7 +501,9 @@ class Dashboard extends BaseDashboard
     {
         $nextWeek = now()->addDays(7);
         
-        return Crop::where('current_stage', 'light')
+        return Crop::whereHas('currentStage', function($query) {
+                $query->where('code', 'light');
+            })
             ->with(['recipe.seedEntry', 'order'])
             ->get()
             ->filter(function ($crop) use ($nextWeek) {
@@ -506,7 +524,9 @@ class Dashboard extends BaseDashboard
         $estimates = [];
         
         // Get active crops grouped by variety
-        $cropsByVariety = Crop::whereNotIn('current_stage', ['harvested'])
+        $cropsByVariety = Crop::whereHas('currentStage', function($query) {
+                $query->where('code', '!=', 'harvested');
+            })
             ->with(['recipe.seedEntry'])
             ->get()
             ->groupBy(function ($crop) {
@@ -525,7 +545,7 @@ class Dashboard extends BaseDashboard
             $totalEstimatedYield = $totalTrays * $avgYieldPerTray;
             
             $readyToHarvestCount = $crops->filter(function ($crop) {
-                return $crop->current_stage === 'light' && 
+                return $crop->currentStage?->code === 'light' && 
                        str_contains($crop->timeToNextStage() ?? '', 'Ready to advance');
             })->count();
             
@@ -552,7 +572,9 @@ class Dashboard extends BaseDashboard
     protected function getHistoricalYieldForVariety(string $varietyName): ?array
     {
         // Get harvested crops for this variety with yield data
-        $harvestedCrops = Crop::where('current_stage', 'harvested')
+        $harvestedCrops = Crop::whereHas('currentStage', function($query) {
+                $query->where('code', 'harvested');
+            })
             ->whereNotNull('harvest_weight_grams')
             ->where('harvest_weight_grams', '>', 0)
             ->whereHas('recipe.seedEntry', function ($query) use ($varietyName) {
@@ -641,7 +663,9 @@ class Dashboard extends BaseDashboard
         
         for ($i = 0; $i < 7; $i++) {
             $date = now()->addDays($i);
-            $harvests = Crop::where('current_stage', 'light')
+            $harvests = Crop::whereHas('currentStage', function($query) {
+                    $query->where('code', 'light');
+                })
                 ->with(['recipe.seedEntry'])
                 ->get()
                 ->filter(function ($crop) use ($date) {
@@ -839,7 +863,9 @@ class Dashboard extends BaseDashboard
     protected function getUrgentCropPlans()
     {
         return CropPlan::with(['recipe.seedEntry', 'order.customer'])
-            ->where('status', 'approved')
+            ->whereHas('status', function($query) {
+                $query->where('code', 'active');
+            })
             ->where('plant_by_date', '<=', now()->addDays(7))
             ->where('plant_by_date', '>=', now())
             ->orderBy('plant_by_date', 'asc')
@@ -855,7 +881,9 @@ class Dashboard extends BaseDashboard
     protected function getOverdueCropPlans()
     {
         return CropPlan::with(['recipe.seedEntry', 'order.customer'])
-            ->where('status', 'approved')
+            ->whereHas('status', function($query) {
+                $query->where('code', 'active');
+            })
             ->where('plant_by_date', '<', now())
             ->orderBy('plant_by_date', 'asc')
             ->get();
@@ -867,8 +895,12 @@ class Dashboard extends BaseDashboard
     protected function getUpcomingOrdersNeedingPlans()
     {
         return Order::with(['customer', 'orderItems.product', 'cropPlans'])
-            ->whereIn('status', ['pending', 'confirmed', 'processing'])
-            ->where('status', '!=', 'template') // Exclude recurring order templates
+            ->whereHas('orderStatus', function($query) {
+                $query->whereIn('code', ['pending', 'confirmed', 'processing']);
+            })
+            ->whereDoesntHave('orderStatus', function($query) {
+                $query->where('code', 'template');
+            })
             ->whereNotNull('delivery_date') // Ensure there's a delivery date
             ->where('delivery_date', '>=', now())
             ->where('delivery_date', '<=', now()->addDays(14))
@@ -889,7 +921,9 @@ class Dashboard extends BaseDashboard
         
         // Add order delivery dates
         $orders = Order::with(['customer'])
-            ->whereIn('status', ['pending', 'confirmed', 'processing'])
+            ->whereHas('orderStatus', function($query) {
+                $query->whereIn('code', ['pending', 'confirmed', 'processing']);
+            })
             ->where('delivery_date', '>=', now()->subDays(30))
             ->where('delivery_date', '<=', now()->addDays(60))
             ->get();
@@ -919,9 +953,9 @@ class Dashboard extends BaseDashboard
             ->get();
             
         foreach ($cropPlans as $plan) {
-            $color = match($plan->status) {
+            $color = match($plan->status?->code) {
                 'draft' => '#6b7280', // gray
-                'approved' => '#3b82f6', // blue
+                'active' => '#3b82f6', // blue
                 'completed' => '#10b981', // green
                 'overdue' => '#ef4444', // red
                 default => '#6b7280',
@@ -939,7 +973,7 @@ class Dashboard extends BaseDashboard
                     'planId' => $plan->id,
                     'variety' => $plan->recipe->seedEntry->common_name,
                     'trays' => $plan->trays_needed,
-                    'status' => $plan->status,
+                    'status' => $plan->status?->code,
                 ],
             ];
         }
@@ -1062,11 +1096,16 @@ class Dashboard extends BaseDashboard
                     }
                     
                     // Update crop stage and timestamp
-                    $crop->update([
-                        'current_stage' => $previousStage,
-                        'stage_updated_at' => now(),
-                        "{$previousStage}_at" => now(),
-                    ]);
+                    $previousStageRecord = \App\Models\CropStage::where('code', $previousStage)->first();
+                    if ($previousStageRecord) {
+                        $crop->update([
+                            'current_stage_id' => $previousStageRecord->id,
+                            'stage_updated_at' => now(),
+                            "{$previousStage}_at" => now(),
+                        ]);
+                    } else {
+                        throw new \Exception('Previous stage not found');
+                    }
                     
                     // Reschedule the alert
                     $alert->update([

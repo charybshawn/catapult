@@ -27,7 +27,7 @@ class SeedScrapeUploadResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('original_filename')
+                Forms\Components\TextInput::make('filename')
                     ->label('Filename')
                     ->required()
                     ->maxLength(255)
@@ -58,7 +58,7 @@ class SeedScrapeUploadResource extends Resource
             ->persistSortInSession()
             ->persistColumnSearchesInSession()
             ->persistSearchInSession()            ->columns([
-                Tables\Columns\TextColumn::make('original_filename')
+                Tables\Columns\TextColumn::make('filename')
                     ->label('Filename')
                     ->searchable()
                     ->sortable(),

@@ -37,7 +37,7 @@ class SeedScrapeImporter
             $failedEntries = [];
             
             Log::info('Beginning seed data import', [
-                'file' => $scrapeUpload->original_filename,
+                'file' => $scrapeUpload->filename,
                 'product_count' => $totalEntries
             ]);
             
@@ -148,7 +148,7 @@ class SeedScrapeImporter
             ]);
             
             Log::info('Seed data import completed', [
-                'file' => $scrapeUpload->original_filename,
+                'file' => $scrapeUpload->filename,
                 'successful' => $successfulEntries,
                 'failed' => count($failedEntries),
                 'status' => $finalStatus
@@ -156,7 +156,7 @@ class SeedScrapeImporter
             
         } catch (Exception $e) {
             Log::error('Error importing seed data', [
-                'file' => $scrapeUpload->original_filename,
+                'file' => $scrapeUpload->filename,
                 'error' => $e->getMessage()
             ]);
             
@@ -198,7 +198,7 @@ class SeedScrapeImporter
             $failedEntries = [];
             
             Log::info('Beginning seed data import with pre-selected supplier', [
-                'file' => $scrapeUpload->original_filename,
+                'file' => $scrapeUpload->filename,
                 'supplier' => $supplier->name,
                 'supplier_id' => $supplier->id,
                 'product_count' => $totalEntries
@@ -217,7 +217,7 @@ class SeedScrapeImporter
                     $supplier->id,
                     [
                         'import_method' => 'pre_selected',
-                        'import_file' => $scrapeUpload->original_filename,
+                        'import_file' => $scrapeUpload->filename,
                         'created_at' => now()->toISOString()
                     ]
                 );
@@ -282,7 +282,7 @@ class SeedScrapeImporter
             ]);
             
             Log::info('Seed data import completed with pre-selected supplier', [
-                'file' => $scrapeUpload->original_filename,
+                'file' => $scrapeUpload->filename,
                 'supplier' => $supplier->name,
                 'successful' => $successfulEntries,
                 'failed' => count($failedEntries),
@@ -291,7 +291,7 @@ class SeedScrapeImporter
             
         } catch (Exception $e) {
             Log::error('Error importing seed data with pre-selected supplier', [
-                'file' => $scrapeUpload->original_filename,
+                'file' => $scrapeUpload->filename,
                 'supplier' => $supplier->name ?? 'Unknown',
                 'error' => $e->getMessage()
             ]);
@@ -491,7 +491,7 @@ class SeedScrapeImporter
         
         // Check if this is a new variation
         $exists = SeedVariation::where('seed_entry_id', $seedEntry->id)
-            ->where('size_description', $sizeDescription)
+            ->where('size', $sizeDescription)
             ->exists();
         $isNewVariation = !$exists;
         
@@ -527,7 +527,7 @@ class SeedScrapeImporter
         
         // Find existing variation with same entry and size description
         $variation = SeedVariation::where('seed_entry_id', $seedEntry->id)
-            ->where('size_description', $sizeDescription)
+            ->where('size', $sizeDescription)
             ->first();
             
         if ($variation) {
@@ -577,14 +577,15 @@ class SeedScrapeImporter
             // Create new variation
             $variation = SeedVariation::create([
                 'seed_entry_id' => $seedEntry->id,
-                'size_description' => $sizeDescription,
+                'size' => $sizeDescription,
                 'sku' => $variantData['sku'] ?? null,
                 'weight_kg' => $weightData['weight_kg'],
                 'original_weight_value' => $weightData['original_weight_value'],
                 'original_weight_unit' => $weightData['original_weight_unit'],
+                'unit' => $weightData['original_weight_unit'] ?? 'grams',
                 'current_price' => $price, // Allow null for out-of-stock items
                 'currency' => $currency,
-                'is_in_stock' => $isInStock,
+                'is_available' => $isInStock,
                 'last_checked_at' => now(),
             ]);
             
@@ -607,7 +608,7 @@ class SeedScrapeImporter
                 'price' => $price ?? $variation->current_price,
                 'currency' => $currency,
                 'is_in_stock' => $isInStock,
-                'scraped_at' => Carbon::parse($timestamp),
+                'checked_at' => Carbon::parse($timestamp),
             ]);
             
             Log::info('Created price history record', [
