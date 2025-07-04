@@ -827,19 +827,61 @@ class ConsumableResource extends BaseResource
                 return $query->orderByRaw('(initial_stock - consumed_quantity) ASC');
             })
             ->filters([
-                Tables\Filters\SelectFilter::make('consumable_type_id')
-                    ->label('Type')
-                    ->options(ConsumableType::active()->pluck('name', 'id')),
+                // Colorful type filter buttons
+                Tables\Filters\Filter::make('seeds')
+                    ->label('🌱 Seeds')
+                    ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'seed')))
+                    ->toggle()
+                    ->indicateUsing(fn (array $data) => $data['seeds'] ? '🌱 Seeds' : null),
+                    
+                Tables\Filters\Filter::make('soil')
+                    ->label('🌍 Soil & Growing Media')
+                    ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'soil')))
+                    ->toggle()
+                    ->indicateUsing(fn (array $data) => $data['soil'] ? '🌍 Soil & Growing Media' : null),
+                    
+                Tables\Filters\Filter::make('packaging')
+                    ->label('📦 Packaging')
+                    ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'packaging')))
+                    ->toggle()
+                    ->indicateUsing(fn (array $data) => $data['packaging'] ? '📦 Packaging' : null),
+                    
+                Tables\Filters\Filter::make('labels')
+                    ->label('🏷️ Labels')
+                    ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'label')))
+                    ->toggle()
+                    ->indicateUsing(fn (array $data) => $data['labels'] ? '🏷️ Labels' : null),
+                    
+                Tables\Filters\Filter::make('other')
+                    ->label('⚡ Other')
+                    ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'other')))
+                    ->toggle()
+                    ->indicateUsing(fn (array $data) => $data['other'] ? '⚡ Other' : null),
+                    
+                // Status filters with icons
                 Tables\Filters\Filter::make('needs_restock')
-                    ->label('Needs Restock')
-                    ->query(fn (Builder $query) => $query->whereRaw('initial_stock - consumed_quantity <= restock_threshold')),
+                    ->label('⚠️ Needs Restock')
+                    ->query(fn (Builder $query) => $query->whereRaw('(total_quantity - consumed_quantity) <= restock_threshold'))
+                    ->toggle()
+                    ->indicateUsing(fn (array $data) => $data['needs_restock'] ? '⚠️ Needs Restock' : null),
+                    
                 Tables\Filters\Filter::make('out_of_stock')
-                    ->label('Out of Stock')
-                    ->query(fn (Builder $query) => $query->whereRaw('initial_stock <= consumed_quantity')),
+                    ->label('🚫 Out of Stock')
+                    ->query(fn (Builder $query) => $query->whereRaw('(total_quantity - consumed_quantity) <= 0'))
+                    ->toggle()
+                    ->indicateUsing(fn (array $data) => $data['out_of_stock'] ? '🚫 Out of Stock' : null),
+                    
+                Tables\Filters\Filter::make('low_stock')
+                    ->label('📉 Low Stock')
+                    ->query(fn (Builder $query) => $query->whereRaw('(total_quantity - consumed_quantity) > 0 AND (total_quantity - consumed_quantity) <= restock_threshold'))
+                    ->toggle()
+                    ->indicateUsing(fn (array $data) => $data['low_stock'] ? '📉 Low Stock' : null),
+                    
                 Tables\Filters\Filter::make('inactive')
-                    ->label('Inactive')
-                    ->query(fn (Builder $query) => $query->where('is_active', false)),
-                // Seed cultivar filter removed - seed consumables now linked through SeedVariation
+                    ->label('💤 Inactive')
+                    ->query(fn (Builder $query) => $query->where('is_active', false))
+                    ->toggle()
+                    ->indicateUsing(fn (array $data) => $data['inactive'] ? '💤 Inactive' : null),
             ])
             ->groups([
                 Tables\Grouping\Group::make('name')

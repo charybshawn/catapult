@@ -17,14 +17,19 @@ class RecipesTableSeeder extends Seeder
         DB::table('recipes')->truncate();
         DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
+        // Get consumables by name/type to avoid hardcoded IDs
+        $sunflowerConsumable = DB::table('consumables')->where('name', 'like', '%Sunflower%')->first();
+        $basilConsumable = DB::table('consumables')->where('name', 'like', '%Basil (Genovese)%')->first();
+        $soilConsumable = DB::table('consumables')->where('type', 'soil')->first(); // If soil consumables exist
+
         // Insert data
         DB::table('recipes')->insert([
             [
                 'id' => 1,
                 'name' => 'SUNFLOWER - BLACK OIL - SF4K - 100G',
                 'supplier_soil_id' => null,
-                'soil_consumable_id' => 2,
-                'seed_consumable_id' => 1,
+                'soil_consumable_id' => $soilConsumable ? $soilConsumable->id : null,
+                'seed_consumable_id' => $sunflowerConsumable ? $sunflowerConsumable->id : null,
                 'seed_density' => 1, // Default density
                 'seed_soak_hours' => 9,
                 'germination_days' => 3,
@@ -48,8 +53,8 @@ class RecipesTableSeeder extends Seeder
                 'id' => 2,
                 'name' => 'SUNFLOWER  - BLACK OIL - SFK16 - 100 GRAMS',
                 'supplier_soil_id' => null,
-                'soil_consumable_id' => 2,
-                'seed_consumable_id' => 3,
+                'soil_consumable_id' => $soilConsumable ? $soilConsumable->id : null,
+                'seed_consumable_id' => $sunflowerConsumable ? $sunflowerConsumable->id : null,
                 'seed_density' => 1, // Default density
                 'seed_soak_hours' => 4,
                 'germination_days' => 3,
@@ -73,8 +78,8 @@ class RecipesTableSeeder extends Seeder
                 'id' => 3,
                 'name' => 'BASIL (GENOVESE) - BAS8Y - 5G -21 DAY',
                 'supplier_soil_id' => null,
-                'soil_consumable_id' => 2,
-                'seed_consumable_id' => 9,
+                'soil_consumable_id' => $soilConsumable ? $soilConsumable->id : null,
+                'seed_consumable_id' => $basilConsumable ? $basilConsumable->id : null,
                 'seed_density' => 1, // Default density
                 'seed_soak_hours' => 0,
                 'germination_days' => 4,

@@ -62,6 +62,9 @@ class CurrentSeedConsumableDataSeeder extends Seeder
                 // Find the matching master seed catalog
                 $masterSeedCatalog = \App\Models\MasterSeedCatalog::where('common_name', $commonName)->first();
                 
+                // Get the Seeds consumable type
+                $seedsType = \App\Models\ConsumableType::where('name', 'Seeds')->first();
+                
                 // Create or update the consumable - independent of seed entries
                 $consumable = Consumable::updateOrCreate(
                     [
@@ -70,7 +73,7 @@ class CurrentSeedConsumableDataSeeder extends Seeder
                         'lot_no' => $data['lot'] ?? null,
                     ],
                     [
-                        'consumable_type_id' => 3, // Seeds type
+                        'consumable_type_id' => $seedsType ? $seedsType->id : null,
                         'master_seed_catalog_id' => $masterSeedCatalog ? $masterSeedCatalog->id : null,
                         'cultivar' => $cultivarName,
                         'seed_entry_id' => null, // Independent of scraped data

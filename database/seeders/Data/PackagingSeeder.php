@@ -71,11 +71,14 @@ class PackagingSeeder extends Seeder
         foreach ($clamshells as $clamshell) {
             $packagingType = PackagingType::create($clamshell);
 
+            // Get the Packaging consumable type
+            $packagingConsumableType = \App\Models\ConsumableType::where('name', 'Packaging')->first();
+            
             // Create a consumable entry for each packaging type
             \App\Models\Consumable::create([
                 'name' => $packagingType->name,
                 'type' => 'packaging',
-                'consumable_type_id' => 1, // Packaging type
+                'consumable_type_id' => $packagingConsumableType ? $packagingConsumableType->id : null,
                 'supplier_id' => $supplier->id,
                 'packaging_type_id' => $packagingType->id,
                 'initial_stock' => 100,
