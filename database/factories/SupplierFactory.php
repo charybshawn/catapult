@@ -25,12 +25,18 @@ class SupplierFactory extends Factory
      */
     public function definition(): array
     {
-        $typeCodes = ['soil', 'seed', 'consumable'];
-        $randomTypeCode = fake()->randomElement($typeCodes);
+        // Try to get an existing supplier type, or create one
+        $supplierType = SupplierType::inRandomOrder()->first();
+        if (!$supplierType) {
+            $supplierType = SupplierType::firstOrCreate(
+                ['code' => 'general'],
+                ['name' => 'General Supplier', 'is_active' => true]
+            );
+        }
         
         return [
             'name' => fake()->company(),
-            'supplier_type_id' => SupplierType::findByCode($randomTypeCode)?->id ?? SupplierType::findByCode('other')?->id,
+            'supplier_type_id' => $supplierType->id,
             'contact_name' => fake()->name(),
             'contact_email' => fake()->safeEmail(),
             'contact_phone' => fake()->phoneNumber(),

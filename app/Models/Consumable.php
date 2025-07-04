@@ -26,7 +26,7 @@ class Consumable extends Model
      */
     protected $fillable = [
         'name',
-        'type', // Type of consumable (seed, soil, packaging, etc.)
+        // 'type', // REMOVED: Legacy field, use consumable_type_id relationship instead
         'consumable_type_id',
         'supplier_id',
         'packaging_type_id', // For packaging consumables only
@@ -43,7 +43,7 @@ class Consumable extends Model
         'cost_per_unit',
         'quantity_per_unit', // Weight of each unit
         'quantity_unit', // Unit of measurement (g, kg, l, oz)
-        'unit', // Unit type (unit, package, etc.)
+        // 'unit', // DEPRECATED: Legacy enum field, use consumable_unit_id instead
         'total_quantity',
         'notes',
         'lot_no',
@@ -87,13 +87,41 @@ class Consumable extends Model
     }
     
     /**
+     * DEPRECATED: Set the type and automatically map to consumable_type_id.
+     * This mutator is disabled to prevent setting the legacy enum field.
+     */
+    public function setTypeAttribute($value)
+    {
+        // DO NOT set the legacy type field anymore - it causes wrong defaults
+        // The type should come from the consumableType relationship
+        \Illuminate\Support\Facades\Log::warning('Attempted to set legacy type field on Consumable', [
+            'value' => $value,
+            'consumable_id' => $this->id ?? 'new',
+            'backtrace' => debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3)
+        ]);
+    }
+    
+    /**
+     * Get the type from the consumable_type relationship.
+     * No fallback to legacy field - fails fast if relationship is missing.
+     */
+    public function getTypeAttribute($value)
+    {
+        if (!$this->consumableType) {
+            throw new \RuntimeException("Consumable {$this->id} is missing consumable_type_id relationship. This must be fixed in the database.");
+        }
+        
+        return $this->consumableType->code;
+    }
+    
+    /**
      * The "booted" method of the model.
      */
     protected static function booted(): void
     {
         static::saving(function (Consumable $consumable) {
             // For seeds, we now use total_quantity directly (no calculation needed)
-            if ($consumable->type === 'seed') {
+            if ($consumable->consumableType && $consumable->consumableType->code === 'seed') {
                 // The total_quantity field is now managed directly by the user
                 return;
             }
@@ -336,7 +364,7 @@ class Consumable extends Model
     public function getFormattedCurrentStockAttribute(): string
     {
         // For seed consumables, show the total quantity with its unit
-        if ($this->type === 'seed') {
+        if ($this->consumableType && $this->consumableType->code === 'seed') {
             $unit = $this->quantity_unit ?? 'g';
             $displayUnit = $unit;
             $availableStock = $this->total_quantity;
@@ -357,7 +385,7 @@ class Consumable extends Model
     public function getCurrentStockAttribute()
     {
         // For seeds, return the total_quantity directly 
-        if ($this->type === 'seed') {
+        if ($this->consumableType && $this->consumableType->code === 'seed') {
             return $this->total_quantity;
         }
         

@@ -13,7 +13,7 @@ class InventoryTransaction extends Model
     protected $fillable = [
         'product_inventory_id',
         'product_id',
-        'type',
+        'inventory_transaction_type_id',
         'quantity',
         'balance_after',
         'unit_cost',
@@ -33,19 +33,6 @@ class InventoryTransaction extends Model
         'metadata' => 'array',
     ];
 
-    /**
-     * Transaction types
-     */
-    const TYPE_PRODUCTION = 'production';
-    const TYPE_PURCHASE = 'purchase';
-    const TYPE_SALE = 'sale';
-    const TYPE_RETURN = 'return';
-    const TYPE_ADJUSTMENT = 'adjustment';
-    const TYPE_DAMAGE = 'damage';
-    const TYPE_EXPIRATION = 'expiration';
-    const TYPE_TRANSFER = 'transfer';
-    const TYPE_RESERVATION = 'reservation';
-    const TYPE_RELEASE = 'release';
 
     /**
      * Get the inventory batch this transaction belongs to.
@@ -69,6 +56,14 @@ class InventoryTransaction extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the transaction type.
+     */
+    public function inventoryTransactionType(): BelongsTo
+    {
+        return $this->belongsTo(InventoryTransactionType::class);
     }
 
     /**
@@ -105,11 +100,12 @@ class InventoryTransaction extends Model
      */
     public function isInbound(): bool
     {
-        return in_array($this->type, [
-            self::TYPE_PRODUCTION,
-            self::TYPE_PURCHASE,
-            self::TYPE_RETURN,
-        ]) || ($this->type === self::TYPE_ADJUSTMENT && $this->quantity > 0);
+        $typeCode = $this->inventoryTransactionType?->code;
+        return in_array($typeCode, [
+            'production',
+            'purchase',
+            'return',
+        ]) || ($typeCode === 'adjustment' && $this->quantity > 0);
     }
 
     /**
@@ -117,11 +113,12 @@ class InventoryTransaction extends Model
      */
     public function isOutbound(): bool
     {
-        return in_array($this->type, [
-            self::TYPE_SALE,
-            self::TYPE_DAMAGE,
-            self::TYPE_EXPIRATION,
-        ]) || ($this->type === self::TYPE_ADJUSTMENT && $this->quantity < 0);
+        $typeCode = $this->inventoryTransactionType?->code;
+        return in_array($typeCode, [
+            'sale',
+            'damage',
+            'expiration',
+        ]) || ($typeCode === 'adjustment' && $this->quantity < 0);
     }
 
     /**
@@ -129,20 +126,7 @@ class InventoryTransaction extends Model
      */
     public function getTypeLabel(): string
     {
-        $labels = [
-            self::TYPE_PRODUCTION => 'Production',
-            self::TYPE_PURCHASE => 'Purchase',
-            self::TYPE_SALE => 'Sale',
-            self::TYPE_RETURN => 'Customer Return',
-            self::TYPE_ADJUSTMENT => 'Manual Adjustment',
-            self::TYPE_DAMAGE => 'Damaged',
-            self::TYPE_EXPIRATION => 'Expired',
-            self::TYPE_TRANSFER => 'Transfer',
-            self::TYPE_RESERVATION => 'Reserved',
-            self::TYPE_RELEASE => 'Reservation Released',
-        ];
-
-        return $labels[$this->type] ?? ucfirst($this->type);
+        return $this->inventoryTransactionType?->name ?? 'Unknown';
     }
 
     /**

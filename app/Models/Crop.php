@@ -31,7 +31,8 @@ class Crop extends Model
         'order_id',
         'crop_plan_id',
         'tray_number',
-        'current_stage',
+        'tray_count',
+        'current_stage_id',
         'planting_at',
         'germination_at',
         'blackout_at',
@@ -102,6 +103,7 @@ class Crop extends Model
     {
         return $this->belongsTo(CropStage::class, 'current_stage_id');
     }
+    
     
     /**
      * Get the seed cultivar for this crop through the recipe.

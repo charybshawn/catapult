@@ -72,12 +72,12 @@ class WeeklyTrayCalculator
         $varietyTrays = $this->calculateWeeklyTrays($weekStart);
         
         return collect($varietyTrays)->map(function ($trays, $varietyId) {
-            $variety = SeedCultivar::find($varietyId);
+            $seedEntry = SeedEntry::find($varietyId);
             return [
                 'variety_id' => $varietyId,
-                'variety_name' => $variety->name,
+                'variety_name' => $seedEntry ? $seedEntry->name : 'Unknown',
                 'trays_needed' => $trays,
-                'crop_type' => $variety->crop_type,
+                'crop_type' => $seedEntry ? $seedEntry->crop_type : 'Unknown',
             ];
         })->sortBy('variety_name');
     }

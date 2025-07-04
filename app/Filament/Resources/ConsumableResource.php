@@ -320,8 +320,6 @@ class ConsumableResource extends BaseResource
                                             ->default(1),
                                         Forms\Components\Hidden::make('quantity_per_unit')
                                             ->default(1),
-                                        Forms\Components\Hidden::make('unit')
-                                            ->default('unit'),
                                         Forms\Components\Hidden::make('restock_threshold')
                                             ->default(0),
                                         Forms\Components\Hidden::make('restock_quantity')

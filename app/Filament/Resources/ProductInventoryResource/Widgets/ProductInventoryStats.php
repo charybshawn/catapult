@@ -14,7 +14,8 @@ class ProductInventoryStats extends BaseWidget
     protected function getStats(): array
     {
         // Get total inventory value
-        $totalValue = ProductInventory::where('status', 'active')
+        $activeStatus = \App\Models\ProductInventoryStatus::where('code', 'active')->first();
+        $totalValue = ProductInventory::where('product_inventory_status_id', $activeStatus?->id)
             ->selectRaw('SUM(quantity * cost_per_unit) as total')
             ->value('total') ?? 0;
             
@@ -22,7 +23,7 @@ class ProductInventoryStats extends BaseWidget
         $packagingStats = DB::table('product_inventories')
             ->join('product_price_variations', 'product_inventories.price_variation_id', '=', 'product_price_variations.id')
             ->leftJoin('packaging_types', 'product_price_variations.packaging_type_id', '=', 'packaging_types.id')
-            ->where('product_inventories.status', 'active')
+            ->where('product_inventories.product_inventory_status_id', $activeStatus?->id)
             ->select(
                 DB::raw('COALESCE(packaging_types.name, "No Packaging") as packaging'),
                 DB::raw('COUNT(DISTINCT product_inventories.id) as count'),
@@ -49,7 +50,7 @@ class ProductInventoryStats extends BaseWidget
         }
         
         // Add low stock alert
-        $lowStockCount = ProductInventory::where('status', 'active')
+        $lowStockCount = ProductInventory::where('product_inventory_status_id', $activeStatus?->id)
             ->where('available_quantity', '>', 0)
             ->where('available_quantity', '<=', 10)
             ->count();

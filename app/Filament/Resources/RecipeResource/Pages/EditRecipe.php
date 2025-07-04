@@ -36,7 +36,9 @@ class EditRecipe extends BaseEditRecord
                         ->label('Seed Variety')
                         ->options(function () {
                             // Get unique seed varieties with lot information
-                            $varieties = Consumable::where('type', 'seed')
+                            $varieties = Consumable::whereHas('consumableType', function($query) {
+                                    $query->where('code', 'seed');
+                                })
                                 ->where('is_active', true)
                                 ->whereNotNull('name')
                                 ->whereNotNull('lot_no')

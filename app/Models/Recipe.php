@@ -150,13 +150,6 @@ class Recipe extends Model
             ->get();
     }
     
-    /**
-     * Get the stages for this recipe.
-     */
-    public function stages(): HasMany
-    {
-        return $this->hasMany(RecipeStage::class);
-    }
     
     /**
      * Get the watering schedule for this recipe.
@@ -289,7 +282,8 @@ class Recipe extends Model
     {
         // Extract variety and cultivar from the consumable based on lot_number
         if ($this->lot_number) {
-            $consumable = \App\Models\Consumable::where('type', 'seed')
+            $seedTypeId = \App\Models\ConsumableType::where('code', 'seed')->first()?->id;
+            $consumable = \App\Models\Consumable::where('consumable_type_id', $seedTypeId)
                 ->where('lot_no', $this->lot_number)
                 ->where('is_active', true)
                 ->first();

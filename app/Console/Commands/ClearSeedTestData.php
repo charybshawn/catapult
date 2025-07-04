@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Models\SeedCultivar;
 use App\Models\SeedEntry;
 use App\Models\SeedPriceHistory;
 use App\Models\SeedScrapeUpload;
@@ -35,10 +34,6 @@ class ClearSeedTestData extends Command
             $entryCount = SeedEntry::count();
             SeedEntry::query()->delete();
             $this->info("Deleted {$entryCount} entries");
-            
-            $cultivarCount = SeedCultivar::count();
-            SeedCultivar::query()->delete();
-            $this->info("Deleted {$cultivarCount} cultivars");
             
             $uploadCount = SeedScrapeUpload::count();
             SeedScrapeUpload::query()->delete();

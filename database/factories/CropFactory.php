@@ -31,24 +31,27 @@ class CropFactory extends Factory
         return [
             'recipe_id' => Recipe::factory(), // Associate with a recipe
             'tray_number' => 'T-' . $this->faker->unique()->numberBetween(100, 999),
-            'planted_at' => $plantedAt,
+            'tray_count' => $this->faker->numberBetween(1, 10), // Add tray count for tests
             'planting_at' => $plantedAt, // Set planting timestamp
-            // Set current_stage to a valid enum value
-            'current_stage' => 'germination', // Default to germination
-            'germination_at' => $plantedAt, // Assume germination starts at planting
+            // Set current_stage_id to germination by default
+            'current_stage_id' => function() {
+                $germinationStage = \App\Models\CropStage::where('code', 'germination')->first();
+                return $germinationStage ? $germinationStage->id : null;
+            },
+            'germination_at' => $plantedAt->addHours(2), // Germination after planting
             'blackout_at' => null,
             'light_at' => null,
             'harvested_at' => null,
             'harvest_weight_grams' => null,
             'watering_suspended_at' => null,
             'notes' => $this->faker->optional()->paragraph,
-            // Default time/status fields (match defaults in CreateCrop)
+            // Default time/display fields (only use fields that exist)
             'time_to_next_stage_minutes' => 0,
-            'time_to_next_stage_status' => 'Calculating...',
+            'time_to_next_stage_display' => 'Unknown',
             'stage_age_minutes' => 0,
-            'stage_age_status' => '0m',
+            'stage_age_display' => '0m',
             'total_age_minutes' => 0,
-            'total_age_status' => '0m',
+            'total_age_display' => '0m',
         ];
     }
     

@@ -61,27 +61,37 @@ class AdjustStock extends Page
                         Forms\Components\Hidden::make('record_id')
                             ->default($record->id),
                             
-                        Forms\Components\Placeholder::make('seed_cultivar_info')
-                            ->label('Seed Cultivar Information')
+                        Forms\Components\Placeholder::make('seed_info')
+                            ->label('Seed Information')
                             ->content(function () use ($record) {
-                                if ($record->type === 'seed' && $record->seedCultivar) {
-                                    $variety = $record->seedCultivar;
+                                if ($record->type === 'seed') {
                                     $info = [];
                                     
-                                    if ($variety->crop_type) {
-                                        $info[] = "Crop Type: {$variety->crop_type}";
+                                    // Add master cultivar info if available
+                                    if ($record->masterCultivar) {
+                                        $info[] = "Cultivar: {$record->masterCultivar->name}";
+                                        if ($record->masterCultivar->crop_type) {
+                                            $info[] = "Crop Type: {$record->masterCultivar->crop_type}";
+                                        }
                                     }
                                     
-                                    if ($variety->germination_rate) {
-                                        $info[] = "Germination Rate: {$variety->germination_rate}%";
+                                    // Add seed entry info if available
+                                    if ($record->seedEntry) {
+                                        if ($record->seedEntry->germination_rate) {
+                                            $info[] = "Germination Rate: {$record->seedEntry->germination_rate}%";
+                                        }
+                                        if ($record->seedEntry->days_to_maturity) {
+                                            $info[] = "Days to Maturity: {$record->seedEntry->days_to_maturity}";
+                                        }
                                     }
                                     
-                                    if ($variety->days_to_maturity) {
-                                        $info[] = "Days to Maturity: {$variety->days_to_maturity}";
+                                    // Add cultivar name if set
+                                    if ($record->cultivar) {
+                                        $info[] = "Variety: {$record->cultivar}";
                                     }
                                     
                                     if (empty($info)) {
-                                        return 'No variety details available';
+                                        return 'No seed details available';
                                     }
                                     
                                     return implode(' | ', $info);
@@ -89,7 +99,7 @@ class AdjustStock extends Page
                                 
                                 return null;
                             })
-                            ->visible(fn () => $record->type === 'seed' && $record->seedCultivar),
+                            ->visible(fn () => $record->type === 'seed'),
                     ])
                     ->columns(2),
                     

@@ -73,7 +73,7 @@ class ViewConsumable extends ViewRecord
     {
         $record = $this->getRecord();
         
-        if ($record->type === 'seed' && $record->seedEntry) {
+        if ($record->consumableType?->code === 'seed' && $record->seedEntry) {
             return [
                 'seedEntry' => $record->seedEntry,
             ];
@@ -88,7 +88,7 @@ class ViewConsumable extends ViewRecord
         $record = $this->getRecord();
         
         // Only show seed entry info for seed type consumables with a seed entry
-        if ($record->type === 'seed' && $record->seedEntry) {
+        if ($record->consumableType?->code === 'seed' && $record->seedEntry) {
             return view('filament.widgets.seed-entry-overview', [
                 'seedEntry' => $record->seedEntry,
             ]);
@@ -172,9 +172,10 @@ class ViewConsumable extends ViewRecord
                     ->schema([
                         Infolists\Components\TextEntry::make('name')
                             ->label('Name'),
-                        Infolists\Components\TextEntry::make('type')
+                        Infolists\Components\TextEntry::make('consumableType.name')
+                            ->label('Type')
                             ->badge()
-                            ->color(fn (string $state): string => match ($state) {
+                            ->color(fn ($record): string => match ($record->consumableType?->code) {
                                 'packaging' => 'success',
                                 'label' => 'info',
                                 'soil' => 'warning',
@@ -187,7 +188,7 @@ class ViewConsumable extends ViewRecord
                         Infolists\Components\TextEntry::make('packagingType')
                             ->label('Packaging Type')
                             ->formatStateUsing(fn ($record) => $record->packagingType?->display_name)
-                            ->visible(fn ($record) => $record->type === 'packaging'),
+                            ->visible(fn ($record) => $record->consumableType?->code === 'packaging'),
                         Infolists\Components\IconEntry::make('is_active')
                             ->label('Active')
                             ->boolean(),

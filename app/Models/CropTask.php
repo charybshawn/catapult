@@ -18,11 +18,11 @@ class CropTask extends Model
     protected $fillable = [
         'crop_id',
         'recipe_id',
-        'task_type',
+        'crop_task_type_id',
+        'crop_task_status_id',
         'details',
         'scheduled_at',
         'triggered_at',
-        'status',
     ];
 
     /**
@@ -50,5 +50,21 @@ class CropTask extends Model
     public function recipe(): BelongsTo
     {
         return $this->belongsTo(Recipe::class);
+    }
+
+    /**
+     * Get the task type for this crop task.
+     */
+    public function cropTaskType(): BelongsTo
+    {
+        return $this->belongsTo(CropTaskType::class);
+    }
+
+    /**
+     * Get the status for this crop task.
+     */
+    public function cropTaskStatus(): BelongsTo
+    {
+        return $this->belongsTo(CropTaskStatus::class);
     }
 }

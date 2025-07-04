@@ -23,7 +23,7 @@ class ProductInventory extends Model
         'production_date',
         'location',
         'notes',
-        'status',
+        'product_inventory_status_id',
     ];
 
     protected $casts = [
@@ -93,6 +93,14 @@ class ProductInventory extends Model
     }
 
     /**
+     * Get the status of this inventory.
+     */
+    public function productInventoryStatus(): BelongsTo
+    {
+        return $this->belongsTo(ProductInventoryStatus::class);
+    }
+
+    /**
      * Get the transactions for this inventory.
      */
     public function transactions(): HasMany
@@ -113,7 +121,9 @@ class ProductInventory extends Model
      */
     public function scopeActive(Builder $query): Builder
     {
-        return $query->where('status', 'active');
+        return $query->whereHas('productInventoryStatus', function ($q) {
+            $q->where('code', 'active');
+        });
     }
 
     /**
@@ -153,8 +163,12 @@ class ProductInventory extends Model
         $this->quantity += $quantity;
         $this->save();
 
+        // Get the transaction type ID
+        $typeCode = $transactionData['type'] ?? 'adjustment';
+        $transactionType = \App\Models\InventoryTransactionType::where('code', $typeCode)->first();
+
         return $this->recordTransaction(
-            type: $transactionData['type'] ?? 'adjustment',
+            transactionTypeId: $transactionType?->id,
             quantity: $quantity,
             notes: $transactionData['notes'] ?? null,
             referenceType: $transactionData['reference_type'] ?? null,
@@ -175,8 +189,12 @@ class ProductInventory extends Model
         $this->quantity -= $quantity;
         $this->save();
 
+        // Get the transaction type ID
+        $typeCode = $transactionData['type'] ?? 'adjustment';
+        $transactionType = \App\Models\InventoryTransactionType::where('code', $typeCode)->first();
+
         return $this->recordTransaction(
-            type: $transactionData['type'] ?? 'adjustment',
+            transactionTypeId: $transactionType?->id,
             quantity: -$quantity,
             notes: $transactionData['notes'] ?? null,
             referenceType: $transactionData['reference_type'] ?? null,
@@ -207,8 +225,9 @@ class ProductInventory extends Model
             'expires_at' => $expiresAt ?? now()->addHours(24),
         ]);
 
+        $reservationType = \App\Models\InventoryTransactionType::where('code', 'reservation')->first();
         $this->recordTransaction(
-            type: 'reservation',
+            transactionTypeId: $reservationType?->id,
             quantity: $quantity,
             notes: "Reserved for order #{$orderId}",
             referenceType: 'order',
@@ -226,8 +245,9 @@ class ProductInventory extends Model
         $this->reserved_quantity = max(0, $this->reserved_quantity - $quantity);
         $this->save();
 
+        $releaseType = \App\Models\InventoryTransactionType::where('code', 'release')->first();
         $this->recordTransaction(
-            type: 'release',
+            transactionTypeId: $releaseType?->id,
             quantity: -$quantity,
             notes: $reason ?? 'Reservation released',
             referenceType: null,
@@ -239,7 +259,7 @@ class ProductInventory extends Model
      * Record an inventory transaction.
      */
     protected function recordTransaction(
-        string $type,
+        ?int $transactionTypeId,
         float $quantity,
         ?string $notes = null,
         ?string $referenceType = null,
@@ -249,7 +269,7 @@ class ProductInventory extends Model
         return InventoryTransaction::create([
             'product_inventory_id' => $this->id,
             'product_id' => $this->product_id,
-            'type' => $type,
+            'inventory_transaction_type_id' => $transactionTypeId,
             'quantity' => $quantity,
             'balance_after' => $this->quantity,
             'unit_cost' => $this->cost_per_unit,

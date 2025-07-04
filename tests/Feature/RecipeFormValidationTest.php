@@ -22,31 +22,26 @@ class RecipeFormValidationTest extends TestCase
     {
         parent::setUp();
         
-        // Create required lookup data
-        ConsumableType::factory()->create([
-            'code' => 'seed',
-            'name' => 'Seeds',
-            'is_active' => true,
-        ]);
+        // Create required lookup data - use firstOrCreate to avoid duplicates
+        ConsumableType::firstOrCreate(
+            ['code' => 'seed'],
+            ['name' => 'Seeds', 'is_active' => true]
+        );
         
-        ConsumableType::factory()->create([
-            'code' => 'soil',
-            'name' => 'Soil',
-            'is_active' => true,
-        ]);
+        ConsumableType::firstOrCreate(
+            ['code' => 'soil'],
+            ['name' => 'Soil', 'is_active' => true]
+        );
         
-        ConsumableUnit::factory()->create([
-            'code' => 'unit',
-            'name' => 'Unit',
-            'symbol' => 'unit',
-            'is_active' => true,
-        ]);
+        ConsumableUnit::firstOrCreate(
+            ['code' => 'unit'],
+            ['name' => 'Unit', 'symbol' => 'unit', 'is_active' => true]
+        );
         
-        SupplierType::factory()->create([
-            'code' => 'soil',
-            'name' => 'Soil Supplier',
-            'is_active' => true,
-        ]);
+        SupplierType::firstOrCreate(
+            ['code' => 'soil'],
+            ['name' => 'Soil Supplier', 'is_active' => true]
+        );
     }
 
     /** @test */

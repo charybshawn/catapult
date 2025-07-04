@@ -59,14 +59,11 @@ class TimeCardResource extends Resource
                             ]),
                         Forms\Components\Grid::make(2)
                             ->schema([
-                                Forms\Components\Select::make('status')
-                                    ->options([
-                                        'active' => 'Active',
-                                        'completed' => 'Completed',
-                                        'cancelled' => 'Cancelled',
-                                    ])
-                                    ->required()
-                                    ->default('active'),
+                                Forms\Components\Select::make('time_card_status_id')
+                                    ->label('Status')
+                                    ->relationship('timeCardStatus', 'name')
+                                    ->default(fn () => \App\Models\TimeCardStatus::where('code', 'active')->first()?->id)
+                                    ->required(),
                                 Forms\Components\TextInput::make('duration_minutes')
                                     ->numeric()
                                     ->disabled()
@@ -134,12 +131,13 @@ class TimeCardResource extends Resource
                     ->getStateUsing(fn ($record) => $record->duration_formatted)
                     ->badge()
                     ->color(fn ($state) => $state === '--:--' ? 'warning' : 'success'),
-                Tables\Columns\TextColumn::make('status')
+                Tables\Columns\TextColumn::make('timeCardStatus.name')
+                    ->label('Status')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'active' => 'warning',
-                        'completed' => 'success',
-                        'cancelled' => 'danger',
+                    ->color(fn ($state): string => match ($state) {
+                        'Active' => 'warning',
+                        'Completed' => 'success',
+                        'Cancelled' => 'danger',
                         default => 'gray',
                     }),
                 Tables\Columns\IconColumn::make('requires_review')
@@ -159,7 +157,7 @@ class TimeCardResource extends Resource
                         if ($record->max_shift_exceeded) {
                             return 'Exceeded 8hrs';
                         }
-                        if ($record->status === 'active' && $record->clock_in) {
+                        if ($record->timeCardStatus?->code === 'active' && $record->clock_in) {
                             $hours = $record->clock_in->diffInHours(now());
                             if ($hours >= 7) {
                                 return 'Near limit (' . round($hours, 1) . 'h)';
@@ -192,12 +190,9 @@ class TimeCardResource extends Resource
                     ->searchable()
                     ->preload()
                     ->label('Employee'),
-                Tables\Filters\SelectFilter::make('status')
-                    ->options([
-                        'active' => 'Active',
-                        'completed' => 'Completed',
-                        'cancelled' => 'Cancelled',
-                    ]),
+                Tables\Filters\SelectFilter::make('time_card_status_id')
+                    ->label('Status')
+                    ->relationship('timeCardStatus', 'name'),
                 Tables\Filters\TernaryFilter::make('requires_review')
                     ->label('Requires Review')
                     ->trueLabel('Flagged for Review')
@@ -235,7 +230,7 @@ class TimeCardResource extends Resource
                     ->color('warning')
                     ->requiresConfirmation()
                     ->action(fn (TimeCard $record) => $record->clockOut())
-                    ->visible(fn (TimeCard $record) => $record->status === 'active'),
+                    ->visible(fn (TimeCard $record) => $record->timeCardStatus?->code === 'active'),
                 Tables\Actions\Action::make('resolve_review')
                     ->label('Resolve Review')
                     ->icon('heroicon-o-check-circle')
@@ -255,7 +250,7 @@ class TimeCardResource extends Resource
                         // Update the time card with the actual clock out time
                         $record->update([
                             'clock_out' => $data['actual_clock_out'],
-                            'status' => 'completed',
+                            'time_card_status_id' => \App\Models\TimeCardStatus::where('code', 'completed')->first()?->id,
                         ]);
                         
                         // Resolve the review flag

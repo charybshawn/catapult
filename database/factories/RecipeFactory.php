@@ -25,20 +25,20 @@ class RecipeFactory extends Factory
      */
     public function definition(): array
     {
-        $seedEntry = SeedEntry::first() ?? SeedEntry::create([
-            'supplier_id' => 1,
-            'common_name' => fake()->randomElement(['Pea', 'Radish', 'Mustard', 'Broccoli', 'Kale']),
-            'cultivar_name' => fake()->name() . ' Variety',
-            'supplier_product_title' => fake()->words(3, true),
-        ]);
+        $seedEntry = SeedEntry::first() ?? SeedEntry::factory()->create();
         $name = $seedEntry->common_name . ' Recipe';
         
         return [
             'name' => $name,
             'seed_entry_id' => $seedEntry->id,
             'seed_density' => fake()->randomFloat(2, 1, 10),
+            'germination_days' => fake()->randomFloat(1, 1, 5),
             'blackout_days' => fake()->numberBetween(0, 5),
+            'light_days' => fake()->randomFloat(1, 3, 12),
+            'days_to_maturity' => fake()->randomFloat(1, 7, 30),
             'harvest_days' => fake()->numberBetween(7, 21),
+            'seed_density_grams_per_tray' => fake()->randomFloat(2, 5, 50),
+            'seed_soak_hours' => fake()->numberBetween(0, 24),
             'notes' => fake()->optional(0.7)->paragraph(),
             'is_active' => true,
         ];

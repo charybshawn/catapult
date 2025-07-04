@@ -112,7 +112,7 @@ class RecipeManagementTest extends TestCase
             'days_to_maturity' => 12.0,
             'common_name' => null,
             'cultivar_name' => null,
-            'name' => null,
+            'name' => 'Temporary Name', // Will be overwritten by generateRecipeName
         ]);
 
         // Create matching consumable
@@ -407,6 +407,7 @@ class RecipeManagementTest extends TestCase
             'type' => 'seed',
             'lot_no' => 'MIXED_LOT_TEST',
             'total_quantity' => 500.0,
+            'consumed_quantity' => 0.0,
             'is_active' => true,
         ]);
 

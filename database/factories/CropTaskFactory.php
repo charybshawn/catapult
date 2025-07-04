@@ -31,23 +31,24 @@ class CropTaskFactory extends Factory
         $crop = Crop::factory()->create(); 
         $recipe = $crop->recipe; // Assuming Crop factory sets up recipe
         
-        $taskType = $this->faker->randomElement(['end_germination', 'end_blackout', 'suspend_watering', 'expected_harvest']);
-        $details = null;
-        if ($taskType === 'end_germination') {
-            $details = ['target_stage' => 'blackout'];
-        }
-        if ($taskType === 'end_blackout') {
-            $details = ['target_stage' => 'light'];
-        }
+        // Get task type and status from lookup tables
+        $taskTypes = \App\Models\CropTaskType::pluck('id')->toArray();
+        $pendingStatus = \App\Models\CropTaskStatus::where('code', 'pending')->first();
+        
+        $details = $this->faker->randomElement([
+            null,
+            ['notes' => $this->faker->sentence()],
+            ['target_stage' => $this->faker->randomElement(['blackout', 'light', 'harvest'])],
+        ]);
 
         return [
             'crop_id' => $crop->id,
             'recipe_id' => $recipe->id,
-            'task_type' => $taskType,
+            'crop_task_type_id' => $this->faker->randomElement($taskTypes),
+            'crop_task_status_id' => $pendingStatus?->id ?? 1,
             'details' => $details, // Automatically encodes to JSON
             'scheduled_at' => Carbon::instance($this->faker->dateTimeBetween('-1 week', '+1 week')),
             'triggered_at' => null,
-            'status' => 'pending',
         ];
     }
 }

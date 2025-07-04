@@ -136,14 +136,10 @@ class ProductInventoryResource extends Resource
                                     ->step(0.01)
                                     ->minValue(0)
                                     ->helperText('For calculating inventory value'),
-                                Forms\Components\Select::make('status')
-                                    ->options([
-                                        'active' => 'Active',
-                                        'depleted' => 'Depleted',
-                                        'expired' => 'Expired',
-                                        'damaged' => 'Damaged',
-                                    ])
-                                    ->default('active')
+                                Forms\Components\Select::make('product_inventory_status_id')
+                                    ->label('Status')
+                                    ->relationship('productInventoryStatus', 'name')
+                                    ->default(fn () => \App\Models\ProductInventoryStatus::where('code', 'active')->first()?->id)
                                     ->required(),
                             ]),
                     ]),
@@ -247,13 +243,15 @@ class ProductInventoryResource extends Resource
                     ->label('Location')
                     ->searchable()
                     ->toggleable(),
-                Tables\Columns\BadgeColumn::make('status')
-                    ->colors([
-                        'success' => 'active',
-                        'danger' => 'depleted',
-                        'warning' => 'expired',
-                        'secondary' => 'damaged',
-                    ]),
+                Tables\Columns\BadgeColumn::make('productInventoryStatus.name')
+                    ->label('Status')
+                    ->colors(fn ($state) => match($state) {
+                        'Active' => 'success',
+                        'Depleted' => 'danger',
+                        'Expired' => 'warning',
+                        'Damaged' => 'secondary',
+                        default => 'gray'
+                    }),
                 Tables\Columns\TextColumn::make('value')
                     ->label('Total Value')
                     ->getStateUsing(fn ($record) => $record->getValue())
@@ -268,13 +266,9 @@ class ProductInventoryResource extends Resource
                     ->relationship('product', 'name')
                     ->searchable()
                     ->preload(),
-                SelectFilter::make('status')
-                    ->options([
-                        'active' => 'Active',
-                        'depleted' => 'Depleted',
-                        'expired' => 'Expired',
-                        'damaged' => 'Damaged',
-                    ]),
+                SelectFilter::make('product_inventory_status_id')
+                    ->label('Status')
+                    ->relationship('productInventoryStatus', 'name'),
                 SelectFilter::make('packaging_type')
                     ->label('Packaging Type')
                     ->relationship('priceVariation.packagingType', 'name', function ($query) {
@@ -390,7 +384,10 @@ class ProductInventoryResource extends Resource
                         ->icon('heroicon-o-exclamation-triangle')
                         ->color('danger')
                         ->requiresConfirmation()
-                        ->action(fn ($records) => $records->each->update(['status' => 'damaged'])),
+                        ->action(function ($records) {
+                            $damagedStatus = \App\Models\ProductInventoryStatus::where('code', 'damaged')->first();
+                            $records->each->update(['product_inventory_status_id' => $damagedStatus?->id]);
+                        }),
                 ]),
             ])
             ->emptyStateHeading('No inventory batches')

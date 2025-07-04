@@ -16,7 +16,7 @@ class TimeCard extends Model
         'clock_out',
         'duration_minutes',
         'work_date',
-        'status',
+        'time_card_status_id',
         'notes',
         'ip_address',
         'user_agent',
@@ -67,6 +67,14 @@ class TimeCard extends Model
     public function tasks(): HasMany
     {
         return $this->hasMany(TimeCardTask::class);
+    }
+
+    /**
+     * Get the status for this time card.
+     */
+    public function timeCardStatus(): BelongsTo
+    {
+        return $this->belongsTo(TimeCardStatus::class);
     }
 
     /**
@@ -121,7 +129,9 @@ class TimeCard extends Model
 
     public function scopeActive($query)
     {
-        return $query->where('status', 'active');
+        return $query->whereHas('timeCardStatus', function ($q) {
+            $q->where('code', 'active');
+        });
     }
 
     public function scopeForUser($query, $userId)
@@ -144,9 +154,10 @@ class TimeCard extends Model
 
     public function clockOut()
     {
+        $completedStatus = TimeCardStatus::where('code', 'completed')->first();
         $this->update([
             'clock_out' => now(),
-            'status' => 'completed',
+            'time_card_status_id' => $completedStatus?->id,
         ]);
     }
 
@@ -155,7 +166,7 @@ class TimeCard extends Model
      */
     public function checkMaxShiftExceeded(): bool
     {
-        if (!$this->clock_in || $this->status !== 'active') {
+        if (!$this->clock_in || $this->timeCardStatus?->code !== 'active') {
             return false;
         }
 

@@ -25,7 +25,7 @@ class Invoice extends Model
         'invoice_number',
         'amount',
         'total_amount',
-        'status', // draft, sent, paid, overdue, cancelled, pending
+        'payment_status_id',
         'issue_date',
         'due_date',
         'sent_at',
@@ -80,6 +80,14 @@ class Invoice extends Model
     }
     
     /**
+     * Get the payment status for this invoice.
+     */
+    public function paymentStatus(): BelongsTo
+    {
+        return $this->belongsTo(PaymentStatus::class);
+    }
+    
+    /**
      * Get all orders consolidated in this invoice.
      */
     public function consolidatedOrders(): HasMany
@@ -92,7 +100,7 @@ class Invoice extends Model
      */
     public function isOverdue(): bool
     {
-        return $this->status === 'sent' && $this->due_date < now();
+        return $this->paymentStatus?->code === 'sent' && $this->due_date < now();
     }
     
     /**
@@ -100,7 +108,7 @@ class Invoice extends Model
      */
     public function isPaid(): bool
     {
-        return $this->status === 'paid';
+        return $this->paymentStatus?->code === 'paid';
     }
     
     /**
@@ -108,7 +116,8 @@ class Invoice extends Model
      */
     public function markAsSent(): void
     {
-        $this->status = 'sent';
+        $sentStatus = PaymentStatus::where('code', 'sent')->first();
+        $this->payment_status_id = $sentStatus?->id;
         $this->sent_at = now();
         $this->save();
     }
@@ -118,7 +127,8 @@ class Invoice extends Model
      */
     public function markAsPaid(): void
     {
-        $this->status = 'paid';
+        $paidStatus = PaymentStatus::where('code', 'paid')->first();
+        $this->payment_status_id = $paidStatus?->id;
         $this->paid_at = now();
         $this->save();
     }
@@ -128,7 +138,8 @@ class Invoice extends Model
      */
     public function markAsOverdue(): void
     {
-        $this->status = 'overdue';
+        $overdueStatus = PaymentStatus::where('code', 'overdue')->first();
+        $this->payment_status_id = $overdueStatus?->id;
         $this->save();
     }
     
@@ -137,7 +148,8 @@ class Invoice extends Model
      */
     public function markAsCancelled(): void
     {
-        $this->status = 'cancelled';
+        $cancelledStatus = PaymentStatus::where('code', 'cancelled')->first();
+        $this->payment_status_id = $cancelledStatus?->id;
         $this->save();
     }
     
@@ -194,7 +206,7 @@ class Invoice extends Model
             'invoice_number' => $invoiceNumber,
             'amount' => $totalAmount,
             'total_amount' => $totalAmount,
-            'status' => 'draft',
+            'payment_status_id' => PaymentStatus::where('code', 'draft')->first()?->id,
             'issue_date' => now(),
             'due_date' => now()->addDays(30), // Default 30-day payment terms
             'is_consolidated' => false,
