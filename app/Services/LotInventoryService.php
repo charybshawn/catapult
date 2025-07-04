@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Consumable;
+use App\Models\ConsumableType;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
@@ -17,9 +18,12 @@ use Illuminate\Support\Facades\Log;
 class LotInventoryService
 {
     /**
-     * Seed consumable type ID constant.
+     * Get the seed consumable type ID dynamically.
      */
-    const SEED_CONSUMABLE_TYPE_ID = 3;
+    private function getSeedConsumableTypeId(): ?int
+    {
+        return ConsumableType::where('code', 'seed')->value('id');
+    }
 
     /**
      * Get total available quantity across all consumable entries for a specific lot.
@@ -60,7 +64,12 @@ class LotInventoryService
      */
     public function getOldestEntryInLot(string $lotNumber): ?Consumable
     {
-        return Consumable::where('consumable_type_id', self::SEED_CONSUMABLE_TYPE_ID)
+        $seedTypeId = $this->getSeedConsumableTypeId();
+        if (!$seedTypeId) {
+            return null;
+        }
+
+        return Consumable::where('consumable_type_id', $seedTypeId)
             ->where('lot_no', strtoupper($lotNumber))
             ->where('is_active', true)
             ->whereRaw('(total_quantity - consumed_quantity) > 0') // Only entries with available stock
@@ -76,7 +85,12 @@ class LotInventoryService
      */
     public function getEntriesInLot(string $lotNumber): Collection
     {
-        return Consumable::where('consumable_type_id', self::SEED_CONSUMABLE_TYPE_ID)
+        $seedTypeId = $this->getSeedConsumableTypeId();
+        if (!$seedTypeId) {
+            return collect();
+        }
+
+        return Consumable::where('consumable_type_id', $seedTypeId)
             ->where('lot_no', strtoupper($lotNumber))
             ->where('is_active', true)
             ->orderBy('created_at', 'asc')
@@ -130,7 +144,12 @@ class LotInventoryService
      */
     public function getAllLotNumbers(): Collection
     {
-        return Consumable::where('consumable_type_id', self::SEED_CONSUMABLE_TYPE_ID)
+        $seedTypeId = $this->getSeedConsumableTypeId();
+        if (!$seedTypeId) {
+            return collect();
+        }
+
+        return Consumable::where('consumable_type_id', $seedTypeId)
             ->where('is_active', true)
             ->whereNotNull('lot_no')
             ->distinct('lot_no')
@@ -176,7 +195,12 @@ class LotInventoryService
      */
     public function lotExists(string $lotNumber): bool
     {
-        return Consumable::where('consumable_type_id', self::SEED_CONSUMABLE_TYPE_ID)
+        $seedTypeId = $this->getSeedConsumableTypeId();
+        if (!$seedTypeId) {
+            return false;
+        }
+
+        return Consumable::where('consumable_type_id', $seedTypeId)
             ->where('lot_no', strtoupper($lotNumber))
             ->where('is_active', true)
             ->exists();

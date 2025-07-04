@@ -28,8 +28,10 @@ class InventoryServiceTest extends TestCase
             'consumed_quantity' => 10,
         ]);
 
+        // With transaction system, it should use getCurrentStockFromTransactions
         $result = $this->inventoryService->getCurrentStock($consumable);
 
+        // Should return total_quantity for seeds when no transactions exist
         $this->assertEquals(100.0, $result);
     }
 
@@ -37,7 +39,7 @@ class InventoryServiceTest extends TestCase
     {
         $consumable = Consumable::factory()->create([
             'type' => 'soil',
-            'initial_stock' => 50,
+            'total_quantity' => 50.0,
             'consumed_quantity' => 10,
         ]);
 
@@ -50,7 +52,7 @@ class InventoryServiceTest extends TestCase
     {
         $consumable = Consumable::factory()->create([
             'type' => 'soil',
-            'initial_stock' => 10,
+            'total_quantity' => 10.0,
             'consumed_quantity' => 20,
         ]);
 
@@ -63,7 +65,7 @@ class InventoryServiceTest extends TestCase
     {
         $consumable = Consumable::factory()->create([
             'type' => 'soil',
-            'initial_stock' => 100,
+            'total_quantity' => 100.0,
             'consumed_quantity' => 90,
             'restock_threshold' => 20,
         ]);
@@ -77,7 +79,7 @@ class InventoryServiceTest extends TestCase
     {
         $consumable = Consumable::factory()->create([
             'type' => 'soil',
-            'initial_stock' => 100,
+            'total_quantity' => 100.0,
             'consumed_quantity' => 50,
             'restock_threshold' => 20,
         ]);
@@ -91,7 +93,7 @@ class InventoryServiceTest extends TestCase
     {
         $consumable = Consumable::factory()->create([
             'type' => 'soil',
-            'initial_stock' => 10,
+            'total_quantity' => 10.0,
             'consumed_quantity' => 15,
         ]);
 
@@ -104,7 +106,7 @@ class InventoryServiceTest extends TestCase
     {
         $consumable = Consumable::factory()->create([
             'type' => 'soil',
-            'initial_stock' => 50,
+            'total_quantity' => 50.0,
             'consumed_quantity' => 10,
         ]);
 
@@ -117,7 +119,7 @@ class InventoryServiceTest extends TestCase
     {
         $consumable = Consumable::factory()->create([
             'type' => 'soil',
-            'initial_stock' => 100,
+            'total_quantity' => 100.0,
             'consumed_quantity' => 10,
         ]);
 
@@ -126,31 +128,31 @@ class InventoryServiceTest extends TestCase
         $this->assertEquals(15.0, $consumable->consumed_quantity);
     }
 
-    public function test_addStock_updates_initial_stock(): void
+    public function test_addStock_updates_total_quantity(): void
     {
         $consumable = Consumable::factory()->create([
             'type' => 'soil',
-            'initial_stock' => 100,
+            'total_quantity' => 100.0,
             'consumed_quantity' => 10,
         ]);
 
         $this->inventoryService->addStock($consumable, 20.0);
 
-        $this->assertEquals(120.0, $consumable->initial_stock);
+        $this->assertEquals(120.0, $consumable->total_quantity);
     }
 
     public function test_calculateTotalValue(): void
     {
         $consumable = Consumable::factory()->create([
             'type' => 'soil',
-            'initial_stock' => 100,
+            'total_quantity' => 100.0,
             'consumed_quantity' => 20,
             'cost_per_unit' => 5.50,
         ]);
 
         $result = $this->inventoryService->calculateTotalValue($consumable);
 
-        $this->assertEquals(440.0, $result); // 80 * 5.50
+        $this->assertEquals(440.0, $result); // (100 - 20) * 5.50 = 80 * 5.50
     }
 
     public function test_getFormattedTotalWeight_for_seeds(): void
