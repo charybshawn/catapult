@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             RoleSeeder::class,
             CustomerRoleSeeder::class, // Add customer role and permissions
             FilamentAdminUserSeeder::class,
+            CropPlanStatusSeeder::class, // Add crop plan statuses
             PackagingSeeder::class,
             CurrentSeedEntryDataSeeder::class, // Uncomment to seed with actual seed entries
             CurrentSeedConsumableDataSeeder::class, // Uncomment to seed with actual inventory data (run after seed entries)

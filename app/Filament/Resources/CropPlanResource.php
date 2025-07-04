@@ -378,8 +378,12 @@ class CropPlanResource extends Resource
 
     public static function getNavigationBadge(): ?string
     {
-        $draftStatusId = \App\Models\CropPlanStatus::findByCode('draft')->id;
-        return static::getModel()::where('status_id', $draftStatusId)->count() ?: null;
+        $draftStatus = \App\Models\CropPlanStatus::findByCode('draft');
+        if (!$draftStatus) {
+            return null; // No draft status found, return no badge
+        }
+        
+        return static::getModel()::where('status_id', $draftStatus->id)->count() ?: null;
     }
 
     public static function getNavigationBadgeColor(): ?string
