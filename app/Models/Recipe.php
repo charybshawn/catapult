@@ -7,8 +7,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Support\Collection;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
+use App\Services\LotInventoryService;
 
 class Recipe extends Model
 {
@@ -25,12 +27,16 @@ class Recipe extends Model
         'common_name',
         'cultivar_name',
         'seed_consumable_id',
+        'lot_number',
+        'lot_depleted_at',
         'supplier_soil_id',
         'soil_consumable_id',
+        'seed_density',
         'germination_days',
         'blackout_days',
         'days_to_maturity',
         'light_days',
+        'harvest_days',
         'seed_soak_hours',
         'expected_yield_grams', 
         'buffer_percentage',
@@ -55,6 +61,7 @@ class Recipe extends Model
         'buffer_percentage' => 'decimal:2',
         'seed_density_grams_per_tray' => 'float',
         'is_active' => 'boolean',
+        'lot_depleted_at' => 'datetime',
     ];
     
     /**
@@ -84,10 +91,49 @@ class Recipe extends Model
     
     /**
      * Get the seed consumable for this recipe.
+     * 
+     * @deprecated Use lot-based methods instead (lotConsumables, availableLotConsumables)
      */
     public function seedConsumable(): BelongsTo
     {
         return $this->belongsTo(Consumable::class, 'seed_consumable_id');
+    }
+    
+    /**
+     * Get all consumable entries for the recipe's lot_number.
+     * 
+     * @return Collection
+     */
+    public function lotConsumables(): Collection
+    {
+        if (!$this->lot_number) {
+            return collect();
+        }
+        
+        return Consumable::where('consumable_type_id', LotInventoryService::SEED_CONSUMABLE_TYPE_ID)
+            ->where('lot_no', strtoupper($this->lot_number))
+            ->where('is_active', true)
+            ->orderBy('created_at', 'asc')
+            ->get();
+    }
+    
+    /**
+     * Get available (not depleted) consumable entries for the recipe's lot.
+     * 
+     * @return Collection
+     */
+    public function availableLotConsumables(): Collection
+    {
+        if (!$this->lot_number) {
+            return collect();
+        }
+        
+        return Consumable::where('consumable_type_id', LotInventoryService::SEED_CONSUMABLE_TYPE_ID)
+            ->where('lot_no', strtoupper($this->lot_number))
+            ->where('is_active', true)
+            ->whereRaw('(total_quantity - consumed_quantity) > 0')
+            ->orderBy('created_at', 'asc')
+            ->get();
     }
     
     /**
@@ -143,6 +189,72 @@ class Recipe extends Model
     {
         return ($this->seed_soak_hours / 24) + $this->totalDays();
     }
+    
+    /**
+     * Get total available quantity for the recipe's lot.
+     * 
+     * @return float
+     */
+    public function getLotQuantity(): float
+    {
+        if (!$this->lot_number) {
+            return 0.0;
+        }
+        
+        $lotInventoryService = new LotInventoryService();
+        return $lotInventoryService->getLotQuantity($this->lot_number);
+    }
+    
+    /**
+     * Check if the recipe's assigned lot is depleted.
+     * 
+     * @return bool
+     */
+    public function isLotDepleted(): bool
+    {
+        if (!$this->lot_number) {
+            return true;
+        }
+        
+        // Check if manually marked as depleted
+        if ($this->lot_depleted_at) {
+            return true;
+        }
+        
+        // Check actual inventory
+        $lotInventoryService = new LotInventoryService();
+        return $lotInventoryService->isLotDepleted($this->lot_number);
+    }
+    
+    /**
+     * Check if recipe can be executed with required seed amount.
+     * 
+     * @param float $requiredQuantity
+     * @return bool
+     */
+    public function canExecute(float $requiredQuantity): bool
+    {
+        if (!$this->lot_number) {
+            return false;
+        }
+        
+        if ($this->isLotDepleted()) {
+            return false;
+        }
+        
+        return $this->getLotQuantity() >= $requiredQuantity;
+    }
+    
+    /**
+     * Mark the lot as depleted with timestamp.
+     * 
+     * @return void
+     */
+    public function markLotDepleted(): void
+    {
+        $this->lot_depleted_at = now();
+        $this->save();
+    }
 
     /**
      * Configure the activity log options for this model.
@@ -153,6 +265,8 @@ class Recipe extends Model
             ->logOnly([
                 'name', 
                 'seed_entry_id', 
+                'lot_number',
+                'lot_depleted_at',
                 'supplier_soil_id', 
                 'germination_days', 
                 'blackout_days', 

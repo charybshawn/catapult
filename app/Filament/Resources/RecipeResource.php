@@ -21,6 +21,8 @@ use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use Spatie\Activitylog\Models\Activity;
 use Spatie\Activitylog\Models\LogOptions;
+use App\Services\LotInventoryService;
+use App\Models\Consumable;
 
 class RecipeResource extends Resource
 {
@@ -36,6 +38,45 @@ class RecipeResource extends Resource
         return true;
     }
 
+    /**
+     * Get available lots for selection with formatted display names.
+     * 
+     * @return array
+     */
+    public static function getAvailableLotsForSelection(): array
+    {
+        $lotInventoryService = new LotInventoryService();
+        $lotNumbers = $lotInventoryService->getAllLotNumbers();
+        $options = [];
+        
+        foreach ($lotNumbers as $lotNumber) {
+            $summary = $lotInventoryService->getLotSummary($lotNumber);
+            
+            // Skip depleted lots
+            if ($summary['available'] <= 0) {
+                continue;
+            }
+            
+            // Get the first consumable entry for this lot to get seed info
+            $consumable = Consumable::where('consumable_type_id', LotInventoryService::SEED_CONSUMABLE_TYPE_ID)
+                ->where('lot_no', $lotNumber)
+                ->where('is_active', true)
+                ->first();
+            
+            if ($consumable) {
+                $unit = $consumable->quantity_unit ?? 'g';
+                $seedName = $consumable->name ?? 'Unknown Seed';
+                $available = $summary['available'];
+                
+                // Format: "LOT123 (1500g available) - Broccoli (Broccoli)"
+                $label = "{$lotNumber} ({$available}{$unit} available) - {$seedName}";
+                $options[$lotNumber] = $label;
+            }
+        }
+        
+        return $options;
+    }
+
     public static function getFormSchema(): array
     {
         return [
@@ -45,22 +86,125 @@ class RecipeResource extends Resource
                         ->required()
                         ->maxLength(255),
 
-                    Forms\Components\Select::make('seed_consumable_id')
-                        ->label('Seed Stock')
-                        ->relationship('seedConsumable', 'name', 
-                            modifyQueryUsing: fn ($query) => $query->where('type', 'seed')
-                                ->where('is_active', true)
-                                ->whereRaw('(total_quantity - consumed_quantity) > 0') // Only show seeds with available stock
-                        )
-                        ->getOptionLabelFromRecordUsing(function ($record) {
-                            $available = max(0, $record->total_quantity - $record->consumed_quantity);
-                            $unit = $record->quantity_unit ?? 'g';
-                            return $record->name . " ({$available} {$unit} available)";
-                        })
-                        ->searchable(['name'])
-                        ->preload()
+                    Forms\Components\Select::make('lot_number')
+                        ->label('Seed Lot')
+                        ->options(fn() => self::getAvailableLotsForSelection())
+                        ->searchable()
                         ->nullable()
-                        ->helperText('Shows only seeds with available stock'),
+                        ->helperText('Shows only lots with available stock')
+                        ->rules([
+                            'nullable', 
+                            'string', 
+                            'max:255',
+                            function ($attribute, $value, $fail) {
+                                if ($value) {
+                                    $lotInventoryService = new LotInventoryService();
+                                    
+                                    // Check if lot exists
+                                    if (!$lotInventoryService->lotExists($value)) {
+                                        $fail("The selected lot '{$value}' does not exist.");
+                                        return;
+                                    }
+                                    
+                                    // Check if lot has available stock
+                                    if ($lotInventoryService->isLotDepleted($value)) {
+                                        $fail("The selected lot '{$value}' is depleted and cannot be used.");
+                                        return;
+                                    }
+                                    
+                                    // Check if lot has sufficient quantity for typical recipe requirements
+                                    $availableQuantity = $lotInventoryService->getLotQuantity($value);
+                                    if ($availableQuantity < 10) { // Minimum 10g threshold
+                                        $fail("The selected lot '{$value}' has insufficient stock (" . round($availableQuantity, 1) . "g available). Minimum 10g required.");
+                                    }
+                                }
+                            }
+                        ])
+                        ->live()
+                        ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
+                            // Clear lot_depleted_at when lot is changed
+                            if ($state && $state !== $get('lot_number')) {
+                                $set('lot_depleted_at', null);
+                            }
+                        })
+                        ->suffixAction(
+                            Forms\Components\Actions\Action::make('refresh_lots')
+                                ->icon('heroicon-o-arrow-path')
+                                ->tooltip('Refresh available lots')
+                                ->action(function ($livewire) {
+                                    $livewire->dispatch('refresh-form');
+                                })
+                        ),
+
+                    // Keep the old field hidden for backward compatibility
+                    Forms\Components\Hidden::make('seed_consumable_id'),
+
+                    // Show lot status information when editing
+                    Forms\Components\Placeholder::make('lot_status')
+                        ->label('Current Lot Status')
+                        ->content(function (Forms\Get $get, ?Recipe $record) {
+                            if (!$record || !$record->lot_number) {
+                                return 'No lot assigned';
+                            }
+                            
+                            $lotInventoryService = new LotInventoryService();
+                            $summary = $lotInventoryService->getLotSummary($record->lot_number);
+                            
+                            if ($summary['available'] <= 0) {
+                                return new \Illuminate\Support\HtmlString(
+                                    '<div class="flex items-center gap-2 text-sm text-red-600">' .
+                                    '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">' .
+                                    '<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>' .
+                                    '</svg>' .
+                                    "Lot {$record->lot_number} is depleted (0 available)" .
+                                    '</div>'
+                                );
+                            }
+                            
+                            $consumable = Consumable::where('consumable_type_id', LotInventoryService::SEED_CONSUMABLE_TYPE_ID)
+                                ->where('lot_no', $record->lot_number)
+                                ->where('is_active', true)
+                                ->first();
+                            
+                            if (!$consumable) {
+                                return new \Illuminate\Support\HtmlString(
+                                    '<div class="flex items-center gap-2 text-sm text-red-600">' .
+                                    '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">' .
+                                    '<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>' .
+                                    '</svg>' .
+                                    "Lot {$record->lot_number} not found" .
+                                    '</div>'
+                                );
+                            }
+                            
+                            $unit = $consumable->quantity_unit ?? 'g';
+                            $available = $summary['available'];
+                            
+                            // Check if lot is running low (less than 20% remaining)
+                            $totalOriginal = $summary['total'];
+                            $percentRemaining = $totalOriginal > 0 ? ($available / $totalOriginal) * 100 : 0;
+                            
+                            if ($percentRemaining < 20) {
+                                return new \Illuminate\Support\HtmlString(
+                                    '<div class="flex items-center gap-2 text-sm text-yellow-600">' .
+                                    '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">' .
+                                    '<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>' .
+                                    '</svg>' .
+                                    "Lot {$record->lot_number}: {$available}{$unit} available (Low stock: " . round($percentRemaining, 1) . "% remaining)" .
+                                    '</div>'
+                                );
+                            }
+                            
+                            return new \Illuminate\Support\HtmlString(
+                                '<div class="flex items-center gap-2 text-sm text-green-600">' .
+                                '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">' .
+                                '<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>' .
+                                '</svg>' .
+                                "Lot {$record->lot_number}: {$available}{$unit} available (" . round($percentRemaining, 1) . "% remaining)" .
+                                '</div>'
+                            );
+                        })
+                        ->visible(fn(?Recipe $record) => $record && $record->lot_number),
 
                     Forms\Components\Select::make('supplier_soil_id')
                         ->label('Soil Supplier')
@@ -184,7 +328,7 @@ class RecipeResource extends Resource
     {
         return $table
             ->modifyQueryUsing(fn (Builder $query) => $query->with([
-                'seedConsumable',
+                'seedConsumable', // Keep for backward compatibility
                 'soilConsumable'
             ]))
             ->persistFiltersInSession()
@@ -196,16 +340,43 @@ class RecipeResource extends Resource
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: false),
                     
-                Tables\Columns\TextColumn::make('seedConsumable.name')
-                    ->label('Seed Stock')
+                Tables\Columns\TextColumn::make('lot_number')
+                    ->label('Seed Lot')
                     ->searchable()
                     ->sortable()
                     ->toggleable()
                     ->formatStateUsing(function ($state, $record) {
-                        if (!$record->seedConsumable) return '-';
-                        $available = max(0, $record->seedConsumable->total_quantity - $record->seedConsumable->consumed_quantity);
-                        $unit = $record->seedConsumable->quantity_unit ?? 'g';
-                        return $state . " ({$available} {$unit} available)";
+                        if (!$state) {
+                            // Fall back to old seedConsumable relationship for backward compatibility
+                            if ($record->seedConsumable) {
+                                $available = max(0, $record->seedConsumable->total_quantity - $record->seedConsumable->consumed_quantity);
+                                $unit = $record->seedConsumable->quantity_unit ?? 'g';
+                                return $record->seedConsumable->name . " ({$available} {$unit} available)";
+                            }
+                            return '-';
+                        }
+                        
+                        $lotInventoryService = new LotInventoryService();
+                        $summary = $lotInventoryService->getLotSummary($state);
+                        
+                        if ($summary['available'] <= 0) {
+                            return "{$state} (Depleted)";
+                        }
+                        
+                        $consumable = Consumable::where('consumable_type_id', LotInventoryService::SEED_CONSUMABLE_TYPE_ID)
+                            ->where('lot_no', $state)
+                            ->where('is_active', true)
+                            ->first();
+                        
+                        if (!$consumable) {
+                            return "{$state} (Not Found)";
+                        }
+                        
+                        $unit = $consumable->quantity_unit ?? 'g';
+                        $available = $summary['available'];
+                        $seedName = $consumable->name ?? 'Unknown';
+                        
+                        return "{$state} ({$available}{$unit}) - {$seedName}";
                     }),
                     
                 Tables\Columns\TextColumn::make('soilConsumable.name')
@@ -283,15 +454,31 @@ class RecipeResource extends Resource
                         'unit' => 'Inactive',
                     ]),
                     
-                Tables\Filters\SelectFilter::make('seed_consumable_id')
-                    ->label('Seed Stock')
-                    ->relationship('seedConsumable', 'name', 
-                        modifyQueryUsing: fn ($query) => $query->where('type', 'seed')->where('is_active', true)
-                    )
-                    ->getOptionLabelFromRecordUsing(function ($record) {
-                        $available = max(0, $record->total_quantity - $record->consumed_quantity);
-                        $unit = $record->quantity_unit ?? 'g';
-                        return $record->name . " ({$available} {$unit})";
+                Tables\Filters\SelectFilter::make('lot_number')
+                    ->label('Seed Lot')
+                    ->options(function () {
+                        $lotInventoryService = new LotInventoryService();
+                        $lotNumbers = $lotInventoryService->getAllLotNumbers();
+                        $options = [];
+                        
+                        foreach ($lotNumbers as $lotNumber) {
+                            $summary = $lotInventoryService->getLotSummary($lotNumber);
+                            $consumable = Consumable::where('consumable_type_id', LotInventoryService::SEED_CONSUMABLE_TYPE_ID)
+                                ->where('lot_no', $lotNumber)
+                                ->where('is_active', true)
+                                ->first();
+                            
+                            if ($consumable) {
+                                $unit = $consumable->quantity_unit ?? 'g';
+                                $seedName = $consumable->name ?? 'Unknown';
+                                $available = $summary['available'];
+                                $status = $available > 0 ? "({$available}{$unit})" : "(Depleted)";
+                                
+                                $options[$lotNumber] = "{$lotNumber} {$status} - {$seedName}";
+                            }
+                        }
+                        
+                        return $options;
                     })
                     ->searchable()
                     ->preload(),

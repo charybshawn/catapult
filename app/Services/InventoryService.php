@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\Consumable;
 use App\Models\ConsumableTransaction;
+use App\Models\Recipe;
 use App\Models\User;
+use App\Services\LotInventoryService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 
@@ -438,5 +440,187 @@ class InventoryService
     public function isUsingTransactionTracking(Consumable $consumable): bool
     {
         return $consumable->consumableTransactions()->exists();
+    }
+
+    /**
+     * FIFO Lot Consumption Methods
+     */
+
+    /**
+     * Consume specified amount from a lot using FIFO (oldest entries first).
+     * 
+     * @param string $lotNumber The lot number to consume from
+     * @param float $amount The amount to consume
+     * @param Recipe|null $recipe Optional recipe reference
+     * @param User|null $user Optional user performing the consumption
+     * @return array Array with consumed amounts per consumable entry
+     * @throws \Exception If lot doesn't exist or insufficient stock
+     */
+    public function consumeFromLot(string $lotNumber, float $amount, ?Recipe $recipe = null, ?User $user = null): array
+    {
+        return DB::transaction(function () use ($lotNumber, $amount, $recipe, $user) {
+            $lotInventoryService = new LotInventoryService();
+            
+            // Validate lot exists
+            if (!$lotInventoryService->lotExists($lotNumber)) {
+                throw new \Exception("Lot '{$lotNumber}' does not exist");
+            }
+            
+            // Check if sufficient stock is available
+            if (!$this->canConsumeFromLot($lotNumber, $amount)) {
+                $available = $lotInventoryService->getLotQuantity($lotNumber);
+                throw new \Exception("Insufficient stock in lot '{$lotNumber}'. Requested: {$amount}, Available: {$available}");
+            }
+            
+            $consumedAmounts = [];
+            $remainingToConsume = $amount;
+            
+            // Get all entries in the lot ordered by age (FIFO)
+            $entries = $lotInventoryService->getEntriesInLot($lotNumber);
+            
+            foreach ($entries as $consumable) {
+                if ($remainingToConsume <= 0) {
+                    break;
+                }
+                
+                $availableInEntry = $this->getCurrentStockFromTransactions($consumable);
+                if ($availableInEntry <= 0) {
+                    continue;
+                }
+                
+                // Calculate how much to consume from this entry
+                $toConsumeFromEntry = min($remainingToConsume, $availableInEntry);
+                
+                // Prepare transaction metadata
+                $metadata = [
+                    'lot_number' => $lotNumber,
+                    'fifo_consumption' => true,
+                ];
+                
+                if ($recipe) {
+                    $metadata['recipe_id'] = $recipe->id;
+                    $metadata['recipe_name'] = $recipe->name;
+                }
+                
+                // Record consumption transaction
+                $transaction = $this->recordConsumption(
+                    $consumable,
+                    $toConsumeFromEntry,
+                    null, // unit
+                    $user,
+                    $recipe ? 'recipe' : null,
+                    $recipe ? $recipe->id : null,
+                    "FIFO lot consumption from lot {$lotNumber}",
+                    $metadata
+                );
+                
+                $consumedAmounts[] = [
+                    'consumable_id' => $consumable->id,
+                    'amount' => $toConsumeFromEntry,
+                    'remaining_after' => $transaction->balance_after,
+                    'transaction_id' => $transaction->id,
+                ];
+                
+                $remainingToConsume -= $toConsumeFromEntry;
+            }
+            
+            Log::info('FIFO lot consumption completed', [
+                'lot_number' => $lotNumber,
+                'total_consumed' => $amount,
+                'entries_affected' => count($consumedAmounts),
+                'recipe_id' => $recipe?->id,
+                'user_id' => $user?->id,
+            ]);
+            
+            return $consumedAmounts;
+        });
+    }
+
+    /**
+     * Check if lot has enough available quantity for consumption.
+     * 
+     * @param string $lotNumber The lot number to check
+     * @param float $amount The amount to check for
+     * @return bool True if consumption is possible, false otherwise
+     */
+    public function canConsumeFromLot(string $lotNumber, float $amount): bool
+    {
+        $lotInventoryService = new LotInventoryService();
+        
+        // Check if lot exists
+        if (!$lotInventoryService->lotExists($lotNumber)) {
+            return false;
+        }
+        
+        // Check if sufficient quantity is available
+        $availableQuantity = $lotInventoryService->getLotQuantity($lotNumber);
+        
+        return $availableQuantity >= $amount;
+    }
+
+    /**
+     * Get detailed plan showing which entries will be consumed and how much.
+     * 
+     * @param string $lotNumber The lot number to plan for
+     * @param float $amount The amount to plan consumption for
+     * @return array Array with consumption plan details
+     * @throws \Exception If lot doesn't exist or insufficient stock
+     */
+    public function getLotConsumptionPlan(string $lotNumber, float $amount): array
+    {
+        $lotInventoryService = new LotInventoryService();
+        
+        // Validate lot exists
+        if (!$lotInventoryService->lotExists($lotNumber)) {
+            throw new \Exception("Lot '{$lotNumber}' does not exist");
+        }
+        
+        // Check if sufficient stock is available
+        if (!$this->canConsumeFromLot($lotNumber, $amount)) {
+            $available = $lotInventoryService->getLotQuantity($lotNumber);
+            throw new \Exception("Insufficient stock in lot '{$lotNumber}'. Requested: {$amount}, Available: {$available}");
+        }
+        
+        $consumptionPlan = [];
+        $remainingToConsume = $amount;
+        
+        // Get all entries in the lot ordered by age (FIFO)
+        $entries = $lotInventoryService->getEntriesInLot($lotNumber);
+        
+        foreach ($entries as $consumable) {
+            if ($remainingToConsume <= 0) {
+                break;
+            }
+            
+            $availableInEntry = $this->getCurrentStockFromTransactions($consumable);
+            if ($availableInEntry <= 0) {
+                continue;
+            }
+            
+            // Calculate how much would be consumed from this entry
+            $toConsumeFromEntry = min($remainingToConsume, $availableInEntry);
+            $remainingAfter = $availableInEntry - $toConsumeFromEntry;
+            
+            $consumptionPlan[] = [
+                'consumable_id' => $consumable->id,
+                'consumable_name' => $consumable->name,
+                'current_stock' => $availableInEntry,
+                'amount' => $toConsumeFromEntry,
+                'remaining_after' => $remainingAfter,
+                'created_at' => $consumable->created_at,
+                'lot_number' => $lotNumber,
+            ];
+            
+            $remainingToConsume -= $toConsumeFromEntry;
+        }
+        
+        return [
+            'lot_number' => $lotNumber,
+            'requested_amount' => $amount,
+            'total_available' => $lotInventoryService->getLotQuantity($lotNumber),
+            'entries_to_consume' => $consumptionPlan,
+            'entries_count' => count($consumptionPlan),
+            'can_fulfill' => $remainingToConsume <= 0,
+        ];
     }
 }

@@ -133,62 +133,96 @@ class CreateCrop extends BaseCreateRecord
                 Crop::disableBulkOperation();
             }
             
-            // Manually handle seed deduction since we disabled bulk operation mode
-            if ($recipe && $recipe->seedConsumable && $recipe->seed_density_grams_per_tray) {
+            // Handle seed deduction using new lot-based FIFO system
+            if ($recipe && $recipe->lot_number && $recipe->seed_density_grams_per_tray) {
                 try {
                     $totalSeedRequired = $recipe->seed_density_grams_per_tray * count($createdRecords);
-                    $seedConsumable = $recipe->seedConsumable;
-                    
-                    // Convert required amount to the same unit as the seed consumable for comparison
                     $inventoryService = app(\App\Services\InventoryService::class);
-                    $currentStock = $inventoryService->getCurrentStock($seedConsumable);
                     
-                    // Check if we have enough seed (convert units if needed for comparison)
-                    $requiredInSeedUnits = match($seedConsumable->quantity_unit) {
-                        'kg' => $totalSeedRequired / 1000, // Convert grams to kg
-                        'g' => $totalSeedRequired, // Already in grams
-                        default => $totalSeedRequired // For other units, assume direct comparison
-                    };
-                    
-                    if ($currentStock >= $requiredInSeedUnits) {
-                        // Deduct the total seed amount for all trays
-                        $seedConsumable->deduct(
-                            $totalSeedRequired,
-                            'g' // Recipe seed density is always in grams
-                        );
-                        
-                        Log::info('Seed automatically deducted for crop batch', [
+                    // Check if lot has sufficient quantity and is not depleted
+                    if ($recipe->isLotDepleted()) {
+                        Log::error('Cannot create crops: Recipe lot is marked as depleted', [
                             'recipe_id' => $recipe->id,
-                            'seed_consumable_id' => $seedConsumable->id,
-                            'total_amount_deducted' => $totalSeedRequired,
-                            'trays_created' => count($createdRecords),
-                            'amount_per_tray' => $recipe->seed_density_grams_per_tray,
-                            'unit' => 'g',
-                            'remaining_stock' => $currentStock - $requiredInSeedUnits
+                            'lot_number' => $recipe->lot_number,
+                            'required_amount' => $totalSeedRequired
                         ]);
-                    } else {
-                        Log::warning('Insufficient seed stock for crop batch creation', [
+                        
+                        Notification::make()
+                            ->title('Lot Depleted Error')
+                            ->body("Cannot create crops: Recipe lot '{$recipe->lot_number}' is marked as depleted. Please assign a new lot to this recipe.")
+                            ->danger()
+                            ->persistent()
+                            ->send();
+                            
+                        return null;
+                    }
+                    
+                    // Check if lot has enough available quantity
+                    if (!$inventoryService->canConsumeFromLot($recipe->lot_number, $totalSeedRequired)) {
+                        $availableQuantity = $recipe->getLotQuantity();
+                        
+                        Log::warning('Insufficient lot stock for crop batch creation', [
                             'recipe_id' => $recipe->id,
-                            'seed_consumable_id' => $seedConsumable->id,
+                            'lot_number' => $recipe->lot_number,
                             'required_amount' => $totalSeedRequired,
-                            'current_stock' => $currentStock,
-                            'seed_unit' => $seedConsumable->quantity_unit,
+                            'available_stock' => $availableQuantity,
                             'trays_requested' => count($createdRecords)
                         ]);
                         
-                        // Optionally add a warning to the notification
                         Notification::make()
-                            ->title('Low Seed Stock Warning')
-                            ->body("Crops created but insufficient seed stock. Required: {$totalSeedRequired}g, Available: {$currentStock} {$seedConsumable->quantity_unit}")
+                            ->title('Insufficient Lot Stock')
+                            ->body("Cannot create crops: Lot '{$recipe->lot_number}' has insufficient stock. Required: {$totalSeedRequired}g, Available: {$availableQuantity}g")
+                            ->danger()
+                            ->persistent()
+                            ->send();
+                            
+                        return null;
+                    }
+                    
+                    // Consume from lot using FIFO
+                    $consumptionResults = $inventoryService->consumeFromLot(
+                        $recipe->lot_number,
+                        $totalSeedRequired,
+                        $recipe,
+                        auth()->user()
+                    );
+                    
+                    Log::info('Seed automatically deducted from lot using FIFO', [
+                        'recipe_id' => $recipe->id,
+                        'lot_number' => $recipe->lot_number,
+                        'total_amount_deducted' => $totalSeedRequired,
+                        'trays_created' => count($createdRecords),
+                        'amount_per_tray' => $recipe->seed_density_grams_per_tray,
+                        'unit' => 'g',
+                        'consumption_results' => $consumptionResults,
+                        'remaining_lot_stock' => $recipe->getLotQuantity()
+                    ]);
+                    
+                    // Check if lot is now depleted and mark if necessary
+                    if ($recipe->getLotQuantity() <= 0) {
+                        $recipe->markLotDepleted();
+                        
+                        Notification::make()
+                            ->title('Lot Depleted')
+                            ->body("Lot '{$recipe->lot_number}' has been fully consumed and marked as depleted. Please assign a new lot to this recipe for future use.")
                             ->warning()
+                            ->persistent()
                             ->send();
                     }
                 } catch (\Exception $e) {
-                    Log::warning('Error deducting seed inventory for crop batch', [
+                    Log::error('Error deducting seed inventory from lot for crop batch', [
                         'recipe_id' => $recipe->id,
+                        'lot_number' => $recipe->lot_number,
                         'error' => $e->getMessage(),
                         'trays_created' => count($createdRecords)
                     ]);
+                    
+                    Notification::make()
+                        ->title('Seed Deduction Error')
+                        ->body("Crops created but error occurred during seed deduction from lot '{$recipe->lot_number}': {$e->getMessage()}")
+                        ->danger()
+                        ->persistent()
+                        ->send();
                 }
             }
             

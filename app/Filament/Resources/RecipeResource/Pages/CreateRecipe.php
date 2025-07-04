@@ -32,7 +32,7 @@ class CreateRecipe extends BaseCreateRecord
                         ->columnSpanFull(),
 
                     Select::make('seed_consumable_id')
-                        ->label('Seed')
+                        ->label('Seed (Legacy)')
                         ->relationship('seedConsumable', 'name')
                         ->options(function () {
                             return Consumable::where('type', 'seed')
@@ -49,8 +49,7 @@ class CreateRecipe extends BaseCreateRecord
                         })
                         ->searchable()
                         ->preload()
-                        ->helperText('Select a seed from inventory or add a new one')
-                        ->required()
+                        ->helperText('DEPRECATED: For backward compatibility only. Use lot_number field instead.')
                         ->createOptionForm(Consumable::getSeedFormSchema())
                         ->createOptionUsing(function (array $data) {
                             $data['type'] = 'seed';
@@ -58,6 +57,13 @@ class CreateRecipe extends BaseCreateRecord
 
                             return Consumable::create($data)->id;
                         })
+                        ->columnSpan(1),
+
+                    TextInput::make('lot_number')
+                        ->label('Lot Number')
+                        ->helperText('Enter the lot number for seed tracking and inventory management')
+                        ->maxLength(50)
+                        ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
                         ->columnSpan(1),
 
                     Select::make('soil_consumable_id')

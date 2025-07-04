@@ -340,7 +340,8 @@ class Crop extends Model
                         \Illuminate\Support\Facades\Log::info('Seed automatically deducted for new crop', [
                             'crop_id' => $crop->id,
                             'recipe_id' => $crop->recipe_id,
-                            'seed_consumable_id' => $seedConsumable->id,
+                            'lot_number' => $crop->recipe->lot_number,
+                            'seed_consumable_id' => $seedConsumable->id, // DEPRECATED: Use lot_number instead
                             'amount_deducted' => $requiredAmount,
                             'unit' => 'g',
                             'remaining_stock' => $currentStock - $requiredInSeedUnits
@@ -349,7 +350,8 @@ class Crop extends Model
                         \Illuminate\Support\Facades\Log::warning('Insufficient seed stock for crop creation', [
                             'crop_id' => $crop->id,
                             'recipe_id' => $crop->recipe_id,
-                            'seed_consumable_id' => $seedConsumable->id,
+                            'lot_number' => $crop->recipe->lot_number,
+                            'seed_consumable_id' => $seedConsumable->id, // DEPRECATED: Use lot_number instead
                             'required_amount' => $requiredAmount,
                             'current_stock' => $currentStock,
                             'seed_unit' => $seedConsumable->quantity_unit

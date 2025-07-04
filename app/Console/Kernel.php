@@ -29,6 +29,18 @@ class Kernel extends ConsoleKernel
         // Add command to process crop tasks
         $schedule->command('app:process-crop-tasks')->everyFifteenMinutes(); // Check every 15 minutes
 
+        // Check lot depletion daily at 7 AM and automatically mark depleted lots
+        $schedule->command('app:check-lot-depletion --notify --auto-mark')
+            ->dailyAt('07:00')
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/lot-depletion.log'));
+
+        // Additional lot depletion check every 4 hours without notifications (monitoring only)
+        $schedule->command('app:check-lot-depletion')
+            ->cron('0 */4 * * *')
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/lot-depletion.log'));
+
         // TEMPORARILY DISABLED: Process recurring orders daily at 6 AM (before typical business hours)
         // Use manual action buttons in OrderResource instead
         // $schedule->command('orders:process-recurring')

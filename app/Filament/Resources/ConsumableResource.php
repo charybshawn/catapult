@@ -9,6 +9,8 @@ use App\Models\ConsumableUnit;
 use App\Models\PackagingType;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
+use Filament\Forms\Set;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -47,7 +49,7 @@ class ConsumableResource extends BaseResource
                             ->disabled($isEditMode)
                             ->dehydrated()
                             ->columnSpanFull()
-                            ->afterStateUpdated(function ($state, Forms\Set $set) {
+                            ->afterStateUpdated(function ($state, Set $set) {
                                 $type = ConsumableType::find($state);
                                 if (!$type) return;
                                 
@@ -67,7 +69,7 @@ class ConsumableResource extends BaseResource
 
                         // Item Name Field - varies by type
                         Forms\Components\Grid::make()
-                            ->schema(function (Forms\Get $get) {
+                            ->schema(function (Get $get) {
                                 $typeId = $get('consumable_type_id');
                                 $type = $typeId ? ConsumableType::find($typeId) : null;
                                 
@@ -87,7 +89,7 @@ class ConsumableResource extends BaseResource
                                             ->searchable()
                                             ->required()
                                             ->reactive()
-                                            ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                            ->afterStateUpdated(function ($state, Set $set) {
                                                 // Get packaging type
                                                 $packagingType = \App\Models\PackagingType::find($state);
                                                 
@@ -101,84 +103,14 @@ class ConsumableResource extends BaseResource
                                         Forms\Components\Hidden::make('name')
                                     ];
                                 } else if ($type && $type->isSeed()) {
-                                    // Use master seed catalog for seed selection
+                                    // For seed types, just show supplier since cultivar is handled separately
                                     return [
-                                        Forms\Components\Grid::make(2)
-                                            ->schema([
-                                                Forms\Components\Select::make('master_cultivar_id')
-                                                    ->label('Seed Cultivar')
-                                                    ->helperText('Required: Please select from available cultivars or create new')
-                                                    ->options(function () {
-                                                        return \App\Models\MasterCultivar::query()
-                                                            ->with('masterSeedCatalog')
-                                                            ->where('is_active', true)
-                                                            ->get()
-                                                            ->mapWithKeys(function ($cultivar) {
-                                                                return [$cultivar->id => $cultivar->full_name];
-                                                            });
-                                                    })
-                                                    ->searchable()
-                                                    ->required()
-                                                    ->live()
-                                                    ->createOptionForm([
-                                                        Forms\Components\TextInput::make('common_name')
-                                                            ->required()
-                                                            ->maxLength(255)
-                                                            ->helperText('e.g. Radish, Cress, Peas, Sunflower'),
-                                                        Forms\Components\TextInput::make('cultivar_name')
-                                                            ->label('Cultivar Name')
-                                                            ->required()
-                                                            ->maxLength(255)
-                                                            ->helperText('Single cultivar name, e.g. Cherry Belle, French Breakfast, Watermelon'),
-                                                        Forms\Components\Select::make('category')
-                                                            ->options(\App\Models\SeedCategory::options())
-                                                            ->searchable(),
-                                                        Forms\Components\TagsInput::make('aliases')
-                                                            ->helperText('Alternative names for this seed type'),
-                                                        Forms\Components\Textarea::make('description')
-                                                            ->columnSpanFull(),
-                                                    ])
-                                                    ->createOptionUsing(function (array $data): string {
-                                                        // First, find or create the master seed catalog
-                                                        $catalog = \App\Models\MasterSeedCatalog::firstOrCreate(
-                                                            ['common_name' => $data['common_name']],
-                                                            [
-                                                                'category' => $data['category'] ?? null,
-                                                                'aliases' => $data['aliases'] ?? [],
-                                                                'description' => $data['description'] ?? null,
-                                                                'is_active' => true,
-                                                            ]
-                                                        );
-                                                        
-                                                        // Then create the specific cultivar
-                                                        $cultivar = \App\Models\MasterCultivar::create([
-                                                            'master_seed_catalog_id' => $catalog->id,
-                                                            'cultivar_name' => $data['cultivar_name'],
-                                                            'description' => $data['description'] ?? null,
-                                                            'is_active' => true,
-                                                        ]);
-                                                        
-                                                        return $cultivar->getKey();
-                                                    })
-                                                    ->afterStateUpdated(function ($state, Forms\Set $set) {
-                                                        if ($state) {
-                                                            $cultivar = \App\Models\MasterCultivar::find($state);
-                                                            if ($cultivar) {
-                                                                // Set the consumable name and related fields
-                                                                $set('name', $cultivar->full_name);
-                                                                $set('cultivar', $cultivar->cultivar_name);
-                                                                $set('master_seed_catalog_id', $cultivar->master_seed_catalog_id);
-                                                            }
-                                                        }
-                                                    }),
-                                                    
-                                                FormCommon::supplierSelect(),
-                                            ])
-                                            ->columnSpanFull(),
+                                        FormCommon::supplierSelect(),
                                         
-                                        // Hidden fields - will be set from the master catalog
+                                        // Hidden fields - will be set from the master cultivar selection
                                         Forms\Components\Hidden::make('name'),
                                         Forms\Components\Hidden::make('cultivar'),
+                                        Forms\Components\Hidden::make('master_seed_catalog_id'),
                                     ];
                                 } else if ($type && $type->code === 'mix') {
                                     // Product mix selection
@@ -194,7 +126,7 @@ class ConsumableResource extends BaseResource
                                             ->searchable()
                                             ->required()
                                             ->live()
-                                            ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                            ->afterStateUpdated(function ($state, Set $set) {
                                                 if ($state) {
                                                     $mix = \App\Models\ProductMix::find($state);
                                                     if ($mix) {
@@ -213,7 +145,7 @@ class ConsumableResource extends BaseResource
                                             ->label('Item Name')
                                             ->required()
                                             ->maxLength(255)
-                                            ->datalist(function (Forms\Get $get) {
+                                            ->datalist(function (Get $get) {
                                                 // Only provide autocomplete for certain types
                                                 $typeId = $get('consumable_type_id');
                                                 $type = $typeId ? ConsumableType::find($typeId) : null;
@@ -234,7 +166,7 @@ class ConsumableResource extends BaseResource
                         
                         // Supplier field moved to be beside seed entry for seed type
                         Forms\Components\Grid::make()
-                            ->schema(function (Forms\Get $get) {
+                            ->schema(function (Get $get) {
                                 $typeId = $get('consumable_type_id');
                                 $type = $typeId ? ConsumableType::find($typeId) : null;
                                 
@@ -249,6 +181,42 @@ class ConsumableResource extends BaseResource
                                 }
                             })->columnSpanFull(),
                         
+                        // Seed cultivar field - outside conditional logic to fix Livewire binding
+                        Forms\Components\Select::make('master_cultivar_id')
+                            ->label('Seed Cultivar')
+                            ->options(function () {
+                                return \App\Models\MasterCultivar::query()
+                                    ->with('masterSeedCatalog')
+                                    ->where('is_active', true)
+                                    ->get()
+                                    ->mapWithKeys(function ($cultivar) {
+                                        return [$cultivar->id => $cultivar->full_name];
+                                    });
+                            })
+                            ->searchable()
+                            ->visible(function (Get $get): bool {
+                                $typeId = $get('consumable_type_id');
+                                $type = $typeId ? ConsumableType::find($typeId) : null;
+                                return $type && $type->isSeed();
+                            })
+                            ->required(function (Get $get): bool {
+                                $typeId = $get('consumable_type_id');
+                                $type = $typeId ? ConsumableType::find($typeId) : null;
+                                return $type && $type->isSeed();
+                            })
+                            ->live()
+                            ->afterStateUpdated(function ($state, Set $set) {
+                                if ($state) {
+                                    $cultivar = \App\Models\MasterCultivar::find($state);
+                                    if ($cultivar) {
+                                        $set('name', $cultivar->full_name);
+                                        $set('cultivar', $cultivar->cultivar_name);
+                                        $set('master_seed_catalog_id', $cultivar->master_seed_catalog_id);
+                                    }
+                                }
+                            })
+                            ->columnSpanFull(),
+
                         FormCommon::activeToggle()
                             ->columnSpanFull()
                             ->inline(false),
@@ -259,7 +227,7 @@ class ConsumableResource extends BaseResource
                     ->schema([
                         // Conditional form fields based on consumable type
                         Forms\Components\Grid::make()
-                            ->schema(function (Forms\Get $get) use ($isEditMode) {
+                            ->schema(function (Get $get) use ($isEditMode) {
                                 $typeId = $get('consumable_type_id');
                                 $type = $typeId ? ConsumableType::find($typeId) : null;
                                 
@@ -307,7 +275,7 @@ class ConsumableResource extends BaseResource
                                             ->helperText('Actual weight remaining (e.g., weighed out 498g from 1000g)')
                                             ->numeric()
                                             ->minValue(0)
-                                            ->default(function (Forms\Get $get) {
+                                            ->default(function (Get $get) {
                                                 return (float) $get('total_quantity');
                                             })
                                             ->step(0.001)
@@ -329,7 +297,7 @@ class ConsumableResource extends BaseResource
                                         // Consumed quantity display
                                         Forms\Components\Placeholder::make('consumed_display')
                                             ->label('Amount Used')
-                                            ->content(function (Forms\Get $get) {
+                                            ->content(function (Get $get) {
                                                 $total = (float) $get('total_quantity');
                                                 $remaining = (float) $get('remaining_quantity');
                                                 $consumed = max(0, $total - $remaining);
@@ -473,7 +441,7 @@ class ConsumableResource extends BaseResource
                                 // Info placeholder for seeds showing conversion
                                 Forms\Components\Placeholder::make('restock_info')
                                     ->label('')
-                                    ->content(function (Forms\Get $get) {
+                                    ->content(function (Get $get) {
                                         if ($get('type') !== 'seed') {
                                             return '';
                                         }
@@ -519,7 +487,7 @@ class ConsumableResource extends BaseResource
                                             ? 'Restock Threshold (' . ($get('quantity_unit') ?: 'g') . ')' 
                                             : 'Restock Threshold'
                                     )
-                                    ->helperText(function (Forms\Get $get) {
+                                    ->helperText(function (Get $get) {
                                         $typeId = $get('consumable_type_id');
                                         $type = $typeId ? ConsumableType::find($typeId) : null;
                                         
@@ -547,7 +515,7 @@ class ConsumableResource extends BaseResource
                                     })
                                     ->numeric()
                                     ->required()
-                                    ->default(function (Forms\Get $get) {
+                                    ->default(function (Get $get) {
                                         if ($get('type') === 'seed') {
                                             // Default based on unit
                                             return match($get('quantity_unit')) {
@@ -565,7 +533,7 @@ class ConsumableResource extends BaseResource
                                     )
                                     ->reactive(),
                                 Forms\Components\TextInput::make('restock_quantity')
-                                    ->label(function (Forms\Get $get) {
+                                    ->label(function (Get $get) {
                                         $typeId = $get('consumable_type_id');
                                         $type = $typeId ? ConsumableType::find($typeId) : null;
                                         
@@ -574,7 +542,7 @@ class ConsumableResource extends BaseResource
                                         }
                                         return 'Restock Quantity';
                                     })
-                                    ->helperText(function (Forms\Get $get) {
+                                    ->helperText(function (Get $get) {
                                         $typeId = $get('consumable_type_id');
                                         $type = $typeId ? ConsumableType::find($typeId) : null;
                                         
@@ -602,7 +570,7 @@ class ConsumableResource extends BaseResource
                                     })
                                     ->numeric()
                                     ->required()
-                                    ->default(function (Forms\Get $get) {
+                                    ->default(function (Get $get) {
                                         $typeId = $get('consumable_type_id');
                                         $type = $typeId ? ConsumableType::find($typeId) : null;
                                         
@@ -635,7 +603,7 @@ class ConsumableResource extends BaseResource
                                     ->numeric()
                                     ->minValue(0)
                                     ->step(0.01)
-                                    ->helperText(function (Forms\Get $get) {
+                                    ->helperText(function (Get $get) {
                                         $typeId = $get('consumable_type_id');
                                         $type = $typeId ? ConsumableType::find($typeId) : null;
                                         
@@ -656,7 +624,7 @@ class ConsumableResource extends BaseResource
                                     ->visible(fn ($record) => $record !== null),
                                 Forms\Components\Placeholder::make('total_value')
                                     ->label('Total Inventory Value')
-                                    ->content(function (Forms\Get $get) {
+                                    ->content(function (Get $get) {
                                         $costPerUnit = (float) $get('cost_per_unit');
                                         $typeId = $get('consumable_type_id');
                                         $type = $typeId ? ConsumableType::find($typeId) : null;
@@ -677,7 +645,7 @@ class ConsumableResource extends BaseResource
                             ]),
                     ])
                     ->collapsed()
-                    ->visible(function (Forms\Get $get) {
+                    ->visible(function (Get $get) {
                         $typeId = $get('consumable_type_id');
                         $type = $typeId ? ConsumableType::find($typeId) : null;
                         return $type && $type->isSeed();
@@ -872,6 +840,17 @@ class ConsumableResource extends BaseResource
                     ->label('Inactive')
                     ->query(fn (Builder $query) => $query->where('is_active', false)),
                 // Seed cultivar filter removed - seed consumables now linked through SeedVariation
+            ])
+            ->groups([
+                Tables\Grouping\Group::make('name')
+                    ->label('Name')
+                    ->collapsible(),
+                Tables\Grouping\Group::make('consumableType.name')
+                    ->label('Type')
+                    ->collapsible(),
+                Tables\Grouping\Group::make('supplier.name')
+                    ->label('Supplier')
+                    ->collapsible(),
             ])
             ->actions(static::getDefaultTableActions())
             ->bulkActions([

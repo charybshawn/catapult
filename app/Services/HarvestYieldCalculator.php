@@ -80,9 +80,16 @@ class HarvestYieldCalculator
 
     /**
      * Get the current active seed consumable for a recipe.
+     * @deprecated Use lot-based methods instead
      */
     private function getCurrentSeedConsumable(Recipe $recipe): ?Consumable
     {
+        // First try to get from lot_number (new system)
+        if ($recipe->lot_number) {
+            return $recipe->availableLotConsumables()->first();
+        }
+        
+        // Fallback to deprecated seed_consumable_id for backward compatibility
         if (! $recipe->seed_consumable_id) {
             return null;
         }

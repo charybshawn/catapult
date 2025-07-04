@@ -91,7 +91,10 @@ class Consumable extends Model
     {
         static::saving(function (Consumable $consumable) {
             // For seeds, we now use total_quantity directly (no calculation needed)
-            if ($consumable->consumableType && $consumable->consumableType->isSeed()) {
+            // Check if consumableType is loaded to avoid lazy loading
+            if ($consumable->relationLoaded('consumableType') && 
+                $consumable->consumableType && 
+                $consumable->consumableType->isSeed()) {
                 // The total_quantity field is now managed directly by the user
                 return;
             }

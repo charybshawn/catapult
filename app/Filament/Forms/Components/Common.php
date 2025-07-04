@@ -39,6 +39,7 @@ class Common
             ->searchable()
             ->preload()
             ->required()
+            ->dehydrated()
             ->createOptionForm([
                 Forms\Components\TextInput::make('name')
                     ->required()
