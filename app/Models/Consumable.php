@@ -26,6 +26,7 @@ class Consumable extends Model
      */
     protected $fillable = [
         'name',
+        'type', // Type of consumable (seed, soil, packaging, etc.)
         'consumable_type_id',
         'supplier_id',
         'packaging_type_id', // For packaging consumables only
@@ -42,6 +43,7 @@ class Consumable extends Model
         'cost_per_unit',
         'quantity_per_unit', // Weight of each unit
         'quantity_unit', // Unit of measurement (g, kg, l, oz)
+        'unit', // Unit type (unit, package, etc.)
         'total_quantity',
         'notes',
         'lot_no',
@@ -91,10 +93,7 @@ class Consumable extends Model
     {
         static::saving(function (Consumable $consumable) {
             // For seeds, we now use total_quantity directly (no calculation needed)
-            // Check if consumableType is loaded to avoid lazy loading
-            if ($consumable->relationLoaded('consumableType') && 
-                $consumable->consumableType && 
-                $consumable->consumableType->isSeed()) {
+            if ($consumable->type === 'seed') {
                 // The total_quantity field is now managed directly by the user
                 return;
             }
@@ -337,7 +336,7 @@ class Consumable extends Model
     public function getFormattedCurrentStockAttribute(): string
     {
         // For seed consumables, show the total quantity with its unit
-        if ($this->consumableType && $this->consumableType->isSeed()) {
+        if ($this->type === 'seed') {
             $unit = $this->quantity_unit ?? 'g';
             $displayUnit = $unit;
             $availableStock = $this->total_quantity;
@@ -358,7 +357,7 @@ class Consumable extends Model
     public function getCurrentStockAttribute()
     {
         // For seeds, return the total_quantity directly 
-        if ($this->consumableType && $this->consumableType->isSeed()) {
+        if ($this->type === 'seed') {
             return $this->total_quantity;
         }
         
@@ -390,11 +389,11 @@ class Consumable extends Model
                 ->label('Supplier')
                 ->options(function () {
                     return Supplier::query()
-                        ->where(function ($query) {
-                            $query->where('type', 'seed') // Changed to seed for seed suppliers
-                                  ->orWhereNull('type')
-                                  ->orWhere('type', 'other');
+                        ->with('supplierType')
+                        ->whereHas('supplierType', function ($query) {
+                            $query->whereIn('code', ['seed', 'other']);
                         })
+                        ->orWhereNull('supplier_type_id')
                         ->pluck('name', 'id');
                 })
                 ->searchable()
@@ -405,8 +404,11 @@ class Consumable extends Model
                             Forms\Components\TextInput::make('name')
                                 ->required()
                                 ->maxLength(255),
-                            Forms\Components\Hidden::make('type')
-                                ->default('seed'),
+                            Forms\Components\Hidden::make('supplier_type_id')
+                                ->afterStateHydrated(function ($component, $state) {
+                                    $seedType = \App\Models\SupplierType::where('code', 'seed')->first();
+                                    $component->state($seedType?->id);
+                                }),
                             Forms\Components\Textarea::make('contact_info')
                                 ->label('Contact Information')
                                 ->rows(3),
@@ -493,17 +495,19 @@ class Consumable extends Model
         return [
             Forms\Components\TextInput::make('name')
                 ->label('Soil Name')
+                ->helperText('Descriptive name for this soil type')
                 ->required()
                 ->maxLength(255),
+                
             Forms\Components\Select::make('supplier_id')
                 ->label('Supplier')
                 ->options(function () {
                     return Supplier::query()
-                        ->where(function ($query) {
-                            $query->where('type', 'soil')
-                                  ->orWhereNull('type')
-                                  ->orWhere('type', 'other');
+                        ->with('supplierType')
+                        ->whereHas('supplierType', function ($query) {
+                            $query->whereIn('code', ['soil', 'other']);
                         })
+                        ->orWhereNull('supplier_type_id')
                         ->pluck('name', 'id');
                 })
                 ->searchable()
@@ -514,51 +518,123 @@ class Consumable extends Model
                             Forms\Components\TextInput::make('name')
                                 ->required()
                                 ->maxLength(255),
-                            Forms\Components\Hidden::make('type')
-                                ->default('soil'),
+                            Forms\Components\Hidden::make('supplier_type_id')
+                                ->afterStateHydrated(function ($component, $state) {
+                                    $soilType = \App\Models\SupplierType::where('code', 'soil')->first();
+                                    $component->state($soilType?->id);
+                                }),
                             Forms\Components\Textarea::make('contact_info')
                                 ->label('Contact Information')
                                 ->rows(3),
                         ]);
                 }),
-            Forms\Components\TextInput::make('initial_stock')
-                ->label('Initial Stock')
-                ->numeric()
-                ->required()
-                ->default(1),
-            Forms\Components\TextInput::make('unit')
-                ->label('Unit of Measurement')
-                ->default('bags')
-                ->required(),
-            Forms\Components\TextInput::make('quantity_per_unit')
-                ->label('Quantity Per Unit (L)')
-                ->helperText('Amount of soil in liters per bag')
-                ->numeric()
-                ->required()
-                ->default(50)
-                ->minValue(0.01)
-                ->step(0.01),
-            Forms\Components\Hidden::make('quantity_unit')
-                ->default('l'),
-            // Cost per unit is deprecated and no longer required
-            Forms\Components\TextInput::make('restock_threshold')
-                ->label('Restock Threshold (bags)')
-                ->helperText('Minimum number of bags to maintain in inventory')
-                ->numeric()
-                ->required()
-                ->default(2),
-            Forms\Components\TextInput::make('restock_quantity')
-                ->label('Restock Quantity')
-                ->helperText('Quantity to order when restocking')
-                ->numeric()
-                ->required()
-                ->default(5),
+                
+            Forms\Components\Fieldset::make('Inventory Details')
+                ->schema([
+                    Forms\Components\TextInput::make('initial_stock')
+                        ->label('Quantity')
+                        ->helperText('Number of units in stock')
+                        ->numeric()
+                        ->minValue(0)
+                        ->required()
+                        ->default(1)
+                        ->reactive()
+                        ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get) {
+                            // Update total quantity calculation when initial stock changes
+                            if ($get('quantity_per_unit') && $get('quantity_per_unit') > 0) {
+                                $set('total_quantity', (float)$get('initial_stock') * (float)$get('quantity_per_unit'));
+                            }
+                        }),
+                        
+                    Forms\Components\Select::make('consumable_unit_id')
+                        ->label('Packaging Type')
+                        ->helperText('Container or form of packaging')
+                        ->options(\App\Models\ConsumableUnit::options())
+                        ->required()
+                        ->default(function () {
+                            return \App\Models\ConsumableUnit::findByCode('unit')?->id;
+                        }),
+                        
+                    Forms\Components\TextInput::make('quantity_per_unit')
+                        ->label('Unit Size')
+                        ->helperText('Capacity or size of each unit (e.g., 107L per bag)')
+                        ->numeric()
+                        ->minValue(0)
+                        ->default(50)
+                        ->step(0.01)
+                        ->reactive()
+                        ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get) {
+                            // Update total quantity based on stock and unit size
+                            $set('total_quantity', (float)$get('initial_stock') * (float)$get('quantity_per_unit'));
+                        }),
+                        
+                    Forms\Components\Select::make('quantity_unit')
+                        ->label('Unit of Measurement')
+                        ->helperText('Unit for the size/capacity value')
+                        ->options([
+                            'l' => 'Liters',
+                            'ml' => 'Milliliters',
+                            'kg' => 'Kilograms',
+                            'g' => 'Grams',
+                            'lb' => 'Pounds',
+                            'oz' => 'Ounces',
+                            'cf' => 'Cubic Feet',
+                            'cm' => 'Centimeters',
+                            'm' => 'Meters',
+                        ])
+                        ->required()
+                        ->default('l'),
+                        
+                    // Hidden field for total_quantity calculation
+                    Forms\Components\Hidden::make('total_quantity')
+                        ->default(0),
+                        
+                    // Hidden compatibility fields
+                    Forms\Components\Hidden::make('consumed_quantity')
+                        ->default(0),
+                        
+                    Forms\Components\Hidden::make('unit')
+                        ->default('unit'),
+                ])
+                ->columns(2),
+                
+            Forms\Components\Fieldset::make('Restock Settings')
+                ->schema([
+                    Forms\Components\TextInput::make('restock_threshold')
+                        ->label('Restock Threshold')
+                        ->helperText('Minimum number of units to maintain in inventory')
+                        ->numeric()
+                        ->required()
+                        ->default(2),
+                        
+                    Forms\Components\TextInput::make('restock_quantity')
+                        ->label('Restock Quantity')
+                        ->helperText('Quantity to order when restocking')
+                        ->numeric()
+                        ->required()
+                        ->default(5),
+                ])
+                ->columns(2),
+                
             Forms\Components\Textarea::make('notes')
                 ->label('Additional Information')
+                ->helperText('Any special notes about this soil type')
                 ->rows(3),
+                
             Forms\Components\Toggle::make('is_active')
                 ->label('Active')
+                ->helperText('Whether this soil is available for use')
                 ->default(true),
+                
+            // Hidden fields to set correct type
+            Forms\Components\Hidden::make('type')
+                ->default('soil'),
+                
+            Forms\Components\Hidden::make('consumable_type_id')
+                ->afterStateHydrated(function ($component, $state) {
+                    $soilType = \App\Models\ConsumableType::where('code', 'soil')->first();
+                    $component->state($soilType?->id);
+                }),
         ];
     }
 

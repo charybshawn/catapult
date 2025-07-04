@@ -18,7 +18,7 @@ class EditConsumable extends BaseEditRecord
     protected function mutateFormDataBeforeSave(array $data): array
     {
         // If this is a packaging type consumable but name is empty, set it from the packaging type
-        if ($data['type'] === 'packaging' && empty($data['name']) && !empty($data['packaging_type_id'])) {
+        if (isset($data['type']) && $data['type'] === 'packaging' && empty($data['name']) && !empty($data['packaging_type_id'])) {
             $packagingType = PackagingType::find($data['packaging_type_id']);
             if ($packagingType) {
                 $data['name'] = $packagingType->display_name ?? $packagingType->name;
@@ -26,7 +26,7 @@ class EditConsumable extends BaseEditRecord
         }
         
         // For seed consumables, handle master seed catalog composite key
-        if ($data['type'] === 'seed' && !empty($data['master_seed_catalog_id'])) {
+        if (isset($data['type']) && $data['type'] === 'seed' && !empty($data['master_seed_catalog_id'])) {
             // Parse composite key if present: catalog_id:cultivar_index
             $catalogId = $data['master_seed_catalog_id'];
             $cultivarIndex = null;
@@ -66,7 +66,7 @@ class EditConsumable extends BaseEditRecord
         }
         
         // For seed consumables, if remaining_quantity is set, calculate consumed_quantity
-        if ($data['type'] === 'seed' && isset($data['remaining_quantity']) && isset($data['total_quantity'])) {
+        if (isset($data['type']) && $data['type'] === 'seed' && isset($data['remaining_quantity']) && isset($data['total_quantity'])) {
             $total = (float) $data['total_quantity'];
             $remaining = (float) $data['remaining_quantity'];
             $data['consumed_quantity'] = max(0, $total - $remaining);

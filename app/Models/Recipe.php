@@ -110,7 +110,14 @@ class Recipe extends Model
             return collect();
         }
         
-        return Consumable::where('consumable_type_id', LotInventoryService::SEED_CONSUMABLE_TYPE_ID)
+        $lotInventoryService = new LotInventoryService();
+        $seedTypeId = $lotInventoryService->getSeedTypeId();
+        
+        if (!$seedTypeId) {
+            return collect();
+        }
+        
+        return Consumable::where('consumable_type_id', $seedTypeId)
             ->where('lot_no', strtoupper($this->lot_number))
             ->where('is_active', true)
             ->orderBy('created_at', 'asc')
@@ -128,7 +135,14 @@ class Recipe extends Model
             return collect();
         }
         
-        return Consumable::where('consumable_type_id', LotInventoryService::SEED_CONSUMABLE_TYPE_ID)
+        $lotInventoryService = new LotInventoryService();
+        $seedTypeId = $lotInventoryService->getSeedTypeId();
+        
+        if (!$seedTypeId) {
+            return collect();
+        }
+        
+        return Consumable::where('consumable_type_id', $seedTypeId)
             ->where('lot_no', strtoupper($this->lot_number))
             ->where('is_active', true)
             ->whereRaw('(total_quantity - consumed_quantity) > 0')
@@ -254,6 +268,103 @@ class Recipe extends Model
     {
         $this->lot_depleted_at = now();
         $this->save();
+    }
+
+    /**
+     * The "booted" method of the model.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (Recipe $recipe) {
+            // Auto-generate recipe name if not set or if key fields changed
+            $recipe->generateRecipeName();
+        });
+    }
+
+    /**
+     * Generate recipe name from variety, cultivar, seed density, DTM, and lot number.
+     * Format: Variety (Cultivar) - Seed Density - DTM - LOT NO
+     */
+    public function generateRecipeName(): void
+    {
+        // Extract variety and cultivar from the consumable based on lot_number
+        if ($this->lot_number) {
+            $consumable = \App\Models\Consumable::where('type', 'seed')
+                ->where('lot_no', $this->lot_number)
+                ->where('is_active', true)
+                ->first();
+            
+            if ($consumable && $consumable->name) {
+                // Parse consumable name format: "Variety (Cultivar)"
+                if (preg_match('/^(.+?)\s*\((.+?)\)$/', $consumable->name, $matches)) {
+                    $variety = trim($matches[1]);
+                    $cultivar = trim($matches[2]);
+                    
+                    $nameParts = [];
+                    
+                    // Add variety (cultivar) part
+                    $nameParts[] = $variety . ' (' . $cultivar . ')';
+                    
+                    // Add seed density if available
+                    if ($this->seed_density_grams_per_tray) {
+                        $nameParts[] = $this->seed_density_grams_per_tray . 'G';
+                    }
+                    
+                    // Add DTM if available
+                    if ($this->days_to_maturity) {
+                        $nameParts[] = $this->days_to_maturity . ' DTM';
+                    }
+                    
+                    // Add lot number
+                    $nameParts[] = $this->lot_number;
+                    
+                    $baseName = implode(' - ', $nameParts);
+                    $this->name = $this->ensureUniqueRecipeName($baseName);
+                    
+                    // Also populate the common_name and cultivar_name fields for consistency
+                    $this->common_name = $variety;
+                    $this->cultivar_name = $cultivar;
+                }
+            }
+        }
+    }
+
+    /**
+     * Ensure the recipe name is unique by appending a number if necessary.
+     * 
+     * @param string $baseName The base name to make unique
+     * @return string The unique name
+     */
+    protected function ensureUniqueRecipeName(string $baseName): string
+    {
+        $originalName = $baseName;
+        $counter = 1;
+        
+        // Check if this exact name already exists (excluding current record if updating)
+        while ($this->nameExists($baseName)) {
+            $counter++;
+            $baseName = $originalName . ' (' . $counter . ')';
+        }
+        
+        return $baseName;
+    }
+
+    /**
+     * Check if a recipe name already exists in the database.
+     * 
+     * @param string $name The name to check
+     * @return bool Whether the name exists
+     */
+    protected function nameExists(string $name): bool
+    {
+        $query = static::where('name', $name);
+        
+        // If this is an update (record exists), exclude current record from check
+        if ($this->exists) {
+            $query->where('id', '!=', $this->id);
+        }
+        
+        return $query->exists();
     }
 
     /**

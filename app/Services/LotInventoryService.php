@@ -26,6 +26,14 @@ class LotInventoryService
     }
 
     /**
+     * Get the seed consumable type ID (public method for external use).
+     */
+    public function getSeedTypeId(): ?int
+    {
+        return $this->getSeedConsumableTypeId();
+    }
+
+    /**
      * Get total available quantity across all consumable entries for a specific lot.
      * 
      * @param string $lotNumber The lot number to check

@@ -23,48 +23,80 @@ class CreateRecipe extends BaseCreateRecord
             Section::make('Basic Information')
                 ->description('Enter the basic recipe information')
                 ->schema([
-                    TextInput::make('name')
-                        ->label('Recipe Name')
-                        ->required()
-                        ->maxLength(255)
-                        ->placeholder('Enter a descriptive name for this recipe')
-                        ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
-                        ->columnSpanFull(),
-
-                    Select::make('seed_consumable_id')
-                        ->label('Seed (Legacy)')
-                        ->relationship('seedConsumable', 'name')
+                    Select::make('seed_variety_helper')
+                        ->label('Seed Variety')
                         ->options(function () {
-                            return Consumable::where('type', 'seed')
+                            // Get unique seed varieties with lot information
+                            $varieties = Consumable::where('type', 'seed')
                                 ->where('is_active', true)
+                                ->whereNotNull('name')
+                                ->whereNotNull('lot_no')
+                                ->whereRaw('(total_quantity - consumed_quantity) > 0')
                                 ->get()
-                                ->mapWithKeys(function ($seed) {
-                                    $lotInfo = $seed->lot_no ? " (Lot: {$seed->lot_no})" : '';
-                                    $totalAvailable = $seed->current_stock * ($seed->quantity_per_unit ?? 0);
-                                    $displayUnit = $seed->quantity_unit ?? 'units';
-                                    $stockInfo = ' - '.number_format($totalAvailable, 1)." {$displayUnit} available";
-
-                                    return [$seed->id => $seed->name.$lotInfo.$stockInfo];
-                                });
+                                ->groupBy('name')
+                                ->map(function ($group, $name) {
+                                    $totalAvailable = $group->sum(function($item) {
+                                        return max(0, $item->total_quantity - $item->consumed_quantity);
+                                    });
+                                    $lotCount = $group->count();
+                                    $lotText = $lotCount > 1 ? " ({$lotCount} lots)" : " (1 lot)";
+                                    
+                                    return [
+                                        'name' => $name,
+                                        'display' => $name . $lotText . " - " . number_format($totalAvailable, 1) . "g available",
+                                        'lots' => $group->pluck('lot_no')->unique()->sort()->values()
+                                    ];
+                                })
+                                ->pluck('display', 'name');
+                            
+                            return $varieties->toArray();
                         })
                         ->searchable()
                         ->preload()
-                        ->helperText('DEPRECATED: For backward compatibility only. Use lot_number field instead.')
-                        ->createOptionForm(Consumable::getSeedFormSchema())
-                        ->createOptionUsing(function (array $data) {
-                            $data['type'] = 'seed';
-                            $data['consumed_quantity'] = 0;
-
-                            return Consumable::create($data)->id;
+                        ->live()
+                        ->afterStateUpdated(function (callable $set, $state) {
+                            // Clear lot number when variety changes
+                            $set('lot_number', null);
                         })
+                        ->helperText('Choose seed variety to see available lots')
                         ->columnSpan(1),
 
-                    TextInput::make('lot_number')
-                        ->label('Lot Number')
-                        ->helperText('Enter the lot number for seed tracking and inventory management')
-                        ->maxLength(50)
-                        ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
+                    Select::make('lot_number')
+                        ->label('Available Lots (Required)')
+                        ->options(function (callable $get) {
+                            $selectedVariety = $get('seed_variety_helper');
+                            if (!$selectedVariety) {
+                                return [];
+                            }
+
+                            $lots = Consumable::where('type', 'seed')
+                                ->where('name', $selectedVariety)
+                                ->where('is_active', true)
+                                ->whereNotNull('lot_no')
+                                ->whereRaw('(total_quantity - consumed_quantity) > 0')
+                                ->orderBy('created_at', 'asc') // FIFO ordering
+                                ->get()
+                                ->mapWithKeys(function ($consumable) {
+                                    $available = max(0, $consumable->total_quantity - $consumable->consumed_quantity);
+                                    $unit = $consumable->quantity_unit ?? 'g';
+                                    $createdDate = $consumable->created_at->format('M j, Y');
+                                    $ageIndicator = $consumable->created_at->diffInDays(now()) > 30 ? 'Old' : 'New';
+                                    
+                                    $display = "Lot {$consumable->lot_no} - {$available} {$unit} ({$ageIndicator}, Added: {$createdDate})";
+                                    
+                                    return [$consumable->lot_no => $display];
+                                });
+                                
+                            return $lots->toArray();
+                        })
+                        ->searchable()
+                        ->preload()
+                        ->live()
+                        ->helperText('Select specific lot (oldest shown first for FIFO)')
+                        ->disabled(fn (callable $get) => !$get('seed_variety_helper'))
+                        ->required()
                         ->columnSpan(1),
+
 
                     Select::make('soil_consumable_id')
                         ->label('Soil')
@@ -101,8 +133,23 @@ class CreateRecipe extends BaseCreateRecord
                         ->numeric()
                         ->minValue(0)
                         ->step(0.01)
+                        ->live()
+                        ->afterStateUpdated(function (callable $set, $state) {
+                            // Sync with legacy seed_density field
+                            $set('seed_density', $state);
+                        })
                         ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
                         ->columnSpan(1),
+
+                    // Hidden fields for legacy compatibility
+                    Forms\Components\Hidden::make('seed_density')
+                        ->default(0),
+                    
+                    Forms\Components\Hidden::make('harvest_days')
+                        ->default(0),
+                        
+                    Forms\Components\Hidden::make('seed_consumable_id')
+                        ->default(null),
 
                     TextInput::make('expected_yield_grams')
                         ->label('Expected Yield (g/tray)')

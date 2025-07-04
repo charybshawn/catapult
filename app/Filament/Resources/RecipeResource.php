@@ -58,7 +58,12 @@ class RecipeResource extends Resource
             }
             
             // Get the first consumable entry for this lot to get seed info
-            $consumable = Consumable::where('consumable_type_id', LotInventoryService::SEED_CONSUMABLE_TYPE_ID)
+            $seedTypeId = $lotInventoryService->getSeedTypeId();
+            if (!$seedTypeId) {
+                continue;
+            }
+            
+            $consumable = Consumable::where('consumable_type_id', $seedTypeId)
                 ->where('lot_no', $lotNumber)
                 ->where('is_active', true)
                 ->first();
@@ -82,9 +87,15 @@ class RecipeResource extends Resource
         return [
             Forms\Components\Section::make('Recipe Information')
                 ->schema([
-                    Forms\Components\TextInput::make('name')
-                        ->required()
-                        ->maxLength(255),
+                    Forms\Components\TextInput::make('common_name')
+                        ->label('Variety (Common Name)')
+                        ->maxLength(255)
+                        ->required(),
+
+                    Forms\Components\TextInput::make('cultivar_name')
+                        ->label('Cultivar')
+                        ->maxLength(255)
+                        ->required(),
 
                     Forms\Components\Select::make('lot_number')
                         ->label('Seed Lot')
@@ -161,10 +172,14 @@ class RecipeResource extends Resource
                                 );
                             }
                             
-                            $consumable = Consumable::where('consumable_type_id', LotInventoryService::SEED_CONSUMABLE_TYPE_ID)
-                                ->where('lot_no', $record->lot_number)
-                                ->where('is_active', true)
-                                ->first();
+                            $seedTypeId = $lotInventoryService->getSeedTypeId();
+                            $consumable = null;
+                            if ($seedTypeId) {
+                                $consumable = Consumable::where('consumable_type_id', $seedTypeId)
+                                    ->where('lot_no', $record->lot_number)
+                                    ->where('is_active', true)
+                                    ->first();
+                            }
                             
                             if (!$consumable) {
                                 return new \Illuminate\Support\HtmlString(
@@ -231,6 +246,7 @@ class RecipeResource extends Resource
                         ->required()
                         ->live()
                         ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
+                            // Calculate light days
                             $germ = floatval($get('germination_days') ?? 0);
                             $blackout = floatval($get('blackout_days') ?? 0);
                             $dtm = floatval($state ?? 0);
@@ -463,7 +479,13 @@ class RecipeResource extends Resource
                         
                         foreach ($lotNumbers as $lotNumber) {
                             $summary = $lotInventoryService->getLotSummary($lotNumber);
-                            $consumable = Consumable::where('consumable_type_id', LotInventoryService::SEED_CONSUMABLE_TYPE_ID)
+                            $seedTypeId = $lotInventoryService->getSeedTypeId();
+                            
+                            if (!$seedTypeId) {
+                                continue;
+                            }
+                            
+                            $consumable = Consumable::where('consumable_type_id', $seedTypeId)
                                 ->where('lot_no', $lotNumber)
                                 ->where('is_active', true)
                                 ->first();
@@ -892,4 +914,5 @@ class RecipeResource extends Resource
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
     }
+
 }
