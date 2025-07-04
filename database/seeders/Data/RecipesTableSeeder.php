@@ -12,8 +12,10 @@ class RecipesTableSeeder extends Seeder
      */
     public function run(): void
     {
-        // Clear existing data
+        // Clear existing data safely (disable foreign key checks temporarily)
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
         DB::table('recipes')->truncate();
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
         // Insert data
         DB::table('recipes')->insert([
@@ -23,7 +25,7 @@ class RecipesTableSeeder extends Seeder
                 'supplier_soil_id' => null,
                 'soil_consumable_id' => 2,
                 'seed_consumable_id' => 1,
-                'seed_density' => null,
+                'seed_density' => 1, // Default density
                 'seed_soak_hours' => 9,
                 'germination_days' => 3,
                 'blackout_days' => 1,
@@ -48,7 +50,7 @@ class RecipesTableSeeder extends Seeder
                 'supplier_soil_id' => null,
                 'soil_consumable_id' => 2,
                 'seed_consumable_id' => 3,
-                'seed_density' => null,
+                'seed_density' => 1, // Default density
                 'seed_soak_hours' => 4,
                 'germination_days' => 3,
                 'blackout_days' => 0,
@@ -73,7 +75,7 @@ class RecipesTableSeeder extends Seeder
                 'supplier_soil_id' => null,
                 'soil_consumable_id' => 2,
                 'seed_consumable_id' => 9,
-                'seed_density' => null,
+                'seed_density' => 1, // Default density
                 'seed_soak_hours' => 0,
                 'germination_days' => 4,
                 'blackout_days' => 0,
