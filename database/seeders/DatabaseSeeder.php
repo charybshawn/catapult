@@ -6,6 +6,17 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\NotificationSetting;
 
+// Import organized seeders
+use Database\Seeders\Core\FilamentPermissionSeeder;
+use Database\Seeders\Core\RoleSeeder;
+use Database\Seeders\Core\CustomerRoleSeeder;
+use Database\Seeders\Core\FilamentAdminUserSeeder;
+use Database\Seeders\Lookup\CropPlanStatusSeeder;
+use Database\Seeders\Data\PackagingSeeder;
+use Database\Seeders\Data\CurrentSeedEntryDataSeeder;
+use Database\Seeders\Data\CurrentSeedConsumableDataSeeder;
+use Database\Seeders\Development\DevelopmentSeeder;
+
 class DatabaseSeeder extends Seeder
 {
     /**
