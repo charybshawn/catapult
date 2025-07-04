@@ -3,7 +3,10 @@
 namespace App\Services;
 
 use App\Models\Consumable;
+use App\Models\ConsumableTransaction;
+use App\Models\User;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class InventoryService
 {
@@ -246,5 +249,234 @@ class InventoryService
         }
 
         return $query->get();
+    }
+
+    /**
+     * Transaction-based methods for new consumption tracking
+     */
+
+    /**
+     * Record consumable consumption using transaction tracking.
+     */
+    public function recordConsumption(
+        Consumable $consumable,
+        float $amount,
+        ?string $unit = null,
+        ?User $user = null,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+        ?string $notes = null,
+        ?array $metadata = null
+    ): ConsumableTransaction {
+        return DB::transaction(function () use (
+            $consumable, $amount, $unit, $user, $referenceType, $referenceId, $notes, $metadata
+        ) {
+            $normalizedAmount = $this->normalizeQuantity($consumable, $amount, $unit);
+            
+            // Calculate new balance
+            $currentBalance = $this->getCurrentStockFromTransactions($consumable);
+            $newBalance = max(0, $currentBalance - $normalizedAmount);
+            
+            // Create consumption transaction
+            $transaction = ConsumableTransaction::createConsumption(
+                $consumable,
+                $normalizedAmount,
+                $newBalance,
+                $user,
+                $referenceType,
+                $referenceId,
+                $notes,
+                $metadata
+            );
+
+            // Update legacy consumed_quantity for backward compatibility
+            $this->updateLegacyConsumedQuantity($consumable);
+
+            Log::info('Consumable consumption recorded via transaction', [
+                'consumable_id' => $consumable->id,
+                'amount' => $amount,
+                'unit' => $unit,
+                'transaction_id' => $transaction->id,
+                'new_balance' => $newBalance
+            ]);
+
+            return $transaction;
+        });
+    }
+
+    /**
+     * Record consumable addition using transaction tracking.
+     */
+    public function recordAddition(
+        Consumable $consumable,
+        float $amount,
+        ?string $unit = null,
+        ?User $user = null,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+        ?string $notes = null,
+        ?array $metadata = null
+    ): ConsumableTransaction {
+        return DB::transaction(function () use (
+            $consumable, $amount, $unit, $user, $referenceType, $referenceId, $notes, $metadata
+        ) {
+            $normalizedAmount = $this->normalizeQuantity($consumable, $amount, $unit);
+            
+            // Calculate new balance
+            $currentBalance = $this->getCurrentStockFromTransactions($consumable);
+            $newBalance = $currentBalance + $normalizedAmount;
+            
+            // Create addition transaction
+            $transaction = ConsumableTransaction::createAddition(
+                $consumable,
+                $normalizedAmount,
+                $newBalance,
+                $user,
+                $referenceType,
+                $referenceId,
+                $notes,
+                $metadata
+            );
+
+            // Update legacy fields for backward compatibility
+            $this->updateLegacyStockFields($consumable);
+
+            Log::info('Consumable addition recorded via transaction', [
+                'consumable_id' => $consumable->id,
+                'amount' => $amount,
+                'unit' => $unit,
+                'transaction_id' => $transaction->id,
+                'new_balance' => $newBalance
+            ]);
+
+            return $transaction;
+        });
+    }
+
+    /**
+     * Get current stock from transaction history.
+     */
+    public function getCurrentStockFromTransactions(Consumable $consumable): float
+    {
+        $latestTransaction = $consumable->consumableTransactions()
+            ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc')
+            ->first();
+
+        if ($latestTransaction) {
+            return $latestTransaction->balance_after;
+        }
+
+        // Fall back to legacy calculation if no transactions exist
+        return $this->getCurrentStock($consumable);
+    }
+
+    /**
+     * Initialize transaction tracking for existing consumable.
+     */
+    public function initializeTransactionTracking(Consumable $consumable): ?ConsumableTransaction
+    {
+        // Check if already initialized
+        if ($consumable->consumableTransactions()->exists()) {
+            return null;
+        }
+
+        $currentStock = $this->getCurrentStock($consumable);
+        
+        if ($currentStock <= 0) {
+            return null;
+        }
+
+        // Create initial stock transaction
+        return ConsumableTransaction::create([
+            'consumable_id' => $consumable->id,
+            'type' => ConsumableTransaction::TYPE_INITIAL,
+            'quantity' => $currentStock,
+            'balance_after' => $currentStock,
+            'user_id' => auth()?->id(),
+            'notes' => 'Initial stock from legacy system',
+            'metadata' => [
+                'initial_stock' => $consumable->initial_stock,
+                'consumed_quantity' => $consumable->consumed_quantity,
+                'migrated_at' => now()->toDateTimeString(),
+            ],
+        ]);
+    }
+
+    /**
+     * Update legacy consumed_quantity field for backward compatibility.
+     */
+    protected function updateLegacyConsumedQuantity(Consumable $consumable): void
+    {
+        $totalConsumed = $consumable->consumableTransactions()
+            ->whereIn('type', [
+                ConsumableTransaction::TYPE_CONSUMPTION,
+                ConsumableTransaction::TYPE_WASTE,
+                ConsumableTransaction::TYPE_EXPIRATION,
+                ConsumableTransaction::TYPE_TRANSFER_OUT,
+            ])
+            ->sum('quantity'); // This will be negative values, so sum gives total consumed
+
+        $consumable->update([
+            'consumed_quantity' => abs($totalConsumed),
+        ]);
+    }
+
+    /**
+     * Update legacy stock fields for backward compatibility.
+     */
+    protected function updateLegacyStockFields(Consumable $consumable): void
+    {
+        $totalAdded = $consumable->consumableTransactions()
+            ->whereIn('type', [
+                ConsumableTransaction::TYPE_ADDITION,
+                ConsumableTransaction::TYPE_TRANSFER_IN,
+                ConsumableTransaction::TYPE_INITIAL,
+            ])
+            ->sum('quantity');
+
+        $totalConsumed = abs($consumable->consumableTransactions()
+            ->whereIn('type', [
+                ConsumableTransaction::TYPE_CONSUMPTION,
+                ConsumableTransaction::TYPE_WASTE,
+                ConsumableTransaction::TYPE_EXPIRATION,
+                ConsumableTransaction::TYPE_TRANSFER_OUT,
+            ])
+            ->sum('quantity'));
+
+        // Update for seeds
+        if ($consumable->consumableType && $consumable->consumableType->isSeed()) {
+            $consumable->update([
+                'total_quantity' => max(0, $totalAdded - $totalConsumed),
+                'consumed_quantity' => $totalConsumed,
+            ]);
+        } else {
+            // Update for other consumables
+            $consumable->update([
+                'initial_stock' => $totalAdded,
+                'consumed_quantity' => $totalConsumed,
+            ]);
+        }
+    }
+
+    /**
+     * Get transaction history for a consumable.
+     */
+    public function getTransactionHistory(Consumable $consumable, int $limit = 50)
+    {
+        return $consumable->consumableTransactions()
+            ->with(['user'])
+            ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc')
+            ->limit($limit)
+            ->get();
+    }
+
+    /**
+     * Check if consumable is using transaction-based tracking.
+     */
+    public function isUsingTransactionTracking(Consumable $consumable): bool
+    {
+        return $consumable->consumableTransactions()->exists();
     }
 }

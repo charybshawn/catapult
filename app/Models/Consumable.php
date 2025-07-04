@@ -566,4 +566,99 @@ class Consumable extends Model
     {
         return $this->hasMany(SeedVariation::class);
     }
+
+    /**
+     * Get the consumable transactions for this consumable.
+     */
+    public function consumableTransactions(): HasMany
+    {
+        return $this->hasMany(ConsumableTransaction::class);
+    }
+
+    /**
+     * Get the latest transaction for this consumable.
+     */
+    public function latestTransaction(): HasMany
+    {
+        return $this->hasMany(ConsumableTransaction::class)
+            ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc');
+    }
+
+    /**
+     * Get current stock using transaction history if available.
+     */
+    public function getCurrentStockWithTransactions(): float
+    {
+        if ($this->consumableTransactions()->exists()) {
+            return app(InventoryService::class)->getCurrentStockFromTransactions($this);
+        }
+
+        // Fall back to legacy calculation
+        return $this->getCurrentStockAttribute();
+    }
+
+    /**
+     * Check if this consumable is using transaction-based tracking.
+     */
+    public function isUsingTransactionTracking(): bool
+    {
+        return $this->consumableTransactions()->exists();
+    }
+
+    /**
+     * Initialize transaction tracking for this consumable.
+     */
+    public function initializeTransactionTracking(): ?ConsumableTransaction
+    {
+        return app(InventoryService::class)->initializeTransactionTracking($this);
+    }
+
+    /**
+     * Record consumption using transaction tracking.
+     */
+    public function recordConsumption(
+        float $amount,
+        ?string $unit = null,
+        ?User $user = null,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+        ?string $notes = null,
+        ?array $metadata = null
+    ): ConsumableTransaction {
+        return app(InventoryService::class)->recordConsumption(
+            $this,
+            $amount,
+            $unit,
+            $user,
+            $referenceType,
+            $referenceId,
+            $notes,
+            $metadata
+        );
+    }
+
+    /**
+     * Record addition using transaction tracking.
+     */
+    public function recordAddition(
+        float $amount,
+        ?string $unit = null,
+        ?User $user = null,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+        ?string $notes = null,
+        ?array $metadata = null
+    ): ConsumableTransaction {
+        return app(InventoryService::class)->recordAddition(
+            $this,
+            $amount,
+            $unit,
+            $user,
+            $referenceType,
+            $referenceId,
+            $notes,
+            $metadata
+        );
+    }
 }
