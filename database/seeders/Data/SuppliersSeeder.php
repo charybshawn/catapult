@@ -16,7 +16,7 @@ class SuppliersSeeder extends Seeder
         $suppliers = [
             [
                 'name' => "Mumm's Sprouting Seeds",
-                'type' => 'seed',
+                'supplier_type_id' => 2, // Seeds
                 'contact_name' => null,
                 'contact_email' => null,
                 'contact_phone' => null,
@@ -26,7 +26,7 @@ class SuppliersSeeder extends Seeder
             ],
             [
                 'name' => 'Germina Seeds',
-                'type' => 'seed',
+                'supplier_type_id' => 2, // Seeds
                 'contact_name' => null,
                 'contact_email' => null,
                 'contact_phone' => null,
@@ -36,7 +36,7 @@ class SuppliersSeeder extends Seeder
             ],
             [
                 'name' => 'Britelands',
-                'type' => 'packaging',
+                'supplier_type_id' => 4, // Packaging
                 'contact_name' => null,
                 'contact_email' => null,
                 'contact_phone' => null,
@@ -46,7 +46,7 @@ class SuppliersSeeder extends Seeder
             ],
             [
                 'name' => 'William Dam Seeds',
-                'type' => 'seed',
+                'supplier_type_id' => 2, // Seeds
                 'contact_name' => null,
                 'contact_email' => null,
                 'contact_phone' => null,
@@ -56,7 +56,7 @@ class SuppliersSeeder extends Seeder
             ],
             [
                 'name' => 'Ecoline',
-                'type' => 'soil',
+                'supplier_type_id' => 1, // Soil
                 'contact_name' => null,
                 'contact_email' => null,
                 'contact_phone' => null,
@@ -66,7 +66,7 @@ class SuppliersSeeder extends Seeder
             ],
             [
                 'name' => 'Buckerfields',
-                'type' => 'soil',
+                'supplier_type_id' => 1, // Soil
                 'contact_name' => null,
                 'contact_email' => null,
                 'contact_phone' => null,
@@ -76,7 +76,7 @@ class SuppliersSeeder extends Seeder
             ],
             [
                 'name' => "Johnny's Seeds",
-                'type' => 'seed',
+                'supplier_type_id' => 2, // Seeds
                 'contact_name' => null,
                 'contact_email' => null,
                 'contact_phone' => null,
@@ -86,7 +86,7 @@ class SuppliersSeeder extends Seeder
             ],
             [
                 'name' => 'True Leaf Market',
-                'type' => 'seed',
+                'supplier_type_id' => 2, // Seeds
                 'contact_name' => null,
                 'contact_email' => null,
                 'contact_phone' => null,
