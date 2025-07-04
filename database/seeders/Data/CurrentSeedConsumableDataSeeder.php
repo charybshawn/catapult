@@ -59,6 +59,9 @@ class CurrentSeedConsumableDataSeeder extends Seeder
                 // Get default supplier for seeds
                 $supplier = Supplier::where('name', "Mumm's Sprouting Seeds")->first();
                 
+                // Find the matching master seed catalog
+                $masterSeedCatalog = \App\Models\MasterSeedCatalog::where('common_name', $commonName)->first();
+                
                 // Create or update the consumable - independent of seed entries
                 $consumable = Consumable::updateOrCreate(
                     [
@@ -68,6 +71,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
                     ],
                     [
                         'consumable_type_id' => 3, // Seeds type
+                        'master_seed_catalog_id' => $masterSeedCatalog ? $masterSeedCatalog->id : null,
+                        'cultivar' => $cultivarName,
                         'seed_entry_id' => null, // Independent of scraped data
                         'supplier_id' => $supplier ? $supplier->id : null,
                         'initial_stock' => $data['total'], // Set initial stock to match total

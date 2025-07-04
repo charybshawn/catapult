@@ -75,9 +75,10 @@ class PackagingSeeder extends Seeder
             \App\Models\Consumable::create([
                 'name' => $packagingType->name,
                 'type' => 'packaging',
+                'consumable_type_id' => 1, // Packaging type
                 'supplier_id' => $supplier->id,
                 'packaging_type_id' => $packagingType->id,
-                'current_stock' => 100,
+                'initial_stock' => 100,
                 'consumed_quantity' => 0,
                 'unit' => 'unit',
                 'restock_threshold' => 10,

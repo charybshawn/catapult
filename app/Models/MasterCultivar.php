@@ -28,7 +28,12 @@ class MasterCultivar extends Model
 
     public function getFullNameAttribute(): string
     {
-        return $this->masterSeedCatalog->common_name . ' (' . $this->cultivar_name . ')';
+        if ($this->masterSeedCatalog) {
+            return $this->masterSeedCatalog->common_name . ' (' . $this->cultivar_name . ')';
+        }
+        
+        // Fallback if no master seed catalog is linked
+        return $this->cultivar_name;
     }
 
     public function harvests(): HasMany

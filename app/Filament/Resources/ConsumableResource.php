@@ -845,7 +845,13 @@ class ConsumableResource extends BaseResource
                         default => 'In Stock',
                     } : 'Unknown')
                     ->toggleable(),
-                static::getActiveBadgeColumn(),
+                Tables\Columns\TextColumn::make('is_active')
+                    ->label('Active')
+                    ->badge()
+                    ->formatStateUsing(fn ($state): string => $state ? 'Active' : 'Inactive')
+                    ->color(fn ($state): string => $state ? 'success' : 'danger')
+                    ->sortable()
+                    ->toggleable(),
                 ...static::getTimestampColumns(),
                 // Seed cultivar column removed - seed consumables now linked through SeedVariation
             ])
