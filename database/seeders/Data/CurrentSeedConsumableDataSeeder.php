@@ -67,9 +67,10 @@ class CurrentSeedConsumableDataSeeder extends Seeder
                         'lot_no' => $data['lot'] ?? null,
                     ],
                     [
+                        'consumable_type_id' => 3, // Seeds type
                         'seed_entry_id' => null, // Independent of scraped data
                         'supplier_id' => $supplier ? $supplier->id : null,
-                        'initial_stock' => 1,
+                        'initial_stock' => $data['total'], // Set initial stock to match total
                         'consumed_quantity' => $data['consumed'],
                         'total_quantity' => $data['total'],
                         'quantity_unit' => $data['unit'],
