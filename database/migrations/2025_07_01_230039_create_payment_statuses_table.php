@@ -11,7 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('payment_statuses', function (Blueprint $table) {
+        if (!Schema::hasTable('payment_statuses')) {
+            Schema::create('payment_statuses', function (Blueprint $table) {
             $table->id();
             $table->string('code', 50)->unique();
             $table->string('name', 100);
@@ -24,7 +25,8 @@ return new class extends Migration
             $table->timestamps();
             
             $table->index(['is_active', 'sort_order']);
-        });
+            });
+        }
     }
 
     /**

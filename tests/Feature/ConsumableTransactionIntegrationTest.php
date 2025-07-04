@@ -20,18 +20,29 @@ class ConsumableTransactionIntegrationTest extends TestCase
         parent::setUp();
         
         // Create required data
-        ConsumableType::factory()->create([
-            'code' => 'seed',
-            'name' => 'Seeds',
-            'is_active' => true,
-        ]);
+        ConsumableType::firstOrCreate(
+            ['code' => 'seed'],
+            [
+                'name' => 'Seeds',
+                'description' => 'Seed consumables for testing',
+                'color' => 'green',
+                'is_active' => true,
+                'sort_order' => 1,
+            ]
+        );
 
-        ConsumableUnit::factory()->create([
-            'code' => 'unit',
-            'name' => 'Unit',
-            'symbol' => 'unit',
-            'is_active' => true,
-        ]);
+        // Create a specific unit for tests - using a fixed name to avoid conflicts
+        ConsumableUnit::firstOrCreate(
+            ['code' => 'test-unit'],
+            [
+                'name' => 'Test Unit',
+                'symbol' => 'unit',
+                'category' => 'count',
+                'conversion_factor' => 1.0,
+                'base_unit' => true,
+                'is_active' => true,
+            ]
+        );
     }
 
     public function test_complete_consumable_lifecycle_with_transactions()
@@ -236,8 +247,8 @@ class ConsumableTransactionIntegrationTest extends TestCase
         $this->assertNull($transaction2); // No stock, no transaction
 
         // Verify the transaction contains migration metadata
-        $this->assertStringContains('Initial stock from legacy system', $transaction1->notes);
-        $this->assertArrayHasKey('initial_stock', $transaction1->metadata);
+        $this->assertStringContainsString('Initial stock from legacy system', $transaction1->notes);
+        $this->assertArrayHasKey('total_quantity', $transaction1->metadata);
         $this->assertArrayHasKey('consumed_quantity', $transaction1->metadata);
         $this->assertArrayHasKey('migrated_at', $transaction1->metadata);
     }

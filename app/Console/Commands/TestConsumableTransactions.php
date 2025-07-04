@@ -53,9 +53,17 @@ class TestConsumableTransactions extends Command
                 $this->line('Created seed consumable type');
             }
 
+            // Get or create a default consumable unit
+            $defaultUnit = \App\Models\ConsumableUnit::where('code', 'unit')->first();
+            if (!$defaultUnit) {
+                $this->error('No default consumable unit found. Database may not be properly seeded.');
+                return 1;
+            }
+
             $consumable = Consumable::create([
                 'name' => 'Test Basil Seeds - CLI Test',
                 'consumable_type_id' => $seedType->id,
+                'consumable_unit_id' => $defaultUnit->id,
                 'total_quantity' => 1000,
                 'consumed_quantity' => 0,
                 'quantity_unit' => 'g',

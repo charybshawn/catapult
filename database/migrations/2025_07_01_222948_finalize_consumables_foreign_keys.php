@@ -11,11 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('consumables', function (Blueprint $table) {
-            // Make the foreign key columns required
-            $table->foreignId('consumable_type_id')->nullable(false)->change();
-            $table->foreignId('consumable_unit_id')->nullable(false)->change();
-        });
+        // Only run if the columns exist (they may not in fresh test environments)
+        if (Schema::hasColumn('consumables', 'consumable_type_id') && 
+            Schema::hasColumn('consumables', 'consumable_unit_id')) {
+            Schema::table('consumables', function (Blueprint $table) {
+                // Make the foreign key columns required
+                $table->foreignId('consumable_type_id')->nullable(false)->change();
+                $table->foreignId('consumable_unit_id')->nullable(false)->change();
+            });
+        }
     }
 
     /**
@@ -23,10 +27,14 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('consumables', function (Blueprint $table) {
-            // Make the foreign key columns nullable again
-            $table->foreignId('consumable_type_id')->nullable()->change();
-            $table->foreignId('consumable_unit_id')->nullable()->change();
-        });
+        // Only run if the columns exist
+        if (Schema::hasColumn('consumables', 'consumable_type_id') && 
+            Schema::hasColumn('consumables', 'consumable_unit_id')) {
+            Schema::table('consumables', function (Blueprint $table) {
+                // Make the foreign key columns nullable again
+                $table->foreignId('consumable_type_id')->nullable()->change();
+                $table->foreignId('consumable_unit_id')->nullable()->change();
+            });
+        }
     }
 };

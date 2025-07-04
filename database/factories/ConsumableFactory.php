@@ -3,8 +3,6 @@
 namespace Database\Factories;
 
 use App\Models\Consumable;
-use App\Models\Supplier;
-use App\Models\SeedCultivar;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -26,32 +24,15 @@ class ConsumableFactory extends Factory
      */
     public function definition(): array
     {
-        $types = ['packaging', 'label', 'other'];
-        $type = fake()->randomElement($types);
-        
-        $name = match($type) {
-            'packaging' => fake()->randomElement(['Clamshell Containers', 'Plastic Bags', 'Paper Towels', 'Boxes', 'Trays']),
-            'label' => fake()->randomElement(['Product Labels', 'Price Tags', 'Stickers', 'Barcode Labels', 'Brand Labels']),
-            'other' => fake()->randomElement(['Sanitizer', 'Hydrogen Peroxide', 'pH Test Strips', 'Scissors', 'Gloves', 'Pens']),
-        };
-        
-        $unit = match($type) {
-            'packaging' => fake()->randomElement(['pack', 'roll', 'box', 'case']),
-            'label' => fake()->randomElement(['roll', 'sheet', 'pack']),
-            'other' => fake()->randomElement(['bottle', 'pack', 'unit', 'piece']),
-        };
-        
         return [
-            'name' => $name,
-            'type' => $type,
-            'supplier_id' => Supplier::factory()->consumable()->create()->id,
-            'initial_stock' => fake()->numberBetween(1, 100),
+            'name' => fake()->words(2, true),
+            'consumable_type_id' => \App\Models\ConsumableType::factory(),
+            'consumable_unit_id' => \App\Models\ConsumableUnit::factory(),
+            'total_quantity' => fake()->numberBetween(100, 1000),
             'consumed_quantity' => fake()->numberBetween(0, 50),
-            'unit' => $unit,
+            'quantity_unit' => fake()->randomElement(['g', 'kg', 'ml', 'L', 'unit']),
             'restock_threshold' => fake()->numberBetween(5, 20),
             'restock_quantity' => fake()->numberBetween(10, 50),
-            'cost_per_unit' => fake()->randomFloat(2, 1, 50),
-            'notes' => fake()->optional(0.6)->paragraph(),
             'is_active' => true,
         ];
     }
@@ -72,9 +53,8 @@ class ConsumableFactory extends Factory
     public function packaging(): static
     {
         return $this->state(fn (array $attributes) => [
-            'type' => 'packaging',
+            'consumable_type_id' => \App\Models\ConsumableType::factory()->packaging(),
             'name' => fake()->randomElement(['Clamshell Containers', 'Plastic Bags', 'Paper Towels', 'Boxes', 'Trays']),
-            'unit' => fake()->randomElement(['pack', 'roll', 'box', 'case']),
         ]);
     }
     
@@ -84,9 +64,8 @@ class ConsumableFactory extends Factory
     public function label(): static
     {
         return $this->state(fn (array $attributes) => [
-            'type' => 'label',
+            'consumable_type_id' => \App\Models\ConsumableType::factory()->state(['code' => 'label', 'name' => 'Labels']),
             'name' => fake()->randomElement(['Product Labels', 'Price Tags', 'Stickers', 'Barcode Labels', 'Brand Labels']),
-            'unit' => fake()->randomElement(['roll', 'sheet', 'pack']),
         ]);
     }
     
@@ -95,14 +74,9 @@ class ConsumableFactory extends Factory
      */
     public function seed(): static
     {
-        $seedVariety = SeedVariety::factory()->create();
-        
         return $this->state(fn (array $attributes) => [
-            'type' => 'seed',
-            'seed_variety_id' => $seedVariety->id,
-            'name' => $seedVariety->name,
-            'unit' => fake()->randomElement(['g', 'kg', 'pack']),
-            'quantity_per_unit' => fake()->randomFloat(2, 10, 1000),
+            'consumable_type_id' => \App\Models\ConsumableType::factory()->seed(),
+            'name' => fake()->words(2, true) . ' Seeds',
             'quantity_unit' => 'g',
         ]);
     }
@@ -113,10 +87,8 @@ class ConsumableFactory extends Factory
     public function soil(): static
     {
         return $this->state(fn (array $attributes) => [
-            'type' => 'soil',
+            'consumable_type_id' => \App\Models\ConsumableType::factory()->state(['code' => 'soil', 'name' => 'Soil']),
             'name' => fake()->randomElement(['Potting Mix', 'Seed Starting Mix', 'Coco Coir', 'Peat Moss', 'Vermiculite']),
-            'unit' => fake()->randomElement(['bag', 'block', 'pack']),
-            'quantity_per_unit' => fake()->randomFloat(2, 1, 20),
             'quantity_unit' => 'kg',
         ]);
     }
@@ -127,36 +99,11 @@ class ConsumableFactory extends Factory
     public function other(): static
     {
         return $this->state(fn (array $attributes) => [
-            'type' => 'other',
+            'consumable_type_id' => \App\Models\ConsumableType::factory()->state(['code' => 'other', 'name' => 'Other']),
             'name' => fake()->randomElement(['Sanitizer', 'Hydrogen Peroxide', 'pH Test Strips', 'Scissors', 'Gloves', 'Pens']),
-            'unit' => fake()->randomElement(['bottle', 'pack', 'unit', 'piece']),
         ]);
     }
     
-    /**
-     * Indicate that the consumable is for a specific supplier.
-     */
-    public function forSupplier(Supplier $supplier): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'supplier_id' => $supplier->id,
-        ]);
-    }
-    
-    /**
-     * Indicate that the consumable is for a specific seed variety.
-     */
-    public function forSeedVariety(SeedVariety $seedVariety): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'type' => 'seed',
-            'seed_variety_id' => $seedVariety->id,
-            'name' => $seedVariety->name,
-            'unit' => fake()->randomElement(['g', 'kg', 'pack']),
-            'quantity_per_unit' => fake()->randomFloat(2, 10, 1000),
-            'quantity_unit' => 'g',
-        ]);
-    }
     
     /**
      * Indicate that the consumable is low in stock.
@@ -167,7 +114,7 @@ class ConsumableFactory extends Factory
             $restockThreshold = $attributes['restock_threshold'] ?? fake()->numberBetween(5, 20);
             
             return [
-                'initial_stock' => fake()->numberBetween(0, $restockThreshold - 1),
+                'total_quantity' => fake()->numberBetween(0, $restockThreshold - 1),
             ];
         });
     }

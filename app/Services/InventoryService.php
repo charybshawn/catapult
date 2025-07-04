@@ -32,13 +32,8 @@ class InventoryService
      */
     public function getCurrentStock(Consumable $consumable): float
     {
-        // For seeds, return the total_quantity directly 
-        if ($consumable->consumableType && $consumable->consumableType->isSeed()) {
-            return $consumable->total_quantity;
-        }
-        
-        // For other consumables, use the original calculation
-        return max(0, $consumable->initial_stock - $consumable->consumed_quantity);
+        // Use total_quantity - consumed_quantity for all consumables
+        return max(0, $consumable->total_quantity - $consumable->consumed_quantity);
     }
 
     /**
@@ -166,11 +161,7 @@ class InventoryService
             'consumed_quantity' => $newConsumedQuantity,
         ];
         
-        // Update total quantity if applicable
-        if ($consumable->quantity_per_unit) {
-            $availableStock = max(0, $consumable->initial_stock - $newConsumedQuantity);
-            $data['total_quantity'] = $availableStock * $consumable->quantity_per_unit;
-        }
+        // Total quantity is now managed directly, no need to calculate from initial_stock
         
         $consumable->update($data);
     }
@@ -194,21 +185,11 @@ class InventoryService
     private function performStockAddition(Consumable $consumable, float $normalizedAmount, ?string $lotNo): void
     {
         $data = [
-            'initial_stock' => $consumable->initial_stock + $normalizedAmount,
+            'total_quantity' => $consumable->total_quantity + $normalizedAmount,
         ];
 
-        if ($consumable->consumableType && $consumable->consumableType->isSeed()) {
-            $data['total_quantity'] = $consumable->total_quantity + $normalizedAmount;
-            
-            if ($lotNo) {
-                $data['lot_no'] = $lotNo;
-            }
-        } else {
-            // Update total quantity if applicable
-            if ($consumable->quantity_per_unit) {
-                $availableStock = max(0, $data['initial_stock'] - $consumable->consumed_quantity);
-                $data['total_quantity'] = $availableStock * $consumable->quantity_per_unit;
-            }
+        if ($lotNo) {
+            $data['lot_no'] = $lotNo;
         }
 
         $consumable->update($data);
@@ -219,12 +200,7 @@ class InventoryService
      */
     public function getLowStockCount(): int
     {
-        return Consumable::whereRaw('
-            CASE 
-                WHEN consumable_type_id = (SELECT id FROM consumable_types WHERE code = "seed") THEN total_quantity <= restock_threshold
-                ELSE (initial_stock - consumed_quantity) <= restock_threshold
-            END
-        ')->count();
+        return Consumable::whereRaw('(total_quantity - consumed_quantity) <= restock_threshold')->count();
     }
 
     /**
@@ -232,17 +208,8 @@ class InventoryService
      */
     public function getLowStockItems($limit = null)
     {
-        $query = Consumable::whereRaw('
-            CASE 
-                WHEN consumable_type_id = (SELECT id FROM consumable_types WHERE code = "seed") THEN total_quantity <= restock_threshold
-                ELSE (initial_stock - consumed_quantity) <= restock_threshold
-            END
-        ')->orderByRaw('
-            CASE 
-                WHEN consumable_type_id = (SELECT id FROM consumable_types WHERE code = "seed") THEN (total_quantity / NULLIF(restock_threshold, 0))
-                ELSE ((initial_stock - consumed_quantity) / NULLIF(restock_threshold, 0))
-            END ASC
-        ');
+        $query = Consumable::whereRaw('(total_quantity - consumed_quantity) <= restock_threshold')
+            ->orderByRaw('((total_quantity - consumed_quantity) / NULLIF(restock_threshold, 0)) ASC');
 
         if ($limit) {
             $query->limit($limit);
@@ -396,7 +363,7 @@ class InventoryService
             'user_id' => auth()?->id(),
             'notes' => 'Initial stock from legacy system',
             'metadata' => [
-                'initial_stock' => $consumable->initial_stock,
+                'total_quantity' => $consumable->total_quantity,
                 'consumed_quantity' => $consumable->consumed_quantity,
                 'migrated_at' => now()->toDateTimeString(),
             ],
@@ -445,18 +412,11 @@ class InventoryService
             ->sum('quantity'));
 
         // Update for seeds
-        if ($consumable->consumableType && $consumable->consumableType->isSeed()) {
-            $consumable->update([
-                'total_quantity' => max(0, $totalAdded - $totalConsumed),
-                'consumed_quantity' => $totalConsumed,
-            ]);
-        } else {
-            // Update for other consumables
-            $consumable->update([
-                'initial_stock' => $totalAdded,
-                'consumed_quantity' => $totalConsumed,
-            ]);
-        }
+        // Update all consumables the same way now
+        $consumable->update([
+            'total_quantity' => max(0, $totalAdded - $totalConsumed),
+            'consumed_quantity' => $totalConsumed,
+        ]);
     }
 
     /**

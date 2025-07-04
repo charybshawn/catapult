@@ -35,6 +35,7 @@ class InventoryServiceTransactionTest extends TestCase
         $consumable = Consumable::factory()->create([
             'total_quantity' => 1000.0,
             'consumed_quantity' => 0,
+            'quantity_unit' => 'g', // Set unit to grams
         ]);
         $user = User::factory()->create();
 
@@ -65,6 +66,7 @@ class InventoryServiceTransactionTest extends TestCase
         $consumable = Consumable::factory()->create([
             'total_quantity' => 500.0,
             'consumed_quantity' => 0,
+            'quantity_unit' => 'g', // Set unit to grams to match test expectations
         ]);
         $user = User::factory()->create();
 
@@ -124,9 +126,9 @@ class InventoryServiceTransactionTest extends TestCase
 
         $this->assertInstanceOf(ConsumableTransaction::class, $transaction);
         $this->assertEquals('initial', $transaction->type);
-        $this->assertEquals(750.0, $transaction->quantity);
-        $this->assertEquals(750.0, $transaction->balance_after);
-        $this->assertStringContains('Initial stock from legacy system', $transaction->notes);
+        $this->assertEquals(500.0, $transaction->quantity); // 750 - 250 = 500 current stock
+        $this->assertEquals(500.0, $transaction->balance_after);
+        $this->assertStringContainsString('Initial stock from legacy system', $transaction->notes);
     }
 
     public function test_initialize_tracking_does_not_duplicate()
@@ -213,6 +215,7 @@ class InventoryServiceTransactionTest extends TestCase
     {
         $consumable = Consumable::factory()->create([
             'total_quantity' => 1000.0, // 1000g
+            'consumed_quantity' => 0, // Start with no consumed
             'quantity_unit' => 'g',
         ]);
 
@@ -235,6 +238,8 @@ class InventoryServiceTransactionTest extends TestCase
     {
         $consumable = Consumable::factory()->create([
             'total_quantity' => 1000.0,
+            'consumed_quantity' => 0, // Start with no consumed
+            'quantity_unit' => 'g', // Set unit to grams
         ]);
 
         // Initialize tracking
