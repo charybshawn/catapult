@@ -832,56 +832,56 @@ class ConsumableResource extends BaseResource
                     ->label('🌱 Seeds')
                     ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'seed')))
                     ->toggle()
-                    ->indicateUsing(fn (array $data) => $data['seeds'] ? '🌱 Seeds' : null),
+                    ->indicateUsing(fn (array $data) => ($data['seeds'] ?? false) ? '🌱 Seeds' : null),
                     
                 Tables\Filters\Filter::make('soil')
                     ->label('🌍 Soil & Growing Media')
                     ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'soil')))
                     ->toggle()
-                    ->indicateUsing(fn (array $data) => $data['soil'] ? '🌍 Soil & Growing Media' : null),
+                    ->indicateUsing(fn (array $data) => ($data['soil'] ?? false) ? '🌍 Soil & Growing Media' : null),
                     
                 Tables\Filters\Filter::make('packaging')
                     ->label('📦 Packaging')
                     ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'packaging')))
                     ->toggle()
-                    ->indicateUsing(fn (array $data) => $data['packaging'] ? '📦 Packaging' : null),
+                    ->indicateUsing(fn (array $data) => ($data['packaging'] ?? false) ? '📦 Packaging' : null),
                     
                 Tables\Filters\Filter::make('labels')
                     ->label('🏷️ Labels')
                     ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'label')))
                     ->toggle()
-                    ->indicateUsing(fn (array $data) => $data['labels'] ? '🏷️ Labels' : null),
+                    ->indicateUsing(fn (array $data) => ($data['labels'] ?? false) ? '🏷️ Labels' : null),
                     
                 Tables\Filters\Filter::make('other')
                     ->label('⚡ Other')
                     ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'other')))
                     ->toggle()
-                    ->indicateUsing(fn (array $data) => $data['other'] ? '⚡ Other' : null),
+                    ->indicateUsing(fn (array $data) => ($data['other'] ?? false) ? '⚡ Other' : null),
                     
                 // Status filters with icons
                 Tables\Filters\Filter::make('needs_restock')
                     ->label('⚠️ Needs Restock')
                     ->query(fn (Builder $query) => $query->whereRaw('(total_quantity - consumed_quantity) <= restock_threshold'))
                     ->toggle()
-                    ->indicateUsing(fn (array $data) => $data['needs_restock'] ? '⚠️ Needs Restock' : null),
+                    ->indicateUsing(fn (array $data) => ($data['needs_restock'] ?? false) ? '⚠️ Needs Restock' : null),
                     
                 Tables\Filters\Filter::make('out_of_stock')
                     ->label('🚫 Out of Stock')
                     ->query(fn (Builder $query) => $query->whereRaw('(total_quantity - consumed_quantity) <= 0'))
                     ->toggle()
-                    ->indicateUsing(fn (array $data) => $data['out_of_stock'] ? '🚫 Out of Stock' : null),
+                    ->indicateUsing(fn (array $data) => ($data['out_of_stock'] ?? false) ? '🚫 Out of Stock' : null),
                     
                 Tables\Filters\Filter::make('low_stock')
                     ->label('📉 Low Stock')
                     ->query(fn (Builder $query) => $query->whereRaw('(total_quantity - consumed_quantity) > 0 AND (total_quantity - consumed_quantity) <= restock_threshold'))
                     ->toggle()
-                    ->indicateUsing(fn (array $data) => $data['low_stock'] ? '📉 Low Stock' : null),
+                    ->indicateUsing(fn (array $data) => ($data['low_stock'] ?? false) ? '📉 Low Stock' : null),
                     
                 Tables\Filters\Filter::make('inactive')
                     ->label('💤 Inactive')
                     ->query(fn (Builder $query) => $query->where('is_active', false))
                     ->toggle()
-                    ->indicateUsing(fn (array $data) => $data['inactive'] ? '💤 Inactive' : null),
+                    ->indicateUsing(fn (array $data) => ($data['inactive'] ?? false) ? '💤 Inactive' : null),
             ])
             ->groups([
                 Tables\Grouping\Group::make('name')
