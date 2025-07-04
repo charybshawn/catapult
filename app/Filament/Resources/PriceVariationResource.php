@@ -118,9 +118,31 @@ class PriceVariationResource extends Resource
                         // Core fields in logical order
                         Forms\Components\Grid::make(3)
                             ->schema([
-                                Forms\Components\Hidden::make('name')
+                                Forms\Components\TextInput::make('name')
+                                    ->label('Variation Name')
                                     ->default('Auto-generated')
-                                    ->required(),
+                                    ->required()
+                                    ->reactive()
+                                    ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                                        // Mark as manual if user manually edits the name
+                                        if ($state !== 'Auto-generated' && $state !== $get('generated_name')) {
+                                            $set('is_name_manual', true);
+                                        }
+                                    })
+                                    ->suffixAction(
+                                        Forms\Components\Actions\Action::make('reset_to_auto')
+                                            ->icon('heroicon-o-arrow-path')
+                                            ->tooltip('Reset to auto-generated name')
+                                            ->action(function (callable $set, callable $get) {
+                                                $set('is_name_manual', false);
+                                                self::generateVariationName($get('packaging_type_id'), $get('pricing_type'), $set, $get);
+                                            })
+                                    ),
+                                
+                                Forms\Components\Hidden::make('is_name_manual')
+                                    ->default(false),
+                                
+                                Forms\Components\Hidden::make('generated_name'),
 
                                 Forms\Components\TextInput::make('price')
                                     ->label(function (Forms\Get $get): string {
@@ -316,6 +338,11 @@ class PriceVariationResource extends Resource
      */
     protected static function generateVariationName($packagingId, $pricingType, callable $set, callable $get): void
     {
+        // Don't auto-generate if name is manually overridden
+        if ($get('is_name_manual')) {
+            return;
+        }
+        
         $parts = [];
         
         // 1. Add pricing type (capitalized)
@@ -358,6 +385,7 @@ class PriceVariationResource extends Resource
         $generatedName = implode(' - ', $parts);
         if ($generatedName) {
             $set('name', $generatedName);
+            $set('generated_name', $generatedName); // Store for comparison
         }
     }
 

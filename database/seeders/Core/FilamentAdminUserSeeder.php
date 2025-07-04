@@ -22,7 +22,7 @@ class FilamentAdminUserSeeder extends Seeder
             ['email' => 'charybshawn@gmail.com'],
             [
                 'name' => 'Admin',
-                'password' => Hash::make('password'), // Simple password for testing
+                'password' => Hash::make('kngfqp57'), // Simple password for testing
                 'email_verified_at' => now(),
                 'phone' => '250-000-0000',
             ]

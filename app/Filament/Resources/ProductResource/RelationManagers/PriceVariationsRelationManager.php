@@ -25,14 +25,40 @@ class PriceVariationsRelationManager extends RelationManager
                 Forms\Components\Grid::make(2)
                     ->schema([
                         Forms\Components\TextInput::make('name')
+                            ->label('Variation Name')
                             ->required()
-                            ->maxLength(255),
+                            ->maxLength(255)
+                            ->reactive()
+                            ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                                // Mark as manual if user manually edits the name
+                                if ($state !== 'Auto-generated' && $state !== $get('generated_name')) {
+                                    $set('is_name_manual', true);
+                                }
+                            })
+                            ->suffixAction(
+                                Forms\Components\Actions\Action::make('reset_to_auto')
+                                    ->icon('heroicon-o-arrow-path')
+                                    ->tooltip('Reset to auto-generated name')
+                                    ->action(function (callable $set, callable $get) {
+                                        $set('is_name_manual', false);
+                                        self::generateVariationName($get('packaging_type_id'), $get('pricing_type'), $set, $get);
+                                    })
+                            ),
+                        
+                        Forms\Components\Hidden::make('is_name_manual')
+                            ->default(false),
+                        
+                        Forms\Components\Hidden::make('generated_name'),
                         Forms\Components\Select::make('packaging_type_id')
                             ->relationship('packagingType', 'name')
                             ->label('Packaging Type')
                             ->searchable()
                             ->preload()
-                            ->nullable(),
+                            ->nullable()
+                            ->reactive()
+                            ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                                self::generateVariationName($state, $get('pricing_type'), $set, $get);
+                            }),
                     ]),
                     
                 Forms\Components\Grid::make(3)
@@ -52,7 +78,11 @@ class PriceVariationsRelationManager extends RelationManager
                             ->required()
                             ->numeric()
                             ->prefix('$')
-                            ->columnSpan(1),
+                            ->columnSpan(1)
+                            ->reactive()
+                            ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                                self::generateVariationName($get('packaging_type_id'), $get('pricing_type'), $set, $get);
+                            }),
                     ]),
 
                 Forms\Components\Grid::make(3)
@@ -342,5 +372,64 @@ class PriceVariationsRelationManager extends RelationManager
                 Tables\Actions\CreateAction::make()
                     ->label('Create First Price Variation'),
             ]);
+    }
+    
+    /**
+     * Generate variation name in format: "Pricing Type - Packaging (size) - $price"
+     * Example: "Retail - Clamshell (24oz) - $5.00"
+     */
+    protected static function generateVariationName($packagingId, $pricingType, callable $set, callable $get): void
+    {
+        // Don't auto-generate if name is manually overridden
+        if ($get('is_name_manual')) {
+            return;
+        }
+        
+        $parts = [];
+        
+        // 1. Add pricing type (capitalized)
+        if ($pricingType) {
+            $pricingTypeNames = [
+                'retail' => 'Retail',
+                'wholesale' => 'Wholesale',
+                'bulk' => 'Bulk',
+                'special' => 'Special',
+                'custom' => 'Custom',
+            ];
+            $parts[] = $pricingTypeNames[$pricingType] ?? ucfirst($pricingType);
+        } else {
+            $parts[] = 'Retail'; // Default to retail
+        }
+        
+        // 2. Add packaging information
+        if ($packagingId) {
+            $packaging = \App\Models\PackagingType::find($packagingId);
+            if ($packaging) {
+                $packagingPart = $packaging->name;
+                
+                // Add size information in parentheses
+                if ($packaging->capacity_volume && $packaging->volume_unit) {
+                    $packagingPart .= ' (' . $packaging->capacity_volume . $packaging->volume_unit . ')';
+                }
+                
+                $parts[] = $packagingPart;
+            }
+        } else {
+            // Handle package-free variations
+            $parts[] = 'Package-Free';
+        }
+        
+        // 3. Add price
+        $price = $get('price');
+        if ($price && is_numeric($price)) {
+            $parts[] = '$' . number_format((float)$price, 2);
+        }
+        
+        // Join with " - " separator
+        $generatedName = implode(' - ', $parts);
+        if ($generatedName) {
+            $set('name', $generatedName);
+            $set('generated_name', $generatedName); // Store for comparison
+        }
     }
 } 

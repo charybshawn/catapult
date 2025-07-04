@@ -32,6 +32,7 @@ class PriceVariation extends Model
         'packaging_type_id',
         'pricing_type',
         'name',
+        'is_name_manual',
         'unit',
         'sku',
         'fill_weight',
@@ -51,6 +52,7 @@ class PriceVariation extends Model
         'is_default' => 'boolean',
         'is_global' => 'boolean',
         'is_active' => 'boolean',
+        'is_name_manual' => 'boolean',
         'fill_weight' => 'decimal:2',
         'price' => 'decimal:2',
     ];
@@ -283,6 +285,16 @@ class PriceVariation extends Model
         \App\Models\ProductInventory::where('product_id', $this->product_id)
             ->where('price_variation_id', $this->id)
             ->update(['status' => 'inactive']);
+    }
+
+    /**
+     * Update variation name automatically only if not manually overridden
+     */
+    public function updateVariationName(): void
+    {
+        if (!$this->is_name_manual) {
+            $this->name = $this->generateVariationName();
+        }
     }
 
     /**

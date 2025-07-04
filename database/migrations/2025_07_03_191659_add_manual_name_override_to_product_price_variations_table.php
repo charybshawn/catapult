@@ -11,10 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Only rename if the source table exists and target doesn't
-        if (Schema::hasTable('price_variations') && !Schema::hasTable('product_price_variations')) {
-            Schema::rename('price_variations', 'product_price_variations');
-        }
+        Schema::table('product_price_variations', function (Blueprint $table) {
+            $table->boolean('is_name_manual')->default(false)->after('name');
+        });
     }
 
     /**
@@ -22,6 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::rename('product_price_variations', 'price_variations');
+        Schema::table('product_price_variations', function (Blueprint $table) {
+            $table->dropColumn('is_name_manual');
+        });
     }
 };

@@ -1,6 +1,6 @@
 <?php
 
-namespace Database\Seeders\Legacy;
+namespace Database\Seeders\Data;
 
 use App\Models\Customer;
 use App\Models\CustomerType;

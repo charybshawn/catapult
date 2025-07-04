@@ -11,7 +11,23 @@ use Database\Seeders\Core\FilamentPermissionSeeder;
 use Database\Seeders\Core\RoleSeeder;
 use Database\Seeders\Core\CustomerRoleSeeder;
 use Database\Seeders\Core\FilamentAdminUserSeeder;
+use Database\Seeders\Lookup\ConsumableTypeSeeder;
+use Database\Seeders\Lookup\ConsumableUnitSeeder;
 use Database\Seeders\Lookup\CropPlanStatusSeeder;
+use Database\Seeders\Lookup\CropStageSeeder;
+use Database\Seeders\Lookup\CustomerTypeSeeder;
+use Database\Seeders\Lookup\DeliveryStatusSeeder;
+use Database\Seeders\Lookup\InventoryReservationStatusSeeder;
+use Database\Seeders\Lookup\OrderClassificationSeeder;
+use Database\Seeders\Lookup\OrderStatusSeeder;
+use Database\Seeders\Lookup\OrderTypeSeeder;
+use Database\Seeders\Lookup\PackagingTypeCategorySeeder;
+use Database\Seeders\Lookup\PackagingUnitTypeSeeder;
+use Database\Seeders\Lookup\PaymentMethodSeeder;
+use Database\Seeders\Lookup\PaymentStatusSeeder;
+use Database\Seeders\Lookup\ProductStockStatusSeeder;
+use Database\Seeders\Lookup\SupplierTypeSeeder;
+use Database\Seeders\Lookup\TaskTypeSeeder;
 use Database\Seeders\Data\PackagingSeeder;
 use Database\Seeders\Data\CurrentSeedEntryDataSeeder;
 use Database\Seeders\Data\CurrentSeedConsumableDataSeeder;
@@ -25,15 +41,30 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
+            // Core seeders
             FilamentPermissionSeeder::class,
             RoleSeeder::class,
-            CustomerRoleSeeder::class, // Add customer role and permissions
+            CustomerRoleSeeder::class,
             FilamentAdminUserSeeder::class,
-            CropPlanStatusSeeder::class, // Add crop plan statuses
-            PackagingSeeder::class,
-            CurrentSeedEntryDataSeeder::class, // Uncomment to seed with actual seed entries
-            CurrentSeedConsumableDataSeeder::class, // Uncomment to seed with actual inventory data (run after seed entries)
-            // DevelopmentSeeder::class, // Disabled until updated to match simplified schema
+            
+            // Lookup seeders
+            ConsumableTypeSeeder::class,
+            ConsumableUnitSeeder::class,
+            CropPlanStatusSeeder::class,
+            CropStageSeeder::class,
+            CustomerTypeSeeder::class,
+            DeliveryStatusSeeder::class,
+            InventoryReservationStatusSeeder::class,
+            OrderClassificationSeeder::class,
+            OrderStatusSeeder::class,
+            OrderTypeSeeder::class,
+            PackagingTypeCategorySeeder::class,
+            PackagingUnitTypeSeeder::class,
+            PaymentMethodSeeder::class,
+            PaymentStatusSeeder::class,
+            ProductStockStatusSeeder::class,
+            SupplierTypeSeeder::class,
+            TaskTypeSeeder::class,
         ]);
 
         // Note: NotificationSetting creation removed as the table structure doesn't match

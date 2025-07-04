@@ -16,7 +16,7 @@ class PackagingSeeder extends Seeder
         // Create a packaging supplier
         $supplier = Supplier::create([
             'name' => 'Uline',
-            'type' => 'consumable',
+            'supplier_type_id' => 4, // Packaging
             'contact_name' => 'Customer Service',
             'contact_email' => 'customerservice@uline.com',
             'contact_phone' => '1-800-295-5510',
@@ -28,27 +28,42 @@ class PackagingSeeder extends Seeder
         $clamshells = [
             [
                 'name' => '16oz Clamshell',
-                'volume' => 16,
+                'capacity_volume' => 16,
+                'volume_unit' => 'oz',
+                'type_category_id' => 1, // Default category
+                'unit_type_id' => 1, // Default unit type
                 'is_active' => true,
             ],
             [
                 'name' => '24oz Clamshell',
-                'volume' => 24,
+                'capacity_volume' => 24,
+                'volume_unit' => 'oz',
+                'type_category_id' => 1,
+                'unit_type_id' => 1,
                 'is_active' => true,
             ],
             [
                 'name' => '32oz Clamshell',
-                'volume' => 32,
+                'capacity_volume' => 32,
+                'volume_unit' => 'oz',
+                'type_category_id' => 1,
+                'unit_type_id' => 1,
                 'is_active' => true,
             ],
             [
                 'name' => '48oz Clamshell',
-                'volume' => 48,
+                'capacity_volume' => 48,
+                'volume_unit' => 'oz',
+                'type_category_id' => 1,
+                'unit_type_id' => 1,
                 'is_active' => true,
             ],
             [
                 'name' => '64oz Clamshell',
-                'volume' => 64,
+                'capacity_volume' => 64,
+                'volume_unit' => 'oz',
+                'type_category_id' => 1,
+                'unit_type_id' => 1,
                 'is_active' => true,
             ],
         ];
@@ -67,7 +82,7 @@ class PackagingSeeder extends Seeder
                 'unit' => 'unit',
                 'restock_threshold' => 10,
                 'restock_quantity' => 50,
-                'cost_per_unit' => match($clamshell['volume']) {
+                'cost_per_unit' => match($clamshell['capacity_volume']) {
                     16 => 0.35,
                     24 => 0.45,
                     32 => 0.55,

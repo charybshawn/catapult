@@ -40,9 +40,6 @@ class MasterCultivarResource extends Resource
                     ->helperText('Alternative names for this cultivar'),
                 Forms\Components\Textarea::make('description')
                     ->columnSpanFull(),
-                Forms\Components\Textarea::make('growing_notes')
-                    ->columnSpanFull()
-                    ->helperText('Specific growing notes for this cultivar'),
                 Forms\Components\Toggle::make('is_active')
                     ->default(true),
             ]);

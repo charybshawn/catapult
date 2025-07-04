@@ -22,7 +22,8 @@
       "Bash(rg:*)",
       "Bash(git add:*)",
       "Bash(cp:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": []
   }

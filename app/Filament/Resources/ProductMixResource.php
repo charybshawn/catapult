@@ -95,7 +95,7 @@ class ProductMixResource extends Resource
                             ->reactive(),
                             
                         CompactRepeater::make('mixComponents')
-                            ->label('Varieties')
+                            ->label('')
                             ->statePath('masterSeedCatalogs')
                             ->schema([
                                 Forms\Components\Select::make('variety_selection')
@@ -104,7 +104,7 @@ class ProductMixResource extends Resource
                                         $options = [];
                                         
                                         // Get all consumables with available seed inventory
-                                        $consumables = \App\Models\Consumable::where('type', 'seed')
+                                        $consumables = \App\Models\Consumable::where('consumable_type_id', 3) // seed type
                                             ->where('is_active', true)
                                             ->whereRaw('(total_quantity - consumed_quantity) > 0')
                                             ->whereNotNull('master_seed_catalog_id')
@@ -198,7 +198,7 @@ class ProductMixResource extends Resource
                                 return $data;
                             })
                             ->columnWidths([
-                                'master_cultivar_id' => '70%',
+                                'variety_selection' => '70%',
                                 'percentage' => '30%',
                             ])
                             ->defaultItems(2)

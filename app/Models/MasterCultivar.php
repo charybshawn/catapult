@@ -13,7 +13,6 @@ class MasterCultivar extends Model
         'cultivar_name',
         'aliases',
         'description',
-        'growing_notes',
         'is_active',
     ];
 
