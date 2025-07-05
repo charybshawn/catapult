@@ -27,11 +27,9 @@ class InvoiceFactory extends Factory
 
         return [
             'order_id' => Order::factory(),
-            'user_id' => User::factory(),
             'invoice_number' => $this->generateInvoiceNumber(),
             'amount' => $amount,
-            'total_amount' => $amount, // Will be recalculated if needed
-            'status' => $this->faker->randomElement(['draft', 'sent', 'paid', 'pending']),
+            'payment_status_id' => \App\Models\PaymentStatus::inRandomOrder()->first()?->id ?? \App\Models\PaymentStatus::firstOrCreate(['code' => 'pending'], ['name' => 'Pending', 'description' => 'Payment is pending'])->id,
             'issue_date' => $issueDate,
             'due_date' => $dueDate,
             'sent_at' => $this->faker->optional(0.7)->dateTimeBetween($issueDate, 'now'),
@@ -47,12 +45,7 @@ class InvoiceFactory extends Factory
      */
     public function configure(): static
     {
-        return $this->afterCreating(function (Invoice $invoice) {
-            // Set user_id to match the order's user if order exists
-            if ($invoice->order && $invoice->user_id !== $invoice->order->user_id) {
-                $invoice->update(['user_id' => $invoice->order->user_id]);
-            }
-        });
+        return $this;
     }
 
     /**
@@ -64,7 +57,7 @@ class InvoiceFactory extends Factory
             $paidAt = $this->faker->dateTimeBetween($attributes['issue_date'], 'now');
             
             return [
-                'status' => 'paid',
+                'payment_status_id' => \App\Models\PaymentStatus::findByCode('paid')?->id ?? \App\Models\PaymentStatus::firstOrCreate(['code' => 'paid'], ['name' => 'Paid', 'description' => 'Payment completed'])->id,
                 'paid_at' => $paidAt,
                 'sent_at' => $this->faker->dateTimeBetween($attributes['issue_date'], $paidAt),
             ];
@@ -77,7 +70,7 @@ class InvoiceFactory extends Factory
     public function draft(): static
     {
         return $this->state([
-            'status' => 'draft',
+            'payment_status_id' => \App\Models\PaymentStatus::findByCode('draft')?->id ?? \App\Models\PaymentStatus::firstOrCreate(['code' => 'draft'], ['name' => 'Draft', 'description' => 'Invoice is draft'])->id,
             'sent_at' => null,
             'paid_at' => null,
         ]);
@@ -92,7 +85,7 @@ class InvoiceFactory extends Factory
             $pastDueDate = $this->faker->dateTimeBetween('-60 days', '-1 day');
             
             return [
-                'status' => 'overdue',
+                'payment_status_id' => \App\Models\PaymentStatus::findByCode('overdue')?->id ?? \App\Models\PaymentStatus::firstOrCreate(['code' => 'overdue'], ['name' => 'Overdue', 'description' => 'Payment overdue'])->id,
                 'issue_date' => $this->faker->dateTimeBetween('-90 days', '-30 days'),
                 'due_date' => $pastDueDate,
                 'sent_at' => $this->faker->dateTimeBetween('-90 days', '-30 days'),
@@ -114,9 +107,6 @@ class InvoiceFactory extends Factory
                 'is_consolidated' => true,
                 'consolidated_order_count' => $orderCount,
                 'amount' => $this->faker->randomFloat(2, $orderCount * 50, $orderCount * 200),
-                'total_amount' => function (array $attrs) {
-                    return $attrs['amount'];
-                },
             ];
         });
     }
@@ -128,9 +118,7 @@ class InvoiceFactory extends Factory
     {
         return $this->state([
             'order_id' => $order->id,
-            'user_id' => $order->user_id,
             'amount' => $order->totalAmount(),
-            'total_amount' => $order->totalAmount(),
         ]);
     }
 
@@ -140,7 +128,7 @@ class InvoiceFactory extends Factory
     public function forUser(User $user): static
     {
         return $this->state([
-            'user_id' => $user->id,
+            // User is accessed through order relationship
         ]);
     }
 
@@ -165,7 +153,6 @@ class InvoiceFactory extends Factory
     {
         return $this->state([
             'amount' => $amount,
-            'total_amount' => $amount,
         ]);
     }
 
@@ -175,7 +162,7 @@ class InvoiceFactory extends Factory
     public function withStatus(string $status): static
     {
         return $this->state([
-            'status' => $status,
+            'payment_status_id' => \App\Models\PaymentStatus::findByCode($status)?->id ?? \App\Models\PaymentStatus::firstOrCreate(['code' => $status], ['name' => ucfirst($status), 'description' => ucfirst($status) . ' status'])->id,
         ]);
     }
 

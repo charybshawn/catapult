@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Product;
 use App\Models\Category;
+use App\Models\ProductStockStatus;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -55,6 +56,7 @@ class ProductFactory extends Factory
             'category_id' => function () {
                 return Category::factory()->create()->id;
             },
+            'stock_status_id' => ProductStockStatus::inRandomOrder()->first()?->id ?? ProductStockStatus::firstOrCreate(['code' => 'in_stock'], ['name' => 'In Stock', 'description' => 'Product is in stock'])->id,
             'base_price' => $this->faker->randomFloat(2, 10, 100),
             'wholesale_price' => $this->faker->randomFloat(2, 5, 90),
             'bulk_price' => $this->faker->randomFloat(2, 3, 80), 

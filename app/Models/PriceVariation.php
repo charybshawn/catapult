@@ -267,7 +267,7 @@ class PriceVariation extends Model
                 'production_date' => now(),
                 'expiration_date' => null,
                 'location' => null,
-                'status' => 'active',
+                'product_inventory_status_id' => \App\Models\ProductInventoryStatus::firstOrCreate(['code' => 'active'], ['name' => 'Active', 'description' => 'Active inventory'])->id,
                 'notes' => "Auto-created for {$this->name} variation",
             ]);
         }

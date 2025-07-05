@@ -33,7 +33,7 @@ class FactoryTest extends TestCase
 
         $this->assertTrue($order->is_recurring);
         $this->assertTrue($order->is_recurring_active);
-        $this->assertEquals('template', $order->status);
+        $this->assertEquals('template', $order->orderStatus->code);
         $this->assertNotNull($order->recurring_frequency);
         $this->assertTrue($order->isRecurringTemplate());
     }
@@ -60,6 +60,7 @@ class FactoryTest extends TestCase
             'active' => true,
             'is_visible_in_store' => true,
             'category_id' => $category->id,
+            'stock_status_id' => \App\Models\ProductStockStatus::firstOrCreate(['code' => 'in_stock'], ['name' => 'In Stock', 'description' => 'Product is in stock'])->id,
             'base_price' => 10.00,
             'wholesale_price' => 8.00,
             'bulk_price' => 6.00,
@@ -81,6 +82,7 @@ class FactoryTest extends TestCase
             'active' => true,
             'is_visible_in_store' => true,
             'category_id' => $category->id,
+            'stock_status_id' => \App\Models\ProductStockStatus::firstOrCreate(['code' => 'in_stock'], ['name' => 'In Stock', 'description' => 'Product is in stock'])->id,
             'base_price' => 10.00,
         ]);
         
@@ -112,6 +114,7 @@ class FactoryTest extends TestCase
             'active' => true,
             'is_visible_in_store' => true,
             'category_id' => $category->id,
+            'stock_status_id' => \App\Models\ProductStockStatus::firstOrCreate(['code' => 'in_stock'], ['name' => 'In Stock', 'description' => 'Product is in stock'])->id,
             'base_price' => 10.00,
         ]);
         
@@ -148,7 +151,7 @@ class FactoryTest extends TestCase
 
         $this->assertInstanceOf(Invoice::class, $invoice);
         $this->assertEquals($order->id, $invoice->order_id);
-        $this->assertEquals($order->user_id, $invoice->user_id);
+        $this->assertEquals($order->user_id, $invoice->order->user_id);
         $this->assertNotNull($invoice->invoice_number);
     }
 }

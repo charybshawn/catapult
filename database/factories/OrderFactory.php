@@ -4,6 +4,11 @@ namespace Database\Factories;
 
 use App\Models\Order;
 use App\Models\User;
+use App\Models\OrderStatus;
+use App\Models\CropStatus;
+use App\Models\FulfillmentStatus;
+use App\Models\CustomerType;
+use App\Models\OrderType;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -27,11 +32,10 @@ class OrderFactory extends Factory
             'user_id' => User::factory(),
             'harvest_date' => $harvestDate,
             'delivery_date' => $deliveryDate,
-            'status' => $this->faker->randomElement(['draft', 'pending', 'confirmed', 'processing', 'completed', 'cancelled']),
-            'crop_status' => $this->faker->randomElement(['not_started', 'planted', 'growing', 'ready_to_harvest', 'harvested', 'na']),
-            'fulfillment_status' => $this->faker->randomElement(['pending', 'processing', 'packing', 'packed', 'ready_for_delivery', 'out_for_delivery', 'delivered', 'cancelled']),
-            'customer_type' => $this->faker->randomElement(['retail', 'wholesale']),
-            'order_type' => $this->faker->randomElement(['website_immediate', 'farmers_market', 'b2b']),
+            'order_status_id' => OrderStatus::inRandomOrder()->first()?->id ?? OrderStatus::firstOrCreate(['code' => 'pending'], ['name' => 'Pending', 'description' => 'Order is pending'])->id,
+            'crop_status_id' => CropStatus::inRandomOrder()->first()?->id ?? CropStatus::firstOrCreate(['code' => 'not_started'], ['name' => 'Not Started', 'description' => 'Crop has not been started'])->id,
+            'fulfillment_status_id' => FulfillmentStatus::inRandomOrder()->first()?->id ?? FulfillmentStatus::firstOrCreate(['code' => 'pending'], ['name' => 'Pending', 'description' => 'Fulfillment is pending'])->id,
+            'order_type_id' => OrderType::inRandomOrder()->first()?->id ?? OrderType::firstOrCreate(['code' => 'website_immediate'], ['name' => 'Website Immediate', 'description' => 'Immediate website order'])->id,
             'billing_frequency' => $this->faker->randomElement(['immediate', 'weekly', 'monthly', 'quarterly']),
             'requires_invoice' => $this->faker->boolean(80),
             'is_recurring' => false,
@@ -52,7 +56,7 @@ class OrderFactory extends Factory
             return [
                 'is_recurring' => true,
                 'is_recurring_active' => true,
-                'status' => 'template',
+                'order_status_id' => OrderStatus::findByCode('template')?->id ?? OrderStatus::firstOrCreate(['code' => 'template'], ['name' => 'Template', 'description' => 'Recurring order template'])->id,
                 'recurring_frequency' => $this->faker->randomElement(['weekly', 'biweekly', 'monthly']),
                 'recurring_start_date' => $startDate,
                 'recurring_end_date' => $endDate,
@@ -70,7 +74,7 @@ class OrderFactory extends Factory
     public function b2bRecurring(): static
     {
         return $this->recurring()->state([
-            'order_type' => 'b2b',
+            'order_type_id' => OrderType::findByCode('b2b')?->id ?? OrderType::firstOrCreate(['code' => 'b2b'], ['name' => 'B2B', 'description' => 'Business to business order'])->id,
             'billing_frequency' => $this->faker->randomElement(['weekly', 'monthly', 'quarterly']),
             'requires_invoice' => true,
         ]);
@@ -82,7 +86,7 @@ class OrderFactory extends Factory
     public function farmersMarket(): static
     {
         return $this->state([
-            'order_type' => 'farmers_market',
+            'order_type_id' => OrderType::findByCode('farmers_market')?->id ?? OrderType::firstOrCreate(['code' => 'farmers_market'], ['name' => 'Farmers Market', 'description' => 'Farmers market order'])->id,
             'billing_frequency' => 'immediate',
             'requires_invoice' => false,
         ]);
@@ -96,7 +100,7 @@ class OrderFactory extends Factory
         return $this->state([
             'parent_recurring_order_id' => $parentOrder?->id ?? Order::factory()->recurring(),
             'is_recurring' => false,
-            'status' => 'pending',
+            'order_status_id' => OrderStatus::findByCode('pending')?->id ?? OrderStatus::firstOrCreate(['code' => 'pending'], ['name' => 'Pending', 'description' => 'Order is pending'])->id,
         ]);
     }
 
@@ -105,10 +109,8 @@ class OrderFactory extends Factory
      */
     public function wholesale(): static
     {
-        return $this->state([
-            'customer_type' => 'wholesale',
-        ])->for(
-            User::factory()->state(['customer_type' => 'wholesale']),
+        return $this->for(
+            User::factory()->state(['customer_type_id' => CustomerType::findByCode('wholesale')?->id ?? 1]),
             'user'
         );
     }
@@ -118,10 +120,8 @@ class OrderFactory extends Factory
      */
     public function retail(): static
     {
-        return $this->state([
-            'customer_type' => 'retail',
-        ])->for(
-            User::factory()->state(['customer_type' => 'retail']),
+        return $this->for(
+            User::factory()->state(['customer_type_id' => CustomerType::findByCode('retail')?->id ?? 1]),
             'user'
         );
     }
@@ -158,7 +158,7 @@ class OrderFactory extends Factory
     public function withStatus(string $status): static
     {
         return $this->state([
-            'status' => $status,
+            'order_status_id' => OrderStatus::findByCode($status)?->id ?? OrderStatus::firstOrCreate(['code' => $status], ['name' => ucfirst($status), 'description' => ucfirst($status) . ' status'])->id,
         ]);
     }
 
@@ -168,7 +168,7 @@ class OrderFactory extends Factory
     public function withCropStatus(string $cropStatus): static
     {
         return $this->state([
-            'crop_status' => $cropStatus,
+            'crop_status_id' => CropStatus::findByCode($cropStatus)?->id ?? CropStatus::firstOrCreate(['code' => $cropStatus], ['name' => ucfirst($cropStatus), 'description' => ucfirst($cropStatus) . ' status'])->id,
         ]);
     }
 }
