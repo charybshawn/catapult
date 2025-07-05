@@ -52,7 +52,7 @@ class RecipeManagementTest extends TestCase
         // Create seed consumable with lot
         $seedConsumable = Consumable::factory()->create([
             'name' => 'Kale (Red Russian)',
-            'type' => 'seed',
+            'consumable_type_id' => \App\Models\ConsumableType::firstOrCreate(['code' => 'seed'], ['name' => 'Seed', 'description' => 'Seed type'])->id,
             'lot_no' => 'KRR2025',
             'total_quantity' => 1000.0,
             'consumed_quantity' => 0.0,
@@ -116,9 +116,10 @@ class RecipeManagementTest extends TestCase
         ]);
 
         // Create matching consumable
+        $seedTypeId = \App\Models\ConsumableType::firstOrCreate(['code' => 'seed'], ['name' => 'Seed', 'description' => 'Seed type'])->id;
         Consumable::factory()->create([
             'name' => 'Basil (Genovese)',
-            'type' => 'seed',
+            'consumable_type_id' => $seedTypeId,
             'lot_no' => 'TEST123',
             'is_active' => true,
         ]);
@@ -167,7 +168,7 @@ class RecipeManagementTest extends TestCase
     {
         // Create multiple consumables for the same lot
         $consumable1 = Consumable::factory()->create([
-            'type' => 'seed',
+            'consumable_type_id' => \App\Models\ConsumableType::firstOrCreate(['code' => 'seed'], ['name' => 'Seed', 'description' => 'Seed type'])->id,
             'lot_no' => 'MULTI_LOT',
             'total_quantity' => 500.0,
             'consumed_quantity' => 100.0, // 400 available
@@ -175,7 +176,7 @@ class RecipeManagementTest extends TestCase
         ]);
 
         $consumable2 = Consumable::factory()->create([
-            'type' => 'seed',
+            'consumable_type_id' => \App\Models\ConsumableType::firstOrCreate(['code' => 'seed'], ['name' => 'Seed', 'description' => 'Seed type'])->id,
             'lot_no' => 'MULTI_LOT',
             'total_quantity' => 800.0,
             'consumed_quantity' => 200.0, // 600 available
@@ -211,7 +212,7 @@ class RecipeManagementTest extends TestCase
     {
         // Create fully consumed consumables
         Consumable::factory()->create([
-            'type' => 'seed',
+            'consumable_type_id' => \App\Models\ConsumableType::firstOrCreate(['code' => 'seed'], ['name' => 'Seed', 'description' => 'Seed type'])->id,
             'lot_no' => 'DEPLETED_LOT',
             'total_quantity' => 500.0,
             'consumed_quantity' => 500.0,
@@ -232,7 +233,7 @@ class RecipeManagementTest extends TestCase
     {
         // Create recipe with available stock
         Consumable::factory()->create([
-            'type' => 'seed',
+            'consumable_type_id' => \App\Models\ConsumableType::firstOrCreate(['code' => 'seed'], ['name' => 'Seed', 'description' => 'Seed type'])->id,
             'lot_no' => 'MANUAL_DEPLETE',
             'total_quantity' => 500.0,
             'consumed_quantity' => 100.0,
@@ -404,7 +405,7 @@ class RecipeManagementTest extends TestCase
     {
         // Create mixed consumables with same lot number
         $seedConsumable = Consumable::factory()->create([
-            'type' => 'seed',
+            'consumable_type_id' => \App\Models\ConsumableType::firstOrCreate(['code' => 'seed'], ['name' => 'Seed', 'description' => 'Seed type'])->id,
             'lot_no' => 'MIXED_LOT_TEST',
             'total_quantity' => 500.0,
             'consumed_quantity' => 0.0,
@@ -438,7 +439,7 @@ class RecipeManagementTest extends TestCase
     {
         // Create active and inactive consumables
         $activeConsumable = Consumable::factory()->create([
-            'type' => 'seed',
+            'consumable_type_id' => \App\Models\ConsumableType::firstOrCreate(['code' => 'seed'], ['name' => 'Seed', 'description' => 'Seed type'])->id,
             'lot_no' => 'ACTIVE_TEST_LOT',
             'total_quantity' => 500.0,
             'consumed_quantity' => 0.0,
@@ -446,7 +447,7 @@ class RecipeManagementTest extends TestCase
         ]);
 
         $inactiveConsumable = Consumable::factory()->create([
-            'type' => 'seed',
+            'consumable_type_id' => \App\Models\ConsumableType::firstOrCreate(['code' => 'seed'], ['name' => 'Seed', 'description' => 'Seed type'])->id,
             'lot_no' => 'ACTIVE_TEST_LOT',
             'total_quantity' => 300.0,
             'consumed_quantity' => 0.0,

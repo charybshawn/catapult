@@ -302,7 +302,7 @@ class ProductInventory extends Model
         $product->update([
             'total_stock' => $totals->total_quantity ?? 0,
             'reserved_stock' => $totals->total_reserved ?? 0,
-            'stock_status_id' => $stockStatus?->id,
+            'stock_status_id' => $stockStatus?->id ?? \App\Models\ProductStockStatus::findByCode('in_stock')?->id,
         ]);
     }
 

@@ -21,8 +21,7 @@ class InvoiceFactory extends Factory
      */
     public function definition(): array
     {
-        $issueDate = $this->faker->dateTimeBetween('-30 days', 'now');
-        $dueDate = (clone $issueDate)->modify('+30 days');
+        $dueDate = $this->faker->dateTimeBetween('now', '+30 days');
         $amount = $this->faker->randomFloat(2, 10, 500);
 
         return [
@@ -30,9 +29,8 @@ class InvoiceFactory extends Factory
             'invoice_number' => $this->generateInvoiceNumber(),
             'amount' => $amount,
             'payment_status_id' => \App\Models\PaymentStatus::inRandomOrder()->first()?->id ?? \App\Models\PaymentStatus::firstOrCreate(['code' => 'pending'], ['name' => 'Pending', 'description' => 'Payment is pending'])->id,
-            'issue_date' => $issueDate,
             'due_date' => $dueDate,
-            'sent_at' => $this->faker->optional(0.7)->dateTimeBetween($issueDate, 'now'),
+            'sent_at' => $this->faker->optional(0.7)->dateTimeBetween('-30 days', 'now'),
             'paid_at' => null, // Will be set for paid invoices
             'is_consolidated' => false,
             'consolidated_order_count' => 1,
@@ -54,12 +52,12 @@ class InvoiceFactory extends Factory
     public function paid(): static
     {
         return $this->state(function (array $attributes) {
-            $paidAt = $this->faker->dateTimeBetween($attributes['issue_date'], 'now');
+            $paidAt = $this->faker->dateTimeBetween('-30 days', 'now');
             
             return [
                 'payment_status_id' => \App\Models\PaymentStatus::findByCode('paid')?->id ?? \App\Models\PaymentStatus::firstOrCreate(['code' => 'paid'], ['name' => 'Paid', 'description' => 'Payment completed'])->id,
                 'paid_at' => $paidAt,
-                'sent_at' => $this->faker->dateTimeBetween($attributes['issue_date'], $paidAt),
+                'sent_at' => $this->faker->dateTimeBetween('-30 days', $paidAt),
             ];
         });
     }
@@ -86,7 +84,6 @@ class InvoiceFactory extends Factory
             
             return [
                 'payment_status_id' => \App\Models\PaymentStatus::findByCode('overdue')?->id ?? \App\Models\PaymentStatus::firstOrCreate(['code' => 'overdue'], ['name' => 'Overdue', 'description' => 'Payment overdue'])->id,
-                'issue_date' => $this->faker->dateTimeBetween('-90 days', '-30 days'),
                 'due_date' => $pastDueDate,
                 'sent_at' => $this->faker->dateTimeBetween('-90 days', '-30 days'),
                 'paid_at' => null,
