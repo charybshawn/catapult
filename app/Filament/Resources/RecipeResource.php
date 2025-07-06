@@ -8,7 +8,7 @@ use App\Models\Recipe;
 use App\Models\Supplier;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use App\Filament\Resources\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -24,7 +24,7 @@ use Spatie\Activitylog\Models\LogOptions;
 use App\Services\LotInventoryService;
 use App\Models\Consumable;
 
-class RecipeResource extends Resource
+class RecipeResource extends BaseResource
 {
     protected static ?string $model = Recipe::class;
 
@@ -45,7 +45,7 @@ class RecipeResource extends Resource
      */
     public static function getAvailableLotsForSelection(): array
     {
-        $lotInventoryService = new LotInventoryService();
+        $lotInventoryService = app(\App\Services\InventoryManagementService::class);
         $lotNumbers = $lotInventoryService->getAllLotNumbers();
         $options = [];
         
@@ -109,7 +109,7 @@ class RecipeResource extends Resource
                             'max:255',
                             function ($attribute, $value, $fail) {
                                 if ($value) {
-                                    $lotInventoryService = new LotInventoryService();
+                                    $lotInventoryService = app(\App\Services\InventoryManagementService::class);
                                     
                                     // Check if lot exists
                                     if (!$lotInventoryService->lotExists($value)) {
@@ -158,7 +158,7 @@ class RecipeResource extends Resource
                                 return 'No lot assigned';
                             }
                             
-                            $lotInventoryService = new LotInventoryService();
+                            $lotInventoryService = app(\App\Services\InventoryManagementService::class);
                             $summary = $lotInventoryService->getLotSummary($record->lot_number);
                             
                             if ($summary['available'] <= 0) {
@@ -342,15 +342,12 @@ class RecipeResource extends Resource
 
     public static function table(Table $table): Table
     {
-        return $table
+        return static::configureTableDefaults($table)
             ->modifyQueryUsing(fn (Builder $query) => $query->with([
                 'seedConsumable', // Keep for backward compatibility
                 'soilConsumable'
             ]))
-            ->persistFiltersInSession()
-            ->persistSortInSession()
-            ->persistColumnSearchesInSession()
-            ->persistSearchInSession()            ->columns([
+            ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->searchable()
                     ->sortable()
@@ -372,7 +369,7 @@ class RecipeResource extends Resource
                             return '-';
                         }
                         
-                        $lotInventoryService = new LotInventoryService();
+                        $lotInventoryService = app(\App\Services\InventoryManagementService::class);
                         $summary = $lotInventoryService->getLotSummary($state);
                         
                         if ($summary['available'] <= 0) {
@@ -473,7 +470,7 @@ class RecipeResource extends Resource
                 Tables\Filters\SelectFilter::make('lot_number')
                     ->label('Seed Lot')
                     ->options(function () {
-                        $lotInventoryService = new LotInventoryService();
+                        $lotInventoryService = app(\App\Services\InventoryManagementService::class);
                         $lotNumbers = $lotInventoryService->getAllLotNumbers();
                         $options = [];
                         
@@ -856,22 +853,7 @@ class RecipeResource extends Resource
                             }
                             // If no crops exist, allow normal bulk deletion to proceed
                         }),
-                    Tables\Actions\BulkAction::make('activate')
-                        ->label('Activate')
-                        ->icon('heroicon-o-check')
-                        ->action(function (Collection $records) {
-                            foreach ($records as $record) {
-                                $record->update(['is_active' => true]);
-                            }
-                        }),
-                    Tables\Actions\BulkAction::make('deactivate')
-                        ->label('Deactivate')
-                        ->icon('heroicon-o-x-mark')
-                        ->action(function (Collection $records) {
-                            foreach ($records as $record) {
-                                $record->update(['is_active' => false]);
-                            }
-                        }),
+                    ...static::getActiveStatusBulkActions(),
                 ]),
             ]);
     }
