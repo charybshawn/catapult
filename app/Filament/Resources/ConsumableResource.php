@@ -18,12 +18,23 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Database\Eloquent\Model;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Forms\Components\Common as FormCommon;
+use Illuminate\Support\Facades\Log;
 use App\Filament\Tables\Components\Common as TableCommon;
 use App\Filament\Traits\CsvExportAction;
+use App\Filament\Traits\HasActiveStatus;
+use App\Filament\Traits\HasTimestamps;
+use App\Filament\Traits\HasStatusBadge;
+use App\Filament\Traits\HasStandardActions;
+use App\Filament\Traits\HasInventoryStatus;
 
 class ConsumableResource extends BaseResource
 {
     use CsvExportAction;
+    use HasActiveStatus;
+    use HasTimestamps;
+    use HasStatusBadge;
+    use HasStandardActions;
+    use HasInventoryStatus;
     
     protected static ?string $model = Consumable::class;
 
@@ -217,9 +228,8 @@ class ConsumableResource extends BaseResource
                             })
                             ->columnSpanFull(),
 
-                        FormCommon::activeToggle()
-                            ->columnSpanFull()
-                            ->inline(false),
+                        static::getActiveStatusField()
+                            ->columnSpanFull(),
                     ])
                     ->columns(2),
                 
@@ -287,7 +297,7 @@ class ConsumableResource extends BaseResource
                                                 $set('consumed_quantity', $consumed);
                                                 
                                                 // Log the calculation for debugging
-                                                \Illuminate\Support\Facades\Log::info('Remaining quantity updated:', [
+                                                Log::info('Remaining quantity updated:', [
                                                     'total' => $total,
                                                     'remaining' => $remaining,
                                                     'consumed' => $consumed
@@ -649,12 +659,7 @@ class ConsumableResource extends BaseResource
                         return $type && $type->isSeed();
                     }),
                     
-                Forms\Components\Section::make('Additional Information')
-                    ->schema([
-                        FormCommon::notesTextarea()
-                            ->columnSpanFull(),
-                    ])
-                    ->columns(1)
+                static::getAdditionalInformationSection()
                     ->collapsed(),
             ]);
     }
@@ -797,27 +802,8 @@ class ConsumableResource extends BaseResource
                     ->size('sm')
                     ->visible(fn ($livewire): bool => $livewire->activeTab === null || $livewire->activeTab === 'seed')
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('status')
-                    ->label('Status')
-                    ->badge()
-                    ->color(fn ($record): string => $record ? match (true) {
-                        $record->isOutOfStock() => 'danger',
-                        $record->needsRestock() => 'warning',
-                        default => 'success',
-                    } : 'gray')
-                    ->formatStateUsing(fn ($record): string => $record ? match (true) {
-                        $record->isOutOfStock() => 'Out of Stock',
-                        $record->needsRestock() => 'Reorder Needed',
-                        default => 'In Stock',
-                    } : 'Unknown')
-                    ->toggleable(),
-                Tables\Columns\TextColumn::make('is_active')
-                    ->label('Active')
-                    ->badge()
-                    ->formatStateUsing(fn ($state): string => $state ? 'Active' : 'Inactive')
-                    ->color(fn ($state): string => $state ? 'success' : 'danger')
-                    ->sortable()
-                    ->toggleable(),
+                static::getInventoryStatusColumn(),
+                static::getActiveStatusBadgeColumn(),
                 ...static::getTimestampColumns(),
                 // Seed cultivar column removed - seed consumables now linked through SeedVariation
             ])
@@ -856,30 +842,10 @@ class ConsumableResource extends BaseResource
                     ->toggle()
                     ->indicateUsing(fn (array $data) => ($data['other'] ?? false) ? '⚡ Other' : null),
                     
-                // Status filters with icons
-                Tables\Filters\Filter::make('needs_restock')
-                    ->label('⚠️ Needs Restock')
-                    ->query(fn (Builder $query) => $query->whereRaw('(total_quantity - consumed_quantity) <= restock_threshold'))
-                    ->toggle()
-                    ->indicateUsing(fn (array $data) => ($data['needs_restock'] ?? false) ? '⚠️ Needs Restock' : null),
+                // Status filters
+                ...static::getInventoryFilters(),
                     
-                Tables\Filters\Filter::make('out_of_stock')
-                    ->label('🚫 Out of Stock')
-                    ->query(fn (Builder $query) => $query->whereRaw('(total_quantity - consumed_quantity) <= 0'))
-                    ->toggle()
-                    ->indicateUsing(fn (array $data) => ($data['out_of_stock'] ?? false) ? '🚫 Out of Stock' : null),
-                    
-                Tables\Filters\Filter::make('low_stock')
-                    ->label('📉 Low Stock')
-                    ->query(fn (Builder $query) => $query->whereRaw('(total_quantity - consumed_quantity) > 0 AND (total_quantity - consumed_quantity) <= restock_threshold'))
-                    ->toggle()
-                    ->indicateUsing(fn (array $data) => ($data['low_stock'] ?? false) ? '📉 Low Stock' : null),
-                    
-                Tables\Filters\Filter::make('inactive')
-                    ->label('💤 Inactive')
-                    ->query(fn (Builder $query) => $query->where('is_active', false))
-                    ->toggle()
-                    ->indicateUsing(fn (array $data) => ($data['inactive'] ?? false) ? '💤 Inactive' : null),
+                static::getActiveStatusFilter(),
             ])
             ->groups([
                 Tables\Grouping\Group::make('name')
@@ -892,44 +858,11 @@ class ConsumableResource extends BaseResource
                     ->label('Supplier')
                     ->collapsible(),
             ])
-            ->actions(static::getDefaultTableActions())
+            ->actions(static::getStandardTableActions())
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    ...static::getDefaultBulkActions(),
-                    Tables\Actions\BulkAction::make('bulk_add_stock')
-                        ->label('Add Stock')
-                        ->icon('heroicon-o-plus')
-                        ->form([
-                            Forms\Components\TextInput::make('amount')
-                                ->label('Amount to Add')
-                                ->numeric()
-                                ->step(0.001)
-                                ->minValue(0.001)
-                                ->required()
-                                ->default(10),
-                        ])
-                        ->action(function ($records, array $data) {
-                            foreach ($records as $record) {
-                                $record->add((float) $data['amount']);
-                            }
-                        }),
-                    Tables\Actions\BulkAction::make('bulk_consume_stock')
-                        ->label('Consume Stock')
-                        ->icon('heroicon-o-minus')
-                        ->form([
-                            Forms\Components\TextInput::make('amount')
-                                ->label('Amount to Consume')
-                                ->numeric()
-                                ->step(0.001)
-                                ->minValue(0.001)
-                                ->required()
-                                ->default(1),
-                        ])
-                        ->action(function ($records, array $data) {
-                            foreach ($records as $record) {
-                                $record->deduct((float) $data['amount']);
-                            }
-                        }),
+                    ...static::getStandardBulkActions(),
+                    ...static::getInventoryBulkActions(),
                 ]),
             ])
             ->headerActions([
