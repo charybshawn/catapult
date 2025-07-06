@@ -101,7 +101,7 @@ class ListCrops extends ListRecords
                     $records = $query->limit(5)->get()->toArray();
                     
                     // Log everything
-                    \Illuminate\Support\Facades\Log::debug('Debug data', [
+                    Log::debug('Debug data', [
                         'sql' => $sql,
                         'bindings' => $bindings,
                         'records' => $records,
@@ -115,9 +115,7 @@ class ListCrops extends ListRecords
                         'records' => $records,
                     ]);
                 }),
-            Actions\CreateAction::make()
-                ->icon('heroicon-o-plus')
-                ->tooltip('Create Grow Batch'),
+            ...parent::getHeaderActions(),
         ];
     }
     
