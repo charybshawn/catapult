@@ -477,7 +477,10 @@ class CropResource extends BaseResource
                     })
                     ->icon('heroicon-o-chevron-double-right')
                     ->color('success')
-                    ->visible(fn (Crop $record): bool => $record->currentStage?->code !== 'harvested')
+                    ->visible(function ($record): bool {
+                        $stage = \App\Models\CropStage::find($record->current_stage_id);
+                        return $stage?->code !== 'harvested';
+                    })
                     ->requiresConfirmation()
                     ->modalHeading(function (Crop $record): string {
                         $nextStage = $record->getNextStage();
@@ -563,7 +566,10 @@ class CropResource extends BaseResource
                     ->label('Harvest')
                     ->icon('heroicon-o-scissors')
                     ->color('success')
-                    ->visible(fn (Crop $record): bool => $record->currentStage?->code === 'light')
+                    ->visible(function ($record): bool {
+                        $stage = \App\Models\CropStage::find($record->current_stage_id);
+                        return $stage?->code === 'light';
+                    })
                     ->requiresConfirmation()
                     ->modalHeading('Harvest Crop?')
                     ->modalDescription('This will mark all crops in this batch as harvested.')
@@ -643,7 +649,10 @@ class CropResource extends BaseResource
                     })
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('warning')
-                    ->visible(fn (Crop $record): bool => $record->currentStage?->code !== 'germination')
+                    ->visible(function ($record): bool {
+                        $stage = \App\Models\CropStage::find($record->current_stage_id);
+                        return $stage?->code !== 'germination';
+                    })
                     ->requiresConfirmation()
                     ->modalHeading(function (Crop $record): string {
                         $previousStage = $record->getPreviousStage();
@@ -679,7 +688,8 @@ class CropResource extends BaseResource
                             // Update all crops in this batch
                             foreach ($crops as $crop) {
                                 // Clear the timestamp for the current stage
-                                $currentTimestampField = "{$record->currentStage->code}_at";
+                                $stage = \App\Models\CropStage::find($record->current_stage_id);
+                                $currentTimestampField = "{$stage->code}_at";
                                 $crop->$currentTimestampField = null;
                                 
                                 // Set the previous stage
@@ -709,7 +719,10 @@ class CropResource extends BaseResource
                     ->label('Suspend Watering')
                     ->icon('heroicon-o-no-symbol')
                     ->color('warning')
-                    ->visible(fn (Crop $record): bool => $record->currentStage?->code === 'light' && !$record->isWateringSuspended())
+                    ->visible(function ($record): bool {
+                        $stage = \App\Models\CropStage::find($record->current_stage_id);
+                        return $stage?->code === 'light' && !$record->isWateringSuspended();
+                    })
                     ->requiresConfirmation()
                     ->modalHeading('Suspend Watering?')
                     ->modalDescription('This will mark watering as suspended for all crops in this batch.')
@@ -840,7 +853,8 @@ class CropResource extends BaseResource
                             DB::beginTransaction();
                             try {
                                 foreach ($records as $record) {
-                                    if ($record->currentStage?->code !== 'harvested') {
+                                    $stage = \App\Models\CropStage::find($record->current_stage_id);
+                                    if ($stage?->code !== 'harvested') {
                                         // Find ALL crops in this batch
                                         $crops = Crop::with('recipe')
                                             ->where('recipe_id', $record->recipe_id)
@@ -925,7 +939,7 @@ class CropResource extends BaseResource
                                     if ($crops->isNotEmpty()) {
                                         foreach ($crops as $crop) {
                                             // Clear the timestamp for the current stage
-                                            $currentTimestampField = "{$crop->currentStage->code}_at";
+                                            $currentTimestampField = "{$crop->currentStage?->code}_at";
                                             $crop->$currentTimestampField = null;
                                             
                                             // Set the previous stage
