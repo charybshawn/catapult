@@ -244,21 +244,21 @@ class CropResource extends BaseResource
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('stage_age_display')
                     ->label('Time in Stage')
-                    ->getStateUsing(fn ($record): string => $record->getStageAgeStatus())
+                    ->getStateUsing(fn ($record): string => $record->stage_age_display ?? 'N/A')
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('stage_age_minutes', $direction);
                     })
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('time_to_next_stage_display')
                     ->label('Time to Next Stage')
-                    ->getStateUsing(fn ($record): string => $record->timeToNextStage())
+                    ->getStateUsing(fn ($record): string => $record->time_to_next_stage_display ?? 'N/A')
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('time_to_next_stage_minutes', $direction);
                     })
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('total_age_display')
                     ->label('Total Age')
-                    ->getStateUsing(fn ($record): string => $record->getTotalAgeStatus())
+                    ->getStateUsing(fn ($record): string => $record->total_age_display ?? 'N/A')
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('total_age_minutes', $direction);
                     })
