@@ -5,8 +5,8 @@ namespace App\Filament\Resources\CropResource\Pages;
 use App\Filament\Resources\CropResource;
 use App\Models\Crop;
 use App\Models\Recipe;
-use App\Models\CropTask;
-use App\Services\CropTaskGenerator;
+use App\Services\CropTaskManagementService;
+use App\Services\InventoryManagementService;
 use App\Filament\Pages\BaseCreateRecord;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +17,7 @@ use Carbon\Carbon;
 class CreateCrop extends BaseCreateRecord
 {
     protected static string $resource = CropResource::class;
+    
     
     protected function handleRecordCreation(array $data): Model
     {
@@ -137,7 +138,7 @@ class CreateCrop extends BaseCreateRecord
             if ($recipe && $recipe->lot_number && $recipe->seed_density_grams_per_tray) {
                 try {
                     $totalSeedRequired = $recipe->seed_density_grams_per_tray * count($createdRecords);
-                    $inventoryService = app(\App\Services\InventoryService::class);
+                    // Use injected inventory service
                     
                     // Check if lot has sufficient quantity and is not depleted
                     if ($recipe->isLotDepleted()) {
@@ -158,7 +159,7 @@ class CreateCrop extends BaseCreateRecord
                     }
                     
                     // Check if lot has enough available quantity
-                    if (!$inventoryService->canConsumeFromLot($recipe->lot_number, $totalSeedRequired)) {
+                    if (!app(InventoryManagementService::class)->canConsumeFromLot($recipe->lot_number, $totalSeedRequired)) {
                         $availableQuantity = $recipe->getLotQuantity();
                         
                         Log::warning('Insufficient lot stock for crop batch creation', [
@@ -180,7 +181,7 @@ class CreateCrop extends BaseCreateRecord
                     }
                     
                     // Consume from lot using FIFO
-                    $consumptionResults = $inventoryService->consumeFromLot(
+                    $consumptionResults = app(InventoryManagementService::class)->consumeFromLot(
                         $recipe->lot_number,
                         $totalSeedRequired,
                         $recipe,
@@ -229,7 +230,7 @@ class CreateCrop extends BaseCreateRecord
             // Now manually schedule tasks for the first crop (representing the batch)
             if ($firstCrop) {
                 try {
-                    app(\App\Services\CropTaskService::class)->scheduleAllStageTasks($firstCrop);
+                    app(CropTaskManagementService::class)->scheduleAllStageTasks($firstCrop);
                 } catch (\Exception $e) {
                     Log::warning('Error scheduling tasks after bulk crop creation', [
                         'error' => $e->getMessage(),
@@ -238,15 +239,13 @@ class CreateCrop extends BaseCreateRecord
                 }
             }
             
-            // --- Generate CropTasks for the batch using the service --- 
+            // --- Generate TaskSchedules for the batch using the service --- 
             if ($firstCrop && $recipe) {
-                // Instantiate the generator service
-                $taskGenerator = new CropTaskGenerator(); 
-                // Call the method to generate tasks
-                $taskGenerator->generateTasksForBatch($firstCrop, $recipe);
+                // Use CropTaskManagementService to generate tasks
+                app(CropTaskManagementService::class)->scheduleAllStageTasks($firstCrop);
             } else {
                  // Log if task generation is skipped (shouldn't happen if validation passed)
-                 Log::warning("Skipping CropTask generation due to missing firstCrop or recipe.", [
+                 Log::warning("Skipping TaskSchedule generation due to missing firstCrop or recipe.", [
                     'firstCropExists' => !!$firstCrop,
                     'recipeExists' => !!$recipe
                  ]);
