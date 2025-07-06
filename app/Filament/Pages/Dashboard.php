@@ -12,7 +12,7 @@ use App\Models\SeedEntry;
 use App\Models\TimeCard;
 use App\Models\User;
 use App\Models\CropPlan;
-use App\Services\InventoryService;
+use App\Services\InventoryManagementService;
 use App\Services\CropPlanCalculatorService;
 use Filament\Pages\Dashboard as BaseDashboard;
 use Filament\Panel;
@@ -25,6 +25,13 @@ use Carbon\Carbon;
 class Dashboard extends BaseDashboard
 {
     protected static ?string $slug = 'dashboard';
+    
+    protected InventoryManagementService $inventoryService;
+    
+    public function __construct()
+    {
+        $this->inventoryService = app(InventoryManagementService::class);
+    }
     protected static ?string $navigationIcon = 'heroicon-o-home';
     protected static ?string $navigationLabel = 'Dashboard';
     protected static ?string $title = 'Farm Dashboard';
@@ -140,7 +147,7 @@ class Dashboard extends BaseDashboard
     
     protected function getLowStockCount(): int
     {
-        return app(InventoryService::class)->getLowStockCount();
+        return $this->inventoryService->getLowStockCount();
     }
     
     protected function getCropsNeedingHarvest()
@@ -167,7 +174,7 @@ class Dashboard extends BaseDashboard
     
     protected function getLowStockItems()
     {
-        return app(InventoryService::class)->getLowStockItems(10);
+        return $this->inventoryService->getLowStockItems(10);
     }
     
     /**
@@ -756,7 +763,7 @@ class Dashboard extends BaseDashboard
         $thisMonth = now()->startOfMonth();
         
         return [
-            'employees_clocked_in' => TimeCard::where('status', 'active')->count(),
+            'employees_clocked_in' => TimeCard::active()->count(),
             'flagged_time_cards' => TimeCard::where('requires_review', true)->count(),
             'total_hours_today' => $this->getTotalHoursForPeriod($today, now()),
             'total_hours_this_week' => $this->getTotalHoursForPeriod($thisWeek, now()),
@@ -770,7 +777,7 @@ class Dashboard extends BaseDashboard
      */
     protected function getActiveEmployees(): array
     {
-        $activeTimeCards = TimeCard::where('status', 'active')
+        $activeTimeCards = TimeCard::active()
             ->with('user')
             ->orderBy('clock_in', 'asc')
             ->get();
@@ -823,7 +830,7 @@ class Dashboard extends BaseDashboard
         $totalMinutes = 0;
         
         foreach ($timeCards as $card) {
-            if ($card->status === 'active') {
+            if ($card->clock_in && !$card->clock_out) {
                 $totalMinutes += $card->clock_in->diffInMinutes(now());
             } else {
                 $totalMinutes += $card->duration_minutes ?? 0;
@@ -839,7 +846,9 @@ class Dashboard extends BaseDashboard
     protected function getAverageDailyHours(): float
     {
         $thirtyDaysAgo = now()->subDays(30)->startOfDay();
-        $completedCards = TimeCard::where('status', 'completed')
+        $completedCards = TimeCard::whereHas('timeCardStatus', function ($q) {
+                $q->whereIn('code', ['approved', 'paid']);
+            })
             ->where('work_date', '>=', $thirtyDaysAgo->toDateString())
             ->get();
             

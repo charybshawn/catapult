@@ -129,9 +129,8 @@ class TimeCard extends Model
 
     public function scopeActive($query)
     {
-        return $query->whereHas('timeCardStatus', function ($q) {
-            $q->where('code', 'active');
-        });
+        return $query->whereNotNull('clock_in')
+                    ->whereNull('clock_out');
     }
 
     public function scopeForUser($query, $userId)
