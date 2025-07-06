@@ -24,10 +24,14 @@ use Carbon\Carbon;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Forms\Components\Common as FormCommon;
 use App\Filament\Traits\CsvExportAction;
+use App\Filament\Traits\HasTimestamps;
+use App\Filament\Traits\HasStandardActions;
 
 class CropResource extends BaseResource
 {
     use CsvExportAction;
+    use HasTimestamps;
+    use HasStandardActions;
     
     protected static ?string $model = Crop::class;
     
@@ -216,11 +220,25 @@ class CropResource extends BaseResource
                         return $query->orderBy('crops.planting_at', $direction);
                     })
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('currentStage.name')
+                Tables\Columns\TextColumn::make('current_stage_name')
                     ->label('Current Stage')
                     ->badge()
-                    ->getStateUsing(fn ($record) => $record->currentStage?->name)
-                    ->color(fn ($record) => $record->currentStage?->color ?? 'gray')
+                    ->getStateUsing(function ($record) {
+                        if (isset($record->currentStage) && is_object($record->currentStage)) {
+                            return $record->currentStage->name;
+                        }
+                        // Fallback: load the stage directly
+                        $stage = \App\Models\CropStage::find($record->current_stage_id);
+                        return $stage?->name ?? 'Unknown';
+                    })
+                    ->color(function ($record) {
+                        if (isset($record->currentStage) && is_object($record->currentStage)) {
+                            return $record->currentStage->color ?? 'gray';
+                        }
+                        // Fallback: load the stage directly
+                        $stage = \App\Models\CropStage::find($record->current_stage_id);
+                        return $stage?->color ?? 'gray';
+                    })
                     ->searchable()
                     ->sortable()
                     ->toggleable(),
