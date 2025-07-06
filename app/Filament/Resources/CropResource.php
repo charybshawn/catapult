@@ -471,9 +471,13 @@ class CropResource extends BaseResource
                     }),
                 
                 Action::make('advanceStage')
-                    ->label(function (Crop $record): string {
-                        $nextStage = $record->getNextStage();
-                        return $nextStage ? 'Advance to ' . ucfirst($nextStage) : 'Harvested';
+                    ->label(function ($record): string {
+                        $currentStage = \App\Models\CropStage::find($record->current_stage_id);
+                        $nextStage = $currentStage ? \App\Models\CropStage::where('sort_order', '>', $currentStage->sort_order)
+                            ->where('is_active', true)
+                            ->orderBy('sort_order')
+                            ->first() : null;
+                        return $nextStage ? 'Advance to ' . ucfirst($nextStage->name) : 'Harvested';
                     })
                     ->icon('heroicon-o-chevron-double-right')
                     ->color('success')
@@ -482,9 +486,13 @@ class CropResource extends BaseResource
                         return $stage?->code !== 'harvested';
                     })
                     ->requiresConfirmation()
-                    ->modalHeading(function (Crop $record): string {
-                        $nextStage = $record->getNextStage();
-                        return 'Advance to ' . ucfirst($nextStage) . '?';
+                    ->modalHeading(function ($record): string {
+                        $currentStage = \App\Models\CropStage::find($record->current_stage_id);
+                        $nextStage = $currentStage ? \App\Models\CropStage::where('sort_order', '>', $currentStage->sort_order)
+                            ->where('is_active', true)
+                            ->orderBy('sort_order')
+                            ->first() : null;
+                        return 'Advance to ' . ucfirst($nextStage?->name ?? 'Unknown') . '?';
                     })
                     ->modalDescription('This will update the current stage of all crops in this batch.')
                     ->form([
@@ -496,8 +504,12 @@ class CropResource extends BaseResource
                             ->maxDate(now())
                             ->helperText('Specify the actual time when the stage advancement happened'),
                     ])
-                    ->action(function (Crop $record, array $data) {
-                        $nextStage = $record->getNextStage();
+                    ->action(function ($record, array $data) {
+                        $currentStage = \App\Models\CropStage::find($record->current_stage_id);
+                        $nextStage = $currentStage ? \App\Models\CropStage::where('sort_order', '>', $currentStage->sort_order)
+                            ->where('is_active', true)
+                            ->orderBy('sort_order')
+                            ->first() : null;
                         
                         if (!$nextStage) {
                             \Filament\Notifications\Notification::make()
@@ -643,9 +655,13 @@ class CropResource extends BaseResource
                         }
                     }),
                 Action::make('rollbackStage')
-                    ->label(function (Crop $record): string {
-                        $previousStage = $record->getPreviousStage();
-                        return $previousStage ? 'Rollback to ' . ucfirst($previousStage) : 'Cannot Rollback';
+                    ->label(function ($record): string {
+                        $currentStage = \App\Models\CropStage::find($record->current_stage_id);
+                        $previousStage = $currentStage ? \App\Models\CropStage::where('sort_order', '<', $currentStage->sort_order)
+                            ->where('is_active', true)
+                            ->orderBy('sort_order', 'desc')
+                            ->first() : null;
+                        return $previousStage ? 'Rollback to ' . ucfirst($previousStage->name) : 'Cannot Rollback';
                     })
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('warning')
@@ -654,13 +670,21 @@ class CropResource extends BaseResource
                         return $stage?->code !== 'germination';
                     })
                     ->requiresConfirmation()
-                    ->modalHeading(function (Crop $record): string {
-                        $previousStage = $record->getPreviousStage();
-                        return 'Rollback to ' . ucfirst($previousStage) . '?';
+                    ->modalHeading(function ($record): string {
+                        $currentStage = \App\Models\CropStage::find($record->current_stage_id);
+                        $previousStage = $currentStage ? \App\Models\CropStage::where('sort_order', '<', $currentStage->sort_order)
+                            ->where('is_active', true)
+                            ->orderBy('sort_order', 'desc')
+                            ->first() : null;
+                        return 'Rollback to ' . ucfirst($previousStage?->name ?? 'Unknown') . '?';
                     })
                     ->modalDescription('This will revert all crops in this batch to the previous stage by removing the current stage timestamp.')
-                    ->action(function (Crop $record) {
-                        $previousStage = $record->getPreviousStage();
+                    ->action(function ($record) {
+                        $currentStage = \App\Models\CropStage::find($record->current_stage_id);
+                        $previousStage = $currentStage ? \App\Models\CropStage::where('sort_order', '<', $currentStage->sort_order)
+                            ->where('is_active', true)
+                            ->orderBy('sort_order', 'desc')
+                            ->first() : null;
                         
                         if (!$previousStage) {
                             \Filament\Notifications\Notification::make()
@@ -923,7 +947,11 @@ class CropResource extends BaseResource
                             DB::beginTransaction();
                             try {
                                 foreach ($records as $record) {
-                                    $previousStage = $record->getPreviousStage();
+                                    $currentStage = \App\Models\CropStage::find($record->current_stage_id);
+                                    $previousStage = $currentStage ? \App\Models\CropStage::where('sort_order', '<', $currentStage->sort_order)
+                                        ->where('is_active', true)
+                                        ->orderBy('sort_order', 'desc')
+                                        ->first() : null;
                                     if (!$previousStage) {
                                         $skippedCount++;
                                         continue;
