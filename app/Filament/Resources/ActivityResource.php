@@ -178,9 +178,18 @@ class ActivityResource extends Resource
                     ->indicator('Action'),
                 Tables\Filters\SelectFilter::make('causer_id')
                     ->label('User')
-                    ->relationship('causer', 'name')
+                    ->options(function () {
+                        return Activity::query()
+                            ->whereNotNull('causer_id')
+                            ->whereNotNull('causer_type')
+                            ->with('causer')
+                            ->get()
+                            ->pluck('causer.name', 'causer_id')
+                            ->filter()
+                            ->unique()
+                            ->sort();
+                    })
                     ->searchable()
-                    ->preload()
                     ->indicator('User'),
                 Tables\Filters\Filter::make('created_at')
                     ->form([
