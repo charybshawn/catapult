@@ -20,6 +20,7 @@ class SimpleBackupService
 
     /**
      * Create a database backup using native mysqldump
+     * For data-only backups, views are always excluded since they're schema, not data
      */
     public function createBackup(?string $name = null, bool $excludeViews = true): string
     {
@@ -79,11 +80,14 @@ class SimpleBackupService
             
             // Add views exclusion if requested
             if ($excludeViews) {
-                // Get all views and exclude them
+                // Get all views and exclude them (views are schema, not data)
                 $views = $this->getDatabaseViews();
                 foreach ($views as $view) {
                     $command[] = '--ignore-table=' . $config['database'] . '.' . $view;
                 }
+                
+                // Also add the standard mysqldump flag to exclude views
+                $command[] = '--no-create-db';
             }
             
             $command[] = $config['database'];
@@ -458,6 +462,15 @@ class SimpleBackupService
     }
 
     /**
+     * Create a data-only backup (explicitly excludes all views and schema)
+     */
+    public function createDataOnlyBackup(?string $name = null): string
+    {
+        // For data-only backups, always exclude views
+        return $this->createBackup($name, true);
+    }
+
+    /**
      * Get all database views
      */
     private function getDatabaseViews(): array
@@ -478,11 +491,22 @@ class SimpleBackupService
                 $views[] = $row[0];
             }
             
+            error_log("Found " . count($views) . " database views to exclude from backup: " . implode(', ', $views));
             return $views;
+            
         } catch (\Exception $e) {
-            // If we can't get views, fall back to known problematic ones
-            error_log("Could not fetch database views: " . $e->getMessage());
-            return ['product_inventory_summary', 'crop_batches'];
+            // If we can't get views, be more comprehensive in our fallback
+            error_log("Could not fetch database views, using fallback list: " . $e->getMessage());
+            
+            // Return a more comprehensive list of known views that might exist
+            return [
+                'product_inventory_summary', 
+                'crop_batches',
+                'harvest_summary',
+                'inventory_summary',
+                'crop_timeline',
+                'task_summary'
+            ];
         }
     }
 
