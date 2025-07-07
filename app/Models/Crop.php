@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Spatie\Activitylog\LogOptions;
-use Spatie\Activitylog\Traits\LogsActivity;
+use App\Traits\Logging\ExtendedLogsActivity;
 use App\Services\CropLifecycleService;
 use App\Services\CropTimeCalculator;
 use App\Services\InventoryManagementService;
@@ -18,7 +18,7 @@ use App\Traits\HasTimestamps;
 
 class Crop extends Model
 {
-    use HasFactory, LogsActivity, HasTimestamps;
+    use HasFactory, HasTimestamps, ExtendedLogsActivity;
     
     /**
      * Flag to prevent recursive model events during bulk operations
@@ -241,27 +241,25 @@ class Crop extends Model
     // Calculation methods removed - use CropLifecycleService directly
     
     /**
-     * Configure the activity log options for this model.
+     * Get the attributes that should be logged.
      */
-    public function getActivitylogOptions(): LogOptions
+    protected function getLogAttributes(): array
     {
-        return LogOptions::defaults()
-            ->logOnly([
-                'recipe_id', 
-                'order_id', 
-                'tray_number',
-                'current_stage_id',
-                'planting_at',
-                'germination_at',
-                'blackout_at',
-                'light_at',
-                'harvested_at',
-                'harvest_weight_grams',
-                'watering_suspended_at'
-            ])
-            ->logOnlyDirty()
-            ->dontSubmitEmptyLogs();
+        return [
+            'recipe_id', 
+            'order_id', 
+            'tray_number',
+            'current_stage_id',
+            'planting_at',
+            'germination_at',
+            'blackout_at',
+            'light_at',
+            'harvested_at',
+            'harvest_weight_grams',
+            'watering_suspended_at'
+        ];
     }
+    
     
     /**
      * Boot method to add lifecycle hooks

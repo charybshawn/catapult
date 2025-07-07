@@ -1,52 +1,171 @@
 <?php
 
 return [
+    /*
+    |--------------------------------------------------------------------------
+    | Activity Log Settings
+    |--------------------------------------------------------------------------
+    |
+    | These settings control the behavior of the activity logging system.
+    |
+    */
+
+    'enabled' => env('ACTIVITY_LOG_ENABLED', true),
 
     /*
-     * If set to false, no activities will be saved to the database.
-     */
-    'enabled' => env('ACTIVITY_LOGGER_ENABLED', true),
+    |--------------------------------------------------------------------------
+    | Retention Settings
+    |--------------------------------------------------------------------------
+    |
+    | How long to keep activity logs before purging them.
+    |
+    */
+
+    'retention_days' => env('ACTIVITY_LOG_RETENTION_DAYS', 90),
+    'archive_enabled' => env('ACTIVITY_LOG_ARCHIVE_ENABLED', false),
+    'archive_after_days' => env('ACTIVITY_LOG_ARCHIVE_AFTER_DAYS', 30),
 
     /*
-     * When the clean-command is executed, all recording activities older than
-     * the number of days specified here will be deleted.
-     */
-    'delete_records_older_than_days' => 365,
+    |--------------------------------------------------------------------------
+    | Auto-Log Models
+    |--------------------------------------------------------------------------
+    |
+    | These models will automatically log all CRUD operations.
+    |
+    */
+
+    'auto_log_models' => [
+        \App\Models\User::class,
+        \App\Models\TimeCard::class,
+        \App\Models\Crop::class,
+        \App\Models\Product::class,
+        \App\Models\Recipe::class,
+        \App\Models\Order::class,
+        \App\Models\Consumable::class,
+        \App\Models\Supplier::class,
+        \App\Models\Category::class,
+        \App\Models\SeedVariation::class,
+    ],
 
     /*
-     * If no log name is passed to the activity() helper
-     * we use this default log name.
-     */
-    'default_log_name' => 'default',
+    |--------------------------------------------------------------------------
+    | Ignored Routes
+    |--------------------------------------------------------------------------
+    |
+    | These routes will not be logged by the activity middleware.
+    |
+    */
+
+    'ignored_routes' => [
+        'debugbar.*',
+        'horizon.*',
+        'telescope.*',
+        '_ignition.*',
+        'livewire.*',
+        'sanctum.*',
+        'broadcasting.*',
+    ],
 
     /*
-     * You can specify an auth driver here that gets user models.
-     * If this is null we'll use the current Laravel auth driver.
-     */
-    'default_auth_driver' => null,
+    |--------------------------------------------------------------------------
+    | Ignored Fields
+    |--------------------------------------------------------------------------
+    |
+    | These fields will be removed from logged properties.
+    |
+    */
+
+    'ignored_fields' => [
+        'password',
+        'password_confirmation',
+        'remember_token',
+        'api_token',
+        'secret',
+        'token',
+        '_token',
+        'csrf_token',
+    ],
 
     /*
-     * If set to true, the subject returns soft deleted models.
-     */
-    'subject_returns_soft_deleted_models' => false,
+    |--------------------------------------------------------------------------
+    | API Logging
+    |--------------------------------------------------------------------------
+    |
+    | Settings specific to API request logging.
+    |
+    */
+
+    'api' => [
+        'enabled' => env('ACTIVITY_LOG_API_ENABLED', true),
+        'log_request_body' => env('ACTIVITY_LOG_API_REQUEST_BODY', true),
+        'log_response_body' => env('ACTIVITY_LOG_API_RESPONSE_BODY', false),
+        'max_body_length' => 10000,
+    ],
 
     /*
-     * This model will be used to log activity.
-     * It should implement the Spatie\Activitylog\Contracts\Activity interface
-     * and extend Illuminate\Database\Eloquent\Model.
-     */
-    'activity_model' => \Spatie\Activitylog\Models\Activity::class,
+    |--------------------------------------------------------------------------
+    | Query Logging
+    |--------------------------------------------------------------------------
+    |
+    | Settings for database query logging.
+    |
+    */
+
+    'queries' => [
+        'enabled' => env('ACTIVITY_LOG_QUERIES_ENABLED', false),
+        'slow_query_threshold' => 1000, // milliseconds
+        'log_bindings' => false,
+        'ignored_tables' => [
+            'activity_log',
+            'activity_log_statistics',
+            'sessions',
+            'cache',
+            'jobs',
+            'failed_jobs',
+        ],
+    ],
 
     /*
-     * This is the name of the table that will be created by the migration and
-     * used by the Activity model shipped with this package.
-     */
-    'table_name' => env('ACTIVITY_LOGGER_TABLE_NAME', 'activity_log'),
+    |--------------------------------------------------------------------------
+    | Background Job Logging
+    |--------------------------------------------------------------------------
+    |
+    | Settings for background job logging.
+    |
+    */
+
+    'jobs' => [
+        'enabled' => env('ACTIVITY_LOG_JOBS_ENABLED', true),
+        'log_payload' => false,
+        'log_exceptions' => true,
+    ],
 
     /*
-     * This is the database connection that will be used by the migration and
-     * the Activity model shipped with this package. In case it's not set
-     * Laravel's database.default will be used instead.
-     */
-    'database_connection' => env('ACTIVITY_LOGGER_DB_CONNECTION'),
+    |--------------------------------------------------------------------------
+    | Performance Settings
+    |--------------------------------------------------------------------------
+    |
+    | Settings to optimize performance.
+    |
+    */
+
+    'queue_activities' => env('ACTIVITY_LOG_QUEUE', false),
+    'queue_connection' => env('ACTIVITY_LOG_QUEUE_CONNECTION', 'database'),
+    'cache_ttl' => 300, // 5 minutes
+
+    /*
+    |--------------------------------------------------------------------------
+    | Dashboard Settings
+    |--------------------------------------------------------------------------
+    |
+    | Settings for the activity log dashboard.
+    |
+    */
+
+    'dashboard' => [
+        'items_per_page' => 50,
+        'max_export_rows' => 10000,
+        'chart_days' => 30,
+        'realtime_refresh' => 30, // seconds
+    ],
 ];

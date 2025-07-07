@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Collection;
 use Spatie\Activitylog\LogOptions;
-use Spatie\Activitylog\Traits\LogsActivity;
+use App\Traits\Logging\ExtendedLogsActivity;
 use App\Services\InventoryManagementService;
 use App\Services\RecipeService;
 use App\Traits\HasActiveStatus;
@@ -17,7 +17,7 @@ use App\Traits\HasTimestamps;
 
 class Recipe extends Model
 {
-    use HasFactory, LogsActivity, HasActiveStatus, HasTimestamps;
+    use HasFactory, ExtendedLogsActivity, HasActiveStatus, HasTimestamps;
     
     /**
      * The attributes that are mass assignable.

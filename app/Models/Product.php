@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Spatie\Activitylog\LogOptions;
-use Spatie\Activitylog\Traits\LogsActivity;
+use App\Traits\Logging\ExtendedLogsActivity;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -19,7 +19,7 @@ use App\Traits\HasTimestamps;
 
 class Product extends Model
 {
-    use HasFactory, LogsActivity, SoftDeletes, HasActiveStatus, HasCostInformation, HasTimestamps;
+    use HasFactory, ExtendedLogsActivity, SoftDeletes, HasActiveStatus, HasCostInformation, HasTimestamps;
     
     /**
      * The table associated with the model.

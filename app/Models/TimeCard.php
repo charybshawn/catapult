@@ -7,9 +7,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Carbon\Carbon;
+use App\Traits\Logging\ExtendedLogsActivity;
+use App\Models\Activity;
 
 class TimeCard extends Model
 {
+    use ExtendedLogsActivity;
     protected $fillable = [
         'user_id',
         'clock_in',
@@ -36,6 +39,33 @@ class TimeCard extends Model
         'requires_review' => 'boolean',
         'flags' => 'array',
     ];
+
+    /**
+     * Activity log configuration
+     */
+    protected static $logAttributes = ['*'];
+    protected static $logOnlyDirty = true;
+    protected static $logName = 'timecard';
+    protected static $submitEmptyLogs = false;
+
+    /**
+     * Get custom activity description
+     */
+    public function getDescriptionForEvent(string $eventName): string
+    {
+        $userName = $this->user?->name ?? 'Unknown User';
+        
+        return match($eventName) {
+            'created' => "Time card created for {$userName}",
+            'updated' => "Time card updated for {$userName}",
+            'deleted' => "Time card deleted for {$userName}",
+            'clock_in' => "{$userName} clocked in",
+            'clock_out' => "{$userName} clocked out",
+            'flagged' => "Time card flagged for review - {$userName}",
+            'reviewed' => "Time card reviewed for {$userName}",
+            default => "Time card {$eventName} for {$userName}",
+        };
+    }
 
     protected static function booted()
     {
@@ -158,6 +188,12 @@ class TimeCard extends Model
             'clock_out' => now(),
             'time_card_status_id' => $completedStatus?->id,
         ]);
+
+        // Log custom activity
+        $this->logActivity('clock_out', [
+            'duration_minutes' => $this->duration_minutes,
+            'work_date' => $this->work_date,
+        ]);
     }
 
     /**
@@ -192,6 +228,12 @@ class TimeCard extends Model
             'flags' => $flags,
             'review_notes' => $reason . ' at ' . now()->format('Y-m-d H:i:s'),
         ]);
+
+        // Log flagging activity
+        $this->logActivity('flagged', [
+            'reason' => $reason,
+            'hours_worked' => $this->clock_in->diffInHours(now()),
+        ]);
     }
 
     /**
@@ -216,6 +258,12 @@ class TimeCard extends Model
             'review_notes' => ($this->review_notes ?? '') . "\n\nResolved by {$resolvedBy} at " . now()->format('Y-m-d H:i:s') . 
                              ($notes ? ": {$notes}" : ''),
         ]);
+
+        // Log review activity
+        $this->logActivity('reviewed', [
+            'resolved_by' => $resolvedBy,
+            'notes' => $notes,
+        ]);
     }
 
     /**
@@ -232,5 +280,70 @@ class TimeCard extends Model
     public function scopeMaxShiftExceeded($query)
     {
         return $query->where('max_shift_exceeded', true);
+    }
+
+    /**
+     * Get all activities related to this time card
+     */
+    public function getActivities()
+    {
+        return Activity::where(function ($query) {
+            $query->where('subject_type', static::class)
+                  ->where('subject_id', $this->id);
+        })->orWhere(function ($query) {
+            $query->where('causer_type', User::class)
+                  ->where('causer_id', $this->user_id)
+                  ->whereBetween('created_at', [$this->clock_in, $this->clock_out ?? now()]);
+        })->orderBy('created_at')->get();
+    }
+
+    /**
+     * Generate a work report from activity data
+     */
+    public function generateWorkReport(): array
+    {
+        $activities = $this->getActivities();
+        
+        return [
+            'time_card' => [
+                'id' => $this->id,
+                'user' => $this->user->name,
+                'work_date' => $this->work_date->format('Y-m-d'),
+                'clock_in' => $this->clock_in->format('H:i:s'),
+                'clock_out' => $this->clock_out?->format('H:i:s'),
+                'duration' => $this->duration_formatted,
+                'status' => $this->timeCardStatus?->name,
+                'tasks' => $this->task_names,
+            ],
+            'activities_summary' => [
+                'total' => $activities->count(),
+                'by_type' => $activities->groupBy('log_name')->map->count(),
+                'by_model' => $activities->groupBy('subject_type')->map->count(),
+            ],
+            'timeline' => $activities->map(function ($activity) {
+                return [
+                    'time' => $activity->created_at->format('H:i:s'),
+                    'description' => $activity->description,
+                    'type' => $activity->log_name,
+                    'properties' => $activity->properties,
+                ];
+            }),
+            'flags' => $this->flags ?? [],
+            'requires_review' => $this->requires_review,
+            'review_notes' => $this->review_notes,
+        ];
+    }
+
+    /**
+     * Link an activity to this time card
+     */
+    public function linkActivity(Activity $activity): void
+    {
+        $activity->update([
+            'properties' => array_merge($activity->properties ?? [], [
+                'time_card_id' => $this->id,
+                'work_date' => $this->work_date->format('Y-m-d'),
+            ]),
+        ]);
     }
 }
