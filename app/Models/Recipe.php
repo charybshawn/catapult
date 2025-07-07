@@ -199,7 +199,7 @@ class Recipe extends Model
      */
     public function getLoggedRelationships(): array
     {
-        return ['seedEntry', 'product', 'wateringSchedule'];
+        return ['seedEntry', 'soilConsumable', 'wateringSchedule'];
     }
 
     /**
@@ -209,7 +209,7 @@ class Recipe extends Model
     {
         return [
             'seedEntry' => ['id', 'common_name', 'cultivar_name', 'supplier_code'],
-            'product' => ['id', 'name', 'sku', 'active'],
+            'soilConsumable' => ['id', 'item_name', 'supplier_name', 'current_stock'],
             'wateringSchedule' => ['id', 'stage', 'frequency_hours', 'duration_seconds', 'notes'],
         ];
     }

@@ -32,7 +32,7 @@
                             Packaging
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            SKU
+                            Pricing Unit
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Weight (g)
@@ -53,7 +53,7 @@
                 </thead>
                 <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
                     @foreach($variations as $variation)
-                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-800" x-data="{ editing: false }">
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-800" x-data="{ editing: false, name: '{{ $displayName }}', packaging_type_id: '{{ $variation->packaging_type_id }}', pricing_unit: '{{ $variation->pricing_unit ?? 'per_item' }}', fill_weight_grams: '{{ $variation->fill_weight }}', price: '{{ $variation->price }}' }">
                             <td class="px-4 py-4 whitespace-nowrap">
                                 <div x-show="!editing" class="text-sm font-medium text-gray-900 dark:text-gray-100">
                                     @php
@@ -66,7 +66,6 @@
                                        x-model="name" 
                                        type="text" 
                                        class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                                       x-init="name = '{{ $displayName }}'"
                                        x-cloak>
                             </td>
                             <td class="px-4 py-4 whitespace-nowrap">
@@ -76,7 +75,6 @@
                                 <select x-show="editing" 
                                         x-model="packaging_type_id" 
                                         class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                                        x-init="packaging_type_id = '{{ $variation->packaging_type_id }}'"
                                         x-cloak>
                                     <option value="">No packaging</option>
                                     @foreach(\App\Models\PackagingType::all() as $packaging)
@@ -86,14 +84,29 @@
                             </td>
                             <td class="px-4 py-4 whitespace-nowrap">
                                 <div x-show="!editing" class="text-sm text-gray-900 dark:text-gray-100">
-                                    {{ $variation->sku ?? '-' }}
+                                    @php
+                                        $pricingUnitNames = [
+                                            'per_item' => 'Per Item',
+                                            'per_tray' => 'Per Tray',
+                                            'per_g' => 'Per Gram',
+                                            'per_kg' => 'Per Kg',
+                                            'per_lb' => 'Per Lb',
+                                            'per_oz' => 'Per Oz'
+                                        ];
+                                        echo $pricingUnitNames[$variation->pricing_unit ?? 'per_item'] ?? 'Per Item';
+                                    @endphp
                                 </div>
-                                <input x-show="editing" 
-                                       x-model="sku" 
-                                       type="text" 
-                                       class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                                       x-init="sku = '{{ $variation->sku }}'"
-                                       x-cloak>
+                                <select x-show="editing" 
+                                        x-model="pricing_unit" 
+                                        class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                                        x-cloak>
+                                    <option value="per_item">Per Item</option>
+                                    <option value="per_tray">Per Tray</option>
+                                    <option value="per_g">Per Gram</option>
+                                    <option value="per_kg">Per Kg</option>
+                                    <option value="per_lb">Per Lb</option>
+                                    <option value="per_oz">Per Oz</option>
+                                </select>
                             </td>
                             <td class="px-4 py-4 whitespace-nowrap">
                                 <div x-show="!editing" class="text-sm text-gray-900 dark:text-gray-100">
@@ -104,20 +117,18 @@
                                        type="number" 
                                        step="0.01"
                                        class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                                       x-init="fill_weight_grams = '{{ $variation->fill_weight }}'"
                                        x-cloak>
                             </td>
                             <td class="px-4 py-4 whitespace-nowrap">
                                 <div x-show="!editing" class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                    ${{ number_format($variation->price, 2) }}
+                                    ${{ number_format($variation->price, 3) }}
                                 </div>
                                 <input x-show="editing" 
                                        x-model="price" 
                                        type="number" 
-                                       step="0.01"
+                                       step="0.001"
                                        min="0"
                                        class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                                       x-init="price = '{{ $variation->price }}'"
                                        x-cloak>
                             </td>
                             <td class="px-4 py-4 whitespace-nowrap">
@@ -162,7 +173,7 @@
                                                 Livewire.find('{{ $livewire->getId() }}').updateVariation({{ $variation->id }}, {
                                                     name: name,
                                                     packaging_type_id: packaging_type_id,
-                                                    sku: sku,
+                                                    pricing_unit: pricing_unit,
                                                     fill_weight_grams: fill_weight_grams,
                                                     price: price
                                                 });

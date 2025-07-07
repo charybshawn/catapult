@@ -100,9 +100,9 @@ class PriceVariation extends Model
                 $priceVariation->is_default = false;
             }
             
-            // Auto-generate name in format: "Pricing Type - Packaging (size) - $price"
-            if ((empty($priceVariation->name) || $priceVariation->name === 'New Variation' || $priceVariation->name === 'Auto-generated') && !$priceVariation->template_id && !$priceVariation->is_global) {
-                $priceVariation->name = $priceVariation->generateVariationName();
+            // Set default name if empty
+            if (empty($priceVariation->name) && !$priceVariation->template_id && !$priceVariation->is_global) {
+                $priceVariation->name = 'Default';
             }
             
             // Handle default pricing for product-specific variations
@@ -121,10 +121,7 @@ class PriceVariation extends Model
                 $priceVariation->is_default = false;
             }
             
-            // Auto-update name when packaging type, pricing type, or price changes
-            if (($priceVariation->isDirty('packaging_type_id') || $priceVariation->isDirty('pricing_type') || $priceVariation->isDirty('price')) && !$priceVariation->template_id && !$priceVariation->is_global) {
-                $priceVariation->name = $priceVariation->generateVariationName();
-            }
+            // Auto-update name removed - manual naming only
             
             // Handle default pricing for product-specific variations
             if ($priceVariation->is_default && $priceVariation->isDirty('is_default') && !$priceVariation->is_global) {
@@ -334,12 +331,61 @@ class PriceVariation extends Model
             $parts[] = 'Package-Free';
         }
         
-        // 3. Add price
+        // 3. Add price with unit for bulk items
         if ($this->price && is_numeric($this->price)) {
-            $parts[] = '$' . number_format((float)$this->price, 2);
+            if ($this->pricing_unit && $this->pricing_unit !== 'each') {
+                $parts[] = '$' . number_format((float)$this->price, 2) . '/' . $this->pricing_unit;
+            } else {
+                $parts[] = '$' . number_format((float)$this->price, 2);
+            }
         }
         
         // Join with " - " separator
         return implode(' - ', $parts);
+    }
+    
+    /**
+     * Check if this price variation is sold by weight
+     */
+    public function isSoldByWeight(): bool
+    {
+        return in_array($this->pricing_unit, ['per_lb', 'per_kg', 'per_g', 'per_oz', 'lb', 'lbs', 'kg', 'g', 'oz']);
+    }
+    
+    /**
+     * Get the unit conversion factor to grams
+     */
+    public function getUnitToGramsConversionFactor(): float
+    {
+        return match($this->pricing_unit) {
+            'per_g', 'g', 'gram', 'grams' => 1.0,
+            'per_kg', 'kg', 'kilogram', 'kilograms' => 1000.0,
+            'per_lb', 'lb', 'lbs', 'pound', 'pounds' => 453.592,
+            'per_oz', 'oz', 'ounce', 'ounces' => 28.3495,
+            default => 1.0
+        };
+    }
+    
+    /**
+     * Convert a quantity in the pricing unit to grams
+     */
+    public function convertToGrams(float $quantity): float
+    {
+        return $quantity * $this->getUnitToGramsConversionFactor();
+    }
+    
+    /**
+     * Get display unit for quantity input
+     */
+    public function getDisplayUnit(): string
+    {
+        return match($this->pricing_unit) {
+            'per_g', 'g', 'gram' => 'grams',
+            'per_kg', 'kg', 'kilogram' => 'kg',
+            'per_lb', 'lb', 'lbs', 'pound' => 'lbs',
+            'per_oz', 'oz', 'ounce' => 'oz',
+            'per_item', 'each' => 'units',
+            default => 'units'
+        };
     }
 }

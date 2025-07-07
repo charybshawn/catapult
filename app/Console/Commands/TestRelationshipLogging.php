@@ -75,7 +75,7 @@ class TestRelationshipLogging extends Command
         }
 
         // Test with a Recipe
-        $recipe = Recipe::with(['seedEntry', 'product'])->first();
+        $recipe = Recipe::with(['seedEntry', 'soilConsumable'])->first();
         if ($recipe) {
             $this->info("\nTesting Recipe relationship logging...");
             $recipe->update(['notes' => 'Testing relationship logging at ' . now()]);

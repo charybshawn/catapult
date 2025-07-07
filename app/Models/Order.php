@@ -728,7 +728,7 @@ class Order extends Model
      */
     public function getLoggedRelationships(): array
     {
-        return ['customer', 'orderStatus', 'orderType', 'orderProducts', 'crops'];
+        return ['customer', 'orderStatus', 'orderType', 'orderItems', 'crops'];
     }
 
     /**
@@ -740,7 +740,7 @@ class Order extends Model
             'customer' => ['id', 'name', 'email', 'phone'],
             'orderStatus' => ['id', 'name', 'code'],
             'orderType' => ['id', 'name', 'code'],
-            'orderProducts' => ['id', 'product_id', 'quantity', 'unit_price', 'total_price'],
+            'orderItems' => ['id', 'product_id', 'quantity', 'price'],
             'crops' => ['id', 'recipe_id', 'tray_number', 'current_stage_id', 'planting_at'],
         ];
     }

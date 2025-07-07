@@ -29,6 +29,8 @@ class OrderItem extends Model
         'product_id',
         'price_variation_id',
         'quantity',
+        'quantity_unit',
+        'quantity_in_grams',
         'price',
     ];
     
@@ -38,7 +40,8 @@ class OrderItem extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'quantity' => 'integer',
+        'quantity' => 'decimal:3',
+        'quantity_in_grams' => 'decimal:3',
         'price' => 'float',
     ];
     
@@ -89,8 +92,59 @@ class OrderItem extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['order_id', 'product_id', 'price_variation_id', 'quantity', 'price'])
+            ->logOnly(['order_id', 'product_id', 'price_variation_id', 'quantity', 'quantity_unit', 'price'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
+    }
+    
+    /**
+     * Boot the model.
+     */
+    protected static function boot()
+    {
+        parent::boot();
+        
+        static::saving(function ($orderItem) {
+            // Auto-populate quantity_unit and quantity_in_grams based on price variation
+            if ($orderItem->price_variation_id && $orderItem->isDirty('quantity')) {
+                $priceVariation = $orderItem->priceVariation;
+                if ($priceVariation) {
+                    // Set the quantity unit from the price variation
+                    $orderItem->quantity_unit = $priceVariation->getDisplayUnit();
+                    
+                    // Convert to grams if sold by weight
+                    if ($priceVariation->isSoldByWeight()) {
+                        $orderItem->quantity_in_grams = $priceVariation->convertToGrams($orderItem->quantity);
+                    } else {
+                        $orderItem->quantity_in_grams = null;
+                    }
+                }
+            }
+        });
+    }
+    
+    /**
+     * Get formatted quantity with unit
+     */
+    public function getFormattedQuantityAttribute(): string
+    {
+        $unit = $this->quantity_unit ?: 'units';
+        
+        if ($unit === 'units') {
+            return number_format($this->quantity) . ' ' . ($this->quantity == 1 ? 'unit' : 'units');
+        } else {
+            return number_format($this->quantity, 2) . ' ' . $unit;
+        }
+    }
+    
+    /**
+     * Get display price with unit if applicable
+     */
+    public function getFormattedPriceAttribute(): string
+    {
+        if ($this->priceVariation && $this->priceVariation->pricing_unit && $this->priceVariation->pricing_unit !== 'each') {
+            return '$' . number_format($this->price, 2) . '/' . $this->priceVariation->pricing_unit;
+        }
+        return '$' . number_format($this->price, 2);
     }
 }

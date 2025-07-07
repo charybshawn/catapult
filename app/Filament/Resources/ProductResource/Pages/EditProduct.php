@@ -230,9 +230,11 @@ class EditProduct extends BaseEditRecord
         // Prepare update data
         $updateData = [
             'packaging_type_id' => $data['packaging_type_id'] ?: null,
-            'sku' => $data['sku'] ?: null,
+            'pricing_unit' => $data['pricing_unit'] ?? 'per_item',
             'fill_weight' => $data['fill_weight_grams'] ?: null,
             'price' => $data['price'],
+            'pricing_type' => $data['pricing_type'] ?? 'retail',
+            'is_name_manual' => $data['is_name_manual'] ?? false,
         ];
         
         // Always allow name updates if provided
@@ -353,10 +355,13 @@ class EditProduct extends BaseEditRecord
         $variation = PriceVariation::create([
             'product_id' => $this->record->id,
             'name' => 'Default',
+            'pricing_type' => 'retail',
+            'pricing_unit' => 'per_item',
             'price' => 0,
             'is_default' => $this->record->priceVariations()->count() === 0,
             'is_active' => true,
             'is_global' => false,
+            'is_name_manual' => false,
         ]);
         
         // Refresh the record to ensure the relationship is updated

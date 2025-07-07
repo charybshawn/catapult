@@ -241,22 +241,19 @@ class CreateProduct extends BaseCreateRecord
             return;
         }
         
-        // Determine the name based on packaging type
-        $name = 'Default';
-        if (!empty($data['packaging_type_id'])) {
-            $packagingType = \App\Models\PackagingType::find($data['packaging_type_id']);
-            if ($packagingType) {
-                $name = $packagingType->name;
-            }
-        }
-        
-        $variation->update([
-            'name' => $name,
+        // Use the provided name directly (respecting manual override)
+        $updateData = [
+            'name' => $data['name'] ?? $variation->name,
+            'pricing_type' => $data['pricing_type'] ?? 'retail',
+            'pricing_unit' => $data['pricing_unit'] ?? 'per_item',
             'packaging_type_id' => $data['packaging_type_id'] ?: null,
             'sku' => $data['sku'] ?: null,
             'fill_weight' => $data['fill_weight_grams'] ?: null,
             'price' => $data['price'],
-        ]);
+            'is_name_manual' => $data['is_name_manual'] ?? false,
+        ];
+        
+        $variation->update($updateData);
         
         Notification::make()
             ->title('Price variation updated')
@@ -340,10 +337,13 @@ class CreateProduct extends BaseCreateRecord
         $variation = PriceVariation::create([
             'product_id' => $this->record->id,
             'name' => 'Default',
+            'pricing_type' => 'retail',
+            'pricing_unit' => 'per_item',
             'price' => 0,
             'is_default' => $this->record->priceVariations()->count() === 0,
             'is_active' => true,
             'is_global' => false,
+            'is_name_manual' => false,
         ]);
         
         Notification::make()

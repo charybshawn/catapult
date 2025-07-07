@@ -21,6 +21,46 @@ class ViewActivity extends ViewRecord
         ];
     }
 
+    /**
+     * Get properties without the relationships key.
+     */
+    protected function getPropertiesWithoutRelationships(): array
+    {
+        $properties = $this->record->properties;
+        
+        // Handle Collection objects
+        if ($properties instanceof \Illuminate\Support\Collection) {
+            $properties = $properties->toArray();
+        }
+        
+        // Ensure we have an array
+        if (!is_array($properties)) {
+            return [];
+        }
+        
+        // Remove relationships key if it exists
+        $filtered = $properties;
+        unset($filtered['relationships']);
+        
+        return $filtered;
+    }
+
+    /**
+     * Check if the activity has relationship data.
+     */
+    protected function hasRelationships(): bool
+    {
+        $properties = $this->record->properties;
+        
+        // Handle Collection objects
+        if ($properties instanceof \Illuminate\Support\Collection) {
+            $properties = $properties->toArray();
+        }
+        
+        // Check if properties is array and has relationships key
+        return is_array($properties) && isset($properties['relationships']) && !empty($properties['relationships']);
+    }
+
     public function infolist(Infolist $infolist): Infolist
     {
         return $infolist
@@ -70,15 +110,15 @@ class ViewActivity extends ViewRecord
                     ->schema([
                         View::make('filament.resources.activity-resource.components.properties-display')
                             ->viewData([
-                                'properties' => array_diff_key($this->record->properties ?? [], ['relationships' => true]),
+                                'properties' => $this->getPropertiesWithoutRelationships(),
                             ])
-                            ->visible(fn () => !empty(array_diff_key($this->record->properties ?? [], ['relationships' => true]))),
+                            ->visible(fn () => !empty($this->getPropertiesWithoutRelationships())),
                         View::make('filament.resources.activity-resource.components.relationships-display')
                             ->viewData([
                                 'properties' => $this->record->properties,
                             ]),
                     ])
-                    ->visible(fn () => !empty($this->record->properties) && isset($this->record->properties['relationships'])),
+                    ->visible(fn () => !empty($this->record->properties) && $this->hasRelationships()),
                     
                 Section::make('Additional Information')
                     ->schema([

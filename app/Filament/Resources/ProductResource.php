@@ -1092,4 +1092,68 @@ class ProductResource extends BaseResource
                 ]),
         ];
     }
+    
+    /**
+     * Generate variation name in format: "Pricing Type - Packaging (size) - $price"
+     * Example: "Retail - Clamshell (24oz) - $5.00"
+     */
+    protected static function generateVariationName($packagingId, $pricingType, callable $set, callable $get): void
+    {
+        // Don't auto-generate if name is manually overridden
+        if ($get('is_name_manual')) {
+            return;
+        }
+        
+        // Don't auto-generate for existing records (when editing)
+        if ($get('id')) {
+            return;
+        }
+        
+        $parts = [];
+        
+        // 1. Add pricing type (capitalized)
+        if ($pricingType) {
+            $pricingTypeNames = [
+                'retail' => 'Retail',
+                'wholesale' => 'Wholesale',
+                'bulk' => 'Bulk',
+                'special' => 'Special',
+                'custom' => 'Custom',
+            ];
+            $parts[] = $pricingTypeNames[$pricingType] ?? ucfirst($pricingType);
+        } else {
+            $parts[] = 'Retail'; // Default to retail
+        }
+        
+        // 2. Add packaging information
+        if ($packagingId) {
+            $packaging = \App\Models\PackagingType::find($packagingId);
+            if ($packaging) {
+                $packagingPart = $packaging->name;
+                
+                // Add size information in parentheses
+                if ($packaging->capacity_volume && $packaging->volume_unit) {
+                    $packagingPart .= ' (' . $packaging->capacity_volume . $packaging->volume_unit . ')';
+                }
+                
+                $parts[] = $packagingPart;
+            }
+        } else {
+            // Handle package-free variations
+            $parts[] = 'Package-Free';
+        }
+        
+        // 3. Add price
+        $price = $get('price');
+        if ($price && is_numeric($price)) {
+            $parts[] = '$' . number_format((float)$price, 2);
+        }
+        
+        // Join with " - " separator
+        $generatedName = implode(' - ', $parts);
+        if ($generatedName) {
+            $set('name', $generatedName);
+            $set('generated_name', $generatedName); // Store for comparison
+        }
+    }
 } 

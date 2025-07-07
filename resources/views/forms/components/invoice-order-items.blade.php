@@ -53,7 +53,7 @@
                                 >
                                     <option value="">Select variation...</option>
                                     <template x-for="variation in getPriceVariationsForProduct(item.item_id)" :key="variation.id">
-                                        <option :value="variation.id" x-text="variation.name + ' - $' + variation.price" :selected="variation.id.toString() === item.price_variation_id.toString()"></option>
+                                        <option :value="variation.id" x-text="formatVariationOption(variation)" :selected="variation.id.toString() === item.price_variation_id.toString()"></option>
                                     </template>
                                 </select>
                             </div>
@@ -188,15 +188,24 @@ document.addEventListener('alpine:init', () => {
                         console.log(`Updated price for item ${index}: ${newPrice}`);
                     }
                     
-                    // Reset quantity to appropriate default for packaging type only if quantity is invalid
-                    if (this.isBulkVariation(index)) {
-                        // For bulk, default to minimum weight if quantity is too low
-                        if (!item.quantity || item.quantity < 0.01) {
-                            item.quantity = 100; // Default to 100 grams
+                    // Reset quantity to appropriate default for the pricing unit
+                    const pricingUnit = this.getPricingUnit(index);
+                    
+                    if (this.isSoldByWeight(index)) {
+                        // For weight-based items, set sensible defaults
+                        if (!item.quantity || item.quantity <= 0) {
+                            if (['per_lb', 'lb', 'lbs'].includes(pricingUnit)) {
+                                item.quantity = 0.25; // Default to 1/4 lb
+                            } else if (['per_kg', 'kg'].includes(pricingUnit)) {
+                                item.quantity = 0.1; // Default to 100g
+                            } else if (['per_oz', 'oz'].includes(pricingUnit)) {
+                                item.quantity = 4; // Default to 4 oz
+                            } else if (['per_g', 'g'].includes(pricingUnit)) {
+                                item.quantity = 100; // Default to 100 grams
+                            }
                         }
                     } else {
                         // For units, ensure quantity is at least 1 and is a whole number
-                        // Only reset to 1 if quantity is truly invalid (0, null, undefined, or negative)
                         if (!item.quantity || item.quantity <= 0) {
                             item.quantity = 1;
                         } else {
@@ -233,6 +242,21 @@ document.addEventListener('alpine:init', () => {
                 style: 'currency',
                 currency: 'USD'
             }).format(amount || 0);
+        },
+        
+        formatVariationOption(variation) {
+            let text = variation.name;
+            if (variation.pricing_unit && !['each', 'per_item'].includes(variation.pricing_unit)) {
+                // Clean up the unit display
+                let displayUnit = variation.pricing_unit;
+                if (displayUnit.startsWith('per_')) {
+                    displayUnit = displayUnit.substring(4); // Remove 'per_' prefix
+                }
+                text += ' - $' + variation.price + '/' + displayUnit;
+            } else {
+                text += ' - $' + variation.price;
+            }
+            return text;
         },
 
         syncWithLivewire() {
@@ -340,8 +364,8 @@ document.addEventListener('alpine:init', () => {
             return null;
         },
 
-        // Check if the selected price variation is for bulk packaging
-        isBulkVariation(index) {
+        // Check if the selected price variation is sold by weight
+        isSoldByWeight(index) {
             const item = this.items[index];
             if (!item.price_variation_id || !this.priceVariations[item.item_id]) {
                 return false;
@@ -351,24 +375,49 @@ document.addEventListener('alpine:init', () => {
                 v.id.toString() === item.price_variation_id.toString()
             );
             
-            return variation && variation.packaging_type && 
-                   variation.packaging_type.toLowerCase().includes('bulk');
+            return variation && variation.pricing_unit && 
+                   ['per_lb', 'per_kg', 'per_g', 'per_oz', 'lb', 'lbs', 'kg', 'g', 'oz'].includes(variation.pricing_unit);
+        },
+        
+        // Get the pricing unit for the selected variation
+        getPricingUnit(index) {
+            const item = this.items[index];
+            if (!item.price_variation_id || !this.priceVariations[item.item_id]) {
+                return 'each';
+            }
+            
+            const variation = this.priceVariations[item.item_id].find(v => 
+                v.id.toString() === item.price_variation_id.toString()
+            );
+            
+            return variation?.pricing_unit || 'each';
         },
 
         getMinQuantity(index) {
-            return this.isBulkVariation(index) ? 0.01 : 1;
+            const unit = this.getPricingUnit(index);
+            return ['per_lb', 'per_kg', 'per_oz', 'lb', 'lbs', 'kg', 'oz'].includes(unit) ? 0.01 : 
+                   ['per_g', 'g'].includes(unit) ? 1 : 1;
         },
 
         getQuantityStep(index) {
-            return this.isBulkVariation(index) ? 0.01 : 1;
+            const unit = this.getPricingUnit(index);
+            return ['per_lb', 'per_kg', 'lb', 'lbs', 'kg'].includes(unit) ? 0.01 : 
+                   ['per_oz', 'oz'].includes(unit) ? 0.1 :
+                   ['per_g', 'g'].includes(unit) ? 1 : 1;
         },
 
         getQuantityPlaceholder(index) {
-            return this.isBulkVariation(index) ? 'Grams' : 'Qty';
+            const unit = this.getPricingUnit(index);
+            return ['per_item', 'each'].includes(unit) ? 'Qty' : 'Amount';
         },
 
         getQuantityUnit(index) {
-            return this.isBulkVariation(index) ? 'grams' : 'units';
+            const unit = this.getPricingUnit(index);
+            return ['per_lb', 'lb', 'lbs'].includes(unit) ? 'lbs' :
+                   ['per_kg', 'kg'].includes(unit) ? 'kg' :
+                   ['per_g', 'g'].includes(unit) ? 'grams' :
+                   ['per_oz', 'oz'].includes(unit) ? 'oz' :
+                   'units';
         }
     }));
 });

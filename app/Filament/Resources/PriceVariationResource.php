@@ -103,16 +103,12 @@ class PriceVariationResource extends Resource
                                         'per_oz' => 'Per Ounce',
                                     ])
                                     ->default('per_item')
-                                    ->reactive()
+                                    ->live()
                                     ->visible(fn (Forms\Get $get): bool => 
                                         $get('pricing_type') === 'bulk' || 
                                         $get('pricing_type') === 'wholesale' ||
                                         !$get('packaging_type_id')
-                                    )
-                                    ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                                        // Auto-generate name when pricing unit changes
-                                        self::generateVariationName($get('packaging_type_id'), $get('pricing_type'), $set, $get);
-                                    }),
+                                    ),
                             ]),
                             
                         // Core fields in logical order
@@ -157,9 +153,9 @@ class PriceVariationResource extends Resource
                                     })
                                     ->numeric()
                                     ->prefix('$')
-                                    ->placeholder('0.00')
+                                    ->placeholder('0.000')
                                     ->minValue(0)
-                                    ->step(0.01)
+                                    ->step(0.001)
                                     ->required()
                                     ->inputMode('decimal')
                                     ->helperText(function (Forms\Get $get): ?string {
@@ -221,32 +217,15 @@ class PriceVariationResource extends Resource
                             ->schema([
                                 Forms\Components\TextInput::make('fill_weight')
                                     ->label(function (Forms\Get $get): string {
-                                        $packagingId = $get('packaging_type_id');
-                                        $name = strtolower($get('name') ?? '');
-                                        
-                                        if (!$packagingId) {
-                                            // Infer from name if no packaging
-                                            if (str_contains($name, 'tray') || str_contains($name, 'live')) {
-                                                return 'Quantity (trays)';
-                                            }
-                                            if (str_contains($name, 'bulk') || str_contains($name, 'pound')) {
-                                                return 'Weight (grams)';
-                                            }
-                                            if (str_contains($name, 'each') || str_contains($name, 'unit')) {
-                                                return 'Units';
-                                            }
-                                            return 'Quantity / Weight';
-                                        }
-                                        
-                                        $packaging = \App\Models\PackagingType::find($packagingId);
-                                        if ($packaging && str_contains(strtolower($packaging->name), 'live')) {
-                                            return 'Quantity (trays)';
-                                        }
-                                        if ($packaging && str_contains(strtolower($packaging->name), 'bulk')) {
-                                            return 'Weight (grams)';
-                                        }
-                                        
-                                        return 'Fill Weight (grams)';
+                                        $pricingUnit = $get('pricing_unit');
+                                        return match($pricingUnit) {
+                                            'per_g' => 'Weight (grams)',
+                                            'per_kg' => 'Weight (kg)',
+                                            'per_lb' => 'Weight (lbs)',
+                                            'per_oz' => 'Weight (oz)',
+                                            'per_item' => 'Quantity (units)',
+                                            default => 'Fill Weight (grams)'
+                                        };
                                     })
                                     ->numeric()
                                     ->minValue(0)
@@ -259,25 +238,15 @@ class PriceVariationResource extends Resource
                                         return 'Enter weight or quantity';
                                     })
                                     ->suffix(function (Forms\Get $get): string {
-                                        $packagingId = $get('packaging_type_id');
-                                        $name = strtolower($get('name') ?? '');
-                                        
-                                        if (!$packagingId) {
-                                            if (str_contains($name, 'tray') || str_contains($name, 'live')) {
-                                                return 'trays';
-                                            }
-                                            if (str_contains($name, 'bulk') || str_contains($name, 'pound')) {
-                                                return 'g';
-                                            }
-                                            return 'units';
-                                        }
-                                        
-                                        $packaging = \App\Models\PackagingType::find($packagingId);
-                                        if ($packaging && str_contains(strtolower($packaging->name), 'live')) {
-                                            return 'trays';
-                                        }
-                                        
-                                        return 'g';
+                                        $pricingUnit = $get('pricing_unit');
+                                        return match($pricingUnit) {
+                                            'per_g' => 'g',
+                                            'per_kg' => 'kg',
+                                            'per_lb' => 'lbs',
+                                            'per_oz' => 'oz',
+                                            'per_item' => 'units',
+                                            default => 'g'
+                                        };
                                     })
                                     ->hint(function (Forms\Get $get): string {
                                         $packagingId = $get('packaging_type_id');
@@ -292,7 +261,7 @@ class PriceVariationResource extends Resource
                                         return '';
                                     })
                                     ->required(fn (Forms\Get $get): bool => !$get('is_global'))
-                                    ->reactive(),
+                                    ->live(),
 
                                 Forms\Components\TextInput::make('sku')
                                     ->label('SKU / Barcode')

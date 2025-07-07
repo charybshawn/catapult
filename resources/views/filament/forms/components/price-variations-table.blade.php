@@ -1,11 +1,49 @@
 <x-dynamic-component :component="$getFieldWrapperView()" :field="$field">
     @php
+        // Get the Livewire component and product record
+        // Try multiple ways to get the product
         $livewire = $this->getLivewire();
-        $product = $livewire->getRecord();
-        $variations = $product && $product->exists ? $product->priceVariations : collect();
+        $product = null;
+        
+        // Method 1: Try getRecord() method
+        if ($livewire && method_exists($livewire, 'getRecord')) {
+            try {
+                $product = $livewire->getRecord();
+            } catch (\Exception $e) {
+                // getRecord() failed, try other methods
+            }
+        }
+        
+        // Method 2: Try record property 
+        if (!$product && $livewire && property_exists($livewire, 'record')) {
+            $product = $livewire->record;
+        }
+        
+        // Method 3: Try to get from the form state or component context
+        if (!$product && method_exists($this, 'getRecord')) {
+            try {
+                $product = $this->getRecord();
+            } catch (\Exception $e) {
+                // Failed
+            }
+        }
+        
+        // Method 4: Try to get from Livewire directly as 'this'
+        if (!$product && property_exists($this, 'record')) {
+            $product = $this->record;
+        }
+        
+        // Get variations if we have a product - always fetch fresh from database
+        $variations = collect();
+        if ($product && $product->exists) {
+            $variations = \App\Models\PriceVariation::where('product_id', $product->id)
+                ->with('packagingType')
+                ->get();
+        }
     @endphp
 
-    <div class="space-y-4">
+    <div class="space-y-4" wire:key="price-variations-table-{{ $product?->id }}">
+        
         @if($variations->isNotEmpty())
             <div class="overflow-hidden rounded-lg border border-gray-300 dark:border-gray-600">
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -15,13 +53,19 @@
                                 Name
                             </th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Type
+                            </th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Unit
+                            </th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                 Packaging
                             </th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                 SKU
                             </th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                Weight (g)
+                                Weight/Qty
                             </th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                 Price
@@ -39,25 +83,136 @@
                     </thead>
                     <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
                         @foreach($variations as $variation)
-                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-800" 
-                                x-data="{ 
-                                    editing: false,
-                                    packaging_type_id: '{{ $variation->packaging_type_id }}',
-                                    sku: '{{ $variation->sku }}',
-                                    fill_weight_grams: '{{ $variation->fill_weight }}',
-                                    price: '{{ $variation->price }}'
-                                }">
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-800" x-data="{ 
+                                editing: false,
+                                name: '{{ $variation->name ?: 'Default' }}',
+                                pricing_type: '{{ $variation->pricing_type ?: 'retail' }}',
+                                pricing_unit: '{{ $variation->pricing_unit ?: 'per_item' }}',
+                                packaging_type_id: '{{ $variation->packaging_type_id }}',
+                                sku: '{{ $variation->sku }}',
+                                fill_weight_grams: '{{ $variation->fill_weight }}',
+                                price: '{{ $variation->price }}',
+                                is_name_manual: {{ $variation->is_name_manual ? 'true' : 'false' }},
+                                
+                                // Auto-generate name when fields change (only for new records)
+                                generateName() {
+                                    if (this.is_name_manual || {{ $variation->id ? 'true' : 'false' }}) return;
+                                    
+                                    let parts = [];
+                                    
+                                    // Add pricing type
+                                    const pricingTypes = {
+                                        'retail': 'Retail',
+                                        'wholesale': 'Wholesale',
+                                        'bulk': 'Bulk',
+                                        'special': 'Special',
+                                        'custom': 'Custom'
+                                    };
+                                    parts.push(pricingTypes[this.pricing_type] || 'Retail');
+                                    
+                                    // Add packaging
+                                    if (this.packaging_type_id) {
+                                        const packaging = @json(\App\Models\PackagingType::all()->keyBy('id')->map(fn($p) => $p->name));
+                                        parts.push(packaging[this.packaging_type_id] || 'Package');
+                                    } else {
+                                        parts.push('Package-Free');
+                                    }
+                                    
+                                    // Add price
+                                    if (this.price) {
+                                        parts.push('$' + parseFloat(this.price).toFixed(2));
+                                    }
+                                    
+                                    this.name = parts.join(' - ');
+                                },
+                                
+                                // Mark name as manually edited
+                                markNameAsManual() {
+                                    this.is_name_manual = true;
+                                }
+                            }">
                                 <td class="px-4 py-4 whitespace-nowrap">
-                                    <div class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                        {{ $variation->packagingType ? $variation->packagingType->name : 'Default' }}
+                                    <div x-show="!editing" class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                        @php
+                                            $displayName = $variation->name ?: 'Default';
+                                        @endphp
+                                        {{ $displayName }}
+                                        @if($variation->is_name_manual)
+                                            <span class="ml-1 text-xs text-blue-600" title="Manually set name">✓</span>
+                                        @endif
                                     </div>
+                                    <div x-show="editing" class="flex space-x-1" x-cloak>
+                                        <input x-model="name" 
+                                               @input="markNameAsManual()"
+                                               type="text" 
+                                               class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100">
+                                        <button type="button" 
+                                                @click="is_name_manual = false; generateName()"
+                                                class="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border"
+                                                title="Reset to auto-generated">
+                                            ↻
+                                        </button>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-4 whitespace-nowrap">
+                                    <div x-show="!editing" class="text-sm text-gray-900 dark:text-gray-100">
+                                        @php
+                                            $pricingTypeNames = [
+                                                'retail' => 'Retail',
+                                                'wholesale' => 'Wholesale',
+                                                'bulk' => 'Bulk',
+                                                'special' => 'Special',
+                                                'custom' => 'Custom'
+                                            ];
+                                            echo $pricingTypeNames[$variation->pricing_type ?? 'retail'] ?? ucfirst($variation->pricing_type ?? 'Retail');
+                                        @endphp
+                                    </div>
+                                    <select x-show="editing" 
+                                            x-model="pricing_type"
+                                            @change="generateName()"
+                                            class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                                            x-cloak>
+                                        <option value="retail">Retail</option>
+                                        <option value="wholesale">Wholesale</option>
+                                        <option value="bulk">Bulk</option>
+                                        <option value="special">Special</option>
+                                        <option value="custom">Custom</option>
+                                    </select>
+                                </td>
+                                <td class="px-4 py-4 whitespace-nowrap">
+                                    <div x-show="!editing" class="text-sm text-gray-900 dark:text-gray-100">
+                                        @php
+                                            $pricingUnitNames = [
+                                                'per_item' => 'Per Item',
+                                                'per_tray' => 'Per Tray',
+                                                'per_g' => 'Per Gram',
+                                                'per_kg' => 'Per Kg',
+                                                'per_lb' => 'Per Lb',
+                                                'per_oz' => 'Per Oz'
+                                            ];
+                                            echo $pricingUnitNames[$variation->pricing_unit ?? 'per_item'] ?? 'Per Item';
+                                        @endphp
+                                    </div>
+                                    <select x-show="editing" 
+                                            x-model="pricing_unit"
+                                            @change="generateName()"
+                                            class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                                            x-cloak>
+                                        <option value="per_item">Per Item</option>
+                                        <option value="per_tray">Per Tray</option>
+                                        <option value="per_g">Per Gram</option>
+                                        <option value="per_kg">Per Kg</option>
+                                        <option value="per_lb">Per Lb</option>
+                                        <option value="per_oz">Per Oz</option>
+                                    </select>
                                 </td>
                                 <td class="px-4 py-4 whitespace-nowrap">
                                     <div x-show="!editing" class="text-sm text-gray-900 dark:text-gray-100">
                                         {{ $variation->packagingType?->display_name ?? 'No packaging' }}
                                     </div>
                                     <select x-show="editing" 
-                                            x-model="packaging_type_id" 
+                                            x-model="packaging_type_id"
+                                            @change="generateName()"
                                             class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
                                             x-cloak>
                                         <option value="">No packaging</option>
@@ -74,6 +229,7 @@
                                            x-model="sku" 
                                            type="text" 
                                            class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                                           x-init="sku = '{{ $variation->sku }}'"
                                            x-cloak>
                                 </td>
                                 <td class="px-4 py-4 whitespace-nowrap">
@@ -85,6 +241,7 @@
                                            type="number" 
                                            step="0.01"
                                            class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                                           x-init="fill_weight_grams = '{{ $variation->fill_weight }}'"
                                            x-cloak>
                                 </td>
                                 <td class="px-4 py-4 whitespace-nowrap">
@@ -93,6 +250,7 @@
                                     </div>
                                     <input x-show="editing" 
                                            x-model="price" 
+                                           @input="generateName()"
                                            type="number" 
                                            step="0.01"
                                            min="0"
@@ -107,7 +265,7 @@
                                             </span>
                                         @else
                                             <button type="button" 
-                                                    wire:click="setAsDefault({{ $variation->id }})"
+                                                    @click="Livewire.find('{{ $livewire->getId() }}').setAsDefault({{ $variation->id }})"
                                                     class="text-sm text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300">
                                                 Set as default
                                             </button>
@@ -137,13 +295,19 @@
                                         </button>
                                         <button type="button"
                                                 x-show="editing" 
-                                                wire:click="updateVariation({{ $variation->id }}, {
-                                                    packaging_type_id: packaging_type_id,
-                                                    sku: sku,
-                                                    fill_weight_grams: fill_weight_grams,
-                                                    price: price
-                                                })"
-                                                @click="editing = false"
+                                                @click="
+                                                    Livewire.find('{{ $livewire->getId() }}').updateVariation({{ $variation->id }}, {
+                                                        name: name,
+                                                        pricing_type: pricing_type,
+                                                        pricing_unit: pricing_unit,
+                                                        packaging_type_id: packaging_type_id,
+                                                        sku: sku,
+                                                        fill_weight_grams: fill_weight_grams,
+                                                        price: price,
+                                                        is_name_manual: is_name_manual
+                                                    });
+                                                    editing = false;
+                                                "
                                                 class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
                                                 x-cloak>
                                             Save
@@ -156,8 +320,7 @@
                                             Cancel
                                         </button>
                                         <button type="button"
-                                                wire:click="deleteVariation({{ $variation->id }})"
-                                                wire:confirm="Are you sure you want to delete this price variation?"
+                                                @click="if (confirm('Are you sure you want to delete this price variation?')) { Livewire.find('{{ $livewire->getId() }}').deleteVariation({{ $variation->id }}) }"
                                                 class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
                                             Delete
                                         </button>
@@ -175,12 +338,13 @@
                 </svg>
                 <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No price variations</h3>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by adding a price variation for this product.</p>
+                <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">You can use templates above or create custom variations below.</p>
             </div>
         @endif
         
         <div class="flex justify-between items-center">
             <button type="button" 
-                    wire:click="addCustomVariation"
+                    @click="Livewire.find('{{ $livewire->getId() }}').addCustomVariation()"
                     class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-600">
                 <svg class="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
