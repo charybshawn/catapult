@@ -377,7 +377,15 @@ class Dashboard extends BaseDashboard
                 ?? $crop->recipe?->name 
                 ?? 'Unknown';
             $plantedAt = $crop->planting_at ? $crop->planting_at->format('Y-m-d') : 'unknown';
-            $currentStage = $crop->currentStage?->code ?? 'unknown';
+            // Safely get current stage
+            $currentStage = 'unknown';
+            if ($crop->relationLoaded('currentStage') && $crop->currentStage && is_object($crop->currentStage)) {
+                $currentStage = $crop->currentStage->code;
+            } elseif ($crop->current_stage_id) {
+                $stage = \App\Models\CropStage::find($crop->current_stage_id);
+                $currentStage = $stage?->code ?? 'unknown';
+            }
+            
             $targetStage = $alert->conditions['target_stage'] ?? 'unknown';
             $taskName = $alert->task_name;
             
@@ -385,7 +393,7 @@ class Dashboard extends BaseDashboard
             
             if (!isset($groupedAlerts[$batchKey])) {
                 // Get all crops in this batch from pre-loaded data
-                $batchKey2 = "{$crop->recipe_id}|{$plantedAt}|{$crop->currentStage?->code}";
+                $batchKey2 = "{$crop->recipe_id}|{$plantedAt}|{$currentStage}";
                 $batchCrops = $allCrops->get($batchKey2, collect());
                 
                 // Get all tray numbers for this batch
@@ -461,7 +469,13 @@ class Dashboard extends BaseDashboard
             ->with(['recipe.seedEntry', 'currentStage'])
             ->get()
             ->groupBy(function($crop) {
-                return $crop->currentStage?->code ?? 'unknown';
+                if ($crop->relationLoaded('currentStage') && $crop->currentStage && is_object($crop->currentStage)) {
+                    return $crop->currentStage->code;
+                } elseif ($crop->current_stage_id) {
+                    $stage = \App\Models\CropStage::find($crop->current_stage_id);
+                    return $stage?->code ?? 'unknown';
+                }
+                return 'unknown';
             });
             
         $stageData = [];
@@ -563,7 +577,15 @@ class Dashboard extends BaseDashboard
             $totalEstimatedYield = $totalTrays * $avgYieldPerTray;
             
             $readyToHarvestCount = $crops->filter(function ($crop) {
-                return $crop->currentStage?->code === 'light' && 
+                $stageCode = 'unknown';
+                if ($crop->relationLoaded('currentStage') && $crop->currentStage && is_object($crop->currentStage)) {
+                    $stageCode = $crop->currentStage->code;
+                } elseif ($crop->current_stage_id) {
+                    $stage = \App\Models\CropStage::find($crop->current_stage_id);
+                    $stageCode = $stage?->code ?? 'unknown';
+                }
+                
+                return $stageCode === 'light' && 
                        str_contains($crop->timeToNextStage() ?? '', 'Ready to advance');
             })->count();
             
