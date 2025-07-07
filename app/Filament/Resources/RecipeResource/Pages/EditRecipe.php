@@ -65,7 +65,9 @@ class EditRecipe extends BaseEditRecord
                         ->afterStateHydrated(function (callable $set, callable $get, $state, $record) {
                             // Pre-populate variety helper based on existing lot_number
                             if (!$state && $record && $record->lot_number) {
-                                $consumable = Consumable::where('type', 'seed')
+                                $consumable = Consumable::whereHas('consumableType', function($query) {
+                                        $query->where('code', 'seed');
+                                    })
                                     ->where('lot_no', $record->lot_number)
                                     ->where('is_active', true)
                                     ->first();
@@ -95,7 +97,9 @@ class EditRecipe extends BaseEditRecord
                                 return [];
                             }
 
-                            $lots = Consumable::where('type', 'seed')
+                            $lots = Consumable::whereHas('consumableType', function($query) {
+                                    $query->where('code', 'seed');
+                                })
                                 ->where('name', $selectedVariety)
                                 ->where('is_active', true)
                                 ->whereNotNull('lot_no')
@@ -128,7 +132,9 @@ class EditRecipe extends BaseEditRecord
                         ->label('Soil')
                         ->relationship('soilConsumable', 'name')
                         ->options(function () {
-                            return Consumable::where('type', 'soil')
+                            return Consumable::whereHas('consumableType', function($query) {
+                                    $query->where('code', 'soil');
+                                })
                                 ->where('is_active', true)
                                 ->get()
                                 ->mapWithKeys(function ($soil) {
@@ -146,7 +152,8 @@ class EditRecipe extends BaseEditRecord
                         ->required()
                         ->createOptionForm(Consumable::getSoilFormSchema())
                         ->createOptionUsing(function (array $data) {
-                            $data['type'] = 'soil';
+                            $soilTypeId = \App\Models\ConsumableType::where('code', 'soil')->value('id');
+                            $data['consumable_type_id'] = $soilTypeId;
                             $data['consumed_quantity'] = 0;
 
                             return Consumable::create($data)->id;

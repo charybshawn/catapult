@@ -61,9 +61,8 @@ class ListHarvests extends ListRecords
                                     Forms\Components\TextInput::make('tray_count')
                                         ->label('Number of Trays Harvested')
                                         ->required()
-                                        ->numeric()
-                                        ->minValue(1)
-                                        ->integer()
+                                        ->rules(['numeric', 'min:0.1'])
+                                        ->placeholder('e.g. 1.5, 0.25, 2.75')
                                         ->reactive()
                                         ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
                                             $totalWeight = $get('total_weight_grams');

@@ -59,12 +59,35 @@ class HarvestResource extends BaseResource
                                     ->numeric()
                                     ->minValue(0)
                                     ->step(0.01),
-                                Forms\Components\TextInput::make('tray_count')
+                                Forms\Components\Select::make('tray_count')
                                     ->label('Number of Trays')
                                     ->required()
-                                    ->numeric()
-                                    ->minValue(0.1)
-                                    ->step(0.25),
+                                    ->options([
+                                        '0.25' => '0.25',
+                                        '0.5' => '0.5',
+                                        '0.75' => '0.75',
+                                        '1' => '1',
+                                        '1.25' => '1.25',
+                                        '1.5' => '1.5',
+                                        '1.75' => '1.75',
+                                        '2' => '2',
+                                        '2.25' => '2.25',
+                                        '2.5' => '2.5',
+                                        '3' => '3',
+                                        '4' => '4',
+                                        '5' => '5',
+                                    ])
+                                    ->allowHtml()
+                                    ->searchable()
+                                    ->createOptionForm([
+                                        Forms\Components\TextInput::make('custom_value')
+                                            ->label('Custom Tray Count')
+                                            ->required()
+                                            ->rules(['numeric', 'min:0.1', 'max:999'])
+                                    ])
+                                    ->createOptionUsing(function (array $data) {
+                                        return $data['custom_value'];
+                                    }),
                             ]),
                         Forms\Components\DatePicker::make('harvest_date')
                             ->label('Harvest Date')

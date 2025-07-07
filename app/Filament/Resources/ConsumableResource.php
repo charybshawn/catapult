@@ -192,16 +192,24 @@ class ConsumableResource extends BaseResource
                                 }
                             })->columnSpanFull(),
                         
-                        // Seed cultivar field - outside conditional logic to fix Livewire binding
-                        Forms\Components\Select::make('master_cultivar_id')
-                            ->label('Seed Cultivar')
+                        // Seed catalog and cultivar field - using master catalog composite key approach
+                        Forms\Components\Select::make('master_seed_catalog_id')
+                            ->label('Seed Catalog & Cultivar')
                             ->options(function () {
-                                return \App\Models\MasterCultivar::query()
-                                    ->with('masterSeedCatalog')
+                                return \App\Models\MasterSeedCatalog::query()
                                     ->where('is_active', true)
                                     ->get()
-                                    ->mapWithKeys(function ($cultivar) {
-                                        return [$cultivar->id => $cultivar->full_name];
+                                    ->flatMap(function ($catalog) {
+                                        $cultivars = is_array($catalog->cultivars) ? $catalog->cultivars : [];
+                                        $options = [];
+                                        
+                                        foreach ($cultivars as $index => $cultivar) {
+                                            $key = $catalog->id . ':' . $index;
+                                            $label = ucwords(strtolower($catalog->common_name)) . ' (' . ucwords(strtolower($cultivar)) . ')';
+                                            $options[$key] = $label;
+                                        }
+                                        
+                                        return $options;
                                     });
                             })
                             ->searchable()
@@ -217,12 +225,20 @@ class ConsumableResource extends BaseResource
                             })
                             ->live()
                             ->afterStateUpdated(function ($state, Set $set) {
-                                if ($state) {
-                                    $cultivar = \App\Models\MasterCultivar::find($state);
-                                    if ($cultivar) {
-                                        $set('name', $cultivar->full_name);
-                                        $set('cultivar', $cultivar->cultivar_name);
-                                        $set('master_seed_catalog_id', $cultivar->master_seed_catalog_id);
+                                if ($state && strpos($state, ':') !== false) {
+                                    [$catalogId, $cultivarIndex] = explode(':', $state, 2);
+                                    $cultivarIndex = (int)$cultivarIndex;
+                                    
+                                    $masterCatalog = \App\Models\MasterSeedCatalog::find($catalogId);
+                                    if ($masterCatalog) {
+                                        $cultivars = is_array($masterCatalog->cultivars) ? $masterCatalog->cultivars : [];
+                                        $selectedCultivar = $cultivars[$cultivarIndex] ?? $cultivars[0] ?? 'Unknown';
+                                        
+                                        $commonName = ucwords(strtolower($masterCatalog->common_name));
+                                        $cultivarName = ucwords(strtolower($selectedCultivar));
+                                        
+                                        $set('name', $commonName . ' (' . $cultivarName . ')');
+                                        $set('cultivar', $cultivarName);
                                     }
                                 }
                             })

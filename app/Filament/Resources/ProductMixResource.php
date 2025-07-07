@@ -97,38 +97,47 @@ class ProductMixResource extends Resource
                         CompactRepeater::make('mixComponents')
                             ->label('')
                             ->statePath('masterSeedCatalogs')
+                            ->addActionLabel('Add Variety')
+                            ->defaultItems(1)
+                            ->minItems(1)
+                            ->reorderable()
+                            ->columnWidths([
+                                'variety_selection' => '70%',
+                                'percentage' => '30%',
+                            ])
+                            ->extraAttributes([
+                                'style' => 'overflow: visible;',
+                                'class' => 'relative z-10'
+                            ])
                             ->schema([
                                 Forms\Components\Select::make('variety_selection')
                                     ->label('Variety')
                                     ->options(function () {
                                         $options = [];
                                         
-                                        // Get all consumables with available seed inventory
-                                        $consumables = \App\Models\Consumable::where('consumable_type_id', 3) // seed type
-                                            ->where('is_active', true)
-                                            ->whereRaw('(total_quantity - consumed_quantity) > 0')
-                                            ->whereNotNull('master_seed_catalog_id')
-                                            ->with('masterSeedCatalog')
-                                            ->orderBy('master_seed_catalog_id')
-                                            ->orderBy('cultivar')
+                                        // Get all active master seed catalogs with their cultivars
+                                        $catalogs = \App\Models\MasterSeedCatalog::where('is_active', true)
+                                            ->with('activeCultivars')
+                                            ->orderBy('common_name')
                                             ->get();
                                         
-                                        foreach ($consumables as $consumable) {
-                                            if (!$consumable->masterSeedCatalog || !$consumable->masterSeedCatalog->is_active) {
-                                                continue;
+                                        foreach ($catalogs as $catalog) {
+                                            // Use the already loaded active cultivars
+                                            $cultivars = $catalog->activeCultivars;
+                                            
+                                            if ($cultivars->isNotEmpty()) {
+                                                // Add each cultivar as a separate option
+                                                foreach ($cultivars as $cultivar) {
+                                                    $key = $catalog->id . '|' . $cultivar->cultivar_name;
+                                                    $label = $catalog->common_name . ' (' . $cultivar->cultivar_name . ')';
+                                                    $options[$key] = $label;
+                                                }
+                                            } else {
+                                                // If no cultivars, add the catalog with default cultivar
+                                                $key = $catalog->id . '|Default';
+                                                $label = $catalog->common_name . ' (Default)';
+                                                $options[$key] = $label;
                                             }
-                                            
-                                            $catalog = $consumable->masterSeedCatalog;
-                                            $cultivar = $consumable->cultivar ?: 'Unknown';
-                                            $available = $consumable->total_quantity - $consumable->consumed_quantity;
-                                            $unit = $consumable->quantity_unit ?: $consumable->unit;
-                                            
-                                            // Create a composite key that includes both catalog ID and cultivar
-                                            $key = $catalog->id . '|' . $cultivar;
-                                            $label = $catalog->common_name . ' (' . $cultivar . ') - ' . 
-                                                    number_format($available, 2) . ' ' . $unit;
-                                            
-                                            $options[$key] = $label;
                                         }
                                         
                                         return $options;
@@ -145,7 +154,9 @@ class ProductMixResource extends Resource
                                     ->dehydrated(false) // Don't save this field directly
                                     ->searchable()
                                     ->required()
-                                    ->columnSpan(3),
+                                    ->extraAttributes([
+                                        'style' => 'position: relative; z-index: 50;'
+                                    ]),
                                 
                                 // Hidden fields to store the actual values
                                 Forms\Components\Hidden::make('master_seed_catalog_id'),
@@ -161,8 +172,7 @@ class ProductMixResource extends Resource
                                     ->suffix('%')
                                     ->step(0.01)
                                     ->inputMode('decimal')
-                                    ->reactive()
-                                    ->columnSpan(1),
+                                    ->reactive(),
                             ])
                             ->mutateRelationshipDataBeforeCreateUsing(function (array $data) {
                                 // Remove the variety_selection field as it's not part of the database
@@ -197,16 +207,6 @@ class ProductMixResource extends Resource
                                 }
                                 return $data;
                             })
-                            ->columnWidths([
-                                'variety_selection' => '70%',
-                                'percentage' => '30%',
-                            ])
-                            ->defaultItems(2)
-                            ->minItems(2)
-                            ->addActionLabel('Add Variety')
-                            ->reorderable(true)
-                            ->compact(true)
-                            ->itemLabel('variety')
                     ])
             ]);
     }

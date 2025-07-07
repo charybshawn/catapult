@@ -21,9 +21,9 @@ class EditPriceVariation extends BaseEditRecord
     protected function afterSave(): void
     {
         // If this price variation is set as default, make sure no other variations 
-        // for the same item are also set as default
+        // for the same product are also set as default
         if ($this->record->is_default) {
-            PriceVariation::where('item_id', $this->record->item_id)
+            PriceVariation::where('product_id', $this->record->product_id)
                 ->where('id', '!=', $this->record->id)
                 ->where('is_default', true)
                 ->update(['is_default' => false]);

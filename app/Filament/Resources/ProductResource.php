@@ -377,7 +377,9 @@ class ProductResource extends BaseResource
                                             $catalog = $record->masterSeedCatalog;
                                             if (!$catalog) return 'No inventory';
                                             
-                                            $consumables = $catalog->consumables()->where('type', 'seed')->get();
+                                            $consumables = $catalog->consumables()->whereHas('consumableType', function($query) {
+                                                $query->where('code', 'seed');
+                                            })->get();
                                             if ($consumables->isEmpty()) return 'No inventory';
                                             
                                             $totalAvailable = 0;
@@ -397,7 +399,9 @@ class ProductResource extends BaseResource
                                             if (!$catalog) return 'N/A';
                                             
                                             $consumable = $catalog->consumables()
-                                                ->where('type', 'seed')
+                                                ->whereHas('consumableType', function($query) {
+                                                    $query->where('code', 'seed');
+                                                })
                                                 ->with('supplier')
                                                 ->first();
                                             return $consumable?->supplier?->name ?? 'N/A';

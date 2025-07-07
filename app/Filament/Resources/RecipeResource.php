@@ -376,10 +376,11 @@ class RecipeResource extends BaseResource
                             return "{$state} (Depleted)";
                         }
                         
-                        $consumable = Consumable::where('consumable_type_id', LotInventoryService::SEED_CONSUMABLE_TYPE_ID)
+                        $seedTypeId = app(\App\Services\InventoryManagementService::class)->getSeedTypeId();
+                        $consumable = $seedTypeId ? Consumable::where('consumable_type_id', $seedTypeId)
                             ->where('lot_no', $state)
                             ->where('is_active', true)
-                            ->first();
+                            ->first() : null;
                         
                         if (!$consumable) {
                             return "{$state} (Not Found)";

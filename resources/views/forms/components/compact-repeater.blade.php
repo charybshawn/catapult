@@ -28,7 +28,7 @@
     >
         @if ($isCompact && count($containers) > 0)
             {{-- Compact Table View --}}
-            <div class="overflow-x-auto rounded-lg border border-gray-300 dark:border-gray-700">
+            <div class="overflow-x-auto overflow-y-visible rounded-lg border border-gray-300 dark:border-gray-700" style="overflow-y: visible;">
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                     <thead class="bg-gray-50 dark:bg-gray-800">
                         <tr>
@@ -40,18 +40,21 @@
                                 @php
                                     $width = $columnWidths[$field->getName()] ?? 'auto';
                                     $label = $field->getLabel();
+                                    $fieldType = class_basename($field);
                                 @endphp
-                                <th 
-                                    class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
-                                    @if ($width !== 'auto')
-                                        style="width: {{ $width }}"
-                                    @endif
-                                >
-                                    {{ $label }}
-                                    @if ($field->isRequired())
-                                        <span class="text-danger-600 dark:text-danger-400">*</span>
-                                    @endif
-                                </th>
+                                @if ($fieldType !== 'Hidden')
+                                    <th 
+                                        class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                                        @if ($width !== 'auto')
+                                            style="width: {{ $width }}"
+                                        @endif
+                                    >
+                                        {{ $label }}
+                                        @if ($field->isRequired())
+                                            <span class="text-danger-600 dark:text-danger-400">*</span>
+                                        @endif
+                                    </th>
+                                @endif
                             @endforeach
                             
                             <th class="w-10 px-2 py-2"></th>
@@ -91,9 +94,16 @@
                                 @endif
                                 
                                 @foreach ($container->getComponents() as $field)
-                                    <td class="px-3 py-1">
+                                    @php
+                                        $fieldType = class_basename($field);
+                                    @endphp
+                                    @if ($fieldType !== 'Hidden')
+                                        <td class="px-3 py-1">
+                                            {{ $field }}
+                                        </td>
+                                    @else
                                         {{ $field }}
-                                    </td>
+                                    @endif
                                 @endforeach
                                 
                                 <td class="px-2 py-1 text-center">

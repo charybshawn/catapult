@@ -78,7 +78,13 @@ class CropAlertResource extends Resource
             ->persistFiltersInSession()
             ->persistSortInSession()
             ->persistColumnSearchesInSession()
-            ->persistSearchInSession()            ->defaultSort('next_run_at', 'asc')
+            ->persistSearchInSession()
+            ->defaultSort('next_run_at', 'asc')
+            ->modifyQueryUsing(function (Builder $query) {
+                // Since CropAlert uses JSON conditions to store crop_id, 
+                // we can't use traditional eager loading
+                return $query;
+            })
             ->columns([
                 TextColumn::make('alert_type')
                     ->label('Action')
@@ -109,7 +115,7 @@ class CropAlertResource extends Resource
                                 // Get all crops with the same batch identifier
                                 $batchCount = Crop::where('recipe_id', $crop->recipe_id)
                                     ->where('planting_at', $crop->planting_at)
-                                    ->where('current_stage', $crop->current_stage)
+                                    ->where('current_stage_id', $crop->current_stage_id)
                                     ->count();
                                     
                                 return "{$batchCount} trays";
@@ -139,10 +145,12 @@ class CropAlertResource extends Resource
                         $cropId = $record->conditions['crop_id'] ?? null;
                         if (!$cropId) return 'Unknown';
                         
-                        $crop = Crop::with(['recipe.seedEntry'])->find($cropId);
-                        if (!$crop || !$crop->recipe) return 'Unknown';
+                        $crop = Crop::with(['recipe'])->find($cropId);
+                        if (!$crop) return 'Unknown - Crop Not Found';
                         
-                        return $crop->recipe->name ?? 'Unknown';
+                        if (!$crop->recipe) return 'Unknown - No Recipe';
+                        
+                        return $crop->recipe->name ?? 'Unknown - No Recipe Name';
                     })
                     ->sortable(query: function ($query, $direction) {
                         return $query->orderByRaw("json_extract(conditions, '$.variety') {$direction}");
@@ -158,13 +166,27 @@ class CropAlertResource extends Resource
                         $cropId = $record->conditions['crop_id'] ?? null;
                         if (!$cropId) return 'Unknown';
                         
-                        $crop = Crop::find($cropId);
-                        if (!$crop || !$crop->recipe) return 'Unknown';
+                        $crop = Crop::with(['recipe.seedEntry'])->find($cropId);
+                        if (!$crop) return 'Unknown - Crop Not Found';
                         
-                        $seedEntry = $crop->recipe->seedEntry;
-                        if (!$seedEntry) return 'Unknown';
+                        if (!$crop->recipe) return 'Unknown - No Recipe';
                         
-                        return $seedEntry->common_name . ' - ' . $seedEntry->cultivar_name;
+                        // First try to get from recipe's own fields
+                        if ($crop->recipe->common_name && $crop->recipe->cultivar_name) {
+                            return $crop->recipe->common_name . ' - ' . $crop->recipe->cultivar_name;
+                        }
+                        
+                        // Then try seedEntry relationship
+                        if ($crop->recipe->seedEntry) {
+                            return $crop->recipe->seedEntry->common_name . ' - ' . $crop->recipe->seedEntry->cultivar_name;
+                        }
+                        
+                        // Fallback: use the recipe name since it contains the variety info
+                        if ($crop->recipe->name) {
+                            return $crop->recipe->name;
+                        }
+                        
+                        return 'Unknown - No Seed Entry';
                     })
                     ->toggleable(),
                     
