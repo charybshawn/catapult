@@ -41,7 +41,7 @@ class PriceVariationsRelationManager extends RelationManager
                                     ->tooltip('Reset to auto-generated name')
                                     ->action(function (callable $set, callable $get) {
                                         $set('is_name_manual', false);
-                                        self::generateVariationName($get('packaging_type_id'), $get('pricing_type'), $set, $get);
+                                        self::generateVariationName($get('packaging_type_id'), 'retail', $set, $get);
                                     })
                             ),
                         
@@ -57,7 +57,10 @@ class PriceVariationsRelationManager extends RelationManager
                             ->nullable()
                             ->reactive()
                             ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                                self::generateVariationName($state, $get('pricing_type'), $set, $get);
+                                // Only auto-generate for new records, not when editing existing ones
+                                if (!$get('id')) {
+                                    self::generateVariationName($state, 'retail', $set, $get);
+                                }
                             }),
                     ]),
                     
@@ -81,7 +84,10 @@ class PriceVariationsRelationManager extends RelationManager
                             ->columnSpan(1)
                             ->reactive()
                             ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                                self::generateVariationName($get('packaging_type_id'), $get('pricing_type'), $set, $get);
+                                // Only auto-generate for new records, not when editing existing ones
+                                if (!$get('id')) {
+                                    self::generateVariationName($get('packaging_type_id'), 'retail', $set, $get);
+                                }
                             }),
                     ]),
 
@@ -382,6 +388,11 @@ class PriceVariationsRelationManager extends RelationManager
     {
         // Don't auto-generate if name is manually overridden
         if ($get('is_name_manual')) {
+            return;
+        }
+        
+        // Don't auto-generate for existing records (when editing)
+        if ($get('id')) {
             return;
         }
         
