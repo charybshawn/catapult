@@ -190,7 +190,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             ],
             [
                 'id' => 15,
-                'common_name' => 'Peas,',
+                'common_name' => 'Peas',
                 'cultivars' => '["Speckled"]',
                 'category' => null,
                 'aliases' => null,

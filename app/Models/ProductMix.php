@@ -35,16 +35,6 @@ class ProductMix extends Model
         });
     }
     
-    /**
-     * Get the seed entries that make up this mix.
-     * @deprecated Use masterSeedCatalogs() instead
-     */
-    public function seedEntries(): BelongsToMany
-    {
-        return $this->belongsToMany(SeedEntry::class, 'product_mix_components', 'product_mix_id', 'seed_entry_id')
-            ->withPivot('percentage')
-            ->withTimestamps();
-    }
     
     /**
      * Get the master seed catalog entries that make up this mix.
