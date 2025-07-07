@@ -352,7 +352,7 @@ class Dashboard extends BaseDashboard
             $stageCode = 'unknown';
             
             // Safely get the stage code
-            if ($crop->relationLoaded('currentStage') && $crop->currentStage) {
+            if ($crop->relationLoaded('currentStage') && $crop->currentStage && is_object($crop->currentStage)) {
                 $stageCode = $crop->currentStage->code;
             } elseif ($crop->current_stage_id) {
                 // Fallback: load the stage directly
