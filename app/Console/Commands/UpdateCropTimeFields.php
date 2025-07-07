@@ -16,7 +16,7 @@ class UpdateCropTimeFields extends Command
      * @var string
      */
     protected $signature = 'app:update-crop-time-fields 
-                            {--batch-size=100 : Number of crops to process in each batch}
+                            {--batch-size= : Number of crops to process in each batch}
                             {--quiet-mode : Only show summary, not individual updates}';
 
     /**
@@ -49,7 +49,9 @@ class UpdateCropTimeFields extends Command
     {
         $this->info('Updating time fields for all crops...');
         
-        $total = Crop::whereNotIn('current_stage', ['harvested'])->count();
+        $total = Crop::whereHas('currentStage', function($q) {
+            $q->where('code', '!=', 'harvested');
+        })->count();
         $this->info("Found {$total} active crops to update.");
         
         if ($total === 0) {
@@ -62,12 +64,14 @@ class UpdateCropTimeFields extends Command
         
         $updatedCount = 0;
         $errorCount = 0;
-        $batchSize = (int) $this->option('batch-size');
+        $batchSize = (int) ($this->option('batch-size') ?: config('tasks.batch_size', 100));
         $quietMode = $this->option('quiet-mode');
         
         // Process in batches to avoid memory issues
-        Crop::whereNotIn('current_stage', ['harvested'])
-            ->with('recipe') // Eager load recipe to avoid N+1 queries
+        Crop::whereHas('currentStage', function($q) {
+                $q->where('code', '!=', 'harvested');
+            })
+            ->with(['recipe', 'currentStage']) // Eager load recipe and currentStage to avoid N+1 queries
             ->chunk($batchSize, function ($crops) use ($bar, &$updatedCount, &$errorCount, $quietMode) {
                 foreach ($crops as $crop) {
                     try {

@@ -12,6 +12,14 @@ class CropTimeCalculator
      */
     public function updateTimeCalculations(Crop $crop): void
     {
+        // Ensure relationships are loaded for calculations
+        if (!$crop->relationLoaded('currentStage')) {
+            $crop->load('currentStage');
+        }
+        if (!$crop->relationLoaded('recipe')) {
+            $crop->load('recipe');
+        }
+        
         // Calculate the time values
         $timeToNextStage = $this->calculateTimeToNextStage($crop);
         $stageAge = $this->calculateStageAge($crop);
