@@ -247,7 +247,7 @@ class OrderResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with(['customer', 'orderItems', 'invoice']))
+            ->modifyQueryUsing(fn ($query) => $query->with(['customer.customerType', 'orderItems', 'invoice', 'orderType', 'orderStatus', 'cropStatus', 'fulfillmentStatus']))
             ->persistFiltersInSession()
             ->persistSortInSession()
             ->persistColumnSearchesInSession()
@@ -258,7 +258,25 @@ class OrderResource extends Resource
                     ->sortable(),
                 Tables\Columns\TextColumn::make('customer.contact_name')
                     ->label('Customer')
-                    ->searchable(),
+                    ->formatStateUsing(function ($state, Order $record) {
+                        if (!$record->customer) {
+                            return '—';
+                        }
+                        
+                        $name = $record->customer->contact_name ?: 'No name';
+                        
+                        if ($record->customer->business_name) {
+                            return $name . ' (' . $record->customer->business_name . ')';
+                        }
+                        
+                        return $name;
+                    })
+                    ->searchable(query: function ($query, string $search) {
+                        return $query->whereHas('customer', function ($q) use ($search) {
+                            $q->where('contact_name', 'like', "%{$search}%")
+                              ->orWhere('business_name', 'like', "%{$search}%");
+                        });
+                    }),
                 Tables\Columns\TextColumn::make('order_type_display')
                     ->label('Type')
                     ->badge()

@@ -64,9 +64,12 @@
                                     type="number"
                                     x-model.number="item.quantity"
                                     @input="updateTotal(index)"
+                                    @focus="console.log('Focus on quantity input', index, 'step:', getQuantityStep(index), 'min:', getMinQuantity(index))"
                                     :min="getMinQuantity(index)"
                                     :step="getQuantityStep(index)"
                                     :placeholder="getQuantityPlaceholder(index)"
+                                    pattern="[0-9]*\.?[0-9]*"
+                                    inputmode="decimal"
                                     class="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-2 text-center"
                                 />
                                 <div class="text-xs text-gray-500 text-center mt-1" x-text="getQuantityUnit(index)"></div>
@@ -188,8 +191,14 @@ document.addEventListener('alpine:init', () => {
                         console.log(`Updated price for item ${index}: ${newPrice}`);
                     }
                     
+                    // Debug: Log variation details
+                    console.log('Selected variation:', variation);
+                    console.log('Pricing unit:', variation.pricing_unit);
+                    
                     // Reset quantity to appropriate default for the pricing unit
                     const pricingUnit = this.getPricingUnit(index);
+                    console.log('Detected pricing unit:', pricingUnit);
+                    console.log('Is sold by weight:', this.isSoldByWeight(index));
                     
                     if (this.isSoldByWeight(index)) {
                         // For weight-based items, set sensible defaults
@@ -267,6 +276,9 @@ document.addEventListener('alpine:init', () => {
         async init() {
             // Load price variations for existing items
             await this.loadExistingPriceVariations();
+            
+            // Debug: Log initial state
+            console.log('Initial items:', this.items);
             
             this.$watch('items', () => {
                 this.syncWithLivewire();

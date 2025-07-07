@@ -302,8 +302,8 @@ class PriceVariationResource extends Resource
     }
 
     /**
-     * Generate variation name in format: "Pricing Type - Packaging (size) - $price"
-     * Example: "Retail - Clamshell (24oz) - $5.00"
+     * Generate variation name in format: "Pricing Type - Packaging"
+     * Example: "Retail - Clamshell"
      */
     protected static function generateVariationName($packagingId, $pricingType, callable $set, callable $get): void
     {
@@ -326,28 +326,15 @@ class PriceVariationResource extends Resource
             $parts[] = $pricingTypeNames[$pricingType] ?? ucfirst($pricingType);
         }
         
-        // 2. Add packaging information
+        // 2. Add packaging information (without volume/size)
         if ($packagingId) {
             $packaging = \App\Models\PackagingType::find($packagingId);
             if ($packaging) {
-                $packagingPart = $packaging->name;
-                
-                // Add size information in parentheses
-                if ($packaging->capacity_volume && $packaging->volume_unit) {
-                    $packagingPart .= ' (' . $packaging->capacity_volume . $packaging->volume_unit . ')';
-                }
-                
-                $parts[] = $packagingPart;
+                $parts[] = $packaging->name;
             }
         } else {
             // Handle package-free variations
             $parts[] = 'Package-Free';
-        }
-        
-        // 3. Add price
-        $price = $get('price');
-        if ($price && is_numeric($price)) {
-            $parts[] = '$' . number_format((float)$price, 2);
         }
         
         // Join with " - " separator

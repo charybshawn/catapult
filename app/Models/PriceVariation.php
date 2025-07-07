@@ -295,8 +295,8 @@ class PriceVariation extends Model
     }
 
     /**
-     * Generate variation name in format: "Pricing Type - Packaging (size) - $price"
-     * Example: "Retail - Clamshell (24oz) - $5.00"
+     * Generate variation name in format: "Pricing Type - Packaging"
+     * Example: "Retail - Clamshell"
      */
     public function generateVariationName(): string
     {
@@ -313,31 +313,15 @@ class PriceVariation extends Model
         ];
         $parts[] = $pricingTypeNames[$pricingType] ?? ucfirst($pricingType);
         
-        // 2. Add packaging information
+        // 2. Add packaging information (without volume/size)
         if ($this->packaging_type_id) {
             $packaging = $this->packagingType;
             if ($packaging) {
-                $packagingPart = $packaging->name;
-                
-                // Add size information in parentheses
-                if ($packaging->capacity_volume && $packaging->volume_unit) {
-                    $packagingPart .= ' (' . $packaging->capacity_volume . $packaging->volume_unit . ')';
-                }
-                
-                $parts[] = $packagingPart;
+                $parts[] = $packaging->name;
             }
         } else {
             // Handle package-free variations
             $parts[] = 'Package-Free';
-        }
-        
-        // 3. Add price with unit for bulk items
-        if ($this->price && is_numeric($this->price)) {
-            if ($this->pricing_unit && $this->pricing_unit !== 'each') {
-                $parts[] = '$' . number_format((float)$this->price, 2) . '/' . $this->pricing_unit;
-            } else {
-                $parts[] = '$' . number_format((float)$this->price, 2);
-            }
         }
         
         // Join with " - " separator

@@ -30,7 +30,7 @@ Route::middleware(['web', 'auth'])->get('/products/{product}/price', function (R
 
 Route::middleware(['web', 'auth'])->get('/products/{product}/price-variations', function (Request $request, \App\Models\Product $product) {
     $customerId = $request->get('customer_id');
-    $customer = $customerId ? \App\Models\User::find($customerId) : null;
+    $customer = $customerId ? \App\Models\User::with('customerType')->find($customerId) : null;
     
     $priceVariations = $product->priceVariations()
         ->where('is_active', true)
@@ -61,6 +61,7 @@ Route::middleware(['web', 'auth'])->get('/products/{product}/price-variations', 
                 'fill_weight_grams' => $variation->fill_weight,
                 'is_default' => $variation->is_default,
                 'packaging_type' => $variation->packagingType?->name,
+                'pricing_unit' => $variation->pricing_unit,
             ];
         });
     
