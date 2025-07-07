@@ -6,6 +6,7 @@ use App\Filament\Resources\ProductMixResource;
 use App\Filament\Pages\Base\BaseEditRecord;
 use Filament\Actions;
 use Filament\Notifications\Notification;
+use Illuminate\Support\Facades\Log;
 
 class EditProductMix extends BaseEditRecord
 {
@@ -42,7 +43,7 @@ class EditProductMix extends BaseEditRecord
     protected function mutateFormDataBeforeSave(array $data): array
     {
         // Log the data to debug
-        \Illuminate\Support\Facades\Log::info('ProductMix save data:', [
+        Log::info('ProductMix save data:', [
             'data' => $data,
             'masterSeedCatalogs' => $this->data['masterSeedCatalogs'] ?? []
         ]);
@@ -68,7 +69,7 @@ class EditProductMix extends BaseEditRecord
             }
         }
         
-        \Illuminate\Support\Facades\Log::info('Syncing components:', $syncData);
+        Log::info('Syncing components:', $syncData);
         
         $this->record->masterSeedCatalogs()->sync($syncData);
     }

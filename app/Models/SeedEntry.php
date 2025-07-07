@@ -6,10 +6,14 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Log;
+use App\Traits\HasActiveStatus;
+use App\Traits\HasSupplier;
+use App\Traits\HasTimestamps;
 
 class SeedEntry extends Model
 {
-    use HasFactory;
+    use HasFactory, HasActiveStatus, HasSupplier, HasTimestamps;
     
     protected static function boot()
     {
@@ -52,7 +56,7 @@ class SeedEntry extends Model
                 ->first();
                 
             if ($duplicate) {
-                \Illuminate\Support\Facades\Log::warning('Potential duplicate seed entry detected', [
+                Log::warning('Potential duplicate seed entry detected', [
                     'existing_id' => $duplicate->id,
                     'new_entry' => [
                         'common_name' => $entry->common_name,
@@ -84,13 +88,7 @@ class SeedEntry extends Model
     ];
     
     
-    /**
-     * Get the supplier that this seed entry belongs to
-     */
-    public function supplier(): BelongsTo
-    {
-        return $this->belongsTo(Supplier::class);
-    }
+    // Supplier relationship is now provided by HasSupplier trait
     
     /**
      * Get the variations for this seed entry

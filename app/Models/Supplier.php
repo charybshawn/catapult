@@ -8,10 +8,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
+use App\Traits\HasActiveStatus;
+use App\Traits\HasTimestamps;
 
 class Supplier extends Model
 {
-    use HasFactory, LogsActivity;
+    use HasFactory, LogsActivity, HasActiveStatus, HasTimestamps;
     
     /**
      * The attributes that are mass assignable.

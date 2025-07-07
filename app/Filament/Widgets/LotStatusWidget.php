@@ -2,8 +2,7 @@
 
 namespace App\Filament\Widgets;
 
-use App\Services\LotDepletionService;
-use App\Services\LotInventoryService;
+use App\Services\InventoryManagementService;
 use Filament\Widgets\Widget;
 use Illuminate\Support\Carbon;
 
@@ -27,17 +26,16 @@ class LotStatusWidget extends Widget
      */
     public function getLotStatusData(): array
     {
-        $lotInventoryService = app(LotInventoryService::class);
-        $depletionService = app(LotDepletionService::class);
+        $inventoryService = app(InventoryManagementService::class);
         
         // Get overall lot statistics
-        $lotStatus = $depletionService->checkAllLots();
+        $lotStatus = $inventoryService->checkAllLots();
         
         // Get critical alerts
-        $criticalAlerts = $depletionService->getCriticalAlerts();
+        $criticalAlerts = $inventoryService->getCriticalAlerts();
         
         // Get low stock lots with details
-        $lowStockLots = $lotInventoryService->getLowStockLots(15.0);
+        $lowStockLots = $inventoryService->getLowStockLots(15.0);
         
         return [
             'statistics' => [

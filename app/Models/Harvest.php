@@ -24,7 +24,7 @@ class Harvest extends Model
 
     protected $casts = [
         'total_weight_grams' => 'decimal:2',
-        'tray_count' => 'integer',
+        'tray_count' => 'decimal:2',
         'harvest_date' => 'date',
     ];
 

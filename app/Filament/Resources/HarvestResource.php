@@ -63,8 +63,8 @@ class HarvestResource extends BaseResource
                                     ->label('Number of Trays')
                                     ->required()
                                     ->numeric()
-                                    ->minValue(1)
-                                    ->integer(),
+                                    ->minValue(0.1)
+                                    ->step(0.25),
                             ]),
                         Forms\Components\DatePicker::make('harvest_date')
                             ->label('Harvest Date')

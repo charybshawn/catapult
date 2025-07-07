@@ -27,23 +27,20 @@ class RecipeLotMethodsTest extends TestCase
     public function test_lot_consumables_relationship_returns_correct_consumables(): void
     {
         // Create consumables for the lot
-        $lotConsumable1 = Consumable::factory()->create([
-            'type' => 'seed',
+        $lotConsumable1 = Consumable::factory()->seed()->create([
             'lot_no' => 'TEST_LOT',
             'total_quantity' => 500.0,
             'is_active' => true,
         ]);
 
-        $lotConsumable2 = Consumable::factory()->create([
-            'type' => 'seed',
+        $lotConsumable2 = Consumable::factory()->seed()->create([
             'lot_no' => 'TEST_LOT',
             'total_quantity' => 300.0,
             'is_active' => true,
         ]);
 
         // Create consumable for different lot (should not be included)
-        $otherLotConsumable = Consumable::factory()->create([
-            'type' => 'seed',
+        $otherLotConsumable = Consumable::factory()->seed()->create([
             'lot_no' => 'OTHER_LOT',
             'total_quantity' => 200.0,
             'is_active' => true,
@@ -54,7 +51,7 @@ class RecipeLotMethodsTest extends TestCase
             'is_active' => true,
         ]);
 
-        $lotConsumables = $recipe->lotConsumables;
+        $lotConsumables = $recipe->lotConsumables();
 
         $this->assertCount(2, $lotConsumables);
         $this->assertTrue($lotConsumables->contains($lotConsumable1));
@@ -65,15 +62,13 @@ class RecipeLotMethodsTest extends TestCase
     public function test_available_lot_consumables_filters_inactive(): void
     {
         // Create active and inactive consumables for the same lot
-        $activeConsumable = Consumable::factory()->create([
-            'type' => 'seed',
+        $activeConsumable = Consumable::factory()->seed()->create([
             'lot_no' => 'TEST_LOT',
             'total_quantity' => 500.0,
             'is_active' => true,
         ]);
 
-        $inactiveConsumable = Consumable::factory()->create([
-            'type' => 'seed',
+        $inactiveConsumable = Consumable::factory()->seed()->create([
             'lot_no' => 'TEST_LOT',
             'total_quantity' => 300.0,
             'is_active' => false,
@@ -84,7 +79,7 @@ class RecipeLotMethodsTest extends TestCase
             'is_active' => true,
         ]);
 
-        $availableConsumables = $recipe->availableLotConsumables;
+        $availableConsumables = $recipe->availableLotConsumables();
 
         $this->assertCount(1, $availableConsumables);
         $this->assertTrue($availableConsumables->contains($activeConsumable));
@@ -94,16 +89,14 @@ class RecipeLotMethodsTest extends TestCase
     public function test_get_lot_quantity_returns_sum_of_available_stock(): void
     {
         // Create multiple consumables for the lot
-        Consumable::factory()->create([
-            'type' => 'seed',
+        Consumable::factory()->seed()->create([
             'lot_no' => 'QUANTITY_LOT',
             'total_quantity' => 1000.0,
             'consumed_quantity' => 200.0, // 800 available
             'is_active' => true,
         ]);
 
-        Consumable::factory()->create([
-            'type' => 'seed',
+        Consumable::factory()->seed()->create([
             'lot_no' => 'QUANTITY_LOT',
             'total_quantity' => 500.0,
             'consumed_quantity' => 100.0, // 400 available
@@ -111,8 +104,7 @@ class RecipeLotMethodsTest extends TestCase
         ]);
 
         // Create inactive consumable (should not be counted)
-        Consumable::factory()->create([
-            'type' => 'seed',
+        Consumable::factory()->seed()->create([
             'lot_no' => 'QUANTITY_LOT',
             'total_quantity' => 300.0,
             'consumed_quantity' => 0, // 300 available but inactive
@@ -145,16 +137,14 @@ class RecipeLotMethodsTest extends TestCase
     public function test_is_lot_depleted_returns_true_when_no_stock(): void
     {
         // Create fully consumed consumables
-        Consumable::factory()->create([
-            'type' => 'seed',
+        Consumable::factory()->seed()->create([
             'lot_no' => 'DEPLETED_LOT',
             'total_quantity' => 500.0,
             'consumed_quantity' => 500.0, // Fully consumed
             'is_active' => true,
         ]);
 
-        Consumable::factory()->create([
-            'type' => 'seed',
+        Consumable::factory()->seed()->create([
             'lot_no' => 'DEPLETED_LOT',
             'total_quantity' => 300.0,
             'consumed_quantity' => 300.0, // Fully consumed
@@ -171,8 +161,7 @@ class RecipeLotMethodsTest extends TestCase
 
     public function test_is_lot_depleted_returns_false_when_stock_available(): void
     {
-        Consumable::factory()->create([
-            'type' => 'seed',
+        Consumable::factory()->seed()->create([
             'lot_no' => 'AVAILABLE_LOT',
             'total_quantity' => 500.0,
             'consumed_quantity' => 200.0, // 300 still available
@@ -200,8 +189,7 @@ class RecipeLotMethodsTest extends TestCase
 
     public function test_can_execute_validates_sufficient_stock(): void
     {
-        Consumable::factory()->create([
-            'type' => 'seed',
+        Consumable::factory()->seed()->create([
             'lot_no' => 'EXECUTE_LOT',
             'total_quantity' => 1000.0,
             'consumed_quantity' => 300.0, // 700 available
@@ -225,8 +213,7 @@ class RecipeLotMethodsTest extends TestCase
     public function test_can_execute_returns_false_for_depleted_lot(): void
     {
         // Create fully depleted lot
-        Consumable::factory()->create([
-            'type' => 'seed',
+        Consumable::factory()->seed()->create([
             'lot_no' => 'DEPLETED_LOT',
             'total_quantity' => 500.0,
             'consumed_quantity' => 500.0,
@@ -328,15 +315,14 @@ class RecipeLotMethodsTest extends TestCase
             'is_active' => true,
         ]);
 
-        $this->assertEquals(0, $recipe->lotConsumables->count());
-        $this->assertEquals(0, $recipe->availableLotConsumables->count());
+        $this->assertEquals(0, $recipe->lotConsumables()->count());
+        $this->assertEquals(0, $recipe->availableLotConsumables()->count());
     }
 
     public function test_recipe_respects_seed_type_filtering(): void
     {
         // Create seed consumable for the lot
-        $seedConsumable = Consumable::factory()->create([
-            'type' => 'seed',
+        $seedConsumable = Consumable::factory()->seed()->create([
             'lot_no' => 'MIXED_LOT',
             'total_quantity' => 500.0,
             'is_active' => true,
@@ -355,7 +341,7 @@ class RecipeLotMethodsTest extends TestCase
             'is_active' => true,
         ]);
 
-        $lotConsumables = $recipe->lotConsumables;
+        $lotConsumables = $recipe->lotConsumables();
 
         $this->assertCount(1, $lotConsumables);
         $this->assertTrue($lotConsumables->contains($seedConsumable));

@@ -15,7 +15,7 @@ class SimpleBackupService
     public function __construct()
     {
         // Use direct file system instead of Laravel disk to avoid path confusion
-        $this->backupPath = 'backups/database';
+        $this->backupPath = config('backup.storage.path', 'backups/database');
     }
 
     /**
@@ -104,9 +104,10 @@ class SimpleBackupService
             
             $output = $process->getOutput();
             
-            // Check output size (warn if > 100MB)
+            // Check output size (warn if exceeds configured limit)
             $outputSize = strlen($output);
-            if ($outputSize > 100 * 1024 * 1024) {
+            $warningSizeMb = config('backup.limits.warning_size_mb', 100);
+            if ($outputSize > $warningSizeMb * 1024 * 1024) {
                 error_log("Large backup created: " . $this->formatBytes($outputSize));
             }
             
@@ -177,7 +178,7 @@ class SimpleBackupService
             
             // Clear existing data from main tables to avoid conflicts
             $tablesToClear = [
-                'activity_log', 'time_card_tasks', 'time_cards', 'crop_tasks', 'task_schedules',
+                'activity_log', 'time_card_tasks', 'time_cards', 'task_schedules',
                 'harvests', 'crops', 'seed_entries', 'recipes', 'consumables', 'suppliers',
                 'product_price_variations', 'products', 'categories', 'packaging_types',
                 'seed_variations', 'seed_price_history', 'product_inventories',

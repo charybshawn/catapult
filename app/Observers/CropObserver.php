@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Models\Crop;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class CropObserver
 {
@@ -38,7 +39,7 @@ class CropObserver
             
             // Debug logging only in debug mode to prevent memory issues
             if (config('app.debug') && config('logging.default') !== 'production') {
-                \Illuminate\Support\Facades\Log::debug('CropObserver: Updated stage age', [
+                Log::debug('CropObserver: Updated stage age', [
                     'crop_id' => $crop->id,
                     'current_stage' => $crop->current_stage,
                     'diff_minutes' => $crop->stage_age_minutes,

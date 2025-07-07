@@ -24,7 +24,8 @@
       "Bash(cp:*)",
       "Bash(find:*)",
       "Bash(git checkout:*)",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": []
   }

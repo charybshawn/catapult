@@ -57,22 +57,6 @@ return new class extends Migration
             $table->index('planted_at');
         });
 
-        Schema::create('crop_tasks', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('crop_id')->constrained()->onDelete('cascade');
-            $table->enum('task_type', ['water', 'advance_stage', 'harvest', 'general']);
-            $table->text('description');
-            $table->timestamp('scheduled_for');
-            $table->timestamp('completed_at')->nullable();
-            $table->foreignId('completed_by')->nullable()->constrained('users')->onDelete('set null');
-            $table->enum('status', ['pending', 'completed', 'skipped'])->default('pending');
-            $table->json('metadata')->nullable();
-            $table->timestamps();
-            
-            $table->index(['crop_id', 'status']);
-            $table->index(['scheduled_for', 'status']);
-        });
-
         Schema::create('harvests', function (Blueprint $table) {
             $table->id();
             $table->foreignId('master_cultivar_id')->constrained('master_cultivars')->onDelete('cascade');
@@ -111,7 +95,6 @@ return new class extends Migration
     {
         DB::statement('DROP VIEW IF EXISTS crop_batches');
         Schema::dropIfExists('harvests');
-        Schema::dropIfExists('crop_tasks');
         Schema::dropIfExists('crops');
         Schema::dropIfExists('crop_plans');
     }

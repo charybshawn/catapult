@@ -12,12 +12,17 @@ use Spatie\Activitylog\Traits\LogsActivity;
 use Illuminate\Support\Facades\DB;
 use Filament\Forms; // Import Forms namespace
 use App\Models\Supplier; // Import Supplier model
-use App\Services\InventoryService;
+use App\Services\InventoryManagementService;
+use Illuminate\Support\Facades\Log;
 use App\Services\ConsumableCalculatorService;
+use App\Traits\HasActiveStatus;
+use App\Traits\HasSupplier;
+use App\Traits\HasCostInformation;
+use App\Traits\HasTimestamps;
 
 class Consumable extends Model
 {
-    use HasFactory, LogsActivity;
+    use HasFactory, LogsActivity, HasActiveStatus, HasSupplier, HasCostInformation, HasTimestamps;
     
     /**
      * The attributes that are mass assignable.
@@ -94,7 +99,7 @@ class Consumable extends Model
     {
         // DO NOT set the legacy type field anymore - it causes wrong defaults
         // The type should come from the consumableType relationship
-        \Illuminate\Support\Facades\Log::warning('Attempted to set legacy type field on Consumable', [
+        Log::warning('Attempted to set legacy type field on Consumable', [
             'value' => $value,
             'consumable_id' => $this->id ?? 'new',
             'backtrace' => debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3)
@@ -134,13 +139,7 @@ class Consumable extends Model
         });
     }
     
-    /**
-     * Get the supplier for this consumable.
-     */
-    public function supplier(): BelongsTo
-    {
-        return $this->belongsTo(Supplier::class);
-    }
+    // Supplier relationship is now provided by HasSupplier trait
     
     /**
      * Get the consumable type for this consumable.
@@ -210,7 +209,7 @@ class Consumable extends Model
      */
     public function needsRestock(): bool
     {
-        return app(InventoryService::class)->needsRestock($this);
+        return app(InventoryManagementService::class)->needsRestock($this);
     }
     
     /**
@@ -218,7 +217,7 @@ class Consumable extends Model
      */
     public function totalValue(): float
     {
-        return app(InventoryService::class)->calculateTotalValue($this);
+        return app(InventoryManagementService::class)->calculateTotalValue($this);
     }
     
     /**
@@ -272,7 +271,7 @@ class Consumable extends Model
      */
     public function deduct(float $amount, ?string $unit = null): void
     {
-        app(InventoryService::class)->deductStock($this, $amount, $unit);
+        app(InventoryManagementService::class)->deductStock($this, $amount, $unit);
     }
     
     /**
@@ -285,7 +284,7 @@ class Consumable extends Model
      */
     public function add(float $amount, ?string $unit = null, ?string $lotNo = null): bool
     {
-        return app(InventoryService::class)->addStock($this, $amount, $unit, $lotNo);
+        return app(InventoryManagementService::class)->addStock($this, $amount, $unit, $lotNo);
     }
     
     /**
@@ -323,7 +322,7 @@ class Consumable extends Model
      */
     public function isOutOfStock(): bool
     {
-        return app(InventoryService::class)->isOutOfStock($this);
+        return app(InventoryManagementService::class)->isOutOfStock($this);
     }
 
     /**
@@ -331,7 +330,7 @@ class Consumable extends Model
      */
     public function getFormattedTotalWeightAttribute(): string
     {
-        return app(InventoryService::class)->getFormattedTotalWeight($this);
+        return app(InventoryManagementService::class)->getFormattedTotalWeight($this);
     }
     
     /**
@@ -698,7 +697,7 @@ class Consumable extends Model
     public function getCurrentStockWithTransactions(): float
     {
         if ($this->consumableTransactions()->exists()) {
-            return app(InventoryService::class)->getCurrentStockFromTransactions($this);
+            return app(InventoryManagementService::class)->getCurrentStockFromTransactions($this);
         }
 
         // Fall back to legacy calculation
@@ -718,7 +717,7 @@ class Consumable extends Model
      */
     public function initializeTransactionTracking(): ?ConsumableTransaction
     {
-        return app(InventoryService::class)->initializeTransactionTracking($this);
+        return app(InventoryManagementService::class)->initializeTransactionTracking($this);
     }
 
     /**
@@ -733,7 +732,7 @@ class Consumable extends Model
         ?string $notes = null,
         ?array $metadata = null
     ): ConsumableTransaction {
-        return app(InventoryService::class)->recordConsumption(
+        return app(InventoryManagementService::class)->recordConsumption(
             $this,
             $amount,
             $unit,
@@ -757,7 +756,7 @@ class Consumable extends Model
         ?string $notes = null,
         ?array $metadata = null
     ): ConsumableTransaction {
-        return app(InventoryService::class)->recordAddition(
+        return app(InventoryManagementService::class)->recordAddition(
             $this,
             $amount,
             $unit,

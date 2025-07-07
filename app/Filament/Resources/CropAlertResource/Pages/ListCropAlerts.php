@@ -5,7 +5,7 @@ namespace App\Filament\Resources\CropAlertResource\Pages;
 use App\Filament\Resources\CropAlertResource;
 use App\Models\Crop;
 use App\Models\TaskSchedule;
-use App\Services\CropTaskService;
+use App\Services\CropTaskManagementService;
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Notifications\Notification;
@@ -37,7 +37,7 @@ class ListCropAlerts extends ListRecords
                         
                         // Regenerate alerts for all active crops
                         $crops = Crop::whereNotIn('current_stage', ['harvested'])->get();
-                        $cropTaskService = app(CropTaskService::class);
+                        $cropTaskService = app(CropTaskManagementService::class);
                         
                         foreach ($crops as $crop) {
                             $cropTaskService->scheduleAllStageTasks($crop);

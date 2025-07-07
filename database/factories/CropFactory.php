@@ -71,8 +71,11 @@ class CropFactory extends Factory
     public function planting(): static
     {
         return $this->state(fn (array $attributes) => [
-            'current_stage' => 'planting',
-            'planting_at' => $attributes['planted_at'] ?? now(),
+            'current_stage_id' => function() {
+                $plantingStage = \App\Models\CropStage::where('code', 'planting')->first();
+                return $plantingStage ? $plantingStage->id : 1;
+            },
+            'planting_at' => $attributes['planting_at'] ?? now(),
             'germination_at' => null,
             'blackout_at' => null,
             'light_at' => null,
@@ -87,11 +90,14 @@ class CropFactory extends Factory
     public function germination(): static
     {
         return $this->state(function (array $attributes) {
-            $plantedAt = $attributes['planted_at'] ?? fake()->dateTimeBetween('-30 days', '-7 days');
+            $plantedAt = $attributes['planting_at'] ?? fake()->dateTimeBetween('-30 days', '-7 days');
             $germinationAt = fake()->dateTimeBetween($plantedAt, 'now');
             
             return [
-                'current_stage' => 'germination',
+                'current_stage_id' => function() {
+                $germinationStage = \App\Models\CropStage::where('code', 'germination')->first();
+                return $germinationStage ? $germinationStage->id : 1;
+            },
                 'planting_at' => $plantedAt,
                 'germination_at' => $germinationAt,
                 'blackout_at' => null,
@@ -108,12 +114,15 @@ class CropFactory extends Factory
     public function blackout(): static
     {
         return $this->state(function (array $attributes) {
-            $plantedAt = $attributes['planted_at'] ?? fake()->dateTimeBetween('-30 days', '-7 days');
+            $plantedAt = $attributes['planting_at'] ?? fake()->dateTimeBetween('-30 days', '-7 days');
             $germinationAt = fake()->dateTimeBetween($plantedAt, '-5 days');
             $blackoutAt = fake()->dateTimeBetween($germinationAt, 'now');
             
             return [
-                'current_stage' => 'blackout',
+                'current_stage_id' => function() {
+                $blackoutStage = \App\Models\CropStage::where('code', 'blackout')->first();
+                return $blackoutStage ? $blackoutStage->id : 2;
+            },
                 'planting_at' => $plantedAt,
                 'germination_at' => $germinationAt,
                 'blackout_at' => $blackoutAt,
@@ -130,13 +139,16 @@ class CropFactory extends Factory
     public function light(): static
     {
         return $this->state(function (array $attributes) {
-            $plantedAt = $attributes['planted_at'] ?? fake()->dateTimeBetween('-30 days', '-7 days');
+            $plantedAt = $attributes['planting_at'] ?? fake()->dateTimeBetween('-30 days', '-7 days');
             $germinationAt = fake()->dateTimeBetween($plantedAt, '-6 days');
             $blackoutAt = fake()->dateTimeBetween($germinationAt, '-4 days');
             $lightAt = fake()->dateTimeBetween($blackoutAt, 'now');
             
             return [
-                'current_stage' => 'light',
+                'current_stage_id' => function() {
+                $lightStage = \App\Models\CropStage::where('code', 'light')->first();
+                return $lightStage ? $lightStage->id : 3;
+            },
                 'planting_at' => $plantedAt,
                 'germination_at' => $germinationAt,
                 'blackout_at' => $blackoutAt,
@@ -153,14 +165,17 @@ class CropFactory extends Factory
     public function harvested(): static
     {
         return $this->state(function (array $attributes) {
-            $plantedAt = $attributes['planted_at'] ?? fake()->dateTimeBetween('-30 days', '-7 days');
+            $plantedAt = $attributes['planting_at'] ?? fake()->dateTimeBetween('-30 days', '-7 days');
             $germinationAt = fake()->dateTimeBetween($plantedAt, '-6 days');
             $blackoutAt = fake()->dateTimeBetween($germinationAt, '-5 days');
             $lightAt = fake()->dateTimeBetween($blackoutAt, '-2 days');
             $harvestedAt = fake()->dateTimeBetween($lightAt, 'now');
             
             return [
-                'current_stage' => 'harvested',
+                'current_stage_id' => function() {
+                $harvestedStage = \App\Models\CropStage::where('code', 'harvested')->first();
+                return $harvestedStage ? $harvestedStage->id : 4;
+            },
                 'planting_at' => $plantedAt,
                 'germination_at' => $germinationAt,
                 'blackout_at' => $blackoutAt,
@@ -177,7 +192,7 @@ class CropFactory extends Factory
     public function wateringSuspended(): static
     {
         return $this->state(function (array $attributes) {
-            $plantedAt = $attributes['planted_at'] ?? fake()->dateTimeBetween('-30 days', '-7 days');
+            $plantedAt = $attributes['planting_at'] ?? fake()->dateTimeBetween('-30 days', '-7 days');
             
             return [
                 'watering_suspended_at' => fake()->dateTimeBetween($plantedAt, 'now'),

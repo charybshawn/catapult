@@ -7,10 +7,10 @@ use Illuminate\Foundation\Testing\WithFaker;
 use Tests\TestCase;
 use App\Models\Recipe;
 use App\Models\Crop;
-use App\Models\CropTask;
+use App\Models\TaskSchedule;
 use App\Models\User;
 use App\Models\Consumable;
-use App\Models\SeedVariety;
+use App\Models\SeedEntry;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Notification;
 use Filament\Notifications\Notification as FilamentNotification;
@@ -28,10 +28,19 @@ class ProcessCropTasksTest extends TestCase
         parent::setUp();
         // Restore time mocking
         Carbon::setTestNow(Carbon::parse('2024-05-10 12:00:00'));
+        
+        // Create Admin role if it doesn't exist
+        if (!\Spatie\Permission\Models\Role::where('name', 'Admin')->exists()) {
+            \Spatie\Permission\Models\Role::create(['name' => 'Admin']);
+        }
+        
+        // Seed the CropStage lookup data
+        $this->seed(\Database\Seeders\Lookup\CropStageSeeder::class);
+        
         User::factory()->create();
         Consumable::factory()->count(2)->create(['type' => 'seed']);
         Consumable::factory()->count(2)->create(['type' => 'soil']);
-        SeedVariety::factory()->create();
+        SeedEntry::factory()->create();
     }
 
     protected function tearDown(): void
@@ -48,147 +57,177 @@ class ProcessCropTasksTest extends TestCase
         $user = User::first();
         $crop = Crop::factory()->create([
             'recipe_id' => $recipe->id,
-            'planted_at' => Carbon::now()->subDays(5),
-            'watering_suspended_at' => null,
-        ]);
-        $task = CropTask::factory()->create([
-            'crop_id' => $crop->id,
-            'recipe_id' => $recipe->id,
-            'task_type' => 'suspend_watering',
-            'scheduled_at' => Carbon::now()->subHour(),
-            'status' => 'pending',
-        ]);
-        $taskId = $task->id;
-
-        // Assert initial state
-        $this->assertDatabaseHas('crop_tasks', ['id' => $taskId, 'status' => 'pending']);
-        $this->assertNull($crop->watering_suspended_at);
-
-        // Run command
-        Artisan::call('app:process-crop-tasks');
-
-        // Assert task status is updated
-        $this->assertDatabaseHas('crop_tasks', [
-            'id' => $taskId,
-            'status' => 'triggered',
-            'triggered_at' => Carbon::now()->toDateTimeString(),
+            'planting_at' => Carbon::now()->subDays(5),
         ]);
 
-        // Assert crop watering was suspended
-        $crop->refresh();
-        $this->assertNotNull($crop->watering_suspended_at);
-
-        // Assert notification exists in the database for the user
-        $this->assertDatabaseHas('notifications', [
-            'notifiable_type' => User::class,
-            'notifiable_id' => $user->id,
-            'type' => \Filament\Notifications\DatabaseNotification::class,
+        // Create a suspend watering task that's due
+        $task = TaskSchedule::create([
+            'name' => 'Test Suspend Watering Task',
+            'resource_type' => 'crops',
+            'task_name' => 'suspend_watering',
+            'frequency' => 'once',
+            'schedule_config' => [],
+            'conditions' => [
+                'crop_id' => $crop->id,
+                'task_type' => 'suspend_watering'
+            ],
+            'is_active' => true,
+            'next_run_at' => Carbon::now()->subMinute(), // Due 1 minute ago
         ]);
-        $notification = DB::table('notifications')
-                         ->where('notifiable_id', $user->id)
-                         ->latest('created_at')
-                         ->first();
-        $this->assertNotNull($notification, 'Notification not found in database.');
-        $notificationData = json_decode($notification->data, true);
-        $this->assertEquals('Watering Suspended', $notificationData['title']);
-        $this->assertStringContainsString($task->recipe->name, $notificationData['body']);
+
+        // Set up admin role for the user
+        $user->assignRole('Admin');
+
+        // Mock notifications
+        Notification::fake();
+
+        // Run the command
+        $this->artisan('app:process-task-schedules', ['--type' => 'crops'])
+            ->assertExitCode(0);
+
+        // Assert notification was sent
+        Notification::assertSentTo(
+            $user,
+            \App\Notifications\CropTaskActionDue::class,
+            function ($notification, $channels) use ($task, $crop) {
+                return $notification->task->id === $task->id
+                    && $notification->crop->id === $crop->id;
+            }
+        );
+
+        // Task should still be active (waiting for manual action)
+        $task->refresh();
+        $this->assertTrue($task->is_active);
     }
 
     /** @test */
-    public function it_processes_pending_stage_change_notification_task(): void
+    public function it_skips_tasks_with_missing_crop(): void
     {
-        $recipe = Recipe::factory()->create();
+        // Create a task with non-existent crop_id
+        $task = TaskSchedule::create([
+            'name' => 'Test Missing Crop Task',
+            'resource_type' => 'crops',
+            'task_name' => 'advance_to_light',
+            'frequency' => 'once',
+            'schedule_config' => [],
+            'conditions' => [
+                'crop_id' => 999999, // Non-existent
+                'task_type' => 'end_germination'
+            ],
+            'is_active' => true,
+            'next_run_at' => Carbon::now()->subMinute(),
+        ]);
+
         $user = User::first();
-        $crop = Crop::factory()->create(['recipe_id' => $recipe->id, 'planted_at' => Carbon::now()->subDays(3)]);
-        $task = CropTask::factory()->create([
-            'crop_id' => $crop->id,
-            'recipe_id' => $recipe->id,
-            'task_type' => 'end_germination',
-            'details' => ['target_stage' => 'blackout'],
-            'scheduled_at' => Carbon::now()->subHour(),
-            'status' => 'pending',
-        ]);
-        $taskId = $task->id;
+        $user->assignRole('Admin');
 
-        Artisan::call('app:process-crop-tasks');
+        Notification::fake();
 
-        // Assert task status is updated
-         $this->assertDatabaseHas('crop_tasks', [
-            'id' => $taskId,
-            'status' => 'triggered', // Assume success for this test
-            'triggered_at' => Carbon::now()->toDateTimeString(),
-        ]);
+        // Run the command
+        $this->artisan('app:process-task-schedules', ['--type' => 'crops'])
+            ->assertExitCode(0);
 
-         // Assert notification exists in the database
-        $notification = DB::table('notifications')
-                         ->where('notifiable_id', $user->id)
-                         ->whereJsonContains('data->title', 'Stage Transition Ready')
-                         ->latest('created_at')
-                         ->first();
-        $this->assertNotNull($notification, 'Stage Transition notification not found in database.');
-        $notificationData = json_decode($notification->data, true);
-        $this->assertStringContainsString('blackout', $notificationData['body']);
-    }
+        // No notifications should be sent
+        Notification::assertNothingSent();
 
-     /** @test */
-    public function it_processes_pending_harvest_notification_task(): void
-    {
-        $recipe = Recipe::factory()->create();
-        $user = User::first();
-        $crop = Crop::factory()->create(['recipe_id' => $recipe->id, 'planted_at' => Carbon::now()->subDays(10)]);
-        $task = CropTask::factory()->create([
-            'crop_id' => $crop->id,
-            'recipe_id' => $recipe->id,
-            'task_type' => 'expected_harvest',
-            'scheduled_at' => Carbon::now()->subHour(),
-            'status' => 'pending',
-        ]);
-        $taskId = $task->id;
-
-        Artisan::call('app:process-crop-tasks');
-
-        // Assert task status is updated
-         $this->assertDatabaseHas('crop_tasks', [
-            'id' => $taskId,
-            'status' => 'triggered', // Assume success
-            'triggered_at' => Carbon::now()->toDateTimeString(),
-        ]);
-
-         // Assert notification exists in the database
-        $notification = DB::table('notifications')
-                         ->where('notifiable_id', $user->id)
-                         ->whereJsonContains('data->title', 'Harvest Ready')
-                         ->latest('created_at')
-                         ->first();
-        $this->assertNotNull($notification, 'Harvest Ready notification not found in database.');
+        // Task should be marked inactive
+        $task->refresh();
+        $this->assertFalse($task->is_active);
     }
 
     /** @test */
-    public function it_does_not_process_tasks_scheduled_in_the_future(): void
+    public function it_only_processes_due_tasks(): void
     {
         $recipe = Recipe::factory()->create();
-        $crop = Crop::factory()->create(['recipe_id' => $recipe->id]);
-        $task = CropTask::factory()->create([
-            'crop_id' => $crop->id,
+        $crop = Crop::factory()->create([
             'recipe_id' => $recipe->id,
-            'task_type' => 'expected_harvest',
-            'scheduled_at' => Carbon::now()->addHour(), // Scheduled in the future
-            'status' => 'pending',
+            'planting_at' => Carbon::now()->subDays(5),
         ]);
 
-        Artisan::call('app:process-crop-tasks');
-        $outputText = Artisan::output(); // Capture output to check message
+        // Create a task that's not due yet
+        $futureTask = TaskSchedule::create([
+            'name' => 'Test Future Task',
+            'resource_type' => 'crops',
+            'task_name' => 'advance_to_harvested',
+            'frequency' => 'once',
+            'schedule_config' => [],
+            'conditions' => [
+                'crop_id' => $crop->id,
+                'task_type' => 'expected_harvest'
+            ],
+            'is_active' => true,
+            'next_run_at' => Carbon::now()->addHour(), // Due in 1 hour
+        ]);
+
+        // Create a task that's due
+        $dueTask = TaskSchedule::create([
+            'name' => 'Test Due Task',
+            'resource_type' => 'crops',
+            'task_name' => 'advance_to_light',
+            'frequency' => 'once',
+            'schedule_config' => [],
+            'conditions' => [
+                'crop_id' => $crop->id,
+                'task_type' => 'end_germination'
+            ],
+            'is_active' => true,
+            'next_run_at' => Carbon::now()->subMinute(), // Due 1 minute ago
+        ]);
+
+        $user = User::first();
+        $user->assignRole('Admin');
+
+        Notification::fake();
+
+        // Run the command
+        $this->artisan('app:process-task-schedules', ['--type' => 'crops'])
+            ->assertExitCode(0);
+
+        // Only one notification should be sent
+        Notification::assertCount(1);
         
-        // Assert task status remains pending
-        $this->assertDatabaseHas('crop_tasks', [
-            'id' => $task->id,
-            'status' => 'pending',
+        // Assert the due task was processed
+        Notification::assertSentTo(
+            $user,
+            \App\Notifications\CropTaskActionDue::class,
+            function ($notification) use ($dueTask) {
+                return $notification->task->id === $dueTask->id;
+            }
+        );
+    }
+
+    /** @test */
+    public function it_handles_no_admin_users_gracefully(): void
+    {
+        $recipe = Recipe::factory()->create();
+        $crop = Crop::factory()->create([
+            'recipe_id' => $recipe->id,
+            'planting_at' => Carbon::now()->subDays(5),
         ]);
 
-        // Assert correct output message (optional but good)
-        $this->assertStringContainsString('No pending crop tasks found.', $outputText);
+        // Create a due task
+        $task = TaskSchedule::create([
+            'name' => 'Test Handler Task',
+            'resource_type' => 'crops',
+            'task_name' => 'advance_to_light',
+            'frequency' => 'once',
+            'schedule_config' => [],
+            'conditions' => [
+                'crop_id' => $crop->id,
+                'task_type' => 'end_germination'
+            ],
+            'is_active' => true,
+            'next_run_at' => Carbon::now()->subMinute(),
+        ]);
 
-        // Assert no notification was created in the database
-        $this->assertDatabaseCount('notifications', 0);
+        // Don't assign admin role to any user
+        Notification::fake();
+
+        // Run the command - should not throw exception
+        $this->artisan('app:process-task-schedules', ['--type' => 'crops'])
+            ->assertExitCode(0);
+
+        // No notifications should be sent
+        Notification::assertNothingSent();
     }
 }

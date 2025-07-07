@@ -53,7 +53,16 @@ class ConsumableFactory extends Factory
     public function packaging(): static
     {
         return $this->state(fn (array $attributes) => [
-            'consumable_type_id' => \App\Models\ConsumableType::factory()->packaging(),
+            'consumable_type_id' => \App\Models\ConsumableType::firstOrCreate(
+                ['code' => 'packaging'],
+                [
+                    'name' => 'Packaging',
+                    'description' => 'Packaging materials',
+                    'color' => 'brown',
+                    'is_active' => true,
+                    'sort_order' => 2,
+                ]
+            )->id,
             'name' => fake()->randomElement(['Clamshell Containers', 'Plastic Bags', 'Paper Towels', 'Boxes', 'Trays']),
         ]);
     }
@@ -64,7 +73,16 @@ class ConsumableFactory extends Factory
     public function label(): static
     {
         return $this->state(fn (array $attributes) => [
-            'consumable_type_id' => \App\Models\ConsumableType::factory()->state(['code' => 'label', 'name' => 'Labels']),
+            'consumable_type_id' => \App\Models\ConsumableType::firstOrCreate(
+                ['code' => 'label'],
+                [
+                    'name' => 'Labels',
+                    'description' => 'Labels and tags',
+                    'color' => 'blue',
+                    'is_active' => true,
+                    'sort_order' => 4,
+                ]
+            )->id,
             'name' => fake()->randomElement(['Product Labels', 'Price Tags', 'Stickers', 'Barcode Labels', 'Brand Labels']),
         ]);
     }
@@ -75,7 +93,16 @@ class ConsumableFactory extends Factory
     public function seed(): static
     {
         return $this->state(fn (array $attributes) => [
-            'consumable_type_id' => \App\Models\ConsumableType::factory()->seed(),
+            'consumable_type_id' => \App\Models\ConsumableType::firstOrCreate(
+                ['code' => 'seed'],
+                [
+                    'name' => 'Seeds',
+                    'description' => 'Seed consumables',
+                    'color' => 'green',
+                    'is_active' => true,
+                    'sort_order' => 1,
+                ]
+            )->id,
             'name' => fake()->words(2, true) . ' Seeds',
             'quantity_unit' => 'g',
         ]);
@@ -87,7 +114,16 @@ class ConsumableFactory extends Factory
     public function soil(): static
     {
         return $this->state(fn (array $attributes) => [
-            'consumable_type_id' => \App\Models\ConsumableType::factory()->state(['code' => 'soil', 'name' => 'Soil']),
+            'consumable_type_id' => \App\Models\ConsumableType::firstOrCreate(
+                ['code' => 'soil'],
+                [
+                    'name' => 'Soil',
+                    'description' => 'Soil and growing media',
+                    'color' => 'brown',
+                    'is_active' => true,
+                    'sort_order' => 3,
+                ]
+            )->id,
             'name' => fake()->randomElement(['Potting Mix', 'Seed Starting Mix', 'Coco Coir', 'Peat Moss', 'Vermiculite']),
             'quantity_unit' => 'kg',
         ]);
@@ -99,7 +135,16 @@ class ConsumableFactory extends Factory
     public function other(): static
     {
         return $this->state(fn (array $attributes) => [
-            'consumable_type_id' => \App\Models\ConsumableType::factory()->state(['code' => 'other', 'name' => 'Other']),
+            'consumable_type_id' => \App\Models\ConsumableType::firstOrCreate(
+                ['code' => 'other'],
+                [
+                    'name' => 'Other',
+                    'description' => 'Other consumables',
+                    'color' => 'gray',
+                    'is_active' => true,
+                    'sort_order' => 5,
+                ]
+            )->id,
             'name' => fake()->randomElement(['Sanitizer', 'Hydrogen Peroxide', 'pH Test Strips', 'Scissors', 'Gloves', 'Pens']),
         ]);
     }

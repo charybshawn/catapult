@@ -106,16 +106,7 @@ class RecipeManagementTest extends TestCase
     /** @test */
     public function recipe_automatically_generates_name_from_components(): void
     {
-        $recipe = Recipe::factory()->create([
-            'lot_number' => 'TEST123',
-            'seed_density_grams_per_tray' => 30.0,
-            'days_to_maturity' => 12.0,
-            'common_name' => null,
-            'cultivar_name' => null,
-            'name' => 'Temporary Name', // Will be overwritten by generateRecipeName
-        ]);
-
-        // Create matching consumable
+        // Create matching consumable first
         $seedTypeId = \App\Models\ConsumableType::firstOrCreate(['code' => 'seed'], ['name' => 'Seed', 'description' => 'Seed type'])->id;
         Consumable::factory()->create([
             'name' => 'Basil (Genovese)',
@@ -124,9 +115,14 @@ class RecipeManagementTest extends TestCase
             'is_active' => true,
         ]);
 
-        // Trigger name generation
-        $recipe->generateRecipeName();
-        $recipe->save();
+        // Create recipe - name will be auto-generated on save
+        $recipe = Recipe::factory()->create([
+            'lot_number' => 'TEST123',
+            'seed_density_grams_per_tray' => 30.0,
+            'days_to_maturity' => 12.0,
+            'common_name' => null,
+            'cultivar_name' => null,
+        ]);
 
         $this->assertEquals('Basil (Genovese) - 30G - 12 DTM - TEST123', $recipe->name);
         $this->assertEquals('Basil', $recipe->common_name);

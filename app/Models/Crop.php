@@ -10,11 +10,15 @@ use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 use App\Services\CropLifecycleService;
 use App\Services\CropTimeCalculator;
+use App\Services\InventoryManagementService;
+use App\Services\CropValidationService;
 use App\Models\SeedEntry;
+use Illuminate\Support\Facades\Log;
+use App\Traits\HasTimestamps;
 
 class Crop extends Model
 {
-    use HasFactory, LogsActivity;
+    use HasFactory, LogsActivity, HasTimestamps;
     
     /**
      * Flag to prevent recursive model events during bulk operations
@@ -54,7 +58,7 @@ class Crop extends Model
      *
      * @var array
      */
-    protected $appends = ['variety_name'];
+    protected $appends = ['variety_name', 'current_stage'];
     
     /**
      * The attributes that should be cast.
@@ -155,6 +159,41 @@ class Crop extends Model
     }
     
     /**
+     * Get the current_stage attribute for backward compatibility.
+     * Maps the current_stage_id to the stage code.
+     */
+    public function getCurrentStageAttribute(): string
+    {
+        // If we have a current_stage_id, try to get from the relationship
+        if ($this->current_stage_id && $this->relationLoaded('currentStage')) {
+            $stage = $this->getRelationValue('currentStage');
+            return $stage ? $stage->code : 'germination';
+        }
+        
+        // Otherwise, use the default mapping
+        $stageMap = [
+            1 => 'germination',
+            2 => 'blackout',
+            3 => 'light',
+            4 => 'harvested'
+        ];
+        
+        return $stageMap[$this->current_stage_id ?? 1] ?? 'germination';
+    }
+    
+    /**
+     * Set the current_stage attribute for backward compatibility.
+     * Maps the stage code to current_stage_id.
+     */
+    public function setCurrentStageAttribute(string $value): void
+    {
+        $stage = CropStage::findByCode($value);
+        if ($stage) {
+            $this->current_stage_id = $stage->id;
+        }
+    }
+    
+    /**
      * For compatibility with the dashboard template - tray is actually just a string field.
      */
     public function tray()
@@ -177,33 +216,7 @@ class Crop extends Model
         return $this->watering_suspended_at !== null;
     }
     
-    /**
-     * Suspend watering.
-     * 
-     * @param Carbon|null $timestamp Optional timestamp for when watering was suspended
-     */
-    public function suspendWatering($timestamp = null): void
-    {
-        app(CropLifecycleService::class)->suspendWatering($this, $timestamp);
-    }
-    
-    /**
-     * Resume watering.
-     */
-    public function resumeWatering(): void
-    {
-        app(CropLifecycleService::class)->resumeWatering($this);
-    }
-    
-    /**
-     * Advance to the next stage.
-     * 
-     * @param Carbon|null $timestamp Optional timestamp for when the advancement occurred
-     */
-    public function advanceStage($timestamp = null): void
-    {
-        app(CropLifecycleService::class)->advanceStage($this, $timestamp);
-    }
+    // Business logic methods removed - use CropLifecycleService directly
     
     /**
      * Determine the next logical stage in the growth cycle.
@@ -225,21 +238,7 @@ class Crop extends Model
         return $this->currentStage?->getPreviousStage();
     }
     
-    /**
-     * Calculate the expected harvest date.
-     */
-    public function expectedHarvestDate(): ?Carbon
-    {
-        return app(CropLifecycleService::class)->calculateExpectedHarvestDate($this);
-    }
-    
-    /**
-     * Calculate days in current stage.
-     */
-    public function daysInCurrentStage(): int
-    {
-        return app(CropLifecycleService::class)->calculateDaysInCurrentStage($this);
-    }
+    // Calculation methods removed - use CropLifecycleService directly
     
     /**
      * Configure the activity log options for this model.
@@ -269,182 +268,50 @@ class Crop extends Model
      */
     protected static function booted()
     {
-        // Add our existing boot logic
+        // Initialize new crops with default values
         static::creating(function (Crop $crop) {
-            // Set planting_at if not provided
-            if (!$crop->planting_at) {
-                $crop->planting_at = now();
-            }
-            
-            // Set germination_at and current_stage to germination automatically
-            if ($crop->planting_at && !$crop->germination_at) {
-                $crop->germination_at = $crop->planting_at;
-            }
-            
-            // Always start at germination stage if not set
-            if (!$crop->current_stage_id) {
-                $germinationStage = CropStage::findByCode('germination');
-                $crop->current_stage_id = $germinationStage->id;
-            }
-            
-            // Initialize computed time fields with safe values
-            if (!isset($crop->time_to_next_stage_minutes)) {
-                $crop->time_to_next_stage_minutes = 0;
-            }
-            if (!isset($crop->time_to_next_stage_display)) {
-                $crop->time_to_next_stage_display = 'Unknown';
-            }
-            if (!isset($crop->stage_age_minutes)) {
-                $crop->stage_age_minutes = 0;
-            }
-            if (!isset($crop->stage_age_display)) {
-                $crop->stage_age_display = '0m';
-            }
-            if (!isset($crop->total_age_minutes)) {
-                $crop->total_age_minutes = 0;
-            }
-            if (!isset($crop->total_age_display)) {
-                $crop->total_age_display = '0m';
-            }
+            /** @var CropValidationService $validationService */
+            $validationService = app(CropValidationService::class);
+            $validationService->initializeNewCrop($crop);
         });
         
         // Add event listeners to recalculate time_to_next_stage values
         static::saving(function (Crop $crop) {
             // Calculate and update the time_to_next_stage values whenever the model is saved
-            $crop->updateTimeToNextStageValues();
+            if (!$crop->exists || $crop->isDirty(['current_stage_id', 'planting_at', 'germination_at', 'blackout_at', 'light_at', 'harvested_at'])) {
+                /** @var CropTimeCalculator $timeCalculator */
+                $timeCalculator = app(CropTimeCalculator::class);
+                $timeCalculator->updateTimeCalculations($crop);
+            }
         });
         
         static::created(function ($crop) {
-            // Automatically deduct seed from inventory when crop is created
-            if (!self::$bulkOperation && $crop->recipe && $crop->recipe->seedConsumable && $crop->recipe->seed_density_grams_per_tray) {
-                try {
-                    $seedConsumable = $crop->recipe->seedConsumable;
-                    $requiredAmount = $crop->recipe->seed_density_grams_per_tray;
-                    
-                    // Convert required amount to the same unit as the seed consumable for comparison
-                    $inventoryService = app(\App\Services\InventoryService::class);
-                    $currentStock = $inventoryService->getCurrentStock($seedConsumable);
-                    
-                    // Check if we have enough seed (convert units if needed for comparison)
-                    $requiredInSeedUnits = match($seedConsumable->quantity_unit) {
-                        'kg' => $requiredAmount / 1000, // Convert grams to kg
-                        'g' => $requiredAmount, // Already in grams
-                        default => $requiredAmount // For other units, assume direct comparison
-                    };
-                    
-                    if ($currentStock >= $requiredInSeedUnits) {
-                        // Deduct the seed amount specified in the recipe for this tray
-                        $seedConsumable->deduct(
-                            $requiredAmount,
-                            'g' // Recipe seed density is always in grams
-                        );
-                        
-                        \Illuminate\Support\Facades\Log::info('Seed automatically deducted for new crop', [
-                            'crop_id' => $crop->id,
-                            'recipe_id' => $crop->recipe_id,
-                            'lot_number' => $crop->recipe->lot_number,
-                            'seed_consumable_id' => $seedConsumable->id, // DEPRECATED: Use lot_number instead
-                            'amount_deducted' => $requiredAmount,
-                            'unit' => 'g',
-                            'remaining_stock' => $currentStock - $requiredInSeedUnits
-                        ]);
-                    } else {
-                        \Illuminate\Support\Facades\Log::warning('Insufficient seed stock for crop creation', [
-                            'crop_id' => $crop->id,
-                            'recipe_id' => $crop->recipe_id,
-                            'lot_number' => $crop->recipe->lot_number,
-                            'seed_consumable_id' => $seedConsumable->id, // DEPRECATED: Use lot_number instead
-                            'required_amount' => $requiredAmount,
-                            'current_stock' => $currentStock,
-                            'seed_unit' => $seedConsumable->quantity_unit
-                        ]);
-                    }
-                } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::warning('Error deducting seed inventory for new crop', [
-                        'crop_id' => $crop->id,
-                        'recipe_id' => $crop->recipe_id,
-                        'error' => $e->getMessage()
-                    ]);
-                }
-            }
-            
-            // Schedule stage transition tasks (skip during testing to avoid memory issues)
-            if (config('app.env') !== 'testing' && !self::$bulkOperation) {
-                try {
-                    app(\App\Services\CropTaskService::class)->scheduleAllStageTasks($crop);
-                } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::warning('Error scheduling crop tasks', [
-                        'crop_id' => $crop->id,
-                        'error' => $e->getMessage()
-                    ]);
-                }
-            }
+            /** @var CropValidationService $validationService */
+            $validationService = app(CropValidationService::class);
+            $validationService->handleCropCreated($crop);
         });
         
         static::saving(function ($crop) {
-            // Validate timestamp sequence for manual edits (both new crops and timestamp updates)
+            // Validate timestamp sequence for manual edits
             if (!$crop->exists || $crop->isDirty(['planting_at', 'germination_at', 'blackout_at', 'light_at', 'harvested_at'])) {
-                try {
-                    static::validateTimestampSequence($crop);
-                } catch (\Exception $e) {
-                    throw new \Exception($e->getMessage());
-                }
+                /** @var CropValidationService $validationService */
+                $validationService = app(CropValidationService::class);
+                $validationService->validateTimestampSequence($crop);
             }
         });
         
         static::updating(function ($crop) {
-            // If planting_at has changed, recalculate stage dates
-            if ($crop->isDirty('planting_at') && $crop->recipe) {
-                try {
-                    // Get original planting_at
-                    $originalPlantingAt = $crop->getOriginal('planting_at');
-                    
-                    // Get the new planting_at
-                    $newPlantingAt = $crop->planting_at;
-                    
-                    // Calculate time difference in minutes
-                    $originalDateTime = new \Carbon\Carbon($originalPlantingAt);
-                    $timeDiff = $originalDateTime->diffInMinutes($newPlantingAt, false);
-                    
-                    // Adjust all stage timestamps by the same amount
-                    foreach (['germination_at', 'blackout_at', 'light_at'] as $stageField) {
-                        if ($crop->$stageField) {
-                            $stageTime = new \Carbon\Carbon($crop->$stageField);
-                            $crop->$stageField = $stageTime->addMinutes($timeDiff);
-                        }
-                    }
-                } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::warning('Error updating crop stage dates', [
-                        'crop_id' => $crop->id,
-                        'error' => $e->getMessage()
-                    ]);
-                }
-            }
+            /** @var CropValidationService $validationService */
+            $validationService = app(CropValidationService::class);
+            $validationService->adjustStageTimestamps($crop);
         });
         
         static::updated(function ($crop) {
-            // If the stage has changed or planting_at has changed, recalculate tasks
-            if (($crop->isDirty('current_stage_id') || $crop->isDirty('planting_at')) && 
-                config('app.env') !== 'testing') {
-                try {
-                    app(\App\Services\CropTaskService::class)->scheduleAllStageTasks($crop);
-                } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::warning('Error rescheduling crop tasks', [
-                        'crop_id' => $crop->id,
-                        'error' => $e->getMessage()
-                    ]);
-                }
-            }
+            app(CropValidationService::class)->handleCropUpdated($crop);
         });
     }
     
-    /**
-     * Reset to a specific stage and clear future stage timestamps.
-     */
-    public function resetToStage(string $newStage): void
-    {
-        app(CropLifecycleService::class)->resetToStage($this, $newStage);
-    }
+    // Stage management methods removed - use CropLifecycleService directly
     
     /**
      * Calculate the time remaining until the next stage.
@@ -453,172 +320,21 @@ class Crop extends Model
      */
     public function timeToNextStage(): ?string
     {
-        // Skip if already harvested
-        if ($this->currentStage?->code === 'harvested') {
-            return '-';
-        }
-        
-        if (!$this->recipe) {
-            return 'No recipe';
-        }
-        
-        // Get the timestamp for the current stage
-        $stageCode = $this->currentStage?->code;
-        if (!$stageCode) {
-            return 'No stage';
-        }
-        
-        $stageField = "{$stageCode}_at";
-        $stageStartTime = $this->$stageField;
-        
-        if (!$stageStartTime) {
-            return 'Unknown';
-        }
-        
-        // For blackout stage with 0 duration, require at least 1 hour
-        if ($this->currentStage?->code === 'blackout' && $this->recipe->blackout_days === 0) {
-            $minBlackoutTime = $stageStartTime->copy()->addHour();
-            $now = now();
-            
-            if ($now->lt($minBlackoutTime)) {
-                $diff = $now->diff($minBlackoutTime);
-                if ($diff->h > 0) {
-                    return "{$diff->h}h {$diff->i}m";
-                } else {
-                    return "{$diff->i}m";
-                }
-            }
-            
-            // Calculate overdue time
-            $overTime = $now->diff($minBlackoutTime);
-            $hours = $overTime->h;
-            $minutes = $overTime->i;
-            $overflowText = "{$hours}h {$minutes}m";
-            
-            return "Ready to advance|{$overflowText}";
-        }
-        
-        // Get the duration for the current stage from the recipe
-        $stageDuration = match ($this->currentStage?->code) {
-            'germination' => $this->recipe->germination_days,
-            'blackout' => $this->recipe->blackout_days,
-            'light' => $this->recipe->light_days,
-            default => 0,
-        };
-        
-        // Calculate the expected end date for this stage
-        $stageEndDate = $stageStartTime->copy()->addDays($stageDuration);
-        
-        $now = now();
-        if ($now->gt($stageEndDate)) {
-            // Calculate overdue time
-            $overTime = $now->diff($stageEndDate);
-            $days = (int)$overTime->format('%a');
-            $hours = $overTime->h;
-            $minutes = $overTime->i;
-            
-            // Format the overtime
-            $overflowText = '';
-            if ($days > 0) {
-                $overflowText = "{$days}d {$hours}h";
-            } elseif ($hours > 0) {
-                $overflowText = "{$hours}h {$minutes}m";
-            } else {
-                $overflowText = "{$minutes}m";
-            }
-            
-            return "Ready to advance|{$overflowText}";
-        }
-        
-        // Calculate the time difference to stage end
-        $diff = $now->diff($stageEndDate);
-        $days = (int)$diff->format('%a');
-        $hours = $diff->h;
-        $minutes = $diff->i;
-        
-        // Format based on remaining time
-        if ($days > 0) {
-            return "{$days}d {$hours}h";
-        } elseif ($hours > 0) {
-            return "{$hours}h {$minutes}m";
-        } else {
-            return "{$minutes}m";
-        }
+        // This is calculated and stored in time_to_next_stage_display field
+        return $this->time_to_next_stage_display;
     }
     
-    /**
-     * Calculate and update the time to next stage values
-     */
-    protected function updateTimeToNextStageValues(): void
-    {
-        app(CropTimeCalculator::class)->updateTimeCalculations($this);
-    }
     
-    /**
-     * Get the formatted stage age status text
-     * 
-     * @return string The formatted time in current stage
-     */
-    public function getStageAgeStatus(): string
-    {
-        return app(CropTimeCalculator::class)->getStageAgeStatus($this);
-    }
-
-    public function getTotalAgeStatus(): string
-    {
-        return app(CropTimeCalculator::class)->getTotalAgeStatus($this);
-    }
+    // Time status methods removed - use CropTimeCalculator directly
 
     /**
-     * Validate that timestamps are in chronological order
+     * Check if we're in bulk operation mode
      * 
-     * @param Crop $crop
-     * @throws \Exception
+     * @return bool
      */
-    protected static function validateTimestampSequence(Crop $crop): void
+    public static function isInBulkOperation(): bool
     {
-        $timestamps = [];
-        
-        // Build array of non-null timestamps with their labels
-        if ($crop->planting_at) {
-            $timestamps['planting_at'] = $crop->planting_at;
-        }
-        if ($crop->germination_at) {
-            $timestamps['germination_at'] = $crop->germination_at;
-        }
-        if ($crop->blackout_at) {
-            $timestamps['blackout_at'] = $crop->blackout_at;
-        }
-        if ($crop->light_at) {
-            $timestamps['light_at'] = $crop->light_at;
-        }
-        if ($crop->harvested_at) {
-            $timestamps['harvested_at'] = $crop->harvested_at;
-        }
-        
-        // Skip validation if we have fewer than 2 timestamps
-        if (count($timestamps) < 2) {
-            return;
-        }
-        
-        // Convert to Carbon instances for comparison
-        $carbonTimestamps = array_map(function($timestamp) {
-            return $timestamp instanceof \Carbon\Carbon ? $timestamp : \Carbon\Carbon::parse($timestamp);
-        }, $timestamps);
-        
-        // Check if timestamps are in order (allow same timestamp for flexibility)
-        $previousTimestamp = null;
-        $previousLabel = null;
-        
-        foreach ($carbonTimestamps as $label => $timestamp) {
-            if ($previousTimestamp && $timestamp->lt($previousTimestamp)) {
-                $readableLabel = str_replace('_at', '', str_replace('_', ' ', $label));
-                $readablePrevious = str_replace('_at', '', str_replace('_', ' ', $previousLabel));
-                throw new \Exception("Growth stage timestamps must be in chronological order. {$readableLabel} cannot be before {$readablePrevious}.");
-            }
-            $previousTimestamp = $timestamp;
-            $previousLabel = $label;
-        }
+        return self::$bulkOperation;
     }
 
 }

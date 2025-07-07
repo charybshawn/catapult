@@ -193,7 +193,7 @@ class CreateRecipe extends BaseCreateRecord
                         ->numeric()
                         ->minValue(0)
                         ->step(0.1)
-                        ->default(12)
+                        ->default(config('crops.stage_durations.germination', 2) + config('crops.stage_durations.blackout', 3) + config('crops.stage_durations.light', 7))
                         ->required()
                         ->live()
                         ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
@@ -219,7 +219,7 @@ class CreateRecipe extends BaseCreateRecord
                         ->numeric()
                         ->minValue(0)
                         ->step(0.1)
-                        ->default(3)
+                        ->default(config('crops.stage_durations.germination', 2))
                         ->live()
                         ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
                             $germ = floatval($state ?? 0);
@@ -238,7 +238,7 @@ class CreateRecipe extends BaseCreateRecord
                         ->numeric()
                         ->minValue(0)
                         ->step(0.1)
-                        ->default(2)
+                        ->default(config('crops.stage_durations.blackout', 3))
                         ->live()
                         ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
                             $germ = floatval($get('germination_days') ?? 0);
@@ -277,7 +277,7 @@ class CreateRecipe extends BaseCreateRecord
                         ->label('Suspend Watering (Hours Before Harvest)')
                         ->numeric()
                         ->minValue(0)
-                        ->default(12)
+                        ->default(config('crops.watering.default_suspension_hours', 24))
                         ->helperText('Stop watering this many hours before the calculated harvest time.')
                         ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
                         ->columnSpan(1),

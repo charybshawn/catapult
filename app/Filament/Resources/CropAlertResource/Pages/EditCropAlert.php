@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\CropAlertResource\Pages;
 
 use App\Filament\Resources\CropAlertResource;
-use App\Services\CropTaskService;
+use App\Services\CropTaskManagementService;
 use Filament\Actions;
 use App\Filament\Pages\Base\BaseEditRecord;
 use Filament\Notifications\Notification;
@@ -25,7 +25,7 @@ class EditCropAlert extends BaseEditRecord
                 ->icon('heroicon-o-bolt')
                 ->action(function () {
                     $record = $this->getRecord();
-                    $cropTaskService = new CropTaskService();
+                    $cropTaskService = app(CropTaskManagementService::class);
                     $result = $cropTaskService->processCropStageTask($record);
                     
                     if ($result['success']) {

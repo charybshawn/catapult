@@ -31,9 +31,9 @@ class HarvestYieldCalculator
         foreach ($relevantHarvests as $harvest) {
             $daysSinceHarvest = $now->diffInDays($harvest->harvest_date);
 
-            // Exponential decay: weight = e^(-days/30)
-            // This gives 50% weight after ~21 days, 10% weight after ~69 days
-            $weight = exp(-$daysSinceHarvest / 30);
+            // Exponential decay: weight = e^(-days/decay_factor)
+            $decayFactor = config('harvest.yield.decay_factor', 30);
+            $weight = exp(-$daysSinceHarvest / $decayFactor);
 
             $yieldPerTray = $harvest->average_weight_per_tray;
 
@@ -57,7 +57,8 @@ class HarvestYieldCalculator
             return collect();
         }
 
-        $sixMonthsAgo = Carbon::now()->subMonths(6);
+        $historyMonths = config('harvest.yield.history_months', 6);
+        $sixMonthsAgo = Carbon::now()->subMonths($historyMonths);
 
         // Find harvests that match the seed variety
         // We need to match by master cultivar that corresponds to this recipe's seed
@@ -144,11 +145,15 @@ class HarvestYieldCalculator
     {
         $difference = (($weightedYield - $expectedYield) / $expectedYield) * 100;
 
-        if (abs($difference) < 5) {
+        $matchingWell = config('harvest.yield.thresholds.matching_well', 5.0);
+        $significantlyOver = config('harvest.yield.thresholds.significantly_over', 15.0);
+        $significantlyUnder = config('harvest.yield.thresholds.significantly_under', -15.0);
+
+        if (abs($difference) < $matchingWell) {
             return 'Harvest data matches recipe expectations well.';
-        } elseif ($difference > 15) {
+        } elseif ($difference > $significantlyOver) {
             return 'Recent harvests significantly exceed expectations. Consider updating recipe yield.';
-        } elseif ($difference < -15) {
+        } elseif ($difference < $significantlyUnder) {
             return 'Recent harvests are below expectations. Consider reviewing growing conditions.';
         } elseif ($difference > 0) {
             return 'Recent harvests are above expectations.';
@@ -165,8 +170,9 @@ class HarvestYieldCalculator
         $weightedYield = $this->calculateWeightedYieldForRecipe($recipe);
         $baseYield = $weightedYield ?? $recipe->expected_yield_grams;
 
-        // Apply buffer percentage (default 10%)
-        $bufferMultiplier = 1 + ($recipe->buffer_percentage / 100);
+        // Apply buffer percentage (use config default if not set on recipe)
+        $bufferPercentage = $recipe->buffer_percentage ?? config('harvest.planning.default_buffer_percentage', 10.0);
+        $bufferMultiplier = 1 + ($bufferPercentage / 100);
 
         return $baseYield / $bufferMultiplier;
     }

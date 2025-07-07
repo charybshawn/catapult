@@ -8,6 +8,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\Log;
 
 class CropTaskActionDue extends Notification implements ShouldQueue // Implement ShouldQueue for background sending
 {
@@ -80,7 +81,7 @@ class CropTaskActionDue extends Notification implements ShouldQueue // Implement
                 
             default:
                 // Use defaults or log unexpected task type
-                \Illuminate\Support\Facades\Log::warning("Generating notification for unexpected task type: {$this->task->task_name}");
+                Log::warning("Generating notification for unexpected task type: {$this->task->task_name}");
                 break;
         }
         

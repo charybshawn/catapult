@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
 
 return new class extends Migration
 {
@@ -29,7 +30,7 @@ return new class extends Migration
             ->whereNotNull('lot_number')
             ->count();
             
-        \Illuminate\Support\Facades\Log::info("Populated lot_number for {$updatedCount} recipes from existing consumable data");
+        Log::info("Populated lot_number for {$updatedCount} recipes from existing consumable data");
     }
 
     /**
@@ -44,6 +45,6 @@ return new class extends Migration
                 'lot_depleted_at' => null
             ]);
             
-        \Illuminate\Support\Facades\Log::info("Cleared lot_number data from recipes table");
+        Log::info("Cleared lot_number data from recipes table");
     }
 };

@@ -22,11 +22,60 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // Register CropTaskService with its dependencies
-        $this->app->bind(\App\Services\CropTaskService::class, function ($app) {
-            return new \App\Services\CropTaskService(
-                $app->make(\App\Services\TaskFactoryService::class)
+        // Register CropTaskManagementService as a singleton
+        $this->app->singleton(\App\Services\CropTaskManagementService::class);
+        
+        // Register the unified InventoryManagementService as a singleton with dependencies
+        $this->app->singleton(\App\Services\InventoryManagementService::class, function ($app) {
+            return new \App\Services\InventoryManagementService(
+                $app->make('config')
             );
+        });
+        
+        // Register CropValidationService as a singleton with dependencies
+        $this->app->singleton(\App\Services\CropValidationService::class, function ($app) {
+            return new \App\Services\CropValidationService(
+                $app->make(\App\Services\CropTaskManagementService::class),
+                $app->make(\App\Services\InventoryManagementService::class)
+            );
+        });
+        
+        // Register RecipeService as a singleton with dependencies
+        $this->app->singleton(\App\Services\RecipeService::class, function ($app) {
+            return new \App\Services\RecipeService(
+                $app->make(\App\Services\InventoryManagementService::class)
+            );
+        });
+        
+        // Register CropTimeCalculator as a singleton
+        $this->app->singleton(\App\Services\CropTimeCalculator::class);
+        
+        // Register ConsumableCalculatorService as a singleton
+        $this->app->singleton(\App\Services\ConsumableCalculatorService::class);
+        
+        // Register legacy service aliases for backward compatibility
+        $this->app->bind(\App\Services\CropTaskService::class, function ($app) {
+            return $app->make(\App\Services\CropTaskManagementService::class);
+        });
+        
+        $this->app->bind(\App\Services\CropLifecycleService::class, function ($app) {
+            return $app->make(\App\Services\CropTaskManagementService::class);
+        });
+
+        $this->app->bind(\App\Services\InventoryService::class, function ($app) {
+            return $app->make(\App\Services\InventoryManagementService::class);
+        });
+
+        $this->app->bind(\App\Services\LotInventoryService::class, function ($app) {
+            return $app->make(\App\Services\InventoryManagementService::class);
+        });
+
+        $this->app->bind(\App\Services\LotDepletionService::class, function ($app) {
+            return $app->make(\App\Services\InventoryManagementService::class);
+        });
+
+        $this->app->bind(\App\Services\CropInventoryService::class, function ($app) {
+            return $app->make(\App\Services\InventoryManagementService::class);
         });
     }
 

@@ -4,7 +4,7 @@ namespace Tests\Unit;
 
 use Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use App\Services\InventoryService;
+use App\Services\InventoryManagementService;
 use App\Models\Consumable;
 use App\Models\ConsumableType;
 use App\Models\ConsumableTransaction;
@@ -14,13 +14,13 @@ class InventoryServiceTransactionTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected InventoryService $inventoryService;
+    protected InventoryManagementService $inventoryService;
 
     protected function setUp(): void
     {
         parent::setUp();
         
-        $this->inventoryService = app(InventoryService::class);
+        $this->inventoryService = app(InventoryManagementService::class);
         
         // Create required consumable type
         ConsumableType::factory()->create([

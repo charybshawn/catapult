@@ -16,9 +16,12 @@ class TaskSchedule extends Model
      * @var array<int, string>
      */
     protected $fillable = [
+        'name',
+        'description',
         'resource_type',
         'task_name',
         'frequency',
+        'schedule_config',
         'time_of_day',
         'day_of_week',
         'day_of_month',
@@ -34,6 +37,7 @@ class TaskSchedule extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'schedule_config' => 'json',
         'conditions' => 'json',
         'is_active' => 'boolean',
         'last_run_at' => 'datetime',

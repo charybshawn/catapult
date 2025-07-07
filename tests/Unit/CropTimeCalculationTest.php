@@ -15,6 +15,10 @@ class CropTimeCalculationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        
+        // Seed the CropStages table
+        $this->seed(\Database\Seeders\Lookup\CropStageSeeder::class);
+        
         Carbon::setTestNow(Carbon::create(2025, 4, 28, 12, 0, 0));
     }
 
@@ -31,18 +35,28 @@ class CropTimeCalculationTest extends TestCase
             'germination_days' => 5,
             'blackout_days' => 2,
             'light_days' => 14,
+            'days_to_maturity' => null, // Force it to use sum of stage durations
         ]);
 
         // Case 1: Crop just planted today
         $crop1 = Crop::factory()->create([
             'recipe_id' => $recipe->id,
-            'planted_at' => now(),
+            'planting_at' => now(),
             'germination_at' => now(),
             'current_stage' => 'germination',
         ]);
 
-        // Expected harvest = planted_at + all stages duration
-        $expectedHarvest1 = now()->copy()->addDays($recipe->germination_days + $recipe->blackout_days + $recipe->light_days);
+        // Expected harvest = planting_at + all stages duration
+        $totalDays = $recipe->germination_days + $recipe->blackout_days + $recipe->light_days;
+        $expectedHarvest1 = now()->copy()->addDays($totalDays);
+        
+        // Debug info
+        $this->assertEquals(5, $recipe->germination_days, 'Germination days mismatch');
+        $this->assertEquals(2, $recipe->blackout_days, 'Blackout days mismatch');
+        $this->assertEquals(14, $recipe->light_days, 'Light days mismatch');
+        $this->assertEquals(21, $totalDays, 'Total days mismatch');
+        $this->assertEquals(21, $recipe->totalDays(), 'Recipe totalDays() mismatch');
+        
         $this->assertEquals(
             $expectedHarvest1->format('Y-m-d H:i:s'),
             $crop1->expectedHarvestDate()->format('Y-m-d H:i:s'),
@@ -55,12 +69,12 @@ class CropTimeCalculationTest extends TestCase
         // Case 2: Crop planted 3 days ago, still in germination
         $crop2 = Crop::factory()->create([
             'recipe_id' => $recipe->id,
-            'planted_at' => now()->subDays(3),
+            'planting_at' => now()->subDays(3),
             'germination_at' => now()->subDays(3),
             'current_stage' => 'germination',
         ]);
 
-        // Expected harvest = planted_at + all stages duration
+        // Expected harvest = planting_at + all stages duration
         $expectedHarvest2 = now()->copy()->subDays(3)->addDays($recipe->germination_days + $recipe->blackout_days + $recipe->light_days);
         $this->assertEquals(
             $expectedHarvest2->format('Y-m-d H:i:s'),
@@ -89,7 +103,7 @@ class CropTimeCalculationTest extends TestCase
         $crop = new Crop();
         $crop->recipe_id = $recipe->id;
         $crop->tray_number = 'TEST-BLACKOUT';
-        $crop->planted_at = $now->copy()->subDays(5);
+        $crop->planting_at = $now->copy()->subDays(5);
         $crop->germination_at = $now->copy()->subDays(5);
         $crop->blackout_at = $now;
         $crop->current_stage = 'blackout';
@@ -116,6 +130,7 @@ class CropTimeCalculationTest extends TestCase
             'germination_days' => 5,
             'blackout_days' => 2,
             'light_days' => 14,
+            'days_to_maturity' => null, // Force it to use sum of stage durations
         ]);
 
         // Manually set the time to now to avoid test execution timing issues
@@ -126,7 +141,7 @@ class CropTimeCalculationTest extends TestCase
         $crop = new Crop();
         $crop->recipe_id = $recipe->id;
         $crop->tray_number = 'TEST-LIGHT';
-        $crop->planted_at = $now->copy()->subDays(7);
+        $crop->planting_at = $now->copy()->subDays(7);
         $crop->germination_at = $now->copy()->subDays(7);
         $crop->blackout_at = $now->copy()->subDays(2);
         $crop->light_at = $now;
@@ -159,12 +174,12 @@ class CropTimeCalculationTest extends TestCase
         // Crop in germination stage
         $crop = Crop::factory()->create([
             'recipe_id' => $recipe->id,
-            'planted_at' => now()->subDays(3),
+            'planting_at' => now()->subDays(3),
             'germination_at' => now()->subDays(3),
             'current_stage' => 'germination',
         ]);
 
-        // Expected harvest = planted_at + germination_days + light_days (no blackout)
+        // Expected harvest = planting_at + germination_days + light_days (no blackout)
         $expectedHarvest = now()->copy()->subDays(3)->addDays($recipe->germination_days + $recipe->light_days);
         $this->assertEquals(
             $expectedHarvest->format('Y-m-d H:i:s'),
@@ -194,12 +209,13 @@ class CropTimeCalculationTest extends TestCase
             'germination_days' => 5,
             'blackout_days' => 2,
             'light_days' => 14,
+            'days_to_maturity' => null, // Force it to use sum of stage durations
         ]);
 
         // Crop in light stage
         $crop = Crop::factory()->create([
             'recipe_id' => $recipe->id,
-            'planted_at' => now()->subDays(10),
+            'planting_at' => now()->subDays(10),
             'germination_at' => now()->subDays(10),
             'blackout_at' => now()->subDays(5),
             'light_at' => now()->subDays(3),
@@ -213,7 +229,7 @@ class CropTimeCalculationTest extends TestCase
         $originalHarvestDate = $crop->expectedHarvestDate();
 
         // Change planted date to 5 days earlier
-        $crop->planted_at = now()->subDays(15);
+        $crop->planting_at = now()->subDays(15);
         $crop->save();
         $crop->refresh();
 
@@ -254,13 +270,14 @@ class CropTimeCalculationTest extends TestCase
             'germination_days' => 5,
             'blackout_days' => 2,
             'light_days' => 14,
+            'days_to_maturity' => null, // Force it to use sum of stage durations
         ]);
 
         // Crop in light stage
         $crop = new Crop();
         $crop->recipe_id = $recipe->id;
         $crop->tray_number = 'TEST-RESET';
-        $crop->planted_at = $now->copy()->subDays(10);
+        $crop->planting_at = $now->copy()->subDays(10);
         $crop->germination_at = $now->copy()->subDays(10);
         $crop->blackout_at = $now->copy()->subDays(5);
         $crop->light_at = $now->copy()->subDays(3);

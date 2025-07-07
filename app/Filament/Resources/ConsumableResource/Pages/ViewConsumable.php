@@ -10,6 +10,7 @@ use Filament\Infolists;
 use Filament\Infolists\Infolist;
 use Filament\Resources\Pages\ViewRecord;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\Log;
 
 class ViewConsumable extends ViewRecord
 {
@@ -108,7 +109,7 @@ class ViewConsumable extends ViewRecord
     protected function formatQuantity(float $quantity, \App\Models\Consumable $record, bool $showTotal = false): string
     {
         // Debug information
-        \Illuminate\Support\Facades\Log::debug("Formatting quantity for consumable {$record->id} ({$record->name}):", [
+        Log::debug("Formatting quantity for consumable {$record->id} ({$record->name}):", [
             'quantity' => $quantity,
             'showTotal' => $showTotal,
             'record_unit' => $record->unit,
@@ -210,7 +211,7 @@ class ViewConsumable extends ViewRecord
                                     // Calculate current stock
                                     $currentStock = max(0, $record->initial_stock - $record->consumed_quantity);
                                     
-                                    \Illuminate\Support\Facades\Log::debug("Current stock direct format:", [
+                                    Log::debug("Current stock direct format:", [
                                         'consumable_id' => $record->id,
                                         'name' => $record->name,
                                         'current_stock' => $currentStock,

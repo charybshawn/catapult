@@ -13,7 +13,7 @@ use App\Models\SeedEntry;
 use App\Models\Crop;
 use App\Models\User;
 use App\Models\ConsumableTransaction;
-use App\Services\InventoryService;
+use App\Services\InventoryManagementService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Activitylog\Models\Activity;
 
@@ -189,9 +189,11 @@ class RecipeTraceabilityTest extends TestCase
         $this->actingAs($user);
 
         // Create seed consumable
+        $seedType = ConsumableType::where('code', 'seed')->first();
         $seedConsumable = Consumable::factory()->create([
             'name' => 'Kale (Red Russian)',
             'type' => 'seed',
+            'consumable_type_id' => $seedType->id,
             'lot_no' => 'KRR2025',
             'total_quantity' => 1000.0,
             'consumed_quantity' => 0.0,
@@ -224,10 +226,10 @@ class RecipeTraceabilityTest extends TestCase
             'germination_at' => $plantingTime->addHours(2),
         ]);
 
-        // Simulate inventory consumption by directly updating the consumable
-        $seedConsumable->update(['consumed_quantity' => 250.0]);
+        // Refresh consumable to get updated consumed_quantity
+        $seedConsumable->refresh();
         
-        // Verify consumption is tracked
+        // Verify consumption is tracked (crop creation auto-deducts inventory)
         $this->assertEquals(250.0, $seedConsumable->consumed_quantity);
         $this->assertEquals(750.0, $recipe->getLotQuantity());
 
@@ -241,11 +243,10 @@ class RecipeTraceabilityTest extends TestCase
             'germination_at' => $plantingTime2->addHours(2),
         ]);
 
-        // Consume more inventory by updating consumable
-        $seedConsumable->update(['consumed_quantity' => 750.0]);
-
-        // Verify total consumption
+        // Refresh to get the auto-deducted quantity from second crop
         $seedConsumable->refresh();
+        
+        // Verify total consumption (both crops should have auto-deducted their seed)
         $this->assertEquals(750.0, $seedConsumable->consumed_quantity);
         $this->assertEquals(250.0, $recipe->getLotQuantity());
 
@@ -294,7 +295,7 @@ class RecipeTraceabilityTest extends TestCase
         $this->assertTrue($recipe->canExecute(30.0));
 
         // Consume most of the lot
-        $inventoryService = app(InventoryService::class);
+        $inventoryService = app(InventoryManagementService::class);
         $inventoryService->recordConsumption(
             $originalConsumable,
             95.0,

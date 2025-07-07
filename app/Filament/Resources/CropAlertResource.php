@@ -5,7 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\CropAlertResource\Pages;
 use App\Models\Crop;
 use App\Models\CropAlert;
-use App\Services\CropTaskService;
+use App\Services\CropTaskManagementService;
 use Carbon\Carbon;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -335,7 +335,7 @@ class CropAlertResource extends Resource
                     ->label('Execute Now')
                     ->icon('heroicon-o-bolt')
                     ->action(function (CropAlert $record) {
-                        $cropTaskService = new CropTaskService();
+                        $cropTaskService = app(CropTaskManagementService::class);
                         $result = $cropTaskService->processCropStageTask($record);
                         
                         if ($result['success']) {
@@ -387,7 +387,7 @@ class CropAlertResource extends Resource
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\BulkAction::make('execute_selected')
                         ->label('Execute Selected')
-                        ->action(function (CropTaskService $cropTaskService, $records) {
+                        ->action(function (CropTaskManagementService $cropTaskService, $records) {
                             $successCount = 0;
                             $failCount = 0;
                             

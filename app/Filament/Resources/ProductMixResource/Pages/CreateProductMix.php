@@ -5,6 +5,7 @@ namespace App\Filament\Resources\ProductMixResource\Pages;
 use App\Filament\Resources\ProductMixResource;
 use App\Filament\Pages\Base\BaseCreateRecord;
 use Filament\Notifications\Notification;
+use Illuminate\Support\Facades\Log;
 
 class CreateProductMix extends BaseCreateRecord
 {
@@ -36,7 +37,7 @@ class CreateProductMix extends BaseCreateRecord
             }
         }
         
-        \Illuminate\Support\Facades\Log::info('Creating mix with components:', $syncData);
+        Log::info('Creating mix with components:', $syncData);
         
         $this->record->masterSeedCatalogs()->sync($syncData);
     }

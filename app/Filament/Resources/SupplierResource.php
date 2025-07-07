@@ -3,7 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\SupplierResource\Pages;
-use App\Filament\Resources\Base\BaseResource;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Forms\Components\Common as FormCommon;
 use App\Models\Supplier;
 use App\Models\SupplierType;
@@ -12,9 +12,17 @@ use Filament\Forms\Form;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use App\Filament\Traits\HasActiveStatus;
+use App\Filament\Traits\HasTimestamps;
+use App\Filament\Traits\HasStatusBadge;
+use App\Filament\Traits\HasStandardActions;
 
 class SupplierResource extends BaseResource
 {
+    use HasActiveStatus;
+    use HasTimestamps;
+    use HasStatusBadge;
+    use HasStandardActions;
     protected static ?string $model = Supplier::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-truck';
@@ -26,78 +34,60 @@ class SupplierResource extends BaseResource
     {
         return $form
             ->schema([
-                Forms\Components\Section::make('Basic Information')
-                    ->schema([
-                        Forms\Components\TextInput::make('name')
-                            ->label('Supplier Name')
-                            ->required()
-                            ->maxLength(255),
-                            
-                        Forms\Components\Select::make('supplier_type_id')
-                            ->label('Supplier Type')
-                            ->relationship('supplierType', 'name')
-                            ->options(SupplierType::options())
-                            ->default(function () {
-                                return SupplierType::findByCode('other')?->id;
-                            })
-                            ->required(),
-                            
-                        FormCommon::activeToggle(),
-                    ])
-                    ->columns(2),
-                    
-                FormCommon::contactInformationSection(),
+                static::getBasicInformationSection([
+                    Forms\Components\TextInput::make('name')
+                        ->label('Supplier Name')
+                        ->required()
+                        ->maxLength(255),
+                        
+                    Forms\Components\Select::make('supplier_type_id')
+                        ->label('Supplier Type')
+                        ->relationship('supplierType', 'name')
+                        ->options(SupplierType::options())
+                        ->default(function () {
+                            return SupplierType::findByCode('other')?->id;
+                        })
+                        ->required(),
+                        
+                    static::getActiveStatusField(),
+                ]),
                 
-                Forms\Components\Section::make('Additional Information')
-                    ->schema([
-                        FormCommon::notesTextarea(),
-                    ]),
+                static::getContactInformationSection(),
+                
+                static::getAdditionalInformationSection(),
             ]);
     }
 
     public static function table(Table $table): Table
     {
-        return static::configureTableDefaults($table)
-            ->columns([
+        return static::configureStandardTable(
+            $table,
+            columns: [
                 static::getTextColumn('name', 'Name')
                     ->url(fn (Supplier $record): string => SupplierResource::getUrl('edit', ['record' => $record]))
                     ->color('primary'),
                     
-                Tables\Columns\TextColumn::make('supplierType.name')
-                    ->label('Type')
-                    ->badge()
-                    ->color(fn (string $state): string => match ($state) {
+                static::getStatusBadgeColumn(
+                    field: 'supplierType.name',
+                    label: 'Type',
+                    colorMap: [
                         'Seeds' => 'success',
                         'Soil' => 'warning', 
                         'Packaging' => 'info',
                         'Consumables' => 'purple',
-                        default => 'gray',
-                    }),
+                    ]
+                ),
                     
                 static::getTextColumn('contact_name', 'Contact'),
                 static::getTextColumn('contact_email', 'Email'),
                 static::getTextColumn('contact_phone', 'Phone'),
-                static::getActiveBadgeColumn(),
-                ...static::getTimestampColumns(),
-            ])
-            ->defaultSort('name', 'asc')
-            ->filters([
-                Tables\Filters\SelectFilter::make('supplier_type_id')
-                    ->label('Supplier Type')
-                    ->relationship('supplierType', 'name')
-                    ->options(SupplierType::options()),
-                Tables\Filters\Filter::make('inactive')
-                    ->label('Inactive')
-                    ->query(fn (Builder $query) => $query->where('is_active', false)),
-            ])
-            ->actions(static::getDefaultTableActions())
-            ->bulkActions([static::getDefaultBulkActions()])
-            ->toggleColumnsTriggerAction(
-                fn (Tables\Actions\Action $action) => $action
-                    ->button()
-                    ->label('Columns')
-                    ->icon('heroicon-m-view-columns')
-            );
+                static::getActiveStatusColumn(),
+            ],
+            filters: [
+                static::getRelationshipFilter('supplierType', 'Supplier Type'),
+                static::getActiveStatusFilter(),
+            ]
+        )->defaultSort('name', 'asc');
     }
 
     public static function getPages(): array

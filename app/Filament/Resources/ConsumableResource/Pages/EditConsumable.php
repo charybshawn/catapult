@@ -10,6 +10,7 @@ use Filament\Forms;
 use Filament\Forms\Components;
 use App\Filament\Pages\Base\BaseEditRecord;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 
 class EditConsumable extends BaseEditRecord
 {
@@ -55,7 +56,7 @@ class EditConsumable extends BaseEditRecord
                 $commonName = ucwords(strtolower($masterCatalog->common_name));
                 $data['name'] = $commonName . ' (' . $selectedCultivarName . ')';
                 
-                \Illuminate\Support\Facades\Log::info('Updating seed consumable from master catalog', [
+                Log::info('Updating seed consumable from master catalog', [
                     'id' => $this->record->id ?? 'new',
                     'original_selection' => $catalogId . ($cultivarIndex !== null ? ':' . $cultivarIndex : ''),
                     'master_seed_catalog_id' => $data['master_seed_catalog_id'],
@@ -71,7 +72,7 @@ class EditConsumable extends BaseEditRecord
             $remaining = (float) $data['remaining_quantity'];
             $data['consumed_quantity'] = max(0, $total - $remaining);
             
-            \Illuminate\Support\Facades\Log::info('Seed consumable update:', [
+            Log::info('Seed consumable update:', [
                 'id' => $this->record->id ?? 'new',
                 'total_quantity' => $total,
                 'remaining_quantity' => $remaining,
@@ -105,7 +106,7 @@ protected function mutateFormDataBeforeFill(array $data): array
         if (isset($data['type']) && $data['type'] === 'seed' && isset($data['total_quantity']) && isset($data['consumed_quantity'])) {
             $data['remaining_quantity'] = max(0, $data['total_quantity'] - $data['consumed_quantity']);
             
-            \Illuminate\Support\Facades\Log::info('Seed consumable form fill:', [
+            Log::info('Seed consumable form fill:', [
                 'id' => $this->record->id ?? 'unknown',
                 'total_quantity' => $data['total_quantity'],
                 'consumed_quantity' => $data['consumed_quantity'],
@@ -141,7 +142,7 @@ protected function mutateFormDataBeforeFill(array $data): array
                     $data['master_seed_catalog_id'] = $catalogId . ':' . $cultivarIndex;
                 }
                 
-                \Illuminate\Support\Facades\Log::info('Converting master catalog ID to composite key for form fill:', [
+                Log::info('Converting master catalog ID to composite key for form fill:', [
                     'original_id' => $catalogId,
                     'composite_key' => $data['master_seed_catalog_id'],
                     'detected_cultivar_index' => $cultivarIndex,

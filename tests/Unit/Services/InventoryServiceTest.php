@@ -3,7 +3,7 @@
 namespace Tests\Unit\Services;
 
 use Tests\TestCase;
-use App\Services\InventoryService;
+use App\Services\InventoryManagementService;
 use App\Models\Consumable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -11,12 +11,14 @@ class InventoryServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-    private InventoryService $inventoryService;
+    private InventoryManagementService $inventoryService;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->inventoryService = new InventoryService();
+        
+        // Resolve service from container to get proper dependencies
+        $this->inventoryService = $this->app->make(InventoryManagementService::class);
     }
 
     public function test_getCurrentStock_for_seed_consumables(): void
@@ -31,8 +33,8 @@ class InventoryServiceTest extends TestCase
         // With transaction system, it should use getCurrentStockFromTransactions
         $result = $this->inventoryService->getCurrentStock($consumable);
 
-        // Should return total_quantity for seeds when no transactions exist
-        $this->assertEquals(100.0, $result);
+        // Should return total_quantity - consumed_quantity for all consumables
+        $this->assertEquals(90.0, $result);
     }
 
     public function test_getCurrentStock_for_other_consumables(): void

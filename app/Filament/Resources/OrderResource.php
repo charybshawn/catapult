@@ -154,7 +154,7 @@ class OrderResource extends Resource
                                         $set('harvest_date', $harvestDateTime->toDateTimeString());
                                     } catch (\Exception $e) {
                                         // If parsing fails, don't update harvest_date
-                                        \Log::error('Failed to parse delivery date: ' . $e->getMessage());
+                                        Log::error('Failed to parse delivery date: ' . $e->getMessage());
                                     }
                                 }
                             })

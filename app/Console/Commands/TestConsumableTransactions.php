@@ -7,7 +7,7 @@ use App\Models\ConsumableTransaction;
 use App\Models\Consumable;
 use App\Models\ConsumableType;
 use App\Models\User;
-use App\Services\InventoryService;
+use App\Services\InventoryManagementService;
 
 class TestConsumableTransactions extends Command
 {
@@ -17,6 +17,22 @@ class TestConsumableTransactions extends Command
      * @var string
      */
     protected $signature = 'test:consumable-transactions';
+    
+    /**
+     * The inventory service instance.
+     *
+     * @var InventoryManagementService
+     */
+    protected InventoryManagementService $inventoryService;
+    
+    /**
+     * Create a new command instance.
+     */
+    public function __construct(InventoryManagementService $inventoryService)
+    {
+        parent::__construct();
+        $this->inventoryService = $inventoryService;
+    }
 
     /**
      * The console command description.
@@ -75,8 +91,7 @@ class TestConsumableTransactions extends Command
 
             // Test 3: Initialize transaction tracking
             $this->info('3. Testing transaction tracking initialization...');
-            $inventoryService = app(InventoryService::class);
-            $initialTransaction = $inventoryService->initializeTransactionTracking($consumable);
+            $initialTransaction = $this->inventoryService->initializeTransactionTracking($consumable);
             
             if ($initialTransaction) {
                 $this->line('✓ Initial transaction created. Balance: ' . $initialTransaction->balance_after . 'g');
@@ -87,7 +102,7 @@ class TestConsumableTransactions extends Command
 
             // Test 4: Record consumption
             $this->info('4. Testing consumption recording...');
-            $consumptionTransaction = $inventoryService->recordConsumption(
+            $consumptionTransaction = $this->inventoryService->recordConsumption(
                 $consumable, 
                 75.0, 
                 'g', 
@@ -100,7 +115,7 @@ class TestConsumableTransactions extends Command
 
             // Test 5: Record addition
             $this->info('5. Testing stock addition...');
-            $additionTransaction = $inventoryService->recordAddition(
+            $additionTransaction = $this->inventoryService->recordAddition(
                 $consumable, 
                 250.0, 
                 'g', 
@@ -113,7 +128,7 @@ class TestConsumableTransactions extends Command
 
             // Test 6: Unit conversion
             $this->info('6. Testing unit conversion...');
-            $kgConsumption = $inventoryService->recordConsumption(
+            $kgConsumption = $this->inventoryService->recordConsumption(
                 $consumable, 
                 0.1, // 0.1 kg = 100g
                 'kg', 
@@ -127,7 +142,7 @@ class TestConsumableTransactions extends Command
 
             // Test 7: Transaction history
             $this->info('7. Testing transaction history...');
-            $history = $inventoryService->getTransactionHistory($consumable);
+            $history = $this->inventoryService->getTransactionHistory($consumable);
             $this->line('✓ Transaction history retrieved. Count: ' . $history->count());
             
             foreach ($history as $transaction) {
@@ -143,7 +158,7 @@ class TestConsumableTransactions extends Command
 
             // Test 9: Current stock calculation
             $this->info('9. Testing current stock calculation...');
-            $currentStock = $inventoryService->getCurrentStockFromTransactions($consumable);
+            $currentStock = $this->inventoryService->getCurrentStockFromTransactions($consumable);
             $currentStockModel = $consumable->getCurrentStockWithTransactions();
             $this->line('✓ Current stock (service): ' . $currentStock . 'g');
             $this->line('✓ Current stock (model): ' . $currentStockModel . 'g');

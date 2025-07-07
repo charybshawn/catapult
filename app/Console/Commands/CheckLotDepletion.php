@@ -5,7 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Recipe;
 use App\Models\User;
 use App\Notifications\ResourceActionRequired;
-use App\Services\LotDepletionService;
+use App\Services\InventoryManagementService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -28,7 +28,7 @@ class CheckLotDepletion extends Command
     /**
      * Execute the console command.
      */
-    public function handle(LotDepletionService $depletionService)
+    public function handle(InventoryManagementService $depletionService)
     {
         $this->info('Starting lot depletion check...');
         

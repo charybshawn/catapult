@@ -2,6 +2,10 @@
 
 namespace App\Services;
 
+/**
+ * @deprecated Use InventoryManagementService instead. This class will be removed in a future version.
+ */
+
 use App\Models\Recipe;
 use App\Models\User;
 use App\Notifications\ResourceActionRequired;
@@ -27,7 +31,7 @@ class LotDepletionService
     /**
      * Low stock threshold percentage.
      */
-    protected float $lowStockThreshold = 15.0;
+    protected float $lowStockThreshold;
 
     /**
      * Create a new service instance.
@@ -35,6 +39,7 @@ class LotDepletionService
     public function __construct(LotInventoryService $lotInventoryService)
     {
         $this->lotInventoryService = $lotInventoryService;
+        $this->lowStockThreshold = config('inventory.low_stock_threshold', 15.0);
     }
 
     /**

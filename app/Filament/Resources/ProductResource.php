@@ -27,6 +27,7 @@ use App\Http\Livewire\ProductPriceCalculator;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Forms\Components\Common as FormCommon;
 use App\Filament\Traits\CsvExportAction;
+use Illuminate\Support\Facades\Log;
 
 class ProductResource extends BaseResource
 {
@@ -291,7 +292,7 @@ class ProductResource extends BaseResource
     public static function getPanels(): array
     {
         try {
-            \Illuminate\Support\Facades\Log::info('ProductResource: getPanels method called');
+            Log::info('ProductResource: getPanels method called');
             
             return [
                 'price_variations' => Forms\Components\Section::make('Price Variations')
@@ -735,7 +736,7 @@ class ProductResource extends BaseResource
                         // Get the selected template IDs directly from the checkbox list
                         $selectedIds = $data['selected_template_ids'] ?? [];
                         
-                        \Illuminate\Support\Facades\Log::info('Selected template IDs:', $selectedIds);
+                        Log::info('Selected template IDs:', $selectedIds);
                         
                         if (empty($selectedIds)) {
                             \Filament\Notifications\Notification::make()

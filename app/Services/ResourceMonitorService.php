@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Services\CropTaskManagementService;
 use App\Models\Consumable;
 use App\Models\NotificationSetting;
 use App\Models\TaskSchedule;
@@ -159,8 +160,8 @@ class ResourceMonitorService
     {
         // Check if this is a stage transition task
         if (str_starts_with($task->task_name, 'advance_to_')) {
-            $cropTaskService = new CropTaskService();
-            return $cropTaskService->processCropStageTask($task);
+            $cropTaskManagementService = app(CropTaskManagementService::class);
+            return $cropTaskManagementService->processCropStageTask($task);
         }
 
         return [

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Log;
 
 class SeedVariation extends Model
 {
@@ -36,7 +37,7 @@ class SeedVariation extends Model
             if ($variation->weight_kg && $variation->weight_kg > 0 && $variation->current_price !== null) {
                 $pricePerKg = $variation->current_price / $variation->weight_kg;
                 if ($pricePerKg > 5000) {
-                    \Illuminate\Support\Facades\Log::warning('Extremely high price per kg detected', [
+                    Log::warning('Extremely high price per kg detected', [
                         'variation_id' => $variation->id,
                         'price_per_kg' => $pricePerKg,
                         'price' => $variation->current_price,
@@ -45,7 +46,7 @@ class SeedVariation extends Model
                     ]);
                 }
                 if ($pricePerKg < 1) {
-                    \Illuminate\Support\Facades\Log::warning('Extremely low price per kg detected', [
+                    Log::warning('Extremely low price per kg detected', [
                         'variation_id' => $variation->id,
                         'price_per_kg' => $pricePerKg,
                         'price' => $variation->current_price,

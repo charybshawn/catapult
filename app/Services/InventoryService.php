@@ -2,6 +2,10 @@
 
 namespace App\Services;
 
+/**
+ * @deprecated Use InventoryManagementService instead. This class will be removed in a future version.
+ */
+
 use App\Models\Consumable;
 use App\Models\ConsumableTransaction;
 use App\Models\Recipe;

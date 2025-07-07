@@ -4,7 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\CategoryResource\Pages;
 use App\Filament\Resources\CategoryResource\RelationManagers;
-use App\Filament\Resources\Base\BaseResource;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Forms\Components\Common as FormCommon;
 use App\Models\Category;
 use Filament\Forms;
@@ -30,34 +30,34 @@ class CategoryResource extends BaseResource
     {
         return $form
             ->schema([
-                FormCommon::basicInformationSection()
-                    ->heading('Category Information'),
+                static::getBasicInformationSection([
+                    Forms\Components\TextInput::make('name')
+                        ->required()
+                        ->maxLength(255),
+                    static::getDescriptionField(),
+                    static::getActiveToggleField(),
+                ])
+                ->heading('Category Information'),
             ]);
     }
 
     public static function table(Table $table): Table
     {
-        return static::configureTableDefaults($table)
-            ->columns([
+        return static::configureStandardTable(
+            $table,
+            columns: [
                 static::getTextColumn('name', 'Name'),
                 static::getTruncatedTextColumn('description', 'Description'),
                 static::getActiveBadgeColumn(),
-                Tables\Columns\TextColumn::make('products_count')
-                    ->label('Products')
-                    ->counts('products')
-                    ->sortable()
-                    ->color('primary'),
-                ...static::getTimestampColumns(),
-            ])
-            ->filters([
-                Tables\Filters\TernaryFilter::make('is_active')
-                    ->label('Active')
+                static::getCountColumn('products', 'Products'),
+            ],
+            filters: [
+                static::getActiveStatusFilter()
                     ->placeholder('All Categories')
                     ->trueLabel('Active Categories')
                     ->falseLabel('Inactive Categories'),
-            ])
-            ->actions(static::getDefaultTableActions())
-            ->bulkActions([static::getDefaultBulkActions()]);
+            ]
+        );
     }
 
     public static function getRelations(): array

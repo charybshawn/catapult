@@ -20,6 +20,7 @@ use Filament\Forms\Components\Grid;
 use Filament\Support\Enums\FontWeight;
 use Filament\Tables\Actions\Action;
 use Filament\Notifications\Notification;
+use Illuminate\Support\Facades\Log;
 
 class ProductInventoryResource extends Resource
 {
@@ -429,7 +430,7 @@ class ProductInventoryResource extends Resource
         try {
             return static::getModel()::active()->count();
         } catch (\Exception $e) {
-            \Log::error('Navigation badge error: ' . $e->getMessage());
+            Log::error('Navigation badge error: ' . $e->getMessage());
             return null;
         }
     }
@@ -444,7 +445,7 @@ class ProductInventoryResource extends Resource
 
             return $lowStock > 0 ? 'warning' : 'success';
         } catch (\Exception $e) {
-            \Log::error('Navigation badge color error: ' . $e->getMessage());
+            Log::error('Navigation badge color error: ' . $e->getMessage());
             return null;
         }
     }

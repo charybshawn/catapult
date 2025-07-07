@@ -53,8 +53,8 @@ class CropGrowthSimulationTest extends TestCase
         $this->crop = Crop::factory()->create([
             'recipe_id' => $this->recipe->id,
             'tray_number' => 'SIM-001',
-            'planted_at' => $this->startDate,
-            'germination_at' => $this->startDate,
+            'planting_at' => $this->startDate,
+            'germination_at' => $this->startDate->copy()->addMinute(), // Germination must be after planting
             'current_stage' => 'germination',
         ]);
         

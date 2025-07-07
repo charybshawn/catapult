@@ -7,6 +7,10 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\IconColumn;
+use Filament\Forms;
+use Filament\Forms\Form;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 
 abstract class BaseResource extends Resource
 {
@@ -21,6 +25,292 @@ abstract class BaseResource extends Resource
             ->persistColumnSearchesInSession()
             ->persistSearchInSession()
             ->striped();
+    }
+    
+    /**
+     * Configure standard table with common features
+     */
+    public static function configureStandardTable(Table $table, array $columns = [], array $filters = [], array $actions = [], array $bulkActions = []): Table
+    {
+        $standardColumns = static::getStandardTableColumns();
+        $standardFilters = static::getStandardTableFilters();
+        $standardActions = static::getStandardTableActions();
+        $standardBulkActions = static::getStandardBulkActions();
+        
+        return static::configureTableDefaults($table)
+            ->columns(array_merge(
+                $columns,
+                $standardColumns
+            ))
+            ->filters(array_merge(
+                $filters,
+                $standardFilters
+            ))
+            ->actions(empty($actions) ? $standardActions : $actions)
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make(
+                    empty($bulkActions) ? $standardBulkActions : array_merge($bulkActions, $standardBulkActions)
+                ),
+            ])
+            ->toggleColumnsTriggerAction(
+                fn (Tables\Actions\Action $action) => $action
+                    ->button()
+                    ->label('Columns')
+                    ->icon('heroicon-m-view-columns')
+            );
+    }
+    
+    /**
+     * Get standard form sections
+     */
+    protected static function getStandardFormSections(): array
+    {
+        return [
+            'basic_info' => static::getBasicInformationSection(),
+            'contact_info' => static::getContactInformationSection(),
+            'additional_info' => static::getAdditionalInformationSection(),
+            'timestamps' => static::getTimestampsSection(),
+        ];
+    }
+    
+    /**
+     * Get basic information section
+     */
+    protected static function getBasicInformationSection(array $schema = []): Forms\Components\Section
+    {
+        $defaultSchema = [
+            Forms\Components\TextInput::make('name')
+                ->required()
+                ->maxLength(255),
+            static::getActiveToggleField(),
+        ];
+        
+        return Forms\Components\Section::make('Basic Information')
+            ->schema(array_merge($defaultSchema, $schema))
+            ->columns(2);
+    }
+    
+    /**
+     * Get contact information section
+     */
+    protected static function getContactInformationSection(array $schema = []): Forms\Components\Section
+    {
+        $defaultSchema = [
+            Forms\Components\TextInput::make('contact_name')
+                ->label('Contact Name')
+                ->maxLength(255),
+            Forms\Components\TextInput::make('contact_email')
+                ->label('Contact Email')
+                ->email()
+                ->maxLength(255),
+            Forms\Components\TextInput::make('contact_phone')
+                ->label('Contact Phone')
+                ->tel()
+                ->maxLength(255),
+            Forms\Components\Textarea::make('address')
+                ->label('Address')
+                ->rows(3)
+                ->columnSpanFull(),
+        ];
+        
+        return Forms\Components\Section::make('Contact Information')
+            ->schema(array_merge($defaultSchema, $schema))
+            ->columns(2);
+    }
+    
+    /**
+     * Get additional information section
+     */
+    protected static function getAdditionalInformationSection(array $schema = []): Forms\Components\Section
+    {
+        $defaultSchema = [
+            static::getNotesField(),
+        ];
+        
+        return Forms\Components\Section::make('Additional Information')
+            ->schema(array_merge($defaultSchema, $schema));
+    }
+    
+    /**
+     * Get timestamps section
+     */
+    protected static function getTimestampsSection(): Forms\Components\Section
+    {
+        return Forms\Components\Section::make('System Information')
+            ->schema([
+                Forms\Components\Placeholder::make('created_at')
+                    ->label('Created')
+                    ->content(fn ($record): string => $record ? $record->created_at->format('M d, Y H:i') : 'Not created yet'),
+                Forms\Components\Placeholder::make('updated_at')
+                    ->label('Last Updated')
+                    ->content(fn ($record): string => $record ? $record->updated_at->format('M d, Y H:i') : 'Not updated yet'),
+            ])
+            ->columns(2)
+            ->collapsed()
+            ->hidden(fn ($record): bool => $record === null);
+    }
+    
+    /**
+     * Get standard table columns
+     */
+    protected static function getStandardTableColumns(): array
+    {
+        $columns = [];
+        
+        // Check if model uses HasActiveStatus trait
+        if (method_exists(static::getModel(), 'scopeActive')) {
+            $columns[] = static::getActiveBadgeColumn();
+        }
+        
+        // Check if model has timestamps
+        if (method_exists(static::getModel(), 'getCreatedAtColumn')) {
+            $columns = array_merge($columns, static::getTimestampColumns());
+        }
+        
+        return $columns;
+    }
+    
+    /**
+     * Get standard table filters
+     */
+    protected static function getStandardTableFilters(): array
+    {
+        $filters = [];
+        
+        // Check if model uses HasActiveStatus trait
+        if (method_exists(static::getModel(), 'scopeActive')) {
+            $filters[] = static::getActiveStatusFilter();
+        }
+        
+        // Add date range filters if model has timestamps
+        if (method_exists(static::getModel(), 'getCreatedAtColumn')) {
+            $filters[] = static::getDateRangeFilter('created_at', 'Created Date');
+        }
+        
+        return $filters;
+    }
+    
+    /**
+     * Get active status filter
+     */
+    protected static function getActiveStatusFilter(): Tables\Filters\TernaryFilter
+    {
+        return Tables\Filters\TernaryFilter::make('is_active')
+            ->label('Active Status')
+            ->boolean()
+            ->trueLabel('Active only')
+            ->falseLabel('Inactive only')
+            ->placeholder('All');
+    }
+    
+    /**
+     * Get date range filter
+     */
+    protected static function getDateRangeFilter(string $field, string $label): Tables\Filters\Filter
+    {
+        return Tables\Filters\Filter::make($field)
+            ->label($label)
+            ->form([
+                Forms\Components\DatePicker::make($field . '_from')
+                    ->label('From'),
+                Forms\Components\DatePicker::make($field . '_until')
+                    ->label('Until'),
+            ])
+            ->query(function (Builder $query, array $data) use ($field): Builder {
+                return $query
+                    ->when(
+                        $data[$field . '_from'],
+                        fn (Builder $query, $date): Builder => $query->whereDate($field, '>=', $date),
+                    )
+                    ->when(
+                        $data[$field . '_until'],
+                        fn (Builder $query, $date): Builder => $query->whereDate($field, '<=', $date),
+                    );
+            });
+    }
+    
+    /**
+     * Get select filter for relationships
+     */
+    protected static function getRelationshipFilter(string $relationship, string $label, string $titleAttribute = 'name'): Tables\Filters\SelectFilter
+    {
+        return Tables\Filters\SelectFilter::make($relationship . '_id')
+            ->label($label)
+            ->relationship($relationship, $titleAttribute)
+            ->searchable()
+            ->preload();
+    }
+    
+    /**
+     * Get standard table actions
+     */
+    protected static function getStandardTableActions(): array
+    {
+        return [
+            Tables\Actions\ViewAction::make()
+                ->tooltip('View record'),
+            Tables\Actions\EditAction::make()
+                ->tooltip('Edit record'),
+            Tables\Actions\DeleteAction::make()
+                ->tooltip('Delete record'),
+        ];
+    }
+    
+    /**
+     * Get standard bulk actions
+     */
+    protected static function getStandardBulkActions(): array
+    {
+        $actions = [
+            Tables\Actions\DeleteBulkAction::make(),
+        ];
+        
+        // Check if model uses HasActiveStatus trait
+        if (method_exists(static::getModel(), 'scopeActive')) {
+            $actions = array_merge($actions, static::getActiveStatusBulkActions());
+        }
+        
+        return $actions;
+    }
+    
+    /**
+     * Get activate/deactivate bulk actions
+     */
+    protected static function getActiveStatusBulkActions(): array
+    {
+        return [
+            Tables\Actions\BulkAction::make('activate')
+                ->label('Activate')
+                ->icon('heroicon-o-check-circle')
+                ->action(function (Collection $records) {
+                    $records->each->update(['is_active' => true]);
+                })
+                ->requiresConfirmation()
+                ->color('success')
+                ->deselectRecordsAfterCompletion(),
+                
+            Tables\Actions\BulkAction::make('deactivate')
+                ->label('Deactivate')
+                ->icon('heroicon-o-x-circle')
+                ->action(function (Collection $records) {
+                    $records->each->update(['is_active' => false]);
+                })
+                ->requiresConfirmation()
+                ->color('danger')
+                ->deselectRecordsAfterCompletion(),
+        ];
+    }
+    
+    /**
+     * Get an active toggle field for forms
+     */
+    protected static function getActiveToggleField(): Forms\Components\Toggle
+    {
+        return Forms\Components\Toggle::make('is_active')
+            ->label('Active')
+            ->default(true)
+            ->helperText('Toggle to activate or deactivate this record')
+            ->inline(false);
     }
     
     /**
@@ -76,14 +366,7 @@ abstract class BaseResource extends Resource
      */
     protected static function getDefaultTableActions(): array
     {
-        return [
-            Tables\Actions\ViewAction::make()
-                ->tooltip('View record'),
-            Tables\Actions\EditAction::make()
-                ->tooltip('Edit record'),
-            Tables\Actions\DeleteAction::make()
-                ->tooltip('Delete record'),
-        ];
+        return static::getStandardTableActions();
     }
 
     /**
@@ -91,29 +374,7 @@ abstract class BaseResource extends Resource
      */
     protected static function getDefaultBulkActions(): array
     {
-        return [
-            Tables\Actions\DeleteBulkAction::make(),
-            Tables\Actions\BulkAction::make('activate')
-                ->label('Activate')
-                ->icon('heroicon-o-check-circle')
-                ->action(function ($records) {
-                    foreach ($records as $record) {
-                        $record->update(['is_active' => true]);
-                    }
-                })
-                ->requiresConfirmation()
-                ->color('success'),
-            Tables\Actions\BulkAction::make('deactivate')
-                ->label('Deactivate')
-                ->icon('heroicon-o-x-circle')
-                ->action(function ($records) {
-                    foreach ($records as $record) {
-                        $record->update(['is_active' => false]);
-                    }
-                })
-                ->requiresConfirmation()
-                ->color('danger'),
-        ];
+        return static::getStandardBulkActions();
     }
 
     /**
@@ -131,6 +392,10 @@ abstract class BaseResource extends Resource
             'completed' => 'success',
             'cancelled' => 'danger',
             'draft' => 'gray',
+            'in_progress' => 'info',
+            'in_stock' => 'success',
+            'out_of_stock' => 'danger',
+            'reorder_needed' => 'warning',
         ];
 
         $colors = array_merge($defaultColorMap, $colorMap);
@@ -148,7 +413,7 @@ abstract class BaseResource extends Resource
     protected static function getPriceColumn(
         string $field = 'price',
         string $label = 'Price',
-        string $currency = '$'
+        string $currency = 'USD'
     ): TextColumn {
         return Tables\Columns\TextColumn::make($field)
             ->label($label)
@@ -171,5 +436,296 @@ abstract class BaseResource extends Resource
             ->searchable($searchable)
             ->sortable($sortable)
             ->toggleable();
+    }
+    
+    /**
+     * Get a boolean badge column
+     */
+    protected static function getBooleanBadgeColumn(
+        string $field,
+        string $label,
+        string $trueLabel = 'Yes',
+        string $falseLabel = 'No',
+        string $trueColor = 'success',
+        string $falseColor = 'danger'
+    ): Tables\Columns\TextColumn {
+        return Tables\Columns\TextColumn::make($field)
+            ->label($label)
+            ->badge()
+            ->formatStateUsing(fn (bool $state): string => $state ? $trueLabel : $falseLabel)
+            ->color(fn (bool $state): string => $state ? $trueColor : $falseColor)
+            ->sortable()
+            ->toggleable();
+    }
+    
+    /**
+     * Get standard notes/description form field
+     */
+    protected static function getNotesField(string $field = 'notes', string $label = 'Notes'): Forms\Components\Textarea
+    {
+        return Forms\Components\Textarea::make($field)
+            ->label($label)
+            ->rows(3)
+            ->columnSpanFull();
+    }
+    
+    /**
+     * Get description textarea field
+     */
+    protected static function getDescriptionField(string $field = 'description', string $label = 'Description'): Forms\Components\Textarea
+    {
+        return Forms\Components\Textarea::make($field)
+            ->label($label)
+            ->rows(3)
+            ->maxLength(65535)
+            ->columnSpanFull();
+    }
+    
+    /**
+     * Get a standard select field for relationships
+     */
+    protected static function getRelationshipSelect(
+        string $relationship,
+        string $titleAttribute = 'name',
+        string $label = null,
+        bool $required = false,
+        bool $searchable = true
+    ): Forms\Components\Select {
+        return Forms\Components\Select::make($relationship . '_id')
+            ->label($label ?? ucfirst(str_replace('_', ' ', $relationship)))
+            ->relationship($relationship, $titleAttribute)
+            ->searchable($searchable)
+            ->preload()
+            ->required($required);
+    }
+    
+    /**
+     * Get standard form schema with sections
+     */
+    protected static function getStandardFormSchema(array $additionalSections = []): array
+    {
+        $sections = static::getStandardFormSections();
+        
+        $schema = [];
+        
+        // Add basic info section if it exists
+        if (isset($sections['basic_info'])) {
+            $schema[] = $sections['basic_info'];
+        }
+        
+        // Add any additional sections
+        foreach ($additionalSections as $section) {
+            $schema[] = $section;
+        }
+        
+        // Add timestamps section if it exists
+        if (isset($sections['timestamps'])) {
+            $schema[] = $sections['timestamps'];
+        }
+        
+        return $schema;
+    }
+    
+    /**
+     * Get truncated text column for long text fields
+     */
+    protected static function getTruncatedTextColumn(
+        string $field,
+        string $label,
+        int $length = 50,
+        bool $searchable = true
+    ): TextColumn {
+        return Tables\Columns\TextColumn::make($field)
+            ->label($label)
+            ->limit($length)
+            ->tooltip(function (TextColumn $column): ?string {
+                $state = $column->getState();
+                
+                if (strlen($state) <= $length) {
+                    return null;
+                }
+                
+                return $state;
+            })
+            ->searchable($searchable)
+            ->toggleable();
+    }
+    
+    /**
+     * Get standard searchable columns configuration
+     */
+    protected static function configureSearchableColumns(Table $table, array $searchableColumns): Table
+    {
+        return $table->searchable(
+            fn () => $searchableColumns
+        );
+    }
+    
+    /**
+     * Get a count column for relationships
+     */
+    protected static function getCountColumn(
+        string $relationship,
+        string $label = null,
+        string $color = 'primary'
+    ): TextColumn {
+        $label = $label ?? ucfirst(str_replace('_', ' ', $relationship));
+        
+        return Tables\Columns\TextColumn::make($relationship . '_count')
+            ->label($label)
+            ->counts($relationship)
+            ->sortable()
+            ->color($color)
+            ->toggleable();
+    }
+    
+    /**
+     * Get standard form with sections and custom content
+     */
+    protected static function getStandardForm(Form $form, array $customSchema = []): Form
+    {
+        $sections = static::getStandardFormSections();
+        $schema = [];
+        
+        // Add basic info if exists
+        if (isset($sections['basic_info'])) {
+            $schema[] = $sections['basic_info'];
+        }
+        
+        // Add custom schema
+        foreach ($customSchema as $section) {
+            $schema[] = $section;
+        }
+        
+        // Add timestamps if exists
+        if (isset($sections['timestamps'])) {
+            $schema[] = $sections['timestamps'];
+        }
+        
+        return $form->schema($schema);
+    }
+    
+    /**
+     * Get numeric column with formatting
+     */
+    protected static function getNumericColumn(
+        string $field,
+        string $label,
+        int $decimals = 0,
+        bool $sortable = true
+    ): TextColumn {
+        return Tables\Columns\TextColumn::make($field)
+            ->label($label)
+            ->numeric($decimals)
+            ->sortable($sortable)
+            ->toggleable();
+    }
+    
+    /**
+     * Get date column
+     */
+    protected static function getDateColumn(
+        string $field,
+        string $label,
+        string $format = null,
+        bool $sortable = true
+    ): TextColumn {
+        $column = Tables\Columns\TextColumn::make($field)
+            ->label($label)
+            ->sortable($sortable)
+            ->toggleable();
+            
+        if ($format) {
+            $column->date($format);
+        } else {
+            $column->date();
+        }
+        
+        return $column;
+    }
+    
+    /**
+     * Get datetime column
+     */
+    protected static function getDateTimeColumn(
+        string $field,
+        string $label,
+        bool $sortable = true
+    ): TextColumn {
+        return Tables\Columns\TextColumn::make($field)
+            ->label($label)
+            ->dateTime()
+            ->sortable($sortable)
+            ->toggleable();
+    }
+    
+    /**
+     * Apply standard table configuration with grouping and header actions
+     */
+    protected static function applyStandardTableConfiguration(
+        Table $table,
+        array $groups = [],
+        array $headerActions = [],
+        string $defaultSort = 'created_at',
+        string $defaultSortDirection = 'desc'
+    ): Table {
+        $table = $table->defaultSort($defaultSort, $defaultSortDirection);
+        
+        if (!empty($groups)) {
+            $table = $table->groups($groups);
+        }
+        
+        if (!empty($headerActions)) {
+            $table = $table->headerActions($headerActions);
+        }
+        
+        return $table;
+    }
+    
+    /**
+     * Get standard modal actions (save/cancel)
+     */
+    protected static function getModalActions(): array
+    {
+        return [
+            Tables\Actions\Action::make('save')
+                ->label('Save')
+                ->color('primary')
+                ->submit(),
+            Tables\Actions\Action::make('cancel')
+                ->label('Cancel')
+                ->color('gray')
+                ->cancel(),
+        ];
+    }
+    
+    /**
+     * Get badge column with state formatting
+     */
+    protected static function getBadgeColumn(
+        string $field,
+        string $label,
+        array $formatStates = [],
+        array $colors = []
+    ): TextColumn {
+        $column = Tables\Columns\TextColumn::make($field)
+            ->label($label)
+            ->badge()
+            ->sortable()
+            ->toggleable();
+            
+        if (!empty($formatStates)) {
+            $column->formatStateUsing(function ($state) use ($formatStates) {
+                return $formatStates[$state] ?? $state;
+            });
+        }
+        
+        if (!empty($colors)) {
+            $column->color(function ($state) use ($colors) {
+                return $colors[$state] ?? 'gray';
+            });
+        }
+        
+        return $column;
     }
 }

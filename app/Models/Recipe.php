@@ -10,11 +10,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Collection;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
-use App\Services\LotInventoryService;
+use App\Services\InventoryManagementService;
+use App\Services\RecipeService;
+use App\Traits\HasActiveStatus;
+use App\Traits\HasTimestamps;
 
 class Recipe extends Model
 {
-    use HasFactory, LogsActivity;
+    use HasFactory, LogsActivity, HasActiveStatus, HasTimestamps;
     
     /**
      * The attributes that are mass assignable.
@@ -101,6 +104,7 @@ class Recipe extends Model
     
     /**
      * Get all consumable entries for the recipe's lot_number.
+     * Delegates to InventoryManagementService for consistency.
      * 
      * @return Collection
      */
@@ -110,22 +114,12 @@ class Recipe extends Model
             return collect();
         }
         
-        $lotInventoryService = new LotInventoryService();
-        $seedTypeId = $lotInventoryService->getSeedTypeId();
-        
-        if (!$seedTypeId) {
-            return collect();
-        }
-        
-        return Consumable::where('consumable_type_id', $seedTypeId)
-            ->where('lot_no', strtoupper($this->lot_number))
-            ->where('is_active', true)
-            ->orderBy('created_at', 'asc')
-            ->get();
+        return app(InventoryManagementService::class)->getEntriesInLot($this->lot_number);
     }
     
     /**
      * Get available (not depleted) consumable entries for the recipe's lot.
+     * Delegates to InventoryManagementService for consistency.
      * 
      * @return Collection
      */
@@ -135,19 +129,11 @@ class Recipe extends Model
             return collect();
         }
         
-        $lotInventoryService = new LotInventoryService();
-        $seedTypeId = $lotInventoryService->getSeedTypeId();
-        
-        if (!$seedTypeId) {
-            return collect();
-        }
-        
-        return Consumable::where('consumable_type_id', $seedTypeId)
-            ->where('lot_no', strtoupper($this->lot_number))
-            ->where('is_active', true)
-            ->whereRaw('(total_quantity - consumed_quantity) > 0')
-            ->orderBy('created_at', 'asc')
-            ->get();
+        $inventoryService = app(InventoryManagementService::class);
+        return $inventoryService->getEntriesInLot($this->lot_number)
+            ->filter(function (Consumable $consumable) use ($inventoryService) {
+                return $inventoryService->getCurrentStock($consumable) > 0;
+            });
     }
     
     
@@ -177,28 +163,25 @@ class Recipe extends Model
     
     /**
      * Calculate the total days from planting to harvest.
+     * @return float
      */
     public function totalDays(): float
     {
-        // If days_to_maturity is set, prefer that value
-        if ($this->days_to_maturity) {
-            return $this->days_to_maturity;
-        }
-        
-        // Otherwise use the sum of all stage durations
-        return $this->germination_days + $this->blackout_days + $this->light_days;
+        return app(RecipeService::class)->calculateTotalDays($this);
     }
     
     /**
      * Calculate days to harvest including seed soak time.
+     * @return float
      */
     public function effectiveTotalDays(): float
     {
-        return ($this->seed_soak_hours / 24) + $this->totalDays();
+        return app(RecipeService::class)->calculateEffectiveTotalDays($this);
     }
     
     /**
      * Get total available quantity for the recipe's lot.
+     * Delegates to InventoryManagementService.
      * 
      * @return float
      */
@@ -208,8 +191,7 @@ class Recipe extends Model
             return 0.0;
         }
         
-        $lotInventoryService = new LotInventoryService();
-        return $lotInventoryService->getLotQuantity($this->lot_number);
+        return app(InventoryManagementService::class)->getLotQuantity($this->lot_number);
     }
     
     /**
@@ -229,8 +211,7 @@ class Recipe extends Model
         }
         
         // Check actual inventory
-        $lotInventoryService = new LotInventoryService();
-        return $lotInventoryService->isLotDepleted($this->lot_number);
+        return app(InventoryManagementService::class)->isLotDepleted($this->lot_number);
     }
     
     /**
@@ -241,15 +222,7 @@ class Recipe extends Model
      */
     public function canExecute(float $requiredQuantity): bool
     {
-        if (!$this->lot_number) {
-            return false;
-        }
-        
-        if ($this->isLotDepleted()) {
-            return false;
-        }
-        
-        return $this->getLotQuantity() >= $requiredQuantity;
+        return app(RecipeService::class)->canExecuteRecipe($this, $requiredQuantity);
     }
     
     /**
@@ -259,8 +232,7 @@ class Recipe extends Model
      */
     public function markLotDepleted(): void
     {
-        $this->lot_depleted_at = now();
-        $this->save();
+        app(RecipeService::class)->markLotDepleted($this);
     }
 
     /**
@@ -269,97 +241,12 @@ class Recipe extends Model
     protected static function booted(): void
     {
         static::saving(function (Recipe $recipe) {
-            // Auto-generate recipe name if not set or if key fields changed
-            $recipe->generateRecipeName();
+            // Update dependent fields including auto-generating name
+            app(RecipeService::class)->updateDependentFields($recipe);
         });
     }
 
-    /**
-     * Generate recipe name from variety, cultivar, seed density, DTM, and lot number.
-     * Format: Variety (Cultivar) - Seed Density - DTM - LOT NO
-     */
-    public function generateRecipeName(): void
-    {
-        // Extract variety and cultivar from the consumable based on lot_number
-        if ($this->lot_number) {
-            $seedTypeId = \App\Models\ConsumableType::where('code', 'seed')->first()?->id;
-            $consumable = \App\Models\Consumable::where('consumable_type_id', $seedTypeId)
-                ->where('lot_no', $this->lot_number)
-                ->where('is_active', true)
-                ->first();
-            
-            if ($consumable && $consumable->name) {
-                // Parse consumable name format: "Variety (Cultivar)"
-                if (preg_match('/^(.+?)\s*\((.+?)\)$/', $consumable->name, $matches)) {
-                    $variety = trim($matches[1]);
-                    $cultivar = trim($matches[2]);
-                    
-                    $nameParts = [];
-                    
-                    // Add variety (cultivar) part
-                    $nameParts[] = $variety . ' (' . $cultivar . ')';
-                    
-                    // Add seed density if available
-                    if ($this->seed_density_grams_per_tray) {
-                        $nameParts[] = $this->seed_density_grams_per_tray . 'G';
-                    }
-                    
-                    // Add DTM if available
-                    if ($this->days_to_maturity) {
-                        $nameParts[] = $this->days_to_maturity . ' DTM';
-                    }
-                    
-                    // Add lot number
-                    $nameParts[] = $this->lot_number;
-                    
-                    $baseName = implode(' - ', $nameParts);
-                    $this->name = $this->ensureUniqueRecipeName($baseName);
-                    
-                    // Also populate the common_name and cultivar_name fields for consistency
-                    $this->common_name = $variety;
-                    $this->cultivar_name = $cultivar;
-                }
-            }
-        }
-    }
-
-    /**
-     * Ensure the recipe name is unique by appending a number if necessary.
-     * 
-     * @param string $baseName The base name to make unique
-     * @return string The unique name
-     */
-    protected function ensureUniqueRecipeName(string $baseName): string
-    {
-        $originalName = $baseName;
-        $counter = 1;
-        
-        // Check if this exact name already exists (excluding current record if updating)
-        while ($this->nameExists($baseName)) {
-            $counter++;
-            $baseName = $originalName . ' (' . $counter . ')';
-        }
-        
-        return $baseName;
-    }
-
-    /**
-     * Check if a recipe name already exists in the database.
-     * 
-     * @param string $name The name to check
-     * @return bool Whether the name exists
-     */
-    protected function nameExists(string $name): bool
-    {
-        $query = static::where('name', $name);
-        
-        // If this is an update (record exists), exclude current record from check
-        if ($this->exists) {
-            $query->where('id', '!=', $this->id);
-        }
-        
-        return $query->exists();
-    }
+    // Name generation logic moved to RecipeService
 
     /**
      * Configure the activity log options for this model.

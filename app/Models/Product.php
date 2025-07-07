@@ -12,10 +12,14 @@ use Spatie\Activitylog\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use App\Traits\HasActiveStatus;
+use App\Traits\HasCostInformation;
+use App\Traits\HasTimestamps;
 
 class Product extends Model
 {
-    use HasFactory, LogsActivity, SoftDeletes;
+    use HasFactory, LogsActivity, SoftDeletes, HasActiveStatus, HasCostInformation, HasTimestamps;
     
     /**
      * The table associated with the model.
@@ -459,6 +463,17 @@ class Product extends Model
     }
 
     /**
+     * Override the active field name from HasActiveStatus trait.
+     * Product model uses 'active' instead of 'is_active'.
+     *
+     * @return string
+     */
+    public function getActiveFieldName(): string
+    {
+        return 'active';
+    }
+
+    /**
      * Configure the activity log options for this model.
      */
     public function getActivitylogOptions(): LogOptions
@@ -564,7 +579,7 @@ class Product extends Model
     {
         try {
             // Add debug logging when the relationship is accessed
-            \Illuminate\Support\Facades\Log::info('Product: productMix relationship accessed', [
+            Log::info('Product: productMix relationship accessed', [
                 'product_id' => $this->id ?? 'null',
                 'product_mix_id' => $this->product_mix_id ?? 'null',
             ]);
@@ -1130,7 +1145,7 @@ class Product extends Model
 
         // Log if any entries were created (for debugging)
         if ($createdCount > 0) {
-            \Log::info("Created {$createdCount} inventory entries for product: {$this->name}");
+            Log::info("Created {$createdCount} inventory entries for product: {$this->name}");
         }
     }
 } 
