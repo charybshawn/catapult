@@ -70,9 +70,27 @@ class ActivityResource extends Resource
                 Forms\Components\TextInput::make('causer_id')
                     ->label('Causer ID')
                     ->disabled(),
-                Forms\Components\KeyValue::make('properties')
+                Forms\Components\Textarea::make('properties')
                     ->label('Properties')
-                    ->disabled(),
+                    ->rows(10)
+                    ->disabled()
+                    ->formatStateUsing(function ($state) {
+                        if (empty($state)) {
+                            return '';
+                        }
+                        
+                        // If it's already a string, try to decode and pretty print
+                        if (is_string($state)) {
+                            $decoded = json_decode($state, true);
+                            if ($decoded !== null) {
+                                return json_encode($decoded, JSON_PRETTY_PRINT);
+                            }
+                            return $state;
+                        }
+                        
+                        // If it's an array or object, pretty print it
+                        return json_encode($state, JSON_PRETTY_PRINT);
+                    }),
                 Forms\Components\DateTimePicker::make('created_at')
                     ->label('Created At')
                     ->disabled(),
