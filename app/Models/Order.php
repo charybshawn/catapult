@@ -8,11 +8,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Spatie\Activitylog\LogOptions;
-use Spatie\Activitylog\Traits\LogsActivity;
+use App\Traits\Logging\ExtendedLogsActivity;
 
 class Order extends Model
 {
-    use HasFactory, LogsActivity;
+    use HasFactory, ExtendedLogsActivity;
     
     /**
      * The attributes that are mass assignable.
@@ -721,5 +721,27 @@ class Order extends Model
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->setDescriptionForEvent(fn(string $eventName) => "Order was {$eventName}");
+    }
+
+    /**
+     * Get the relationships that should be logged with this model.
+     */
+    public function getLoggedRelationships(): array
+    {
+        return ['customer', 'orderStatus', 'orderType', 'orderProducts', 'crops'];
+    }
+
+    /**
+     * Get specific attributes to include from related models.
+     */
+    public function getRelationshipAttributesToLog(): array
+    {
+        return [
+            'customer' => ['id', 'name', 'email', 'phone'],
+            'orderStatus' => ['id', 'name', 'code'],
+            'orderType' => ['id', 'name', 'code'],
+            'orderProducts' => ['id', 'product_id', 'quantity', 'unit_price', 'total_price'],
+            'crops' => ['id', 'recipe_id', 'tray_number', 'current_stage_id', 'planting_at'],
+        ];
     }
 }

@@ -259,6 +259,27 @@ class Crop extends Model
             'watering_suspended_at'
         ];
     }
+
+    /**
+     * Get the relationships that should be logged with this model.
+     */
+    public function getLoggedRelationships(): array
+    {
+        return ['recipe', 'order', 'currentStage', 'cropPlan'];
+    }
+
+    /**
+     * Get specific attributes to include from related models.
+     */
+    public function getRelationshipAttributesToLog(): array
+    {
+        return [
+            'recipe' => ['id', 'name', 'code', 'germination_days', 'blackout_days', 'light_days'],
+            'order' => ['id', 'customer_id', 'delivery_date', 'status'],
+            'currentStage' => ['id', 'name', 'code', 'days_duration'],
+            'cropPlan' => ['id', 'name', 'start_date', 'end_date'],
+        ];
+    }
     
     
     /**

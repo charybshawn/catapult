@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Auth;
 
 trait ExtendedLogsActivity
 {
-    use LogsActivity;
+    use LogsActivity, LogsActivityWithRelations;
 
     /**
      * Get the options for activity logging.

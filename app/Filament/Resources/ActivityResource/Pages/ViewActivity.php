@@ -64,7 +64,21 @@ class ViewActivity extends ViewRecord
                                 'properties' => $this->record->properties,
                             ]),
                     ])
-                    ->visible(fn () => !empty($this->record->properties)),
+                    ->visible(fn () => !empty($this->record->properties) && !isset($this->record->properties['relationships'])),
+                    
+                Section::make('Properties & Relationships')
+                    ->schema([
+                        View::make('filament.resources.activity-resource.components.properties-display')
+                            ->viewData([
+                                'properties' => array_diff_key($this->record->properties ?? [], ['relationships' => true]),
+                            ])
+                            ->visible(fn () => !empty(array_diff_key($this->record->properties ?? [], ['relationships' => true]))),
+                        View::make('filament.resources.activity-resource.components.relationships-display')
+                            ->viewData([
+                                'properties' => $this->record->properties,
+                            ]),
+                    ])
+                    ->visible(fn () => !empty($this->record->properties) && isset($this->record->properties['relationships'])),
                     
                 Section::make('Additional Information')
                     ->schema([

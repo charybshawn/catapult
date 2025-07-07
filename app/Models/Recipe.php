@@ -193,6 +193,26 @@ class Recipe extends Model
         
         return app(InventoryManagementService::class)->getLotQuantity($this->lot_number);
     }
+
+    /**
+     * Get the relationships that should be logged with this model.
+     */
+    public function getLoggedRelationships(): array
+    {
+        return ['seedEntry', 'product', 'wateringSchedule'];
+    }
+
+    /**
+     * Get specific attributes to include from related models.
+     */
+    public function getRelationshipAttributesToLog(): array
+    {
+        return [
+            'seedEntry' => ['id', 'common_name', 'cultivar_name', 'supplier_code'],
+            'product' => ['id', 'name', 'sku', 'active'],
+            'wateringSchedule' => ['id', 'stage', 'frequency_hours', 'duration_seconds', 'notes'],
+        ];
+    }
     
     /**
      * Check if the recipe's assigned lot is depleted.

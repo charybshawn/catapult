@@ -69,6 +69,27 @@ class Product extends Model
         'track_inventory' => 'boolean',
         'wholesale_discount_percentage' => 'decimal:2',
     ];
+
+    /**
+     * Get the relationships that should be logged with this model.
+     */
+    public function getLoggedRelationships(): array
+    {
+        return ['category', 'priceVariations', 'defaultPhoto', 'productMix'];
+    }
+
+    /**
+     * Get specific attributes to include from related models.
+     */
+    public function getRelationshipAttributesToLog(): array
+    {
+        return [
+            'category' => ['id', 'name', 'slug'],
+            'priceVariations' => ['id', 'name', 'price', 'fill_weight', 'pricing_type', 'is_default'],
+            'defaultPhoto' => ['id', 'filename', 'url', 'is_default'],
+            'productMix' => ['id', 'name', 'description'],
+        ];
+    }
     
     /**
      * Get the validation rules for the model.
