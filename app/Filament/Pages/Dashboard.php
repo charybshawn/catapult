@@ -349,7 +349,18 @@ class Dashboard extends BaseDashboard
         // Pre-load all batch crops to avoid N+1 queries
         $allCrops = Crop::with(['recipe.seedEntry', 'currentStage'])->get()->groupBy(function($crop) {
             $plantedAt = $crop->planting_at ? $crop->planting_at->format('Y-m-d') : 'unknown';
-            return "{$crop->recipe_id}|{$plantedAt}|{$crop->currentStage?->code}";
+            $stageCode = 'unknown';
+            
+            // Safely get the stage code
+            if ($crop->relationLoaded('currentStage') && $crop->currentStage) {
+                $stageCode = $crop->currentStage->code;
+            } elseif ($crop->current_stage_id) {
+                // Fallback: load the stage directly
+                $stage = \App\Models\CropStage::find($crop->current_stage_id);
+                $stageCode = $stage?->code ?? 'unknown';
+            }
+            
+            return "{$crop->recipe_id}|{$plantedAt}|{$stageCode}";
         });
         
         foreach ($alerts as $alert) {
