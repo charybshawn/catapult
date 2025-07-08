@@ -87,15 +87,55 @@ class RecipeResource extends BaseResource
         return [
             Forms\Components\Section::make('Recipe Information')
                 ->schema([
-                    Forms\Components\TextInput::make('common_name')
-                        ->label('Variety (Common Name)')
-                        ->maxLength(255)
-                        ->required(),
+                    Forms\Components\Select::make('master_seed_catalog_id')
+                        ->label('Variety')
+                        ->relationship('masterSeedCatalog', 'common_name')
+                        ->searchable()
+                        ->preload()
+                        ->required()
+                        ->reactive()
+                        ->afterStateUpdated(function ($state, callable $set, ?Recipe $record) {
+                            if ($state && !$record) {
+                                // When creating new recipe, set common_name based on selection
+                                $catalog = \App\Models\MasterSeedCatalog::find($state);
+                                if ($catalog) {
+                                    $set('common_name', $catalog->common_name);
+                                }
+                            }
+                            // Reset cultivar when variety changes
+                            $set('master_cultivar_id', null);
+                        }),
 
-                    Forms\Components\TextInput::make('cultivar_name')
+                    Forms\Components\Select::make('master_cultivar_id')
                         ->label('Cultivar')
-                        ->maxLength(255)
-                        ->required(),
+                        ->options(function (callable $get) {
+                            $catalogId = $get('master_seed_catalog_id');
+                            if (!$catalogId) {
+                                return [];
+                            }
+                            return \App\Models\MasterCultivar::where('master_seed_catalog_id', $catalogId)
+                                ->where('is_active', true)
+                                ->pluck('cultivar_name', 'id');
+                        })
+                        ->searchable()
+                        ->reactive()
+                        ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                            if ($state) {
+                                $cultivar = \App\Models\MasterCultivar::find($state);
+                                if ($cultivar) {
+                                    $set('cultivar_name', $cultivar->cultivar_name);
+                                    // Update recipe name
+                                    $catalog = \App\Models\MasterSeedCatalog::find($get('master_seed_catalog_id'));
+                                    if ($catalog && $cultivar) {
+                                        $name = $catalog->common_name . ' (' . $cultivar->cultivar_name . ')';
+                                        $set('name', $name);
+                                    }
+                                }
+                            }
+                        }),
+
+                    Forms\Components\Hidden::make('common_name'),
+                    Forms\Components\Hidden::make('cultivar_name'),
 
                     Forms\Components\Select::make('lot_number')
                         ->label('Seed Lot')
@@ -221,12 +261,6 @@ class RecipeResource extends BaseResource
                         })
                         ->visible(fn(?Recipe $record) => $record && $record->lot_number),
 
-                    Forms\Components\Select::make('supplier_soil_id')
-                        ->label('Soil Supplier')
-                        ->options(fn () => Supplier::where('type', 'soil')
-                            ->orWhereNull('type')
-                            ->pluck('name', 'id'))
-                        ->searchable(),
 
                     Forms\Components\Toggle::make('is_active')
                         ->label('Active')
@@ -880,8 +914,9 @@ class RecipeResource extends BaseResource
         return LogOptions::defaults()
             ->logOnly([
                 'name', 
-                'seed_entry_id', 
-                'supplier_soil_id', 
+                'common_name',
+                'cultivar_name',
+                'lot_number', 
                 'germination_days', 
                 'blackout_days', 
                 'light_days',

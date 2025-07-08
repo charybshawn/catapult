@@ -41,6 +41,18 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/lot-depletion.log'));
 
+        // Send crop plan reminders daily at 8 AM for plans due in next 2 days
+        $schedule->command('crop-plans:send-reminders --days=2')
+            ->dailyAt('08:00')
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/crop-plan-reminders.log'));
+
+        // Check crop plan status daily at 7:30 AM
+        $schedule->command('crop-plans:check-status')
+            ->dailyAt('07:30')
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/crop-plan-status.log'));
+
         // TEMPORARILY DISABLED: Process recurring orders daily at 6 AM (before typical business hours)
         // Use manual action buttons in OrderResource instead
         // $schedule->command('orders:process-recurring')

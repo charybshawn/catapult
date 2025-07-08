@@ -8,12 +8,12 @@ use App\Models\Consumable;
 use App\Models\TaskSchedule;
 use App\Models\Order;
 use App\Models\Recipe;
-use App\Models\SeedEntry;
 use App\Models\TimeCard;
 use App\Models\User;
 use App\Models\CropPlan;
 use App\Services\InventoryManagementService;
 use App\Services\CropPlanCalculatorService;
+use App\Services\RecipeVarietyService;
 use Filament\Pages\Dashboard as BaseDashboard;
 use Filament\Panel;
 use Illuminate\Contracts\View\View;
@@ -27,10 +27,12 @@ class Dashboard extends BaseDashboard
     protected static ?string $slug = 'dashboard';
     
     protected InventoryManagementService $inventoryService;
+    protected RecipeVarietyService $varietyService;
     
     public function __construct()
     {
         $this->inventoryService = app(InventoryManagementService::class);
+        $this->varietyService = app(RecipeVarietyService::class);
     }
     protected static ?string $navigationIcon = 'heroicon-o-home';
     protected static ?string $navigationLabel = 'Dashboard';
@@ -156,7 +158,7 @@ class Dashboard extends BaseDashboard
                 $query->where('code', 'light');
             })
             ->where('light_at', '<', now()->subDays(7)) // Example logic
-            ->with(['recipe.seedEntry'])
+            ->with(['recipe.masterSeedCatalog', 'recipe.masterCultivar'])
             ->take(5)
             ->get();
     }
@@ -167,7 +169,7 @@ class Dashboard extends BaseDashboard
                 $query->where('code', 'planting');
             })
             ->orderBy('planting_at', 'desc')
-            ->with(['recipe.seedEntry'])
+            ->with(['recipe.masterSeedCatalog', 'recipe.masterCultivar'])
             ->take(5)
             ->get();
     }
@@ -344,10 +346,10 @@ class Dashboard extends BaseDashboard
         
         // Pre-load all crops to avoid N+1 queries
         $cropIds = $alerts->map(fn($alert) => $alert->conditions['crop_id'] ?? null)->filter()->unique();
-        $crops = Crop::with(['recipe.seedEntry'])->whereIn('id', $cropIds)->get()->keyBy('id');
+        $crops = Crop::with(['recipe.masterSeedCatalog', 'recipe.masterCultivar'])->whereIn('id', $cropIds)->get()->keyBy('id');
         
         // Pre-load all batch crops to avoid N+1 queries
-        $allCrops = Crop::with(['recipe.seedEntry', 'currentStage'])->get()->groupBy(function($crop) {
+        $allCrops = Crop::with(['recipe.masterSeedCatalog', 'recipe.masterCultivar', 'currentStage'])->get()->groupBy(function($crop) {
             $plantedAt = $crop->planting_at ? $crop->planting_at->format('Y-m-d') : 'unknown';
             $stageCode = 'unknown';
             
@@ -372,7 +374,7 @@ class Dashboard extends BaseDashboard
             // Create batch key: variety + planted date + current stage + target stage + task
             
             // Try to get variety name from multiple sources in order of preference
-            $variety = $crop->recipe?->seedEntry?->cultivar_name 
+            $variety = $this->varietyService->getCultivarName($crop->recipe) 
                 ?? $alert->conditions['variety'] 
                 ?? $crop->recipe?->name 
                 ?? 'Unknown';
@@ -466,7 +468,7 @@ class Dashboard extends BaseDashboard
         $crops = Crop::whereHas('currentStage', function($query) {
                 $query->where('code', '!=', 'harvested');
             })
-            ->with(['recipe.seedEntry', 'currentStage'])
+            ->with(['recipe', 'currentStage'])
             ->get()
             ->groupBy(function($crop) {
                 if ($crop->relationLoaded('currentStage') && $crop->currentStage && is_object($crop->currentStage)) {
@@ -505,7 +507,7 @@ class Dashboard extends BaseDashboard
                 $query->whereRaw('total_quantity <= restock_threshold')
                       ->orWhereRaw('(initial_stock - consumed_quantity) <= restock_threshold');
             })
-            ->with(['seedEntry'])
+            ->with(['masterSeedCatalog'])
             ->orderBy('total_quantity', 'asc')
             ->take(8)
             ->get();
@@ -536,7 +538,7 @@ class Dashboard extends BaseDashboard
         return Crop::whereHas('currentStage', function($query) {
                 $query->where('code', 'light');
             })
-            ->with(['recipe.seedEntry', 'order'])
+            ->with(['recipe.masterSeedCatalog', 'recipe.masterCultivar', 'order'])
             ->get()
             ->filter(function ($crop) use ($nextWeek) {
                 $expectedHarvest = $crop->expectedHarvestDate();
@@ -559,10 +561,10 @@ class Dashboard extends BaseDashboard
         $cropsByVariety = Crop::whereHas('currentStage', function($query) {
                 $query->where('code', '!=', 'harvested');
             })
-            ->with(['recipe.seedEntry'])
+            ->with(['recipe'])
             ->get()
             ->groupBy(function ($crop) {
-                return $crop->recipe->seedEntry->cultivar_name ?? 'Unknown';
+                return $crop->recipe->cultivar_name ?? 'Unknown';
             });
             
         foreach ($cropsByVariety as $varietyName => $crops) {
@@ -617,10 +619,10 @@ class Dashboard extends BaseDashboard
             })
             ->whereNotNull('harvest_weight_grams')
             ->where('harvest_weight_grams', '>', 0)
-            ->whereHas('recipe.seedEntry', function ($query) use ($varietyName) {
+            ->whereHas('recipe.masterCultivar', function ($query) use ($varietyName) {
                 $query->where('cultivar_name', $varietyName);
             })
-            ->with(['recipe.seedEntry'])
+            ->with(['recipe.masterSeedCatalog', 'recipe.masterCultivar'])
             ->get();
             
         if ($harvestedCrops->isEmpty()) {
@@ -706,7 +708,7 @@ class Dashboard extends BaseDashboard
             $harvests = Crop::whereHas('currentStage', function($query) {
                     $query->where('code', 'light');
                 })
-                ->with(['recipe.seedEntry'])
+                ->with(['recipe.masterSeedCatalog', 'recipe.masterCultivar'])
                 ->get()
                 ->filter(function ($crop) use ($date) {
                     $expectedHarvest = $crop->expectedHarvestDate();
@@ -718,7 +720,7 @@ class Dashboard extends BaseDashboard
                 'day_name' => $date->format('l'),
                 'harvest_count' => $harvests->count(),
                 'varieties' => $harvests->groupBy(function ($crop) {
-                    return $crop->recipe->seedEntry->cultivar_name ?? 'Unknown';
+                    return $this->varietyService->getCultivarName($crop->recipe) ?? 'Unknown';
                 })->map->count()
             ];
         }
@@ -904,7 +906,7 @@ class Dashboard extends BaseDashboard
      */
     protected function getUrgentCropPlans()
     {
-        return CropPlan::with(['recipe.seedEntry', 'order.customer'])
+        return CropPlan::with(['recipe.masterSeedCatalog', 'recipe.masterCultivar', 'order.customer', 'status'])
             ->whereHas('status', function($query) {
                 $query->where('code', 'active');
             })
@@ -922,7 +924,7 @@ class Dashboard extends BaseDashboard
      */
     protected function getOverdueCropPlans()
     {
-        return CropPlan::with(['recipe.seedEntry', 'order.customer'])
+        return CropPlan::with(['recipe.masterSeedCatalog', 'recipe.masterCultivar', 'order.customer', 'status'])
             ->whereHas('status', function($query) {
                 $query->where('code', 'active');
             })
@@ -989,7 +991,7 @@ class Dashboard extends BaseDashboard
         }
         
         // Add crop planting dates
-        $cropPlans = CropPlan::with(['recipe.seedEntry', 'order'])
+        $cropPlans = CropPlan::with(['recipe.masterSeedCatalog', 'recipe.masterCultivar', 'order', 'status'])
             ->where('plant_by_date', '>=', now()->subDays(30))
             ->where('plant_by_date', '<=', now()->addDays(60))
             ->get();
@@ -1003,9 +1005,21 @@ class Dashboard extends BaseDashboard
                 default => '#6b7280',
             };
             
+            // Get variety name - handle missing recipes
+            $varietyName = 'Unknown';
+            if ($plan->recipe) {
+                $varietyName = $this->varietyService->getCommonName($plan->recipe);
+            } elseif ($plan->variety_id) {
+                // Try to get name from master seed catalog if no recipe
+                $masterSeedCatalog = \App\Models\MasterSeedCatalog::find($plan->variety_id);
+                if ($masterSeedCatalog) {
+                    $varietyName = $masterSeedCatalog->common_name;
+                }
+            }
+            
             $events[] = [
                 'id' => 'plant-' . $plan->id,
-                'title' => "Plant: {$plan->recipe->seedEntry->common_name}",
+                'title' => "Plant: {$varietyName}",
                 'start' => $plan->plant_by_date->format('Y-m-d'),
                 'backgroundColor' => $color,
                 'borderColor' => $color,
@@ -1013,7 +1027,7 @@ class Dashboard extends BaseDashboard
                 'extendedProps' => [
                     'type' => 'planting',
                     'planId' => $plan->id,
-                    'variety' => $plan->recipe->seedEntry->common_name,
+                    'variety' => $varietyName,
                     'trays' => $plan->trays_needed,
                     'status' => $plan->status?->code,
                 ],

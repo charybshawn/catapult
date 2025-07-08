@@ -7,7 +7,12 @@ use Illuminate\Foundation\AliasLoader;
 use App\Http\Livewire\ItemPriceCalculator;
 use Livewire\Livewire;
 use App\Models\Crop;
+use App\Models\Order;
+use App\Models\Payment;
 use App\Observers\CropObserver;
+use App\Observers\OrderObserver;
+use App\Observers\OrderStatusObserver;
+use App\Observers\PaymentObserver;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Model;
 use Filament\Support\Facades\FilamentView;
@@ -53,6 +58,9 @@ class AppServiceProvider extends ServiceProvider
         // Register ConsumableCalculatorService as a singleton
         $this->app->singleton(\App\Services\ConsumableCalculatorService::class);
         
+        // Register StatusTransitionService as a singleton
+        $this->app->singleton(\App\Services\StatusTransitionService::class);
+        
         // Register legacy service aliases for backward compatibility
         $this->app->bind(\App\Services\CropTaskService::class, function ($app) {
             return $app->make(\App\Services\CropTaskManagementService::class);
@@ -77,6 +85,10 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(\App\Services\CropInventoryService::class, function ($app) {
             return $app->make(\App\Services\InventoryManagementService::class);
         });
+        
+        $this->app->singleton(\App\Services\RecipeVarietyService::class, function ($app) {
+            return new \App\Services\RecipeVarietyService();
+        });
     }
 
     /**
@@ -89,7 +101,13 @@ class AppServiceProvider extends ServiceProvider
         
         // Register Livewire components
         Livewire::component('item-price-calculator', ItemPriceCalculator::class);
+        
+        // Register model observers
         Crop::observe(CropObserver::class);
+        Order::observe(OrderObserver::class);
+        Order::observe(OrderStatusObserver::class);
+        \App\Models\OrderItem::observe(\App\Observers\OrderItemObserver::class);
+        Payment::observe(PaymentObserver::class);
 
         
         

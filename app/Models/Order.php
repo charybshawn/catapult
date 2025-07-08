@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Collection;
 use Spatie\Activitylog\LogOptions;
 use App\Traits\Logging\ExtendedLogsActivity;
 
@@ -25,6 +26,7 @@ class Order extends Model
         'harvest_date',
         'delivery_date',
         'order_status_id',
+        'unified_status_id',
         'crop_status_id',
         'fulfillment_status_id',
         'customer_type',
@@ -91,6 +93,15 @@ class Order extends Model
                     $order->order_status_id = $defaultStatus->id;
                 }
             }
+            
+            // Set default unified status for new orders
+            if (!$order->unified_status_id) {
+                $defaultStatusCode = $order->is_recurring ? 'template' : 'pending';
+                $defaultUnifiedStatus = \App\Models\UnifiedOrderStatus::where('code', $defaultStatusCode)->first();
+                if ($defaultUnifiedStatus) {
+                    $order->unified_status_id = $defaultUnifiedStatus->id;
+                }
+            }
         });
         
         static::saving(function ($order) {
@@ -107,11 +118,21 @@ class Order extends Model
                 if ($templateStatus) {
                     $order->order_status_id = $templateStatus->id;
                 }
+                // Also update unified status
+                $templateUnifiedStatus = \App\Models\UnifiedOrderStatus::where('code', 'template')->first();
+                if ($templateUnifiedStatus) {
+                    $order->unified_status_id = $templateUnifiedStatus->id;
+                }
             } elseif (!$order->is_recurring && $currentStatus === 'template') {
                 // If no longer recurring, change status from template to pending
                 $pendingStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
                 if ($pendingStatus) {
                     $order->order_status_id = $pendingStatus->id;
+                }
+                // Also update unified status
+                $pendingUnifiedStatus = \App\Models\UnifiedOrderStatus::where('code', 'pending')->first();
+                if ($pendingUnifiedStatus) {
+                    $order->unified_status_id = $pendingUnifiedStatus->id;
                 }
             }
             
@@ -177,6 +198,14 @@ class Order extends Model
     public function orderStatus(): BelongsTo
     {
         return $this->belongsTo(OrderStatus::class);
+    }
+    
+    /**
+     * Get the unified order status for this order.
+     */
+    public function unifiedStatus(): BelongsTo
+    {
+        return $this->belongsTo(UnifiedOrderStatus::class, 'unified_status_id');
     }
     
     /**
@@ -289,13 +318,21 @@ class Order extends Model
      */
     public function isPaid(): bool
     {
-        return $this->payments()->where('status', 'completed')->sum('amount') >= $this->totalAmount();
+        $completedStatusId = PaymentStatus::where('code', 'completed')->first()?->id;
+        if (!$completedStatusId) {
+            return false;
+        }
+        return $this->payments()->where('status_id', $completedStatusId)->sum('amount') >= $this->totalAmount();
     }
 
     public function remainingBalance(): float
     {
         $total = $this->totalAmount();
-        $paid = $this->payments()->where('status', 'completed')->sum('amount');
+        $completedStatusId = PaymentStatus::where('code', 'completed')->first()?->id;
+        if (!$completedStatusId) {
+            return $total;
+        }
+        $paid = $this->payments()->where('status_id', $completedStatusId)->sum('amount');
         return max(0, $total - $paid);
     }
 
@@ -472,10 +509,18 @@ class Order extends Model
             if ($pendingStatus) {
                 $newOrder->order_status_id = $pendingStatus->id;
             }
+            $pendingUnifiedStatus = \App\Models\UnifiedOrderStatus::where('code', 'pending')->first();
+            if ($pendingUnifiedStatus) {
+                $newOrder->unified_status_id = $pendingUnifiedStatus->id;
+            }
         } else {
             $pendingStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
             if ($pendingStatus) {
                 $newOrder->order_status_id = $pendingStatus->id;
+            }
+            $pendingUnifiedStatus = \App\Models\UnifiedOrderStatus::where('code', 'pending')->first();
+            if ($pendingUnifiedStatus) {
+                $newOrder->unified_status_id = $pendingUnifiedStatus->id;
             }
         }
         
@@ -640,6 +685,18 @@ class Order extends Model
     }
     
     /**
+     * Check if order should have crop plans generated
+     */
+    public function shouldHaveCropPlans(): bool
+    {
+        // Order should have plans if it requires crops and is not in a final or template state
+        return $this->requiresCropProduction() 
+            && !$this->isInFinalState() 
+            && $this->unifiedStatus?->code !== 'template'
+            && !$this->is_recurring; // Don't generate for recurring templates
+    }
+    
+    /**
      * Update crop status based on related crops.
      */
     public function updateCropStatus(): void
@@ -673,10 +730,108 @@ class Order extends Model
     }
     
     /**
+     * Synchronize the unified status based on current order, crop, and fulfillment statuses.
+     * This method determines the most appropriate unified status based on the order's current state.
+     */
+    public function syncUnifiedStatus(): void
+    {
+        // Get current status codes
+        $orderStatusCode = $this->orderStatus?->code;
+        $cropStatusCode = $this->cropStatus?->code;
+        $fulfillmentStatusCode = $this->fulfillmentStatus?->code;
+        
+        // Handle special cases first
+        if ($orderStatusCode === 'cancelled') {
+            $this->updateUnifiedStatus('cancelled');
+            return;
+        }
+        
+        if ($orderStatusCode === 'template') {
+            $this->updateUnifiedStatus('template');
+            return;
+        }
+        
+        if ($orderStatusCode === 'completed' || $fulfillmentStatusCode === 'delivered') {
+            $this->updateUnifiedStatus('delivered');
+            return;
+        }
+        
+        // Handle fulfillment stages
+        if ($fulfillmentStatusCode === 'out_for_delivery') {
+            $this->updateUnifiedStatus('out_for_delivery');
+            return;
+        }
+        
+        if ($fulfillmentStatusCode === 'ready_for_delivery') {
+            $this->updateUnifiedStatus('ready_for_delivery');
+            return;
+        }
+        
+        if ($fulfillmentStatusCode === 'packing') {
+            $this->updateUnifiedStatus('packing');
+            return;
+        }
+        
+        // Handle production stages (crop-related)
+        if ($this->requiresCropProduction() && $cropStatusCode && $cropStatusCode !== 'na') {
+            if ($cropStatusCode === 'harvested' || $cropStatusCode === 'harvesting') {
+                $this->updateUnifiedStatus('harvesting');
+                return;
+            }
+            
+            if ($cropStatusCode === 'ready_to_harvest') {
+                $this->updateUnifiedStatus('ready_to_harvest');
+                return;
+            }
+            
+            if ($cropStatusCode === 'growing' || $cropStatusCode === 'planted') {
+                $this->updateUnifiedStatus('growing');
+                return;
+            }
+        }
+        
+        // Handle pre-production stages
+        if ($orderStatusCode === 'confirmed' || $orderStatusCode === 'processing') {
+            $this->updateUnifiedStatus('confirmed');
+            return;
+        }
+        
+        if ($orderStatusCode === 'pending') {
+            $this->updateUnifiedStatus('pending');
+            return;
+        }
+        
+        if ($orderStatusCode === 'draft') {
+            $this->updateUnifiedStatus('draft');
+            return;
+        }
+        
+        // Default to pending if no specific status can be determined
+        $this->updateUnifiedStatus('pending');
+    }
+    
+    /**
+     * Update the unified status by code.
+     */
+    private function updateUnifiedStatus(string $statusCode): void
+    {
+        $unifiedStatus = UnifiedOrderStatus::findByCode($statusCode);
+        if ($unifiedStatus && $unifiedStatus->id !== $this->unified_status_id) {
+            $this->update(['unified_status_id' => $unifiedStatus->id]);
+        }
+    }
+    
+    /**
      * Get a combined status display.
      */
     public function getCombinedStatusAttribute(): string
     {
+        // If unified status is available, use it as primary display
+        if ($this->unifiedStatus) {
+            return $this->unifiedStatus->name;
+        }
+        
+        // Fallback to old combined display
         $statuses = [];
         
         // Add order status
@@ -708,6 +863,58 @@ class Order extends Model
     }
     
     /**
+     * Get the unified status display with stage information.
+     */
+    public function getUnifiedStatusDisplayAttribute(): string
+    {
+        if (!$this->unifiedStatus) {
+            return 'Unknown';
+        }
+        
+        return sprintf(
+            '%s (%s)',
+            $this->unifiedStatus->name,
+            $this->unifiedStatus->stage_display
+        );
+    }
+    
+    /**
+     * Get the unified status color for UI display.
+     */
+    public function getUnifiedStatusColorAttribute(): string
+    {
+        return $this->unifiedStatus?->getDisplayColor() ?? 'gray';
+    }
+    
+    /**
+     * Check if the order can be modified based on unified status.
+     */
+    public function canBeModified(): bool
+    {
+        return $this->unifiedStatus?->canBeModified() ?? true;
+    }
+    
+    /**
+     * Check if the order is in a final state.
+     */
+    public function isInFinalState(): bool
+    {
+        return $this->unifiedStatus?->is_final ?? false;
+    }
+    
+    /**
+     * Get valid next unified statuses for this order.
+     */
+    public function getValidNextStatuses(): Collection
+    {
+        if (!$this->unifiedStatus) {
+            return collect();
+        }
+        
+        return UnifiedOrderStatus::getValidNextStatuses($this->unifiedStatus->code);
+    }
+    
+    /**
      * Configure the activity log options for this model.
      */
     public function getActivitylogOptions(): LogOptions
@@ -715,8 +922,9 @@ class Order extends Model
         return LogOptions::defaults()
             ->logOnly([
                 'customer_id', 'harvest_date', 'delivery_date', 'status', 'crop_status', 
-                'fulfillment_status', 'customer_type', 'is_recurring', 'recurring_frequency', 
-                'recurring_start_date', 'recurring_end_date', 'is_recurring_active', 'notes'
+                'fulfillment_status', 'unified_status_id', 'customer_type', 'is_recurring', 
+                'recurring_frequency', 'recurring_start_date', 'recurring_end_date', 
+                'is_recurring_active', 'notes'
             ])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
@@ -728,7 +936,7 @@ class Order extends Model
      */
     public function getLoggedRelationships(): array
     {
-        return ['customer', 'orderStatus', 'orderType', 'orderItems', 'crops'];
+        return ['customer', 'orderStatus', 'unifiedStatus', 'orderType', 'orderItems', 'crops'];
     }
 
     /**
@@ -739,9 +947,54 @@ class Order extends Model
         return [
             'customer' => ['id', 'name', 'email', 'phone'],
             'orderStatus' => ['id', 'name', 'code'],
+            'unifiedStatus' => ['id', 'name', 'code', 'stage'],
             'orderType' => ['id', 'name', 'code'],
             'orderItems' => ['id', 'product_id', 'quantity', 'price'],
             'crops' => ['id', 'recipe_id', 'tray_number', 'current_stage_id', 'planting_at'],
         ];
+    }
+    
+    /**
+     * Transition the order to a new unified status with validation.
+     *
+     * @param string $statusCode
+     * @param array $context Additional context for the transition
+     * @return array ['success' => bool, 'message' => string]
+     */
+    public function transitionTo(string $statusCode, array $context = []): array
+    {
+        $statusService = app(\App\Services\StatusTransitionService::class);
+        $result = $statusService->transitionTo($this, $statusCode, $context);
+        
+        if ($result['success']) {
+            // Reload the model to get updated values
+            $this->refresh();
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Check if the order can transition to a specific status.
+     *
+     * @param string $statusCode
+     * @return bool
+     */
+    public function canTransitionTo(string $statusCode): bool
+    {
+        $statusService = app(\App\Services\StatusTransitionService::class);
+        $validation = $statusService->validateTransition($this, $statusCode);
+        return $validation['valid'];
+    }
+    
+    /**
+     * Get the status transition history from the activity log.
+     *
+     * @return \Illuminate\Support\Collection
+     */
+    public function getStatusHistory(): Collection
+    {
+        $statusService = app(\App\Services\StatusTransitionService::class);
+        return $statusService->getStatusHistory($this);
     }
 }

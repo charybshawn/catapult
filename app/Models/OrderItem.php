@@ -113,7 +113,7 @@ class OrderItem extends Model
                     $orderItem->quantity_unit = $priceVariation->getDisplayUnit();
                     
                     // Convert to grams if sold by weight
-                    if ($priceVariation->isSoldByWeight()) {
+                    if ($priceVariation->isSoldByWeight() && $orderItem->quantity !== null) {
                         $orderItem->quantity_in_grams = $priceVariation->convertToGrams($orderItem->quantity);
                     } else {
                         $orderItem->quantity_in_grams = null;

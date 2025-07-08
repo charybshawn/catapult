@@ -26,13 +26,13 @@ class Recipe extends Model
      */
     protected $fillable = [
         'name',
-        'seed_entry_id',
+        'master_seed_catalog_id',
+        'master_cultivar_id',
         'common_name',
         'cultivar_name',
         'seed_consumable_id',
         'lot_number',
         'lot_depleted_at',
-        'supplier_soil_id',
         'soil_consumable_id',
         'seed_density',
         'germination_days',
@@ -67,22 +67,22 @@ class Recipe extends Model
         'lot_depleted_at' => 'datetime',
     ];
     
+    
     /**
-     * Get the soil supplier for this recipe.
+     * Get the master seed catalog for this recipe.
      */
-    public function soilSupplier(): BelongsTo
+    public function masterSeedCatalog(): BelongsTo
     {
-        return $this->belongsTo(Supplier::class, 'supplier_soil_id');
+        return $this->belongsTo(MasterSeedCatalog::class);
     }
     
     /**
-     * Get the seed entry for this recipe.
+     * Get the master cultivar for this recipe.
      */
-    public function seedEntry(): BelongsTo
+    public function masterCultivar(): BelongsTo
     {
-        return $this->belongsTo(SeedEntry::class, 'seed_entry_id');
+        return $this->belongsTo(MasterCultivar::class);
     }
-    
     
     /**
      * Get the soil consumable for this recipe.
@@ -199,7 +199,7 @@ class Recipe extends Model
      */
     public function getLoggedRelationships(): array
     {
-        return ['seedEntry', 'soilConsumable', 'wateringSchedule'];
+        return ['soilConsumable', 'wateringSchedule'];
     }
 
     /**
@@ -208,7 +208,6 @@ class Recipe extends Model
     public function getRelationshipAttributesToLog(): array
     {
         return [
-            'seedEntry' => ['id', 'common_name', 'cultivar_name', 'supplier_code'],
             'soilConsumable' => ['id', 'item_name', 'supplier_name', 'current_stock'],
             'wateringSchedule' => ['id', 'stage', 'frequency_hours', 'duration_seconds', 'notes'],
         ];
@@ -276,10 +275,10 @@ class Recipe extends Model
         return LogOptions::defaults()
             ->logOnly([
                 'name', 
-                'seed_entry_id', 
+                'common_name',
+                'cultivar_name',
                 'lot_number',
                 'lot_depleted_at',
-                'supplier_soil_id', 
                 'germination_days', 
                 'blackout_days', 
                 'days_to_maturity',

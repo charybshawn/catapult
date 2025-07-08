@@ -7,7 +7,9 @@ use App\Filament\Resources\OrderResource\RelationManagers;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\UnifiedOrderStatus;
 use App\Models\User;
+use App\Services\OrderPlanningService;
 use Carbon\Carbon;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -158,7 +160,27 @@ class OrderResource extends Resource
                                     }
                                 }
                             })
-                            ->helperText('Select the date and time for delivery - harvest date will be automatically set to 4:00 PM the day before')
+                            ->helperText(function (callable $get) {
+                                $helperText = 'Select the date and time for delivery - harvest date will be automatically set to 4:00 PM the day before';
+                                
+                                // Check if delivery date is too soon
+                                $deliveryDate = $get('delivery_date');
+                                if ($deliveryDate) {
+                                    try {
+                                        $delivery = Carbon::parse($deliveryDate);
+                                        $daysUntilDelivery = now()->diffInDays($delivery, false);
+                                        
+                                        // Most crops need at least 5-21 days to grow
+                                        if ($daysUntilDelivery < 5) {
+                                            $helperText .= ' ⚠️ WARNING: This delivery date may be too soon for crop production!';
+                                        }
+                                    } catch (\Exception $e) {
+                                        // Ignore parse errors
+                                    }
+                                }
+                                
+                                return $helperText;
+                            })
                             ->visible(fn (Forms\Get $get) => !$get('is_recurring')),
                         Forms\Components\DateTimePicker::make('harvest_date')
                             ->label('Harvest Date')
@@ -175,7 +197,64 @@ class OrderResource extends Resource
                                 // Set default to 'website' order type
                                 $websiteType = \App\Models\OrderType::where('code', 'website')->first();
                                 return $websiteType?->id;
+                            })
+                            ->reactive()
+                            ->afterStateUpdated(function ($state, callable $set, $record) {
+                                // Auto-set status based on order type when creating
+                                if (!$record && $state) {
+                                    $orderType = \App\Models\OrderType::find($state);
+                                    if ($orderType) {
+                                        // Set appropriate default status based on order type
+                                        $defaultStatusCode = match($orderType->code) {
+                                            'website' => 'pending',
+                                            'farmers_market' => 'confirmed',
+                                            'b2b' => 'draft',
+                                            default => 'pending'
+                                        };
+                                        $defaultStatus = UnifiedOrderStatus::where('code', $defaultStatusCode)->first();
+                                        if ($defaultStatus) {
+                                            $set('unified_status_id', $defaultStatus->id);
+                                        }
+                                    }
+                                }
                             }),
+                        Forms\Components\Select::make('unified_status_id')
+                            ->label('Order Status')
+                            ->options(function () {
+                                return UnifiedOrderStatus::getOptionsForDropdown(false, true);
+                            })
+                            ->required()
+                            ->reactive()
+                            ->default(function () {
+                                $defaultStatus = UnifiedOrderStatus::getDefaultStatus();
+                                return $defaultStatus?->id;
+                            })
+                            ->helperText(function ($state) {
+                                if (!$state) {
+                                    return 'Select a status for this order';
+                                }
+                                $status = UnifiedOrderStatus::find($state);
+                                if (!$status) {
+                                    return null;
+                                }
+                                
+                                $help = "Stage: {$status->stage_display}";
+                                if ($status->description) {
+                                    $help .= " - {$status->description}";
+                                }
+                                if ($status->requires_crops) {
+                                    $help .= " (Requires crop production)";
+                                }
+                                if ($status->is_final) {
+                                    $help .= " (Final status - cannot be changed)";
+                                }
+                                if (!$status->allows_modifications) {
+                                    $help .= " (Order locked for modifications)";
+                                }
+                                
+                                return $help;
+                            })
+                            ->disabled(fn ($record) => $record && $record->unifiedStatus && ($record->unifiedStatus->code === 'template' || $record->unifiedStatus->is_final)),
                     ])
                     ->columns(2),
                 
@@ -231,7 +310,52 @@ class OrderResource extends Resource
                         \App\Forms\Components\InvoiceOrderItems::make('orderItems')
                             ->label('Items')
                             ->productOptions(fn () => Product::query()->orderBy('name')->pluck('name', 'id')->toArray())
-                            ->required(),
+                            ->required()
+                            ->rules([
+                                'array',
+                                'min:1',
+                                function () {
+                                    return function (string $attribute, $value, \Closure $fail) {
+                                        if (!is_array($value)) {
+                                            $fail('Order must have at least one item.');
+                                            return;
+                                        }
+                                        
+                                        $hasValidItems = false;
+                                        foreach ($value as $index => $item) {
+                                            // Check if item has required fields
+                                            if (empty($item['item_id'])) {
+                                                continue; // Skip empty rows
+                                            }
+                                            
+                                            // If item has a product, validate other fields
+                                            if (!isset($item['quantity']) || $item['quantity'] === null || $item['quantity'] === '') {
+                                                $fail("Item " . ($index + 1) . ": Quantity is required.");
+                                            } else {
+                                                // Handle both string and numeric values
+                                                $qty = is_string($item['quantity']) ? trim($item['quantity']) : $item['quantity'];
+                                                if (!is_numeric($qty) || floatval($qty) <= 0) {
+                                                    $fail("Item " . ($index + 1) . ": Quantity must be a number greater than 0.");
+                                                }
+                                            }
+                                            
+                                            if (!isset($item['price']) || $item['price'] === null || $item['price'] === '') {
+                                                $fail("Item " . ($index + 1) . ": Price is required.");
+                                            } elseif (!is_numeric($item['price']) || floatval($item['price']) < 0) {
+                                                $fail("Item " . ($index + 1) . ": Price must be 0 or greater.");
+                                            }
+                                            
+                                            if (!empty($item['item_id'])) {
+                                                $hasValidItems = true;
+                                            }
+                                        }
+                                        
+                                        if (!$hasValidItems) {
+                                            $fail('Order must have at least one valid item.');
+                                        }
+                                    };
+                                }
+                            ]),
                     ]),
                 
                 Forms\Components\Section::make('Additional Information')
@@ -247,7 +371,7 @@ class OrderResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with(['customer.customerType', 'orderItems', 'invoice', 'orderType', 'orderStatus', 'cropStatus', 'fulfillmentStatus']))
+            ->modifyQueryUsing(fn ($query) => $query->with(['customer.customerType', 'orderItems', 'invoice', 'orderType', 'unifiedStatus']))
             ->persistFiltersInSession()
             ->persistSortInSession()
             ->persistColumnSearchesInSession()
@@ -286,81 +410,131 @@ class OrderResource extends Resource
                         'b2b' => 'info',
                         default => 'gray',
                     }),
-                Tables\Columns\SelectColumn::make('order_status_id')
-                    ->label('Order Status')
-                    ->options(\App\Models\OrderStatus::options())
-                    ->disabled(fn (Order $record): bool => $record->orderStatus?->code === 'template')
+                Tables\Columns\SelectColumn::make('unified_status_id')
+                    ->label('Status')
+                    ->options(function () {
+                        return UnifiedOrderStatus::getOptionsForDropdown(false, false);
+                    })
                     ->selectablePlaceholder(false)
+                    ->disabled(fn (Order $record): bool => $record->unifiedStatus?->code === 'template' || $record->unifiedStatus?->is_final)
+                    ->rules([
+                        fn (Order $record): \Closure => function (string $attribute, $value, \Closure $fail) use ($record) {
+                            if (!$record->unifiedStatus) {
+                                return;
+                            }
+                            
+                            $newStatus = UnifiedOrderStatus::find($value);
+                            if (!$newStatus) {
+                                $fail('Invalid status selected.');
+                                return;
+                            }
+                            
+                            if (!UnifiedOrderStatus::isValidTransition($record->unifiedStatus->code, $newStatus->code)) {
+                                $fail("Cannot transition from {$record->unifiedStatus->name} to {$newStatus->name}.");
+                            }
+                        },
+                    ])
                     ->afterStateUpdated(function (Order $record, $state) {
+                        $oldStatus = $record->unifiedStatus;
+                        $newStatus = UnifiedOrderStatus::find($state);
+                        
+                        if (!$newStatus) {
+                            return;
+                        }
+                        
                         // Log the status change
-                        $oldStatus = $record->orderStatus?->name ?? 'Unknown';
-                        $newStatus = \App\Models\OrderStatus::find($state)?->name ?? 'Unknown';
                         activity()
                             ->performedOn($record)
                             ->withProperties([
-                                'old_status' => $oldStatus,
-                                'new_status' => $newStatus,
+                                'old_status' => $oldStatus?->name ?? 'Unknown',
+                                'old_status_code' => $oldStatus?->code ?? 'unknown',
+                                'old_stage' => $oldStatus?->stage ?? 'unknown',
+                                'new_status' => $newStatus->name,
+                                'new_status_code' => $newStatus->code,
+                                'new_stage' => $newStatus->stage,
                                 'changed_by' => auth()->user()->name ?? 'System'
                             ])
-                            ->log('Order status changed');
+                            ->log('Unified order status changed');
                             
                         Notification::make()
                             ->title('Order Status Updated')
-                            ->body("Order #{$record->id} status changed to: {$newStatus}")
+                            ->body("Order #{$record->id} status changed to: {$newStatus->name} ({$newStatus->stage_display})")
                             ->success()
                             ->send();
                     }),
-                Tables\Columns\SelectColumn::make('crop_status_id')
-                    ->label('Crop Status')
-                    ->options(\App\Models\CropStatus::options())
-                    ->disabled(fn (Order $record): bool => $record->cropStatus?->code === 'na')
-                    ->selectablePlaceholder(false)
-                    ->afterStateUpdated(function (Order $record, $state) {
-                        $oldStatus = $record->cropStatus?->name ?? 'Unknown';
-                        $newStatus = \App\Models\CropStatus::find($state)?->name ?? 'Unknown';
-                        activity()
-                            ->performedOn($record)
-                            ->withProperties([
-                                'old_status' => $oldStatus,
-                                'new_status' => $newStatus,
-                                'changed_by' => auth()->user()->name ?? 'System'
-                            ])
-                            ->log('Crop status changed');
-                            
-                        Notification::make()
-                            ->title('Crop Status Updated')
-                            ->body("Order #{$record->id} crop status changed to: {$newStatus}")
-                            ->success()
-                            ->send();
+                Tables\Columns\TextColumn::make('unifiedStatus.name')
+                    ->label('Status')
+                    ->badge()
+                    ->color(fn (Order $record): string => $record->unifiedStatus?->badge_color ?? 'gray')
+                    ->formatStateUsing(fn (string $state, Order $record): string => 
+                        $state . ' (' . $record->unifiedStatus?->stage_display . ')'
+                    )
+                    ->visible(false), // Hidden by default, can be toggled
+                Tables\Columns\IconColumn::make('requiresCrops')
+                    ->label('Needs Growing')
+                    ->boolean()
+                    ->getStateUsing(fn (Order $record) => $record->requiresCropProduction())
+                    ->trueIcon('heroicon-o-sun')
+                    ->falseIcon('heroicon-o-x-mark')
+                    ->trueColor('success')
+                    ->falseColor('gray')
+                    ->tooltip(fn (Order $record) => $record->requiresCropProduction() ? 'This order requires crop production' : 'No crops needed'),
+                Tables\Columns\TextColumn::make('paymentStatus')
+                    ->label('Payment')
+                    ->badge()
+                    ->getStateUsing(fn (Order $record) => $record->isPaid() ? 'Paid' : 'Unpaid')
+                    ->color(fn (string $state): string => match ($state) {
+                        'Paid' => 'success',
+                        'Unpaid' => 'danger',
+                        default => 'gray',
                     })
-                    ->toggleable(),
-                Tables\Columns\SelectColumn::make('fulfillment_status_id')
-                    ->label('Fulfillment')
-                    ->options(\App\Models\FulfillmentStatus::options())
-                    ->selectablePlaceholder(false)
-                    ->afterStateUpdated(function (Order $record, $state) {
-                        $oldStatus = $record->fulfillmentStatus?->name ?? 'Unknown';
-                        $newStatus = \App\Models\FulfillmentStatus::find($state)?->name ?? 'Unknown';
-                        activity()
-                            ->performedOn($record)
-                            ->withProperties([
-                                'old_status' => $oldStatus,
-                                'new_status' => $newStatus,
-                                'changed_by' => auth()->user()->name ?? 'System'
-                            ])
-                            ->log('Fulfillment status changed');
-                            
-                        Notification::make()
-                            ->title('Fulfillment Status Updated')
-                            ->body("Order #{$record->id} fulfillment status changed to: {$newStatus}")
-                            ->success()
-                            ->send();
+                    ->icon(fn (string $state): string => match ($state) {
+                        'Paid' => 'heroicon-o-check-circle',
+                        'Unpaid' => 'heroicon-o-x-circle',
+                        default => 'heroicon-o-question-mark-circle',
+                    }),
+                Tables\Columns\TextColumn::make('daysUntilDelivery')
+                    ->label('Delivery In')
+                    ->getStateUsing(function (Order $record) {
+                        if (!$record->delivery_date) {
+                            return null;
+                        }
+                        $days = now()->diffInDays($record->delivery_date, false);
+                        if ($days < 0) {
+                            return 'Overdue';
+                        } elseif ($days == 0) {
+                            return 'Today';
+                        } elseif ($days == 1) {
+                            return 'Tomorrow';
+                        } else {
+                            return $days . ' days';
+                        }
                     })
-                    ->toggleable(),
+                    ->badge()
+                    ->color(function ($state): string {
+                        if ($state === 'Overdue') {
+                            return 'danger';
+                        } elseif ($state === 'Today' || $state === 'Tomorrow') {
+                            return 'warning';
+                        } elseif ($state && str_contains($state, 'days')) {
+                            $days = (int) $state;
+                            if ($days <= 3) {
+                                return 'warning';
+                            } elseif ($days <= 7) {
+                                return 'info';
+                            }
+                        }
+                        return 'gray';
+                    })
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderBy('delivery_date', $direction);
+                    }),
                 Tables\Columns\TextColumn::make('parent_template')
                     ->label('Template')
                     ->getStateUsing(fn (Order $record) => $record->parent_recurring_order_id ? "Template #{$record->parent_recurring_order_id}" : null)
                     ->placeholder('Regular Order')
+                    ->badge()
+                    ->color('info')
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('totalAmount')
                     ->label('Total')
@@ -372,11 +546,6 @@ class OrderResource extends Resource
                 Tables\Columns\TextColumn::make('delivery_date')
                     ->dateTime()
                     ->sortable(),
-                Tables\Columns\IconColumn::make('isPaid')
-                    ->label('Paid')
-                    ->boolean()
-                    ->getStateUsing(fn (Order $record) => $record->isPaid())
-                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -384,21 +553,66 @@ class OrderResource extends Resource
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
-                Tables\Filters\SelectFilter::make('order_status_id')
-                    ->label('Order Status')
-                    ->relationship('orderStatus', 'name')
-                    ->searchable()
-                    ->preload(),
-                Tables\Filters\SelectFilter::make('crop_status_id')
-                    ->label('Crop Status')
-                    ->relationship('cropStatus', 'name')
-                    ->searchable()
-                    ->preload(),
-                Tables\Filters\SelectFilter::make('fulfillment_status_id')
-                    ->label('Fulfillment Status')
-                    ->relationship('fulfillmentStatus', 'name')
-                    ->searchable()
-                    ->preload(),
+                Tables\Filters\SelectFilter::make('unified_status_id')
+                    ->label('Status')
+                    ->options(function () {
+                        return UnifiedOrderStatus::getOptionsForDropdown(false, true);
+                    })
+                    ->searchable(),
+                Tables\Filters\SelectFilter::make('stage')
+                    ->label('Stage')
+                    ->options([
+                        UnifiedOrderStatus::STAGE_PRE_PRODUCTION => 'Pre-Production',
+                        UnifiedOrderStatus::STAGE_PRODUCTION => 'Production',
+                        UnifiedOrderStatus::STAGE_FULFILLMENT => 'Fulfillment',
+                        UnifiedOrderStatus::STAGE_FINAL => 'Final',
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        if (!empty($data['value'])) {
+                            return $query->whereHas('unifiedStatus', function ($q) use ($data) {
+                                $q->where('stage', $data['value']);
+                            });
+                        }
+                        return $query;
+                    }),
+                Tables\Filters\TernaryFilter::make('requires_crops')
+                    ->label('Requires Crops')
+                    ->placeholder('All orders')
+                    ->trueLabel('Orders needing crops')
+                    ->falseLabel('Orders without crops')
+                    ->queries(
+                        true: fn (Builder $query) => $query->whereHas('orderItems.product', function ($q) {
+                            $q->where(function ($subQ) {
+                                $subQ->whereNotNull('master_seed_catalog_id')
+                                     ->orWhereNotNull('product_mix_id');
+                            });
+                        }),
+                        false: fn (Builder $query) => $query->whereDoesntHave('orderItems.product', function ($q) {
+                            $q->where(function ($subQ) {
+                                $subQ->whereNotNull('master_seed_catalog_id')
+                                     ->orWhereNotNull('product_mix_id');
+                            });
+                        }),
+                    ),
+                Tables\Filters\TernaryFilter::make('payment_status')
+                    ->label('Payment Status')
+                    ->placeholder('All orders')
+                    ->trueLabel('Paid orders')
+                    ->falseLabel('Unpaid orders')
+                    ->queries(
+                        true: fn (Builder $query) => $query->whereHas('payments', function ($q) {
+                            $q->where('status', 'completed')
+                              ->havingRaw('SUM(payments.amount) >= (SELECT SUM(order_items.quantity * order_items.price) FROM order_items WHERE order_items.order_id = orders.id)');
+                        }),
+                        false: fn (Builder $query) => $query->where(function ($q) {
+                            $q->whereDoesntHave('payments', function ($subQ) {
+                                $subQ->where('status', 'completed');
+                            })->orWhereHas('payments', function ($subQ) {
+                                $subQ->where('status', 'completed')
+                                     ->havingRaw('SUM(payments.amount) < (SELECT SUM(order_items.quantity * order_items.price) FROM order_items WHERE order_items.order_id = orders.id)');
+                            });
+                        }),
+                    ),
                 Tables\Filters\TernaryFilter::make('parent_recurring_order_id')
                     ->label('Order Source')
                     ->nullable()
@@ -433,7 +647,7 @@ class OrderResource extends Resource
                     ->icon('heroicon-o-plus-circle')
                     ->color('success')
                     ->visible(fn (Order $record): bool => 
-                        $record->orderStatus?->code === 'template' && 
+                        $record->unifiedStatus?->code === 'template' && 
                         $record->is_recurring
                     )
                     ->requiresConfirmation()
@@ -478,8 +692,9 @@ class OrderResource extends Resource
                     ->icon('heroicon-o-calculator')
                     ->color('info')
                     ->visible(fn (Order $record): bool => 
-                        $record->orderStatus?->code !== 'template' && 
-                        $record->orderStatus?->code !== 'cancelled' &&
+                        $record->unifiedStatus?->code !== 'template' && 
+                        $record->unifiedStatus?->code !== 'cancelled' &&
+                        !$record->unifiedStatus?->is_final &&
                         $record->customer->isWholesaleCustomer() &&
                         $record->orderItems->isNotEmpty()
                     )
@@ -539,12 +754,45 @@ class OrderResource extends Resource
                         }
                     }),
                 
+                Tables\Actions\Action::make('generate_crop_plans')
+                    ->label('Generate Crop Plans')
+                    ->icon('heroicon-o-sparkles')
+                    ->color('success')
+                    ->visible(fn (Order $record): bool => 
+                        $record->requiresCropProduction() &&
+                        !$record->isInFinalState() &&
+                        !$record->cropPlans()->exists()
+                    )
+                    ->requiresConfirmation()
+                    ->modalHeading('Generate Crop Plans')
+                    ->modalDescription(fn (Order $record) => 
+                        "This will analyze the order items and generate crop plans based on the delivery date."
+                    )
+                    ->action(function (Order $record) {
+                        $orderPlanningService = app(OrderPlanningService::class);
+                        $result = $orderPlanningService->generatePlansForOrder($record);
+                        
+                        if ($result['success']) {
+                            Notification::make()
+                                ->title('Crop Plans Generated')
+                                ->body("Successfully generated {$result['plans']->count()} crop plans.")
+                                ->success()
+                                ->send();
+                        } else {
+                            Notification::make()
+                                ->title('Generation Failed')
+                                ->body(implode(' ', $result['issues']))
+                                ->danger()
+                                ->send();
+                        }
+                    }),
+                
                 Tables\Actions\Action::make('convert_to_invoice')
                     ->label('Create Invoice')
                     ->icon('heroicon-o-document-text')
                     ->color('warning')
                     ->visible(fn (Order $record): bool => 
-                        $record->orderStatus?->code !== 'template' && 
+                        $record->unifiedStatus?->code !== 'template' && 
                         $record->requires_invoice &&
                         !$record->invoice // Only show if no invoice exists yet
                     )
@@ -571,6 +819,60 @@ class OrderResource extends Resource
                             Notification::make()
                                 ->title('Error Creating Invoice')
                                 ->body('Failed to create invoice: ' . $e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
+                
+                Tables\Actions\Action::make('transition_status')
+                    ->label('Change Status')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('info')
+                    ->visible(fn (Order $record): bool => 
+                        !$record->isInFinalState() && 
+                        $record->unifiedStatus?->code !== 'template'
+                    )
+                    ->form(function (Order $record) {
+                        $validStatuses = app(\App\Services\StatusTransitionService::class)
+                            ->getValidNextStatuses($record);
+                        
+                        if ($validStatuses->isEmpty()) {
+                            return [
+                                Forms\Components\Placeholder::make('no_transitions')
+                                    ->label('')
+                                    ->content('No valid status transitions available for this order.')
+                            ];
+                        }
+                        
+                        return [
+                            Forms\Components\Select::make('new_status')
+                                ->label('New Status')
+                                ->options($validStatuses->pluck('name', 'code'))
+                                ->required()
+                                ->helperText('Select the new status for this order'),
+                            Forms\Components\Textarea::make('notes')
+                                ->label('Notes')
+                                ->placeholder('Optional notes about this status change')
+                                ->rows(3),
+                        ];
+                    })
+                    ->action(function (Order $record, array $data) {
+                        $result = $record->transitionTo($data['new_status'], [
+                            'manual' => true,
+                            'notes' => $data['notes'] ?? null,
+                            'user_id' => auth()->id()
+                        ]);
+                        
+                        if ($result['success']) {
+                            Notification::make()
+                                ->title('Status Updated')
+                                ->body($result['message'])
+                                ->success()
+                                ->send();
+                        } else {
+                            Notification::make()
+                                ->title('Status Update Failed')
+                                ->body($result['message'])
                                 ->danger()
                                 ->send();
                         }
@@ -642,6 +944,92 @@ class OrderResource extends Resource
                             }
                         })
                         ->deselectRecordsAfterCompletion(),
+                    
+                    Tables\Actions\BulkAction::make('bulk_status_update')
+                        ->label('Update Status')
+                        ->icon('heroicon-o-arrow-path')
+                        ->color('info')
+                        ->requiresConfirmation()
+                        ->modalHeading('Bulk Status Update')
+                        ->modalDescription(function (\Illuminate\Database\Eloquent\Collection $records) {
+                            $finalOrders = $records->filter(fn($order) => $order->isInFinalState());
+                            $templateOrders = $records->filter(fn($order) => $order->unifiedStatus?->code === 'template');
+                            
+                            $warnings = [];
+                            if ($finalOrders->isNotEmpty()) {
+                                $warnings[] = "{$finalOrders->count()} orders in final state will be skipped.";
+                            }
+                            if ($templateOrders->isNotEmpty()) {
+                                $warnings[] = "{$templateOrders->count()} template orders will be skipped.";
+                            }
+                            
+                            $eligibleCount = $records->count() - $finalOrders->count() - $templateOrders->count();
+                            
+                            return "Update status for {$eligibleCount} orders." . 
+                                   (!empty($warnings) ? "\n\nWarnings:\n" . implode("\n", $warnings) : '');
+                        })
+                        ->form([
+                            Forms\Components\Select::make('new_status')
+                                ->label('New Status')
+                                ->options(UnifiedOrderStatus::active()
+                                    ->notFinal()
+                                    ->where('code', '!=', 'template')
+                                    ->pluck('name', 'code'))
+                                ->required()
+                                ->helperText('Select the new status for all eligible orders'),
+                            Forms\Components\Textarea::make('notes')
+                                ->label('Notes')
+                                ->placeholder('Optional notes about this bulk status change')
+                                ->rows(3),
+                        ])
+                        ->action(function (\Illuminate\Database\Eloquent\Collection $records, array $data) {
+                            $statusService = app(\App\Services\StatusTransitionService::class);
+                            
+                            // Filter out ineligible orders
+                            $eligibleOrders = $records->filter(function ($order) {
+                                return !$order->isInFinalState() && 
+                                       $order->unifiedStatus?->code !== 'template';
+                            });
+                            
+                            if ($eligibleOrders->isEmpty()) {
+                                Notification::make()
+                                    ->title('No Eligible Orders')
+                                    ->body('None of the selected orders can have their status updated.')
+                                    ->warning()
+                                    ->send();
+                                return;
+                            }
+                            
+                            $result = $statusService->bulkTransition(
+                                $eligibleOrders->pluck('id')->toArray(),
+                                $data['new_status'],
+                                [
+                                    'manual' => true,
+                                    'notes' => $data['notes'] ?? null,
+                                    'user_id' => auth()->id()
+                                ]
+                            );
+                            
+                            $successCount = count($result['successful']);
+                            $failedCount = count($result['failed']);
+                            
+                            if ($successCount > 0) {
+                                Notification::make()
+                                    ->title('Status Update Complete')
+                                    ->body("Successfully updated {$successCount} orders." . 
+                                           ($failedCount > 0 ? " {$failedCount} orders failed." : ''))
+                                    ->success()
+                                    ->send();
+                            } else {
+                                Notification::make()
+                                    ->title('Status Update Failed')
+                                    ->body("Failed to update any orders. Check the logs for details.")
+                                    ->danger()
+                                    ->send();
+                            }
+                        })
+                        ->deselectRecordsAfterCompletion(),
+                    
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
@@ -650,8 +1038,7 @@ class OrderResource extends Resource
     public static function getRelations(): array
     {
         return [
-            // Removed all relation managers for cleaner edit interface
-            // Order items are now handled inline in the main form
+            // RelationManagers\CropPlansRelationManager::class,
             // Other relationships can be managed through dedicated pages if needed
         ];
     }
@@ -665,7 +1052,9 @@ class OrderResource extends Resource
         $errors = [];
 
         // Check if any orders are templates
-        $templates = $orders->where('status', 'template');
+        $templates = $orders->filter(function ($order) {
+            return $order->unifiedStatus?->code === 'template';
+        });
         if ($templates->isNotEmpty()) {
             $errors[] = 'Cannot create invoices for template orders.';
         }

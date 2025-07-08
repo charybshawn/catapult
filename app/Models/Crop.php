@@ -109,21 +109,6 @@ class Crop extends Model
     }
     
     
-    /**
-     * Get the seed cultivar for this crop through the recipe.
-     */
-    public function seedEntry(): ?SeedEntry
-    {
-        // Ensure recipe relationship is loaded to avoid lazy loading
-        if (!$this->relationLoaded('recipe')) {
-            $this->load('recipe.seedEntry');
-        }
-        
-        if ($this->recipe) {
-            return $this->recipe->seedEntry;
-        }
-        return null;
-    }
     
     /**
      * Enable bulk operation mode to prevent recursive events
@@ -148,11 +133,11 @@ class Crop extends Model
     {
         // Ensure recipe relationship is loaded to avoid lazy loading
         if (!$this->relationLoaded('recipe')) {
-            $this->load('recipe.seedEntry');
+            $this->load('recipe');
         }
         
-        if ($this->recipe && $this->recipe->seedEntry) {
-            return $this->recipe->seedEntry->cultivar_name;
+        if ($this->recipe) {
+            return $this->recipe->cultivar_name;
         }
         
         return null;

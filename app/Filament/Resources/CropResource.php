@@ -335,7 +335,7 @@ class CropResource extends BaseResource
                             $recipeData = [
                                 'ID' => $recipe->id,
                                 'Name' => $recipe->name,
-                                'Seed Cultivar' => $recipe->seedEntry ? $recipe->seedEntry->common_name . ' - ' . $recipe->seedEntry->cultivar_name : 'N/A',
+                                'Seed Cultivar' => $recipe->masterSeedCatalog ? $recipe->masterSeedCatalog->common_name . ' - ' . ($recipe->masterCultivar ? $recipe->masterCultivar->cultivar_name : '') : 'N/A',
                                 'Germination Days' => $recipe->germination_days,
                                 'Blackout Days' => $recipe->blackout_days,
                                 'Light Days' => $recipe->light_days,
@@ -1053,7 +1053,7 @@ class CropResource extends BaseResource
         
         return static::addRelationshipColumns($coreColumns, [
             'recipe' => ['name', 'common_name', 'cultivar_name'],
-            'recipe.seedEntry' => ['common_name', 'cultivar_name'],
+            'recipe.masterSeedCatalog' => ['common_name'], 'recipe.masterCultivar' => ['cultivar_name'],
             'order' => ['customer_name'],
         ]);
     }
@@ -1063,6 +1063,6 @@ class CropResource extends BaseResource
      */
     protected static function getCsvExportRelationships(): array
     {
-        return ['recipe', 'recipe.seedEntry', 'order'];
+        return ['recipe', 'recipe.masterSeedCatalog', 'recipe.masterCultivar', 'order'];
     }
 } 

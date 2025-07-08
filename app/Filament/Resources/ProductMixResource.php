@@ -4,7 +4,6 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ProductMixResource\Pages;
 use App\Models\ProductMix;
-use App\Models\SeedEntry;
 use App\Forms\Components\CompactRepeater;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -12,6 +11,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use App\Services\RecipeVarietyService;
 
 class ProductMixResource extends Resource
 {

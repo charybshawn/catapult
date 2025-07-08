@@ -3,7 +3,6 @@
 namespace Database\Factories;
 
 use App\Models\Recipe;
-use App\Models\SeedEntry;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -25,18 +24,26 @@ class RecipeFactory extends Factory
      */
     public function definition(): array
     {
-        $seedEntry = SeedEntry::first() ?? SeedEntry::factory()->create();
-        $name = $seedEntry->common_name . ' Recipe';
+        $commonNames = ['Sunflower', 'Radish', 'Pea', 'Broccoli', 'Arugula', 'Basil', 'Cilantro'];
+        $cultivarNames = ['Black Oilseed', 'China Rose', 'Speckled', 'Waltham', 'Slow Bolt', 'Genovese', 'Coriander'];
+        
+        $commonName = fake()->randomElement($commonNames);
+        $cultivarName = fake()->randomElement($cultivarNames);
+        $name = $commonName . ' (' . $cultivarName . ') Recipe';
         
         return [
             'name' => $name,
-            'seed_entry_id' => $seedEntry->id,
+            'common_name' => $commonName,
+            'cultivar_name' => $cultivarName,
+            'lot_number' => strtoupper(fake()->bothify('???##??')),
             'seed_density' => fake()->randomFloat(2, 1, 10),
             'germination_days' => fake()->randomFloat(1, 1, 5),
             'blackout_days' => fake()->numberBetween(0, 5),
             'light_days' => fake()->randomFloat(1, 3, 12),
             'days_to_maturity' => fake()->randomFloat(1, 7, 30),
             'harvest_days' => fake()->numberBetween(7, 21),
+            'expected_yield_grams' => fake()->randomFloat(2, 50, 500),
+            'buffer_percentage' => fake()->randomFloat(2, 10, 20),
             'seed_density_grams_per_tray' => fake()->randomFloat(2, 5, 50),
             'seed_soak_hours' => fake()->numberBetween(0, 24),
             'notes' => fake()->optional(0.7)->paragraph(),
@@ -54,16 +61,6 @@ class RecipeFactory extends Factory
         ]);
     }
     
-    /**
-     * Indicate that the recipe is for a specific seed variety.
-     */
-    public function forSeedVariety(SeedVariety $seedVariety): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'seed_variety_id' => $seedVariety->id,
-            'name' => $seedVariety->name . ' Recipe',
-        ]);
-    }
     
     /**
      * Indicate that the recipe has a custom name.

@@ -1,0 +1,200 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\CropPlan;
+use App\Models\AggregatedCropPlan;
+use App\Models\Recipe;
+use Carbon\Carbon;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
+/**
+ * Service for creating and managing aggregated crop plans
+ */
+class AggregatedCropPlanService
+{
+    /**
+     * Process new crop plans and aggregate them
+     * 
+     * @param Collection $cropPlans
+     * @return Collection
+     */
+    public function processAndAggregatePlans(Collection $cropPlans): Collection
+    {
+        $aggregatedPlans = collect();
+
+        DB::transaction(function () use ($cropPlans, &$aggregatedPlans) {
+            // Group plans by variety, plant date, and harvest date
+            $grouped = $cropPlans->groupBy(function ($plan) {
+                return sprintf(
+                    '%s_%s_%s',
+                    $plan->variety_id,
+                    $plan->plant_by_date->format('Y-m-d'),
+                    $plan->expected_harvest_date->format('Y-m-d')
+                );
+            });
+
+            foreach ($grouped as $key => $plans) {
+                list($varietyId, $plantDate, $harvestDate) = explode('_', $key);
+                
+                // Check if an aggregated plan already exists
+                $aggregatedPlan = AggregatedCropPlan::where('variety_id', $varietyId)
+                    ->whereDate('plant_date', $plantDate)
+                    ->whereDate('harvest_date', $harvestDate)
+                    ->where('status', 'draft')
+                    ->first();
+
+                if (!$aggregatedPlan) {
+                    // Create new aggregated plan
+                    $firstPlan = $plans->first();
+                    $aggregatedPlan = AggregatedCropPlan::create([
+                        'variety_id' => $varietyId,
+                        'harvest_date' => $harvestDate,
+                        'plant_date' => $plantDate,
+                        'seed_soak_date' => $firstPlan->seed_soak_date,
+                        'total_grams_needed' => 0,
+                        'total_trays_needed' => 0,
+                        'grams_per_tray' => $firstPlan->grams_per_tray,
+                        'status' => 'draft',
+                        'calculation_details' => [
+                            'created_at' => now()->toIso8601String(),
+                            'initial_plans' => []
+                        ],
+                        'created_by' => auth()->id() ?: $firstPlan->created_by,
+                    ]);
+                }
+
+                // Update aggregated totals
+                $totalGrams = $aggregatedPlan->total_grams_needed;
+                $totalTrays = $aggregatedPlan->total_trays_needed;
+                $details = $aggregatedPlan->calculation_details ?? [];
+
+                foreach ($plans as $plan) {
+                    $totalGrams += $plan->grams_needed;
+                    $totalTrays += $plan->trays_needed;
+                    
+                    // Track which plans are included
+                    $details['included_plans'][] = [
+                        'crop_plan_id' => $plan->id,
+                        'order_id' => $plan->order_id,
+                        'grams' => $plan->grams_needed,
+                        'trays' => $plan->trays_needed,
+                        'added_at' => now()->toIso8601String()
+                    ];
+
+                    // Link individual plan to aggregated plan
+                    $plan->update([
+                        'aggregated_crop_plan_id' => $aggregatedPlan->id
+                    ]);
+                }
+
+                // Update aggregated plan
+                $aggregatedPlan->update([
+                    'total_grams_needed' => $totalGrams,
+                    'total_trays_needed' => $totalTrays,
+                    'calculation_details' => $details
+                ]);
+
+                $aggregatedPlans->push($aggregatedPlan);
+
+                Log::info('Created/updated aggregated crop plan', [
+                    'aggregated_plan_id' => $aggregatedPlan->id,
+                    'variety_id' => $varietyId,
+                    'total_trays' => $totalTrays,
+                    'total_grams' => $totalGrams,
+                    'plans_count' => $plans->count()
+                ]);
+            }
+        });
+
+        return $aggregatedPlans;
+    }
+
+    /**
+     * Recalculate an aggregated plan based on its linked crop plans
+     * 
+     * @param AggregatedCropPlan $aggregatedPlan
+     * @return AggregatedCropPlan
+     */
+    public function recalculateAggregation(AggregatedCropPlan $aggregatedPlan): AggregatedCropPlan
+    {
+        $cropPlans = $aggregatedPlan->cropPlans()
+            ->whereHas('status', function ($q) {
+                $q->where('code', '!=', 'cancelled');
+            })
+            ->get();
+
+        $totalGrams = $cropPlans->sum('grams_needed');
+        $totalTrays = $cropPlans->sum('trays_needed');
+
+        $details = $aggregatedPlan->calculation_details ?? [];
+        $details['last_recalculated'] = now()->toIso8601String();
+        $details['plans_count'] = $cropPlans->count();
+
+        $aggregatedPlan->update([
+            'total_grams_needed' => $totalGrams,
+            'total_trays_needed' => $totalTrays,
+            'calculation_details' => $details
+        ]);
+
+        return $aggregatedPlan;
+    }
+
+    /**
+     * Get aggregated requirements for a date range
+     * 
+     * @param Carbon $startDate
+     * @param Carbon $endDate
+     * @return Collection
+     */
+    public function getAggregatedRequirements(Carbon $startDate, Carbon $endDate): Collection
+    {
+        return AggregatedCropPlan::with(['variety', 'cropPlans'])
+            ->whereBetween('plant_date', [$startDate, $endDate])
+            ->whereIn('status', ['draft', 'confirmed'])
+            ->orderBy('plant_date')
+            ->orderBy('variety_id')
+            ->get()
+            ->map(function ($plan) {
+                return [
+                    'id' => $plan->id,
+                    'variety' => $plan->variety->full_name,
+                    'plant_date' => $plan->plant_date->format('M j, Y'),
+                    'seed_soak_date' => $plan->seed_soak_date?->format('M j, Y'),
+                    'harvest_date' => $plan->harvest_date->format('M j, Y'),
+                    'total_grams' => $plan->total_grams_needed,
+                    'total_trays' => $plan->total_trays_needed,
+                    'status' => $plan->status,
+                    'plans_count' => $plan->cropPlans->count()
+                ];
+            });
+    }
+
+    /**
+     * Remove a crop plan from aggregation and recalculate
+     * 
+     * @param CropPlan $cropPlan
+     * @return void
+     */
+    public function removeFromAggregation(CropPlan $cropPlan): void
+    {
+        if (!$cropPlan->aggregated_crop_plan_id) {
+            return;
+        }
+
+        $aggregatedPlan = $cropPlan->aggregatedCropPlan;
+        
+        // Remove link
+        $cropPlan->update(['aggregated_crop_plan_id' => null]);
+        
+        // Recalculate
+        $this->recalculateAggregation($aggregatedPlan);
+        
+        // If no more plans, mark aggregated plan as cancelled
+        if ($aggregatedPlan->cropPlans()->count() === 0) {
+            $aggregatedPlan->update(['status' => 'cancelled']);
+        }
+    }
+}

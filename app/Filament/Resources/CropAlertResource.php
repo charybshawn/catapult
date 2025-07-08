@@ -19,9 +19,16 @@ use Filament\Tables\Grouping\Group;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Filament\Tables\Actions\Action;
+use App\Services\RecipeVarietyService;
 
 class CropAlertResource extends Resource
 {
+    protected RecipeVarietyService $varietyService;
+
+    public function __construct()
+    {
+        $this->varietyService = app(RecipeVarietyService::class);
+    }
     protected static ?string $model = CropAlert::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-bell-alert';

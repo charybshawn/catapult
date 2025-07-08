@@ -13,7 +13,11 @@ class ListCropPlans extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            Actions\Action::make('calendar')
+                ->label('Calendar View')
+                ->icon('heroicon-o-calendar-days')
+                ->url(CropPlanResource::getUrl('calendar'))
+                ->color('primary'),
         ];
     }
 }

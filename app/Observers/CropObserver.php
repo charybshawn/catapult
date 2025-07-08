@@ -3,6 +3,9 @@
 namespace App\Observers;
 
 use App\Models\Crop;
+use App\Events\OrderCropPlanted;
+use App\Events\AllCropsReady;
+use App\Events\OrderHarvested;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -111,5 +114,34 @@ class CropObserver
         }
         
         return implode(' ', $parts) ?: '0m';
+    }
+    
+    /**
+     * Handle the Crop "updated" event.
+     */
+    public function updated(Crop $crop): void
+    {
+        // Check if planting_at was just set (crop was planted)
+        if ($crop->wasChanged('planting_at') && $crop->planting_at && $crop->order_id) {
+            event(new OrderCropPlanted($crop->order, $crop));
+        }
+        
+        // Check if crop is now ready to harvest
+        if ($crop->wasChanged(['current_stage', 'stage_age_minutes']) && $crop->isReadyToHarvest() && $crop->order_id) {
+            // Check if all crops for this order are ready
+            $order = $crop->order;
+            if ($order && $order->crops->every(fn($c) => $c->isReadyToHarvest())) {
+                event(new AllCropsReady($order));
+            }
+        }
+        
+        // Check if crop was just harvested
+        if ($crop->wasChanged('current_stage') && $crop->current_stage === 'harvested' && $crop->order_id) {
+            // Check if all crops for this order are harvested
+            $order = $crop->order;
+            if ($order && $order->crops->every(fn($c) => $c->current_stage === 'harvested')) {
+                event(new OrderHarvested($order));
+            }
+        }
     }
 } 

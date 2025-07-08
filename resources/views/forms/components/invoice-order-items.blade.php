@@ -53,7 +53,7 @@
                                 >
                                     <option value="">Select variation...</option>
                                     <template x-for="variation in getPriceVariationsForProduct(item.item_id)" :key="variation.id">
-                                        <option :value="variation.id" x-text="formatVariationOption(variation)" :selected="variation.id.toString() === item.price_variation_id.toString()"></option>
+                                        <option :value="variation.id" x-text="formatVariationOption(variation)" :selected="item.price_variation_id && variation.id.toString() === item.price_variation_id.toString()"></option>
                                     </template>
                                 </select>
                             </div>
@@ -62,9 +62,9 @@
                             <div class="w-20">
                                 <input
                                     type="number"
-                                    x-model.number="item.quantity"
-                                    @input="updateTotal(index)"
-                                    @focus="console.log('Focus on quantity input', index, 'step:', getQuantityStep(index), 'min:', getMinQuantity(index))"
+                                    x-model.lazy="item.quantity"
+                                    @blur="updateTotal(index)"
+                                    @focus="console.log('Focus on quantity input', index, 'current quantity:', item.quantity, 'step:', getQuantityStep(index), 'min:', getMinQuantity(index))"
                                     :min="getMinQuantity(index)"
                                     :step="getQuantityStep(index)"
                                     :placeholder="getQuantityPlaceholder(index)"
@@ -139,6 +139,7 @@ document.addEventListener('alpine:init', () => {
         defaultItem: defaultItem,
         statePath: statePath,
         priceVariations: {},
+        isInitializing: true,
 
         addItem() {
             this.items.push({ ...this.defaultItem });
@@ -160,16 +161,15 @@ document.addEventListener('alpine:init', () => {
                     await this.loadPriceVariationsForProduct(item.item_id);
                 }
                 
-                // Reset price variation selection for new product selection
-                item.price_variation_id = null;
-                item.price = 0;
-                
-                // Auto-select default variation if available
-                const variations = this.priceVariations[item.item_id] || [];
-                const defaultVariation = variations.find(v => v.is_default);
-                if (defaultVariation) {
-                    item.price_variation_id = defaultVariation.id.toString();
-                    item.price = defaultVariation.price;
+                // Only auto-select if no variation is currently selected
+                if (!item.price_variation_id) {
+                    // Auto-select default variation if available
+                    const variations = this.priceVariations[item.item_id] || [];
+                    const defaultVariation = variations.find(v => v.is_default);
+                    if (defaultVariation) {
+                        item.price_variation_id = defaultVariation.id.toString();
+                        item.price = defaultVariation.price;
+                    }
                 }
             } else {
                 // Clear price variation data if no product selected
@@ -181,9 +181,19 @@ document.addEventListener('alpine:init', () => {
 
         updatePriceFromVariation(index) {
             const item = this.items[index];
+            
+            // Don't reset quantities during initialization
+            if (this.isInitializing) {
+                console.log(`Skipping quantity update during initialization for item ${index}`);
+                return;
+            }
+            
             if (item.price_variation_id && this.priceVariations[item.item_id]) {
                 const variation = this.priceVariations[item.item_id].find(v => v.id.toString() === item.price_variation_id.toString());
                 if (variation) {
+                    // Store the current quantity before any updates
+                    const currentQuantity = item.quantity;
+                    
                     // Always use the current price from the loaded variation (includes wholesale discount)
                     const newPrice = parseFloat(variation.price);
                     if (item.price !== newPrice) {
@@ -200,9 +210,10 @@ document.addEventListener('alpine:init', () => {
                     console.log('Detected pricing unit:', pricingUnit);
                     console.log('Is sold by weight:', this.isSoldByWeight(index));
                     
-                    if (this.isSoldByWeight(index)) {
-                        // For weight-based items, set sensible defaults
-                        if (!item.quantity || item.quantity <= 0) {
+                    // Only modify quantity if it's not already set or invalid
+                    if (!currentQuantity || currentQuantity <= 0) {
+                        if (this.isSoldByWeight(index)) {
+                            // For weight-based items, set sensible defaults
                             if (['per_lb', 'lb', 'lbs'].includes(pricingUnit)) {
                                 item.quantity = 0.25; // Default to 1/4 lb
                             } else if (['per_kg', 'kg'].includes(pricingUnit)) {
@@ -212,16 +223,15 @@ document.addEventListener('alpine:init', () => {
                             } else if (['per_g', 'g'].includes(pricingUnit)) {
                                 item.quantity = 100; // Default to 100 grams
                             }
+                        } else {
+                            // For units, default to 1
+                            item.quantity = 1;
                         }
                     } else {
-                        // For units, ensure quantity is at least 1 and is a whole number
-                        if (!item.quantity || item.quantity <= 0) {
-                            item.quantity = 1;
-                        } else {
-                            // Round to whole number but preserve the existing valid quantity
-                            item.quantity = Math.round(item.quantity);
-                        }
+                        // Preserve the existing quantity
+                        item.quantity = currentQuantity;
                     }
+                    // DO NOT modify existing valid quantities!
                 }
             } else {
                 item.price = 0;
@@ -235,6 +245,15 @@ document.addEventListener('alpine:init', () => {
 
 
         updateTotal(index) {
+            // Ensure quantity is preserved
+            const item = this.items[index];
+            if (item && item.quantity !== null && item.quantity !== undefined && item.quantity !== '') {
+                // Parse and validate the quantity
+                const qty = parseFloat(item.quantity);
+                if (!isNaN(qty)) {
+                    item.quantity = qty;
+                }
+            }
             this.syncWithLivewire();
         },
 
@@ -269,11 +288,61 @@ document.addEventListener('alpine:init', () => {
         },
 
         syncWithLivewire() {
+            // Debug logging
+            console.log('Syncing items to Livewire:', this.items);
+            
+            // Ensure quantities are preserved as numbers
+            const itemsToSync = this.items.map((item, index) => {
+                const syncItem = {...item};
+                
+                // Ensure price_variation_id is not undefined
+                if (syncItem.price_variation_id === undefined) {
+                    syncItem.price_variation_id = null;
+                }
+                
+                // Preserve quantity - handle various input types
+                if (item.quantity !== null && item.quantity !== undefined && item.quantity !== '') {
+                    const qty = parseFloat(item.quantity);
+                    if (!isNaN(qty)) {
+                        syncItem.quantity = qty;
+                    } else {
+                        console.warn(`Item ${index} has invalid quantity:`, item.quantity);
+                        // For invalid quantities, try to preserve the original string value
+                        syncItem.quantity = item.quantity;
+                    }
+                } else {
+                    console.warn(`Item ${index} has null/empty quantity:`, item.quantity);
+                    // Check if this is a real issue or just an empty row
+                    if (item.item_id && item.price_variation_id) {
+                        // This is a real item with missing quantity - this is the problem!
+                        console.error(`ERROR: Item ${index} with product ${item.item_id} has null quantity!`);
+                        // Try to preserve any previous quantity or default to 1
+                        syncItem.quantity = 1;
+                    } else {
+                        // Empty row, leave quantity as is
+                        syncItem.quantity = item.quantity;
+                    }
+                }
+                
+                return syncItem;
+            });
+            
+            console.log('Items to sync:', itemsToSync);
+            
             // Sync data with Livewire
-            this.$wire.set(this.statePath, this.items);
+            this.$wire.set(this.statePath, itemsToSync);
         },
 
         async init() {
+            // Ensure all items have valid quantities on init
+            this.items = this.items.map((item, index) => {
+                if (item.item_id && (item.quantity === null || item.quantity === undefined || item.quantity === '')) {
+                    console.warn(`Initial item ${index} has invalid quantity, preserving from state`);
+                    // Don't modify - let it stay as is to see what's happening
+                }
+                return item;
+            });
+            
             // Load price variations for existing items
             await this.loadExistingPriceVariations();
             
@@ -281,11 +350,20 @@ document.addEventListener('alpine:init', () => {
             console.log('Initial items:', this.items);
             
             this.$watch('items', () => {
+                console.log('Items changed:', this.items);
                 this.syncWithLivewire();
             }, { deep: true });
             
             // Watch for customer changes and reload price variations
             this.watchForCustomerChanges();
+            
+            // Mark initialization as complete after a short delay
+            this.$nextTick(() => {
+                setTimeout(() => {
+                    this.isInitializing = false;
+                    console.log('Initialization complete, quantities preserved');
+                }, 100);
+            });
         },
 
         watchForCustomerChanges() {
@@ -327,6 +405,8 @@ document.addEventListener('alpine:init', () => {
         },
 
         async loadExistingPriceVariations() {
+            console.log('Loading existing price variations for items:', this.items);
+            
             // Load price variations for products that already have items
             const productIds = [...new Set(this.items.map(item => item.item_id).filter(id => id))];
             
@@ -335,6 +415,10 @@ document.addEventListener('alpine:init', () => {
                     await this.loadPriceVariationsForProduct(productId);
                 }
             }
+            
+            // After loading variations, DO NOT automatically update prices/quantities
+            // This was causing the issue - quantities were being reset
+            console.log('Price variations loaded, items should remain unchanged:', this.items);
         },
 
         async loadPriceVariationsForProduct(productId) {
@@ -384,7 +468,7 @@ document.addEventListener('alpine:init', () => {
             }
             
             const variation = this.priceVariations[item.item_id].find(v => 
-                v.id.toString() === item.price_variation_id.toString()
+                item.price_variation_id && v.id.toString() === item.price_variation_id.toString()
             );
             
             return variation && variation.pricing_unit && 
@@ -399,7 +483,7 @@ document.addEventListener('alpine:init', () => {
             }
             
             const variation = this.priceVariations[item.item_id].find(v => 
-                v.id.toString() === item.price_variation_id.toString()
+                item.price_variation_id && v.id.toString() === item.price_variation_id.toString()
             );
             
             return variation?.pricing_unit || 'each';

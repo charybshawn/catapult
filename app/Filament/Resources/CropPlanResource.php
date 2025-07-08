@@ -160,7 +160,7 @@ class CropPlanResource extends Resource
         return $table
             ->modifyQueryUsing(fn (Builder $query) => $query->with([
                 'order.customer',
-                'recipe.seedEntry',
+                'recipe',
                 'createdBy',
                 'approvedBy'
             ]))
@@ -186,12 +186,16 @@ class CropPlanResource extends Resource
                 Tables\Columns\TextColumn::make('recipe.name')
                     ->label('Recipe')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->getStateUsing(fn ($record) => $record->is_missing_recipe ? '⚠️ Missing Recipe' : $record->recipe?->name)
+                    ->color(fn ($record) => $record->is_missing_recipe ? 'danger' : 'default')
+                    ->weight(fn ($record) => $record->is_missing_recipe ? 'bold' : 'normal')
+                    ->description(fn ($record) => $record->is_missing_recipe ? $record->missing_recipe_notes : null),
 
                 Tables\Columns\BadgeColumn::make('status.name')
                     ->label('Status')
-                    ->getStateUsing(fn ($record) => $record->status?->name)
-                    ->color(fn ($record) => $record->status?->color ?? 'gray')
+                    ->getStateUsing(fn ($record) => $record->is_missing_recipe ? 'Incomplete' : $record->status?->name)
+                    ->color(fn ($record) => $record->is_missing_recipe ? 'danger' : ($record->status?->color ?? 'gray'))
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('trays_needed')
@@ -232,6 +236,10 @@ class CropPlanResource extends Resource
                 Tables\Filters\Filter::make('overdue')
                     ->label('Overdue')
                     ->query(fn (Builder $query) => $query->where('plant_by_date', '<', now())),
+
+                Tables\Filters\Filter::make('missing_recipe')
+                    ->label('Missing Recipe')
+                    ->query(fn (Builder $query) => $query->where('is_missing_recipe', true)),
             ])
             ->headerActions([
                 Tables\Actions\Action::make('manual_planning')
@@ -246,7 +254,7 @@ class CropPlanResource extends Resource
                     ->label('Approve')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn ($record) => $record->canBeApproved())
+                    ->visible(fn ($record) => $record->canBeApproved() && !$record->is_missing_recipe)
                     ->action(function ($record) {
                         $record->approve(Auth::user());
                         Notification::make()
@@ -260,7 +268,7 @@ class CropPlanResource extends Resource
                     ->label('Recalculate with Latest Harvest Data')
                     ->icon('heroicon-o-calculator')
                     ->color('warning')
-                    ->visible(fn ($record) => $record->status?->code === 'draft')
+                    ->visible(fn ($record) => $record->status?->code === 'draft' && !$record->is_missing_recipe)
                     ->action(function ($record) {
                         $yieldCalculator = app(HarvestYieldCalculator::class);
                         $recipe = $record->recipe;
@@ -323,7 +331,7 @@ class CropPlanResource extends Resource
                     ->label('Generate Crops')
                     ->icon('heroicon-o-plus-circle')
                     ->color('primary')
-                    ->visible(fn ($record) => $record->canGenerateCrops())
+                    ->visible(fn ($record) => $record->canGenerateCrops() && !$record->is_missing_recipe)
                     ->action(function ($record) {
                         // TODO: Implement crop generation logic
                         Notification::make()
@@ -331,6 +339,14 @@ class CropPlanResource extends Resource
                             ->warning()
                             ->send();
                     }),
+
+                Tables\Actions\Action::make('create_recipe')
+                    ->label('Create Recipe')
+                    ->icon('heroicon-o-plus-circle')
+                    ->color('warning')
+                    ->visible(fn ($record) => $record->is_missing_recipe)
+                    ->url(fn ($record) => '/admin/recipes/create?variety=' . $record->variety_id)
+                    ->openUrlInNewTab(),
 
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
@@ -366,6 +382,7 @@ class CropPlanResource extends Resource
     {
         return [
             'index' => Pages\ListCropPlans::route('/'),
+            'calendar' => Pages\CalendarCropPlans::route('/calendar'),
             'edit' => Pages\EditCropPlan::route('/{record}/edit'),
             'manual-planning' => Pages\ManualCropPlanning::route('/manual-planning'),
         ];

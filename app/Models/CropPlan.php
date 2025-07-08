@@ -13,13 +13,16 @@ class CropPlan extends Model
     use HasFactory;
 
     protected $fillable = [
+        'aggregated_crop_plan_id',
         'order_id',
         'recipe_id',
+        'variety_id',
         'status_id',
         'trays_needed',
         'grams_needed',
         'grams_per_tray',
         'plant_by_date',
+        'seed_soak_date',
         'expected_harvest_date',
         'delivery_date',
         'calculation_details',
@@ -29,15 +32,19 @@ class CropPlan extends Model
         'approved_at',
         'notes',
         'admin_notes',
+        'is_missing_recipe',
+        'missing_recipe_notes',
     ];
 
     protected $casts = [
         'plant_by_date' => 'date',
+        'seed_soak_date' => 'date',
         'expected_harvest_date' => 'date',
         'delivery_date' => 'date',
         'approved_at' => 'datetime',
         'calculation_details' => 'array',
         'order_items_included' => 'array',
+        'is_missing_recipe' => 'boolean',
     ];
 
     public function order(): BelongsTo
@@ -70,6 +77,16 @@ class CropPlan extends Model
         return $this->hasMany(Crop::class, 'crop_plan_id');
     }
 
+    public function aggregatedCropPlan(): BelongsTo
+    {
+        return $this->belongsTo(AggregatedCropPlan::class);
+    }
+
+    public function variety(): BelongsTo
+    {
+        return $this->belongsTo(MasterSeedCatalog::class, 'variety_id');
+    }
+
     public function isApproved(): bool
     {
         return $this->status?->code === 'active';
@@ -90,7 +107,7 @@ class CropPlan extends Model
         return $this->status?->code === 'active';
     }
 
-    public function approve(User $user = null): void
+    public function approve(?User $user = null): void
     {
         if (!$this->canBeApproved()) {
             throw new \Exception('Crop plan cannot be approved in current status: ' . $this->status?->name);

@@ -688,7 +688,7 @@ class ConsumableResource extends BaseResource
                 'consumableType',
                 'consumableUnit',
                 'masterSeedCatalog',
-                'seedEntry',
+                
                 'packagingType'
             ]))
             ->columns([
@@ -729,9 +729,7 @@ class ConsumableResource extends BaseResource
                     ->getStateUsing(function ($record) {
                         if ($record->consumableType && $record->consumableType->isSeed() && $record->masterSeedCatalog) {
                             return $record->masterSeedCatalog->common_name;
-                        } elseif ($record->consumableType && $record->consumableType->isSeed() && $record->seedEntry) {
-                            // Fallback for existing records
-                            return $record->seedEntry->common_name . ' - ' . $record->seedEntry->cultivar_name;
+                        
                         }
                         return null;
                     })
@@ -913,7 +911,7 @@ class ConsumableResource extends BaseResource
         return static::addRelationshipColumns($autoColumns, [
             'supplier' => ['name', 'email'],
             'masterSeedCatalog' => ['common_name', 'category'],
-            'seedEntry' => ['common_name', 'cultivar_name'],
+            
             'packagingType' => ['name', 'capacity_volume', 'volume_unit'],
         ]);
     }
@@ -923,7 +921,7 @@ class ConsumableResource extends BaseResource
      */
     protected static function getCsvExportRelationships(): array
     {
-        return ['supplier', 'masterSeedCatalog', 'seedEntry', 'packagingType'];
+        return ['supplier', 'masterSeedCatalog',  'packagingType'];
     }
 
     /**

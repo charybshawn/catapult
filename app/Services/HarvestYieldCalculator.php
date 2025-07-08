@@ -60,23 +60,18 @@ class HarvestYieldCalculator
         $historyMonths = config('harvest.yield.history_months', 6);
         $sixMonthsAgo = Carbon::now()->subMonths($historyMonths);
 
-        // Find harvests that match the seed variety
-        // We need to match by master cultivar that corresponds to this recipe's seed
+        // Find harvests that match the recipe's variety
+        // Match by common name and cultivar name
         return Harvest::with('masterCultivar.masterSeedCatalog')
             ->where('harvest_date', '>=', $sixMonthsAgo)
-            ->whereHas('masterCultivar', function ($query) use ($recipe) {
-                if ($recipe->seedEntry && $recipe->seedEntry->master_seed_catalog_id) {
-                    $query->where('master_seed_catalog_id', $recipe->seedEntry->master_seed_catalog_id);
+            ->whereHas('masterCultivar.masterSeedCatalog', function ($query) use ($recipe) {
+                $query->where('common_name', $recipe->common_name);
+                if ($recipe->cultivar_name) {
+                    $query->where('cultivar_name', $recipe->cultivar_name);
                 }
             })
             ->orderBy('harvest_date', 'desc')
-            ->get()
-            ->filter(function ($harvest) {
-                // Additional filtering by lot number if available
-                // This would require extending the harvest model to track lot numbers
-                // For now, we'll filter by the seed variety match
-                return true;
-            });
+            ->get();
     }
 
     /**
