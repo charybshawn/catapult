@@ -27,7 +27,6 @@ return new class extends Migration
             $table->enum('type', ['packaging', 'soil', 'seed', 'label', 'other']);
             $table->foreignId('supplier_id')->nullable()->constrained('suppliers')->onDelete('set null');
             $table->foreignId('packaging_type_id')->nullable()->constrained('packaging_types')->onDelete('set null');
-            $table->unsignedBigInteger('seed_entry_id')->nullable()->index();
             $table->unsignedBigInteger('master_seed_catalog_id')->nullable()->index();
             $table->unsignedBigInteger('master_cultivar_id')->nullable()->index();
             $table->string('cultivar')->nullable();

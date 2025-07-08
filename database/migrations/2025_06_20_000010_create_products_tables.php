@@ -32,7 +32,6 @@ return new class extends Migration
             $table->string('name')->unique();
             $table->text('description')->nullable();
             $table->string('sku')->nullable();
-            $table->foreignId('seed_entry_id')->nullable()->constrained('seed_entries')->onDelete('set null');
             $table->foreignId('master_seed_catalog_id')->nullable()->constrained('master_seed_catalog')->onDelete('set null');
             $table->decimal('base_price', 10, 2)->nullable();
             $table->decimal('wholesale_price', 10, 2)->nullable();

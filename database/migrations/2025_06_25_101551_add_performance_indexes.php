@@ -31,9 +31,6 @@ return new class extends Migration
             $table->index(['is_visible_in_store', 'active'], 'idx_products_store_visible');
         });
 
-        Schema::table('recipes', function (Blueprint $table) {
-            $table->index(['seed_entry_id'], 'idx_recipes_seed_entry');
-        });
 
         Schema::table('invoices', function (Blueprint $table) {
             $table->index(['order_id', 'sent_at'], 'idx_invoices_order_sent');

@@ -20,14 +20,12 @@ return new class extends Migration
         
         // Add foreign keys from consumables to seed catalog tables
         Schema::table('consumables', function (Blueprint $table) {
-            $table->foreign('seed_entry_id')->references('id')->on('seed_entries')->onDelete('set null');
             $table->foreign('master_seed_catalog_id')->references('id')->on('master_seed_catalog')->onDelete('set null');
             $table->foreign('master_cultivar_id')->references('id')->on('master_cultivars')->onDelete('set null');
         });
         
         // Add foreign keys from recipes
         Schema::table('recipes', function (Blueprint $table) {
-            $table->foreign('seed_entry_id')->references('id')->on('seed_entries')->onDelete('set null');
             $table->foreign('soil_consumable_id')->references('id')->on('consumables')->onDelete('set null');
         });
     }
@@ -38,12 +36,10 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('recipes', function (Blueprint $table) {
-            $table->dropForeign(['seed_entry_id']);
             $table->dropForeign(['soil_consumable_id']);
         });
         
         Schema::table('consumables', function (Blueprint $table) {
-            $table->dropForeign(['seed_entry_id']);
             $table->dropForeign(['master_seed_catalog_id']);
             $table->dropForeign(['master_cultivar_id']);
         });
