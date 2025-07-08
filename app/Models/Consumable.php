@@ -35,9 +35,9 @@ class Consumable extends Model
         'consumable_type_id',
         'supplier_id',
         'packaging_type_id', // For packaging consumables only
-        'seed_entry_id', // For seed consumables only (deprecated, use master_seed_catalog_id)
         'master_seed_catalog_id', // For seed consumables - references master catalog
-        'cultivar', // For seed consumables - specific cultivar name
+        'master_cultivar_id', // For seed consumables - references master cultivar
+        // 'cultivar', // DEPRECATED: For seed consumables - specific cultivar name (use master_cultivar_id relationship instead)
         'initial_stock',
         'consumed_quantity',
         'consumable_unit_id',
@@ -183,6 +183,15 @@ class Consumable extends Model
         return $this->belongsTo(MasterSeedCatalog::class);
     }
     
+    /**
+     * Get the master cultivar for this consumable.
+     * Only applicable for seed consumables.
+     */
+    public function masterCultivar(): BelongsTo
+    {
+        return $this->belongsTo(MasterCultivar::class);
+    }
+    
     
     
     /**
@@ -289,9 +298,9 @@ class Consumable extends Model
                 'consumable_type_id', 
                 'supplier_id',
                 'packaging_type_id',
-                'seed_entry_id',
                 'master_seed_catalog_id',
-                'cultivar',
+                'master_cultivar_id',
+                // 'cultivar', // DEPRECATED: use master_cultivar_id relationship instead
                 'initial_stock',
                 'consumed_quantity',
                 'consumable_unit_id',
