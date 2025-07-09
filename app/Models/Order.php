@@ -85,11 +85,11 @@ class Order extends Model
             }
             
             // Set default status for new orders
-            if (!$order->order_status_id) {
+            if (!$order->status_id) {
                 $defaultStatusCode = $order->is_recurring ? 'template' : 'pending';
                 $defaultStatus = \App\Models\OrderStatus::where('code', $defaultStatusCode)->first();
                 if ($defaultStatus) {
-                    $order->order_status_id = $defaultStatus->id;
+                    $order->status_id = $defaultStatus->id;
                 }
             }
             
@@ -115,7 +115,7 @@ class Order extends Model
             if ($order->is_recurring && $orderTypeCode !== 'b2b' && $currentStatus !== 'template') {
                 $templateStatus = \App\Models\OrderStatus::where('code', 'template')->first();
                 if ($templateStatus) {
-                    $order->order_status_id = $templateStatus->id;
+                    $order->status_id = $templateStatus->id;
                 }
                 // Also update unified status
                 $templateUnifiedStatus = \App\Models\OrderStatus::where('code', 'template')->first();
@@ -126,7 +126,7 @@ class Order extends Model
                 // If no longer recurring, change status from template to pending
                 $pendingStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
                 if ($pendingStatus) {
-                    $order->order_status_id = $pendingStatus->id;
+                    $order->status_id = $pendingStatus->id;
                 }
                 // Also update unified status
                 $pendingUnifiedStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
@@ -498,7 +498,7 @@ class Order extends Model
             $newOrder->is_recurring = false;
             $pendingStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
             if ($pendingStatus) {
-                $newOrder->order_status_id = $pendingStatus->id;
+                $newOrder->status_id = $pendingStatus->id;
             }
             $pendingUnifiedStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
             if ($pendingUnifiedStatus) {
@@ -507,7 +507,7 @@ class Order extends Model
         } else {
             $pendingStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
             if ($pendingStatus) {
-                $newOrder->order_status_id = $pendingStatus->id;
+                $newOrder->status_id = $pendingStatus->id;
             }
             $pendingUnifiedStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
             if ($pendingUnifiedStatus) {

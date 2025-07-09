@@ -32,25 +32,14 @@ Route::middleware(['web', 'auth'])->get('/products/{product}/price-variations', 
     $customerId = $request->get('customer_id');
     $customer = $customerId ? \App\Models\User::with('customerType')->find($customerId) : null;
     
-    // Get product-specific variations first, then global as fallback
+    // Get only product-specific variations
     $priceVariations = \App\Models\PriceVariation::where('is_active', true)
         ->where('product_id', $product->id)
         ->with('packagingType')
         ->orderBy('is_default', 'desc')
         ->orderBy('name')
-        ->get();
-    
-    // If no product-specific variations exist, use global ones as fallback
-    if ($priceVariations->isEmpty()) {
-        $priceVariations = \App\Models\PriceVariation::where('is_active', true)
-            ->where('is_global', true)
-            ->with('packagingType')
-            ->orderBy('is_default', 'desc')
-            ->orderBy('name')
-            ->get();
-    }
-    
-    $priceVariations = $priceVariations->map(function ($variation) use ($product, $customer) {
+        ->get()
+        ->map(function ($variation) use ($product, $customer) {
             $basePrice = $variation->price;
             $finalPrice = $basePrice;
             

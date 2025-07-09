@@ -56,7 +56,7 @@ class OrderFactory extends Factory
             return [
                 'is_recurring' => true,
                 'is_recurring_active' => true,
-                'order_status_id' => OrderStatus::findByCode('template')?->id ?? OrderStatus::firstOrCreate(['code' => 'template'], ['name' => 'Template', 'description' => 'Recurring order template'])->id,
+                'status_id' => OrderStatus::findByCode('template')?->id ?? OrderStatus::firstOrCreate(['code' => 'template'], ['name' => 'Template', 'description' => 'Recurring order template'])->id,
                 'recurring_frequency' => $this->faker->randomElement(['weekly', 'biweekly', 'monthly']),
                 'recurring_start_date' => $startDate,
                 'recurring_end_date' => $endDate,
@@ -100,7 +100,7 @@ class OrderFactory extends Factory
         return $this->state([
             'parent_recurring_order_id' => $parentOrder?->id ?? Order::factory()->recurring(),
             'is_recurring' => false,
-            'order_status_id' => OrderStatus::findByCode('pending')?->id ?? OrderStatus::firstOrCreate(['code' => 'pending'], ['name' => 'Pending', 'description' => 'Order is pending'])->id,
+            'status_id' => OrderStatus::findByCode('pending')?->id ?? OrderStatus::firstOrCreate(['code' => 'pending'], ['name' => 'Pending', 'description' => 'Order is pending'])->id,
         ]);
     }
 
@@ -158,7 +158,7 @@ class OrderFactory extends Factory
     public function withStatus(string $status): static
     {
         return $this->state([
-            'order_status_id' => OrderStatus::findByCode($status)?->id ?? OrderStatus::firstOrCreate(['code' => $status], ['name' => ucfirst($status), 'description' => ucfirst($status) . ' status'])->id,
+            'status_id' => OrderStatus::findByCode($status)?->id ?? OrderStatus::firstOrCreate(['code' => $status], ['name' => ucfirst($status), 'description' => ucfirst($status) . ' status'])->id,
         ]);
     }
 

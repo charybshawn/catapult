@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Database\Seeders\Data\CategoriesTableSeeder;
 use Database\Seeders\Data\CurrentSeedConsumableDataSeeder;
 use Database\Seeders\Data\CustomerSeeder;
 use Database\Seeders\Data\MasterCultivarsTableSeeder;
@@ -23,6 +24,7 @@ class DataSeeder extends Seeder
     public function run(): void
     {
         $this->call([
+            CategoriesTableSeeder::class,
             CurrentSeedConsumableDataSeeder::class,
             CustomerSeeder::class,
             MasterCultivarsTableSeeder::class,
