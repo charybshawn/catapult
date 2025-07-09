@@ -174,7 +174,9 @@ class ConsumableResource extends BaseResource
                                                                 // Set the consumable name and related fields
                                                                 $set('name', $cultivar->full_name);
                                                                 $set('cultivar', $cultivar->cultivar_name);
-                                                                $set('master_seed_catalog_id', $cultivar->master_seed_catalog_id);
+                                                                // For seed consumables, we need to set this as composite key
+                                                                // Format: catalog_id:cultivar_index where cultivar_index is the cultivar's ID
+                                                                $set('master_seed_catalog_id', $cultivar->master_seed_catalog_id . ':' . $cultivar->id);
                                                             }
                                                         }
                                                     }),
@@ -186,6 +188,7 @@ class ConsumableResource extends BaseResource
                                         // Hidden fields - will be set from the master catalog
                                         Forms\Components\Hidden::make('name'),
                                         Forms\Components\Hidden::make('cultivar'),
+                                        Forms\Components\Hidden::make('master_seed_catalog_id'),
                                     ];
                                 } else if ($get('type') === 'mix') {
                                     // Product mix selection

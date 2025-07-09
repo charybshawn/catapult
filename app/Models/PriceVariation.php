@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -74,7 +75,7 @@ class PriceVariation extends Model
     {
         static::creating(function ($priceVariation) {
             // Debug: Log the data being saved
-            \Log::info('PriceVariation creating', [
+            Log::info('PriceVariation creating', [
                 'name' => $priceVariation->name,
                 'packaging_type_id' => $priceVariation->packaging_type_id,
                 'is_global' => $priceVariation->is_global,
