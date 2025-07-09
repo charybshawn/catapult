@@ -75,8 +75,6 @@ class CurrentSeedConsumableDataSeeder extends Seeder
                     [
                         'consumable_type_id' => $seedsType ? $seedsType->id : null,
                         'master_seed_catalog_id' => $masterSeedCatalog ? $masterSeedCatalog->id : null,
-                        'cultivar' => $cultivarName,
-                        'seed_entry_id' => null, // Independent of scraped data
                         'supplier_id' => $supplier ? $supplier->id : null,
                         'initial_stock' => $data['total'], // Set initial stock to match total
                         'consumed_quantity' => $data['consumed'],

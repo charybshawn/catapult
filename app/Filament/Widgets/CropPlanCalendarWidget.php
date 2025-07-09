@@ -2,7 +2,7 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\AggregatedCropPlan;
+use App\Models\CropPlanAggregate;
 use App\Models\CropPlan;
 use App\Models\CropPlanStatus;
 use Carbon\Carbon;
@@ -56,7 +56,7 @@ class CropPlanCalendarWidget extends FullCalendarWidget
         $events = [];
 
         // Fetch aggregated crop plans within the date range
-        $aggregatedPlans = AggregatedCropPlan::with(['variety', 'cropPlans'])
+        $aggregatedPlans = CropPlanAggregate::with(['variety', 'cropPlans'])
             ->where(function ($query) use ($start, $end) {
                 $query->whereBetween('plant_date', [$start, $end])
                     ->orWhereBetween('seed_soak_date', [$start, $end]);
@@ -357,7 +357,7 @@ class CropPlanCalendarWidget extends FullCalendarWidget
                 $props = $arguments['extendedProps'];
                 
                 if ($props['type'] === 'aggregated') {
-                    $model = AggregatedCropPlan::find($props['model_id']);
+                    $model = CropPlanAggregate::find($props['model_id']);
                 } else {
                     $model = CropPlan::find($props['model_id']);
                 }

@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Log;
 
-class AggregatedCropPlan extends Model
+class CropPlanAggregate extends Model
 {
     use HasFactory;
 

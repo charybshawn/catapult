@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Models\CropPlan;
-use App\Models\AggregatedCropPlan;
+use App\Models\CropPlanAggregate;
 use App\Models\Recipe;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Log;
 /**
  * Service for creating and managing aggregated crop plans
  */
-class AggregatedCropPlanService
+class CropPlanAggregateService
 {
     /**
      * Process new crop plans and aggregate them
@@ -40,7 +40,7 @@ class AggregatedCropPlanService
                 list($varietyId, $plantDate, $harvestDate) = explode('_', $key);
                 
                 // Check if an aggregated plan already exists
-                $aggregatedPlan = AggregatedCropPlan::where('variety_id', $varietyId)
+                $aggregatedPlan = CropPlanAggregate::where('variety_id', $varietyId)
                     ->whereDate('plant_date', $plantDate)
                     ->whereDate('harvest_date', $harvestDate)
                     ->where('status', 'draft')
@@ -49,7 +49,7 @@ class AggregatedCropPlanService
                 if (!$aggregatedPlan) {
                     // Create new aggregated plan
                     $firstPlan = $plans->first();
-                    $aggregatedPlan = AggregatedCropPlan::create([
+                    $aggregatedPlan = CropPlanAggregate::create([
                         'variety_id' => $varietyId,
                         'harvest_date' => $harvestDate,
                         'plant_date' => $plantDate,
@@ -115,10 +115,10 @@ class AggregatedCropPlanService
     /**
      * Recalculate an aggregated plan based on its linked crop plans
      * 
-     * @param AggregatedCropPlan $aggregatedPlan
-     * @return AggregatedCropPlan
+     * @param CropPlanAggregate $aggregatedPlan
+     * @return CropPlanAggregate
      */
-    public function recalculateAggregation(AggregatedCropPlan $aggregatedPlan): AggregatedCropPlan
+    public function recalculateAggregation(CropPlanAggregate $aggregatedPlan): CropPlanAggregate
     {
         $cropPlans = $aggregatedPlan->cropPlans()
             ->whereHas('status', function ($q) {
@@ -151,7 +151,7 @@ class AggregatedCropPlanService
      */
     public function getAggregatedRequirements(Carbon $startDate, Carbon $endDate): Collection
     {
-        return AggregatedCropPlan::with(['variety', 'cropPlans'])
+        return CropPlanAggregate::with(['variety', 'cropPlans'])
             ->whereBetween('plant_date', [$startDate, $endDate])
             ->whereIn('status', ['draft', 'confirmed'])
             ->orderBy('plant_date')

@@ -79,7 +79,7 @@ class CropPlan extends Model
 
     public function aggregatedCropPlan(): BelongsTo
     {
-        return $this->belongsTo(AggregatedCropPlan::class);
+        return $this->belongsTo(CropPlanAggregate::class);
     }
 
     public function variety(): BelongsTo

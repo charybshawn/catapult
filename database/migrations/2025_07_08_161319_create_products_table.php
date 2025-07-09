@@ -16,7 +16,6 @@ return new class extends Migration
             $table->string('name', 255);
             $table->text('description')->nullable();
             $table->string('sku', 255)->nullable();
-            $table->unsignedBigInteger('seed_entry_id')->nullable();
             $table->unsignedBigInteger('master_seed_catalog_id')->nullable();
             $table->decimal('base_price', 10, 2)->nullable();
             $table->decimal('wholesale_price', 10, 2)->nullable();

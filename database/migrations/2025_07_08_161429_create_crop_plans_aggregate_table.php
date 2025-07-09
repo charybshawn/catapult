@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('aggregated_crop_plans', function (Blueprint $table) {
+        Schema::create('crop_plans_aggregate', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('variety_id');
             $table->date('harvest_date');
@@ -32,6 +32,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('aggregated_crop_plans');
+        Schema::dropIfExists('crop_plans_aggregate');
     }
 };

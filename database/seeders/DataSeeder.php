@@ -10,6 +10,7 @@ use Database\Seeders\Data\MasterSeedCatalogTableSeeder;
 use Database\Seeders\Data\PackagingSeeder;
 use Database\Seeders\Data\PackagingTypesTableSeeder;
 use Database\Seeders\Data\PriceVariationsTableSeeder;
+use Database\Seeders\Data\ProductMixesTableSeeder;
 use Database\Seeders\Data\ProductsTableSeeder;
 use Database\Seeders\Data\RecipesTableSeeder;
 use Database\Seeders\Data\SuppliersSeeder;
@@ -29,6 +30,7 @@ class DataSeeder extends Seeder
             PackagingSeeder::class,
             PackagingTypesTableSeeder::class,
             PriceVariationsTableSeeder::class,
+            ProductMixesTableSeeder::class,
             ProductsTableSeeder::class,
             RecipesTableSeeder::class,
             SuppliersSeeder::class,

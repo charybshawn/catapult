@@ -22,7 +22,7 @@ class PackagingTypesTableSeeder extends Seeder
         DB::table('packaging_types')->insert([
             [
                 'id' => 1,
-                'name' => '16oz Clamshell',
+                'name' => 'Clamshell (16oz)',
                 'type_category_id' => 1,
                 'unit_type_id' => 1,
                 'capacity_volume' => 16,
@@ -35,7 +35,7 @@ class PackagingTypesTableSeeder extends Seeder
             ],
             [
                 'id' => 2,
-                'name' => '24oz Clamshell',
+                'name' => 'Clamshell (24oz)',
                 'type_category_id' => 1,
                 'unit_type_id' => 1,
                 'capacity_volume' => 24,
@@ -48,7 +48,7 @@ class PackagingTypesTableSeeder extends Seeder
             ],
             [
                 'id' => 3,
-                'name' => '32oz Clamshell',
+                'name' => 'Clamshell (32oz)',
                 'type_category_id' => 1,
                 'unit_type_id' => 1,
                 'capacity_volume' => 32,
@@ -61,7 +61,7 @@ class PackagingTypesTableSeeder extends Seeder
             ],
             [
                 'id' => 4,
-                'name' => '48oz Clamshell',
+                'name' => 'Clamshell (48oz)',
                 'type_category_id' => 1,
                 'unit_type_id' => 1,
                 'capacity_volume' => 48,
@@ -74,7 +74,7 @@ class PackagingTypesTableSeeder extends Seeder
             ],
             [
                 'id' => 5,
-                'name' => '64oz Clamshell',
+                'name' => 'Clamshell (64oz)',
                 'type_category_id' => 1,
                 'unit_type_id' => 1,
                 'capacity_volume' => 64,
