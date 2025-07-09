@@ -12,6 +12,8 @@ class CropPlanAggregate extends Model
 {
     use HasFactory;
 
+    protected $table = 'crop_plans_aggregate';
+
     protected $fillable = [
         'variety_id',
         'harvest_date',
