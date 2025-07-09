@@ -835,7 +835,7 @@ class CropPlanningService
 
             // Check inventory availability
             if (!$this->recipeService->canExecuteRecipe($recipe, $plan->trays_needed * $recipe->seed_density_grams_per_tray)) {
-                $availableQuantity = $this->inventoryService->getLotQuantity($recipe->lot_number);
+                $availableQuantity = $recipe->getLotQuantity();
                 $issues[] = [
                     'recipe' => $recipe->name,
                     'issue' => 'Insufficient seed inventory',
