@@ -26,14 +26,40 @@ class RecipesTableSeeder extends Seeder
             ->select('consumables.*')
             ->first(); // If soil consumables exist
 
+        // Get master seed catalog entries directly
+        $sunflowerCatalog = DB::table('master_seed_catalog')
+            ->where('common_name', 'Sunflower')
+            ->first();
+            
+        $basilCatalog = DB::table('master_seed_catalog')
+            ->where('common_name', 'Basil')
+            ->first();
+
+        // Get master cultivars by matching names
+        $sunflowerCultivar = DB::table('master_cultivars')
+            ->join('master_seed_catalog', 'master_cultivars.master_seed_catalog_id', '=', 'master_seed_catalog.id')
+            ->where('master_seed_catalog.common_name', 'Sunflower')
+            ->where('master_cultivars.cultivar_name', 'Black Oilseed')
+            ->select('master_cultivars.*')
+            ->first();
+            
+        $basilCultivar = DB::table('master_cultivars')
+            ->join('master_seed_catalog', 'master_cultivars.master_seed_catalog_id', '=', 'master_seed_catalog.id')  
+            ->where('master_seed_catalog.common_name', 'Basil')
+            ->where('master_cultivars.cultivar_name', 'Genovese')
+            ->select('master_cultivars.*')
+            ->first();
+
         // Insert data
         DB::table('recipes')->insert([
             [
                 'id' => 1,
                 'name' => 'SUNFLOWER - BLACK OIL - SF4K - 100G',
+                'master_seed_catalog_id' => $sunflowerCatalog ? $sunflowerCatalog->id : null,
+                'master_cultivar_id' => $sunflowerCultivar ? $sunflowerCultivar->id : null,
                 'soil_consumable_id' => $soilConsumable ? $soilConsumable->id : null,
                 'seed_consumable_id' => $sunflowerConsumable ? $sunflowerConsumable->id : null,
-                'seed_density' => 1, // Default density
+                'lot_number' => 'SF4K',
                 'seed_soak_hours' => 9,
                 'germination_days' => 3,
                 'blackout_days' => 1,
@@ -54,9 +80,11 @@ class RecipesTableSeeder extends Seeder
             [
                 'id' => 2,
                 'name' => 'SUNFLOWER  - BLACK OIL - SFK16 - 100 GRAMS',
+                'master_seed_catalog_id' => $sunflowerCatalog ? $sunflowerCatalog->id : null,
+                'master_cultivar_id' => $sunflowerCultivar ? $sunflowerCultivar->id : null,
+                'lot_number' => 'SFK16',
                 'soil_consumable_id' => $soilConsumable ? $soilConsumable->id : null,
                 'seed_consumable_id' => $sunflowerConsumable ? $sunflowerConsumable->id : null,
-                'seed_density' => 1, // Default density
                 'seed_soak_hours' => 4,
                 'germination_days' => 3,
                 'blackout_days' => 0,
@@ -77,9 +105,11 @@ class RecipesTableSeeder extends Seeder
             [
                 'id' => 3,
                 'name' => 'BASIL (GENOVESE) - BAS8Y - 5G -21 DAY',
+                'master_seed_catalog_id' => $basilCatalog ? $basilCatalog->id : null,
+                'master_cultivar_id' => $basilCultivar ? $basilCultivar->id : null,
                 'soil_consumable_id' => $soilConsumable ? $soilConsumable->id : null,
                 'seed_consumable_id' => $basilConsumable ? $basilConsumable->id : null,
-                'seed_density' => 1, // Default density
+                'lot_number' => 'BAS8Y',
                 'seed_soak_hours' => 0,
                 'germination_days' => 4,
                 'blackout_days' => 0,
