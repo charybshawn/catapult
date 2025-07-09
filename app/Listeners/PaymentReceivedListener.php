@@ -4,7 +4,7 @@ namespace App\Listeners;
 
 use App\Events\PaymentReceived;
 use App\Services\StatusTransitionService;
-use App\Models\UnifiedOrderStatus;
+use App\Models\OrderStatus;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
 
@@ -49,7 +49,7 @@ class PaymentReceivedListener implements ShouldQueue
         // Check if order is now fully paid
         if ($order->isPaid()) {
             // If order is in packing status and now paid, move to ready for delivery
-            if ($order->unifiedStatus && $order->unifiedStatus->code === UnifiedOrderStatus::STATUS_PACKING) {
+            if ($order->unifiedStatus && $order->unifiedStatus->code === OrderStatus::STATUS_PACKING) {
                 $this->statusService->handleBusinessEvent($order, 'payment.received', [
                     'payment_id' => $payment->id,
                     'payment_amount' => $payment->amount,

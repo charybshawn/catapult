@@ -20,7 +20,11 @@ class RecipesTableSeeder extends Seeder
         // Get consumables by name/type to avoid hardcoded IDs
         $sunflowerConsumable = DB::table('consumables')->where('name', 'like', '%Sunflower%')->first();
         $basilConsumable = DB::table('consumables')->where('name', 'like', '%Basil (Genovese)%')->first();
-        $soilConsumable = DB::table('consumables')->where('type', 'soil')->first(); // If soil consumables exist
+        $soilConsumable = DB::table('consumables')
+            ->join('consumable_types', 'consumables.consumable_type_id', '=', 'consumable_types.id')
+            ->where('consumable_types.code', 'soil')
+            ->select('consumables.*')
+            ->first(); // If soil consumables exist
 
         // Insert data
         DB::table('recipes')->insert([

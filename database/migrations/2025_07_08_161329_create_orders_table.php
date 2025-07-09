@@ -17,13 +17,12 @@ return new class extends Migration
             $table->unsignedBigInteger('customer_id')->nullable();
             $table->date('harvest_date')->nullable();
             $table->date('delivery_date')->nullable();
-            $table->unsignedBigInteger('order_status_id')->nullable();
-            $table->unsignedBigInteger('unified_status_id')->nullable();
+            $table->unsignedBigInteger('status_id')->nullable();
             $table->unsignedBigInteger('crop_status_id')->nullable();
             $table->unsignedBigInteger('fulfillment_status_id')->nullable();
             $table->unsignedBigInteger('payment_status_id')->nullable();
             $table->unsignedBigInteger('delivery_status_id')->nullable();
-            $table->enum('customer_type', ['retail','wholesale','b2b'])->nullable();
+            $table->enum('customer_type', ['b2b','website order','farmers market'])->default('b2b');
             $table->unsignedBigInteger('order_type_id')->nullable();
             $table->string('billing_frequency', 255)->nullable();
             $table->integer('requires_invoice')->default(0);

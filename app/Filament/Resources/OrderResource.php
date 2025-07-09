@@ -7,7 +7,7 @@ use App\Filament\Resources\OrderResource\RelationManagers;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
-use App\Models\UnifiedOrderStatus;
+use App\Models\OrderStatus;
 use App\Models\User;
 use App\Services\OrderPlanningService;
 use Carbon\Carbon;
@@ -211,29 +211,29 @@ class OrderResource extends Resource
                                             'b2b' => 'draft',
                                             default => 'pending'
                                         };
-                                        $defaultStatus = UnifiedOrderStatus::where('code', $defaultStatusCode)->first();
+                                        $defaultStatus = OrderStatus::where('code', $defaultStatusCode)->first();
                                         if ($defaultStatus) {
-                                            $set('unified_status_id', $defaultStatus->id);
+                                            $set('status_id', $defaultStatus->id);
                                         }
                                     }
                                 }
                             }),
-                        Forms\Components\Select::make('unified_status_id')
+                        Forms\Components\Select::make('status_id')
                             ->label('Order Status')
                             ->options(function () {
-                                return UnifiedOrderStatus::getOptionsForDropdown(false, true);
+                                return OrderStatus::getOptionsForDropdown(false, true);
                             })
                             ->required()
                             ->reactive()
                             ->default(function () {
-                                $defaultStatus = UnifiedOrderStatus::getDefaultStatus();
+                                $defaultStatus = OrderStatus::getDefaultStatus();
                                 return $defaultStatus?->id;
                             })
                             ->helperText(function ($state) {
                                 if (!$state) {
                                     return 'Select a status for this order';
                                 }
-                                $status = UnifiedOrderStatus::find($state);
+                                $status = OrderStatus::find($state);
                                 if (!$status) {
                                     return null;
                                 }
@@ -254,7 +254,7 @@ class OrderResource extends Resource
                                 
                                 return $help;
                             })
-                            ->disabled(fn ($record) => $record && $record->unifiedStatus && ($record->unifiedStatus->code === 'template' || $record->unifiedStatus->is_final)),
+                            ->disabled(fn ($record) => $record && $record->status && ($record->status->code === 'template' || $record->status->is_final)),
                     ])
                     ->columns(2),
                 
@@ -371,7 +371,7 @@ class OrderResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with(['customer.customerType', 'orderItems', 'invoice', 'orderType', 'unifiedStatus']))
+            ->modifyQueryUsing(fn ($query) => $query->with(['customer.customerType', 'orderItems', 'invoice', 'orderType', 'status']))
             ->persistFiltersInSession()
             ->persistSortInSession()
             ->persistColumnSearchesInSession()
@@ -410,33 +410,33 @@ class OrderResource extends Resource
                         'b2b' => 'info',
                         default => 'gray',
                     }),
-                Tables\Columns\SelectColumn::make('unified_status_id')
+                Tables\Columns\SelectColumn::make('status_id')
                     ->label('Status')
                     ->options(function () {
-                        return UnifiedOrderStatus::getOptionsForDropdown(false, false);
+                        return OrderStatus::getOptionsForDropdown(false, false);
                     })
                     ->selectablePlaceholder(false)
-                    ->disabled(fn (Order $record): bool => $record->unifiedStatus?->code === 'template' || $record->unifiedStatus?->is_final)
+                    ->disabled(fn (Order $record): bool => $record->status?->code === 'template' || $record->status?->is_final)
                     ->rules([
                         fn (Order $record): \Closure => function (string $attribute, $value, \Closure $fail) use ($record) {
-                            if (!$record->unifiedStatus) {
+                            if (!$record->status) {
                                 return;
                             }
                             
-                            $newStatus = UnifiedOrderStatus::find($value);
+                            $newStatus = OrderStatus::find($value);
                             if (!$newStatus) {
                                 $fail('Invalid status selected.');
                                 return;
                             }
                             
-                            if (!UnifiedOrderStatus::isValidTransition($record->unifiedStatus->code, $newStatus->code)) {
-                                $fail("Cannot transition from {$record->unifiedStatus->name} to {$newStatus->name}.");
+                            if (!OrderStatus::isValidTransition($record->status->code, $newStatus->code)) {
+                                $fail("Cannot transition from {$record->status->name} to {$newStatus->name}.");
                             }
                         },
                     ])
                     ->afterStateUpdated(function (Order $record, $state) {
-                        $oldStatus = $record->unifiedStatus;
-                        $newStatus = UnifiedOrderStatus::find($state);
+                        $oldStatus = $record->status;
+                        $newStatus = OrderStatus::find($state);
                         
                         if (!$newStatus) {
                             return;
@@ -462,12 +462,12 @@ class OrderResource extends Resource
                             ->success()
                             ->send();
                     }),
-                Tables\Columns\TextColumn::make('unifiedStatus.name')
+                Tables\Columns\TextColumn::make('status.name')
                     ->label('Status')
                     ->badge()
-                    ->color(fn (Order $record): string => $record->unifiedStatus?->badge_color ?? 'gray')
+                    ->color(fn (Order $record): string => $record->status?->badge_color ?? 'gray')
                     ->formatStateUsing(fn (string $state, Order $record): string => 
-                        $state . ' (' . $record->unifiedStatus?->stage_display . ')'
+                        $state . ' (' . $record->status?->stage_display . ')'
                     )
                     ->visible(false), // Hidden by default, can be toggled
                 Tables\Columns\IconColumn::make('requiresCrops')
@@ -553,23 +553,23 @@ class OrderResource extends Resource
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
-                Tables\Filters\SelectFilter::make('unified_status_id')
+                Tables\Filters\SelectFilter::make('status_id')
                     ->label('Status')
                     ->options(function () {
-                        return UnifiedOrderStatus::getOptionsForDropdown(false, true);
+                        return OrderStatus::getOptionsForDropdown(false, true);
                     })
                     ->searchable(),
                 Tables\Filters\SelectFilter::make('stage')
                     ->label('Stage')
                     ->options([
-                        UnifiedOrderStatus::STAGE_PRE_PRODUCTION => 'Pre-Production',
-                        UnifiedOrderStatus::STAGE_PRODUCTION => 'Production',
-                        UnifiedOrderStatus::STAGE_FULFILLMENT => 'Fulfillment',
-                        UnifiedOrderStatus::STAGE_FINAL => 'Final',
+                        OrderStatus::STAGE_PRE_PRODUCTION => 'Pre-Production',
+                        OrderStatus::STAGE_PRODUCTION => 'Production',
+                        OrderStatus::STAGE_FULFILLMENT => 'Fulfillment',
+                        OrderStatus::STAGE_FINAL => 'Final',
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         if (!empty($data['value'])) {
-                            return $query->whereHas('unifiedStatus', function ($q) use ($data) {
+                            return $query->whereHas('status', function ($q) use ($data) {
                                 $q->where('stage', $data['value']);
                             });
                         }
@@ -647,7 +647,7 @@ class OrderResource extends Resource
                     ->icon('heroicon-o-plus-circle')
                     ->color('success')
                     ->visible(fn (Order $record): bool => 
-                        $record->unifiedStatus?->code === 'template' && 
+                        $record->status?->code === 'template' && 
                         $record->is_recurring
                     )
                     ->requiresConfirmation()
@@ -692,9 +692,9 @@ class OrderResource extends Resource
                     ->icon('heroicon-o-calculator')
                     ->color('info')
                     ->visible(fn (Order $record): bool => 
-                        $record->unifiedStatus?->code !== 'template' && 
-                        $record->unifiedStatus?->code !== 'cancelled' &&
-                        !$record->unifiedStatus?->is_final &&
+                        $record->status?->code !== 'template' && 
+                        $record->status?->code !== 'cancelled' &&
+                        !$record->status?->is_final &&
                         $record->customer->isWholesaleCustomer() &&
                         $record->orderItems->isNotEmpty()
                     )
@@ -792,7 +792,7 @@ class OrderResource extends Resource
                     ->icon('heroicon-o-document-text')
                     ->color('warning')
                     ->visible(fn (Order $record): bool => 
-                        $record->unifiedStatus?->code !== 'template' && 
+                        $record->status?->code !== 'template' && 
                         $record->requires_invoice &&
                         !$record->invoice // Only show if no invoice exists yet
                     )
@@ -830,7 +830,7 @@ class OrderResource extends Resource
                     ->color('info')
                     ->visible(fn (Order $record): bool => 
                         !$record->isInFinalState() && 
-                        $record->unifiedStatus?->code !== 'template'
+                        $record->status?->code !== 'template'
                     )
                     ->form(function (Order $record) {
                         $validStatuses = app(\App\Services\StatusTransitionService::class)
@@ -953,7 +953,7 @@ class OrderResource extends Resource
                         ->modalHeading('Bulk Status Update')
                         ->modalDescription(function (\Illuminate\Database\Eloquent\Collection $records) {
                             $finalOrders = $records->filter(fn($order) => $order->isInFinalState());
-                            $templateOrders = $records->filter(fn($order) => $order->unifiedStatus?->code === 'template');
+                            $templateOrders = $records->filter(fn($order) => $order->status?->code === 'template');
                             
                             $warnings = [];
                             if ($finalOrders->isNotEmpty()) {
@@ -971,7 +971,7 @@ class OrderResource extends Resource
                         ->form([
                             Forms\Components\Select::make('new_status')
                                 ->label('New Status')
-                                ->options(UnifiedOrderStatus::active()
+                                ->options(OrderStatus::active()
                                     ->notFinal()
                                     ->where('code', '!=', 'template')
                                     ->pluck('name', 'code'))
@@ -988,7 +988,7 @@ class OrderResource extends Resource
                             // Filter out ineligible orders
                             $eligibleOrders = $records->filter(function ($order) {
                                 return !$order->isInFinalState() && 
-                                       $order->unifiedStatus?->code !== 'template';
+                                       $order->status?->code !== 'template';
                             });
                             
                             if ($eligibleOrders->isEmpty()) {
@@ -1053,7 +1053,7 @@ class OrderResource extends Resource
 
         // Check if any orders are templates
         $templates = $orders->filter(function ($order) {
-            return $order->unifiedStatus?->code === 'template';
+            return $order->status?->code === 'template';
         });
         if ($templates->isNotEmpty()) {
             $errors[] = 'Cannot create invoices for template orders.';

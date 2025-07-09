@@ -3,7 +3,7 @@
 namespace App\Observers;
 
 use App\Models\Order;
-use App\Models\UnifiedOrderStatus;
+use App\Models\OrderStatus;
 use App\Events\OrderPacked;
 use Illuminate\Support\Facades\Log;
 
@@ -17,13 +17,13 @@ class OrderStatusObserver
      */
     public function updating(Order $order)
     {
-        // Check if unified status is changing
-        if ($order->isDirty('unified_status_id')) {
-            $oldStatusId = $order->getOriginal('unified_status_id');
-            $newStatusId = $order->unified_status_id;
+        // Check if status is changing
+        if ($order->isDirty('status_id')) {
+            $oldStatusId = $order->getOriginal('status_id');
+            $newStatusId = $order->status_id;
             
-            $oldStatus = $oldStatusId ? UnifiedOrderStatus::find($oldStatusId) : null;
-            $newStatus = UnifiedOrderStatus::find($newStatusId);
+            $oldStatus = $oldStatusId ? OrderStatus::find($oldStatusId) : null;
+            $newStatus = OrderStatus::find($newStatusId);
             
             if ($newStatus) {
                 // Handle status-specific business logic
@@ -40,13 +40,13 @@ class OrderStatusObserver
      */
     public function updated(Order $order)
     {
-        // Check if unified status changed
-        if ($order->wasChanged('unified_status_id')) {
-            $oldStatusId = $order->getOriginal('unified_status_id');
-            $newStatusId = $order->unified_status_id;
+        // Check if status changed
+        if ($order->wasChanged('status_id')) {
+            $oldStatusId = $order->getOriginal('status_id');
+            $newStatusId = $order->status_id;
             
-            $oldStatus = $oldStatusId ? UnifiedOrderStatus::find($oldStatusId) : null;
-            $newStatus = UnifiedOrderStatus::find($newStatusId);
+            $oldStatus = $oldStatusId ? OrderStatus::find($oldStatusId) : null;
+            $newStatus = OrderStatus::find($newStatusId);
             
             if ($newStatus) {
                 // Send notifications for important status changes
@@ -76,21 +76,21 @@ class OrderStatusObserver
         
         // Handle specific status transitions
         switch ($newStatus->code) {
-            case UnifiedOrderStatus::STATUS_CONFIRMED:
+            case OrderStatus::STATUS_CONFIRMED:
                 // Set confirmed timestamp if not already set
                 if (!$order->confirmed_at) {
                     $order->confirmed_at = now();
                 }
                 break;
                 
-            case UnifiedOrderStatus::STATUS_CANCELLED:
+            case OrderStatus::STATUS_CANCELLED:
                 // Set cancelled timestamp
                 if (!$order->cancelled_at) {
                     $order->cancelled_at = now();
                 }
                 break;
                 
-            case UnifiedOrderStatus::STATUS_DELIVERED:
+            case OrderStatus::STATUS_DELIVERED:
                 // Set delivered timestamp
                 if (!$order->delivered_at) {
                     $order->delivered_at = now();
@@ -108,35 +108,35 @@ class OrderStatusObserver
      */
     protected function syncLegacyStatuses(Order $order, UnifiedOrderStatus $unifiedStatus)
     {
-        // Map unified status to legacy order status
+        // Map status to legacy order status
         $orderStatusMapping = [
-            UnifiedOrderStatus::STATUS_DRAFT => 'draft',
-            UnifiedOrderStatus::STATUS_PENDING => 'pending',
-            UnifiedOrderStatus::STATUS_CONFIRMED => 'confirmed',
-            UnifiedOrderStatus::STATUS_GROWING => 'processing',
-            UnifiedOrderStatus::STATUS_READY_TO_HARVEST => 'processing',
-            UnifiedOrderStatus::STATUS_HARVESTING => 'processing',
-            UnifiedOrderStatus::STATUS_PACKING => 'processing',
-            UnifiedOrderStatus::STATUS_READY_FOR_DELIVERY => 'processing',
-            UnifiedOrderStatus::STATUS_OUT_FOR_DELIVERY => 'processing',
-            UnifiedOrderStatus::STATUS_DELIVERED => 'completed',
-            UnifiedOrderStatus::STATUS_CANCELLED => 'cancelled',
-            UnifiedOrderStatus::STATUS_TEMPLATE => 'template',
+            OrderStatus::STATUS_DRAFT => 'draft',
+            OrderStatus::STATUS_PENDING => 'pending',
+            OrderStatus::STATUS_CONFIRMED => 'confirmed',
+            OrderStatus::STATUS_GROWING => 'processing',
+            OrderStatus::STATUS_READY_TO_HARVEST => 'processing',
+            OrderStatus::STATUS_HARVESTING => 'processing',
+            OrderStatus::STATUS_PACKING => 'processing',
+            OrderStatus::STATUS_READY_FOR_DELIVERY => 'processing',
+            OrderStatus::STATUS_OUT_FOR_DELIVERY => 'processing',
+            OrderStatus::STATUS_DELIVERED => 'completed',
+            OrderStatus::STATUS_CANCELLED => 'cancelled',
+            OrderStatus::STATUS_TEMPLATE => 'template',
         ];
         
         if (isset($orderStatusMapping[$unifiedStatus->code])) {
             $orderStatus = \App\Models\OrderStatus::where('code', $orderStatusMapping[$unifiedStatus->code])->first();
-            if ($orderStatus && $order->order_status_id !== $orderStatus->id) {
-                $order->order_status_id = $orderStatus->id;
+            if ($orderStatus && $order->status_id !== $orderStatus->id) {
+                $order->status_id = $orderStatus->id;
             }
         }
         
-        // Map unified status to legacy crop status
+        // Map status to legacy crop status
         if ($unifiedStatus->isProductionStage()) {
             $cropStatusMapping = [
-                UnifiedOrderStatus::STATUS_GROWING => 'growing',
-                UnifiedOrderStatus::STATUS_READY_TO_HARVEST => 'ready_to_harvest',
-                UnifiedOrderStatus::STATUS_HARVESTING => 'harvesting',
+                OrderStatus::STATUS_GROWING => 'growing',
+                OrderStatus::STATUS_READY_TO_HARVEST => 'ready_to_harvest',
+                OrderStatus::STATUS_HARVESTING => 'harvesting',
             ];
             
             if (isset($cropStatusMapping[$unifiedStatus->code])) {
@@ -147,13 +147,13 @@ class OrderStatusObserver
             }
         }
         
-        // Map unified status to legacy fulfillment status
+        // Map status to legacy fulfillment status
         if ($unifiedStatus->isFulfillmentStage()) {
             $fulfillmentStatusMapping = [
-                UnifiedOrderStatus::STATUS_PACKING => 'packing',
-                UnifiedOrderStatus::STATUS_READY_FOR_DELIVERY => 'ready_for_delivery',
-                UnifiedOrderStatus::STATUS_OUT_FOR_DELIVERY => 'out_for_delivery',
-                UnifiedOrderStatus::STATUS_DELIVERED => 'delivered',
+                OrderStatus::STATUS_PACKING => 'packing',
+                OrderStatus::STATUS_READY_FOR_DELIVERY => 'ready_for_delivery',
+                OrderStatus::STATUS_OUT_FOR_DELIVERY => 'out_for_delivery',
+                OrderStatus::STATUS_DELIVERED => 'delivered',
             ];
             
             if (isset($fulfillmentStatusMapping[$unifiedStatus->code])) {
@@ -177,11 +177,11 @@ class OrderStatusObserver
     {
         // Define which status changes should trigger notifications
         $notifiableStatuses = [
-            UnifiedOrderStatus::STATUS_CONFIRMED,
-            UnifiedOrderStatus::STATUS_READY_FOR_DELIVERY,
-            UnifiedOrderStatus::STATUS_OUT_FOR_DELIVERY,
-            UnifiedOrderStatus::STATUS_DELIVERED,
-            UnifiedOrderStatus::STATUS_CANCELLED,
+            OrderStatus::STATUS_CONFIRMED,
+            OrderStatus::STATUS_READY_FOR_DELIVERY,
+            OrderStatus::STATUS_OUT_FOR_DELIVERY,
+            OrderStatus::STATUS_DELIVERED,
+            OrderStatus::STATUS_CANCELLED,
         ];
         
         if (in_array($newStatus->code, $notifiableStatuses)) {
@@ -211,7 +211,7 @@ class OrderStatusObserver
     protected function updateRelatedRecords(Order $order, ?UnifiedOrderStatus $oldStatus, UnifiedOrderStatus $newStatus)
     {
         // Update crop stages if moving to harvesting
-        if ($newStatus->code === UnifiedOrderStatus::STATUS_HARVESTING) {
+        if ($newStatus->code === OrderStatus::STATUS_HARVESTING) {
             $order->crops()->where('current_stage', '!=', 'harvested')->each(function ($crop) {
                 // Only update if crop is ready to harvest
                 if ($crop->isReadyToHarvest()) {
@@ -221,7 +221,7 @@ class OrderStatusObserver
         }
         
         // Update invoice status when order is delivered
-        if ($newStatus->code === UnifiedOrderStatus::STATUS_DELIVERED) {
+        if ($newStatus->code === OrderStatus::STATUS_DELIVERED) {
             if ($order->invoice && $order->invoice->status !== 'paid') {
                 // Check if order is paid
                 if ($order->isPaid()) {
@@ -231,7 +231,7 @@ class OrderStatusObserver
         }
         
         // Handle cancellation cleanup
-        if ($newStatus->code === UnifiedOrderStatus::STATUS_CANCELLED) {
+        if ($newStatus->code === OrderStatus::STATUS_CANCELLED) {
             // Cancel any pending crops
             $order->crops()->where('current_stage', '!=', 'harvested')->update([
                 'cancelled_at' => now(),
@@ -256,8 +256,8 @@ class OrderStatusObserver
     protected function triggerStatusEvents(Order $order, ?UnifiedOrderStatus $oldStatus, UnifiedOrderStatus $newStatus)
     {
         // Trigger OrderPacked event when status changes to packing
-        if ($newStatus->code === UnifiedOrderStatus::STATUS_PACKING && 
-            (!$oldStatus || $oldStatus->code !== UnifiedOrderStatus::STATUS_PACKING)) {
+        if ($newStatus->code === OrderStatus::STATUS_PACKING && 
+            (!$oldStatus || $oldStatus->code !== OrderStatus::STATUS_PACKING)) {
             event(new OrderPacked($order));
         }
         

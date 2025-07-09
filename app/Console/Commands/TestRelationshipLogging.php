@@ -54,7 +54,7 @@ class TestRelationshipLogging extends Command
         }
 
         // Test with an Order
-        $order = Order::with(['customer', 'orderStatus', 'orderType'])->first();
+        $order = Order::with(['customer', 'status', 'orderType'])->first();
         if ($order) {
             $this->info("\nTesting Order relationship logging...");
             $originalNotes = $order->notes;

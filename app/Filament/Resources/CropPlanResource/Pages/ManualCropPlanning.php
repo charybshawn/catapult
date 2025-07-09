@@ -69,12 +69,12 @@ class ManualCropPlanning extends Page
 
         $this->orders = Order::with([
             'customer',
-            'orderStatus',
+            'status',
             'orderItems.product.productMix.seedEntries',
             'orderItems.priceVariation.packagingType'
         ])
             ->whereDate('delivery_date', $this->data['delivery_date'])
-            ->whereHas('orderStatus', function ($query) {
+            ->whereHas('status', function ($query) {
                 $query->where('code', '<>', 'cancelled');
             })
             ->get();

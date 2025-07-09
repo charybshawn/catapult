@@ -12,14 +12,21 @@ class OrderStatusSeeder extends Seeder
      */
     public function run(): void
     {
+        // Clear existing order statuses first
+        \App\Models\OrderStatus::query()->delete();
+
         $orderStatuses = [
             [
                 'code' => 'draft',
                 'name' => 'Draft',
                 'description' => 'Order is being prepared and not yet confirmed',
                 'color' => 'gray',
+                'badge_color' => 'gray',
+                'stage' => 'pre_production',
+                'requires_crops' => false,
                 'is_active' => true,
                 'is_final' => false,
+                'allows_modifications' => true,
                 'sort_order' => 1,
             ],
             [
@@ -27,8 +34,12 @@ class OrderStatusSeeder extends Seeder
                 'name' => 'Pending',
                 'description' => 'Order is waiting for confirmation',
                 'color' => 'yellow',
+                'badge_color' => 'warning',
+                'stage' => 'pre_production',
+                'requires_crops' => false,
                 'is_active' => true,
                 'is_final' => false,
+                'allows_modifications' => true,
                 'sort_order' => 2,
             ],
             [
@@ -36,8 +47,12 @@ class OrderStatusSeeder extends Seeder
                 'name' => 'Confirmed',
                 'description' => 'Order has been confirmed and is ready for production',
                 'color' => 'blue',
+                'badge_color' => 'primary',
+                'stage' => 'pre_production',
+                'requires_crops' => true,
                 'is_active' => true,
                 'is_final' => false,
+                'allows_modifications' => true,
                 'sort_order' => 3,
             ],
             [
@@ -45,8 +60,12 @@ class OrderStatusSeeder extends Seeder
                 'name' => 'In Production',
                 'description' => 'Order is currently being grown/produced',
                 'color' => 'purple',
+                'badge_color' => 'secondary',
+                'stage' => 'production',
+                'requires_crops' => true,
                 'is_active' => true,
                 'is_final' => false,
+                'allows_modifications' => false,
                 'sort_order' => 4,
             ],
             [
@@ -54,8 +73,12 @@ class OrderStatusSeeder extends Seeder
                 'name' => 'Ready for Harvest',
                 'description' => 'Products are ready to be harvested',
                 'color' => 'orange',
+                'badge_color' => 'warning',
+                'stage' => 'production',
+                'requires_crops' => true,
                 'is_active' => true,
                 'is_final' => false,
+                'allows_modifications' => false,
                 'sort_order' => 5,
             ],
             [
@@ -63,8 +86,12 @@ class OrderStatusSeeder extends Seeder
                 'name' => 'Harvested',
                 'description' => 'Products have been harvested and are being prepared',
                 'color' => 'teal',
+                'badge_color' => 'info',
+                'stage' => 'fulfillment',
+                'requires_crops' => true,
                 'is_active' => true,
                 'is_final' => false,
+                'allows_modifications' => false,
                 'sort_order' => 6,
             ],
             [
@@ -72,8 +99,12 @@ class OrderStatusSeeder extends Seeder
                 'name' => 'Packed',
                 'description' => 'Order has been packed and is ready for delivery',
                 'color' => 'indigo',
+                'badge_color' => 'primary',
+                'stage' => 'fulfillment',
+                'requires_crops' => true,
                 'is_active' => true,
                 'is_final' => false,
+                'allows_modifications' => false,
                 'sort_order' => 7,
             ],
             [
@@ -81,8 +112,12 @@ class OrderStatusSeeder extends Seeder
                 'name' => 'Delivered',
                 'description' => 'Order has been delivered to customer',
                 'color' => 'green',
+                'badge_color' => 'success',
+                'stage' => 'final',
+                'requires_crops' => true,
                 'is_active' => true,
                 'is_final' => true,
+                'allows_modifications' => false,
                 'sort_order' => 8,
             ],
             [
@@ -90,26 +125,18 @@ class OrderStatusSeeder extends Seeder
                 'name' => 'Cancelled',
                 'description' => 'Order has been cancelled',
                 'color' => 'red',
+                'badge_color' => 'danger',
+                'stage' => 'final',
+                'requires_crops' => false,
                 'is_active' => true,
                 'is_final' => true,
+                'allows_modifications' => false,
                 'sort_order' => 9,
-            ],
-            [
-                'code' => 'template',
-                'name' => 'Template',
-                'description' => 'Order template for recurring orders',
-                'color' => 'gray',
-                'is_active' => true,
-                'is_final' => false,
-                'sort_order' => 10,
             ],
         ];
 
         foreach ($orderStatuses as $status) {
-            \App\Models\OrderStatus::updateOrCreate(
-                ['code' => $status['code']],
-                $status
-            );
+            \App\Models\OrderStatus::create($status);
         }
     }
 }

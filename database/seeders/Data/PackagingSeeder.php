@@ -74,16 +74,18 @@ class PackagingSeeder extends Seeder
             // Get the Packaging consumable type
             $packagingConsumableType = \App\Models\ConsumableType::where('name', 'Packaging')->first();
             
+            // Get the unit consumable unit for packaging items
+            $unitConsumableUnit = \App\Models\ConsumableUnit::where('code', 'unit')->first();
+            
             // Create a consumable entry for each packaging type
             \App\Models\Consumable::create([
                 'name' => $packagingType->name,
-                'type' => 'packaging',
                 'consumable_type_id' => $packagingConsumableType ? $packagingConsumableType->id : null,
+                'consumable_unit_id' => $unitConsumableUnit ? $unitConsumableUnit->id : null,
                 'supplier_id' => $supplier->id,
                 'packaging_type_id' => $packagingType->id,
                 'initial_stock' => 100,
                 'consumed_quantity' => 0,
-                'unit' => 'unit',
                 'restock_threshold' => 10,
                 'restock_quantity' => 50,
                 'cost_per_unit' => match($clamshell['capacity_volume']) {

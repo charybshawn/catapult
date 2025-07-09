@@ -2,20 +2,20 @@
 
 namespace Database\Factories;
 
-use App\Models\UnifiedOrderStatus;
+use App\Models\OrderStatus;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\UnifiedOrderStatus>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\OrderStatus>
  */
-class UnifiedOrderStatusFactory extends Factory
+class OrderStatusFactory extends Factory
 {
     /**
      * The name of the factory's corresponding model.
      *
      * @var string
      */
-    protected $model = UnifiedOrderStatus::class;
+    protected $model = OrderStatus::class;
 
     /**
      * Define the model's default state.

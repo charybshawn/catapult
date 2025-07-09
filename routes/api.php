@@ -32,8 +32,12 @@ Route::middleware(['web', 'auth'])->get('/products/{product}/price-variations', 
     $customerId = $request->get('customer_id');
     $customer = $customerId ? \App\Models\User::with('customerType')->find($customerId) : null;
     
-    $priceVariations = $product->priceVariations()
-        ->where('is_active', true)
+    // Get both product-specific and global price variations
+    $priceVariations = \App\Models\PriceVariation::where('is_active', true)
+        ->where(function ($query) use ($product) {
+            $query->where('product_id', $product->id)
+                  ->orWhere('is_global', true);
+        })
         ->with('packagingType')
         ->orderBy('is_default', 'desc')
         ->orderBy('name')

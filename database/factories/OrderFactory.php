@@ -32,7 +32,7 @@ class OrderFactory extends Factory
             'user_id' => User::factory(),
             'harvest_date' => $harvestDate,
             'delivery_date' => $deliveryDate,
-            'order_status_id' => OrderStatus::inRandomOrder()->first()?->id ?? OrderStatus::firstOrCreate(['code' => 'pending'], ['name' => 'Pending', 'description' => 'Order is pending'])->id,
+            'status_id' => OrderStatus::inRandomOrder()->first()?->id ?? OrderStatus::firstOrCreate(['code' => 'pending'], ['name' => 'Pending', 'description' => 'Order is pending'])->id,
             'crop_status_id' => CropStatus::inRandomOrder()->first()?->id ?? CropStatus::firstOrCreate(['code' => 'not_started'], ['name' => 'Not Started', 'description' => 'Crop has not been started'])->id,
             'fulfillment_status_id' => FulfillmentStatus::inRandomOrder()->first()?->id ?? FulfillmentStatus::firstOrCreate(['code' => 'pending'], ['name' => 'Pending', 'description' => 'Fulfillment is pending'])->id,
             'order_type_id' => OrderType::inRandomOrder()->first()?->id ?? OrderType::firstOrCreate(['code' => 'website_immediate'], ['name' => 'Website Immediate', 'description' => 'Immediate website order'])->id,

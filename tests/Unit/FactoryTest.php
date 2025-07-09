@@ -33,7 +33,7 @@ class FactoryTest extends TestCase
 
         $this->assertTrue($order->is_recurring);
         $this->assertTrue($order->is_recurring_active);
-        $this->assertEquals('template', $order->orderStatus->code);
+        $this->assertEquals('template', $order->status->code);
         $this->assertNotNull($order->recurring_frequency);
         $this->assertTrue($order->isRecurringTemplate());
     }

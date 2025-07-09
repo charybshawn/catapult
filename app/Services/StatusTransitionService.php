@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Models\Order;
-use App\Models\UnifiedOrderStatus;
+use App\Models\OrderStatus;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -21,7 +21,7 @@ class StatusTransitionService
     public function validateTransition(Order $order, string $targetStatusCode): array
     {
         $currentStatus = $order->unifiedStatus;
-        $targetStatus = UnifiedOrderStatus::findByCode($targetStatusCode);
+        $targetStatus = OrderStatus::findByCode($targetStatusCode);
         
         if (!$currentStatus) {
             return ['valid' => false, 'reason' => 'Order has no current status'];
@@ -32,7 +32,7 @@ class StatusTransitionService
         }
         
         // Check if transition is generally valid
-        if (!UnifiedOrderStatus::isValidTransition($currentStatus->code, $targetStatusCode)) {
+        if (!OrderStatus::isValidTransition($currentStatus->code, $targetStatusCode)) {
             return ['valid' => false, 'reason' => 'Invalid status transition from ' . $currentStatus->name . ' to ' . $targetStatus->name];
         }
         
@@ -56,8 +56,8 @@ class StatusTransitionService
     protected function validateBusinessRules(Order $order, UnifiedOrderStatus $currentStatus, UnifiedOrderStatus $targetStatus): array
     {
         // Template orders have limited transitions
-        if ($currentStatus->code === UnifiedOrderStatus::STATUS_TEMPLATE) {
-            if (!in_array($targetStatus->code, [UnifiedOrderStatus::STATUS_CANCELLED])) {
+        if ($currentStatus->code === OrderStatus::STATUS_TEMPLATE) {
+            if (!in_array($targetStatus->code, [OrderStatus::STATUS_CANCELLED])) {
                 return ['valid' => false, 'reason' => 'Template orders can only be cancelled'];
             }
         }
@@ -70,7 +70,7 @@ class StatusTransitionService
             }
             
             // Can't go to packing until crops are harvested
-            if ($targetStatus->code === UnifiedOrderStatus::STATUS_PACKING) {
+            if ($targetStatus->code === OrderStatus::STATUS_PACKING) {
                 $allCropsHarvested = $order->crops->every(fn($crop) => $crop->current_stage === 'harvested');
                 if (!$allCropsHarvested) {
                     return ['valid' => false, 'reason' => 'All crops must be harvested before packing'];
@@ -79,7 +79,7 @@ class StatusTransitionService
         }
         
         // Can't move to ready_for_delivery without payment for certain order types
-        if ($targetStatus->code === UnifiedOrderStatus::STATUS_READY_FOR_DELIVERY) {
+        if ($targetStatus->code === OrderStatus::STATUS_READY_FOR_DELIVERY) {
             if ($order->requiresImmediateInvoicing() && !$order->isPaid()) {
                 return ['valid' => false, 'reason' => 'Order must be paid before marking as ready for delivery'];
             }
@@ -113,7 +113,7 @@ class StatusTransitionService
             ];
         }
         
-        $targetStatus = UnifiedOrderStatus::findByCode($targetStatusCode);
+        $targetStatus = OrderStatus::findByCode($targetStatusCode);
         $previousStatus = $order->unifiedStatus;
         
         DB::beginTransaction();
@@ -169,7 +169,7 @@ class StatusTransitionService
             return collect();
         }
         
-        $validStatuses = UnifiedOrderStatus::getValidNextStatuses($order->unifiedStatus->code);
+        $validStatuses = OrderStatus::getValidNextStatuses($order->unifiedStatus->code);
         
         // Filter based on business rules
         return $validStatuses->filter(function ($status) use ($order) {
@@ -251,20 +251,20 @@ class StatusTransitionService
     {
         switch ($event) {
             case 'order.confirmed':
-                return UnifiedOrderStatus::STATUS_CONFIRMED;
+                return OrderStatus::STATUS_CONFIRMED;
                 
             case 'crop.planted':
                 // Check if all required crops are planted
                 if ($this->areAllCropsPlanted($order)) {
-                    return UnifiedOrderStatus::STATUS_GROWING;
+                    return OrderStatus::STATUS_GROWING;
                 }
                 break;
                 
             case 'crops.ready':
-                return UnifiedOrderStatus::STATUS_READY_TO_HARVEST;
+                return OrderStatus::STATUS_READY_TO_HARVEST;
                 
             case 'harvest.completed':
-                return UnifiedOrderStatus::STATUS_PACKING;
+                return OrderStatus::STATUS_PACKING;
                 
             case 'packing.completed':
                 // Check if payment is required
@@ -272,20 +272,20 @@ class StatusTransitionService
                     // Stay in packing until paid
                     return null;
                 }
-                return UnifiedOrderStatus::STATUS_READY_FOR_DELIVERY;
+                return OrderStatus::STATUS_READY_FOR_DELIVERY;
                 
             case 'payment.received':
                 // If order is packed and now paid, move to ready for delivery
-                if ($order->unifiedStatus->code === UnifiedOrderStatus::STATUS_PACKING) {
-                    return UnifiedOrderStatus::STATUS_READY_FOR_DELIVERY;
+                if ($order->unifiedStatus->code === OrderStatus::STATUS_PACKING) {
+                    return OrderStatus::STATUS_READY_FOR_DELIVERY;
                 }
                 break;
                 
             case 'delivery.started':
-                return UnifiedOrderStatus::STATUS_OUT_FOR_DELIVERY;
+                return OrderStatus::STATUS_OUT_FOR_DELIVERY;
                 
             case 'delivery.completed':
-                return UnifiedOrderStatus::STATUS_DELIVERED;
+                return OrderStatus::STATUS_DELIVERED;
         }
         
         return null;

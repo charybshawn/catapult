@@ -65,15 +65,18 @@ class CurrentSeedConsumableDataSeeder extends Seeder
                 // Get the Seeds consumable type
                 $seedsType = \App\Models\ConsumableType::where('name', 'Seeds')->first();
                 
+                // Get the gram unit for seeds
+                $gramUnit = \App\Models\ConsumableUnit::where('code', 'gram')->first();
+                
                 // Create or update the consumable - independent of seed entries
                 $consumable = Consumable::updateOrCreate(
                     [
                         'name' => $data['name'],
-                        'type' => 'seed',
                         'lot_no' => $data['lot'] ?? null,
                     ],
                     [
                         'consumable_type_id' => $seedsType ? $seedsType->id : null,
+                        'consumable_unit_id' => $gramUnit ? $gramUnit->id : null,
                         'master_seed_catalog_id' => $masterSeedCatalog ? $masterSeedCatalog->id : null,
                         'supplier_id' => $supplier ? $supplier->id : null,
                         'initial_stock' => $data['total'], // Set initial stock to match total
@@ -81,7 +84,6 @@ class CurrentSeedConsumableDataSeeder extends Seeder
                         'total_quantity' => $data['total'],
                         'quantity_unit' => $data['unit'],
                         'quantity_per_unit' => 1,
-                        'unit' => 'unit',
                         'cost_per_unit' => null,
                         'restock_threshold' => 250,
                         'restock_quantity' => 1000,
@@ -104,7 +106,9 @@ class CurrentSeedConsumableDataSeeder extends Seeder
         $this->command->info("Created: {$created} consumables");
         $this->command->info("Updated: {$updated} consumables");
         $this->command->info("Total seed consumables with inventory: " . 
-            Consumable::where('type', 'seed')->where('total_quantity', '>', 0)->count()
+            Consumable::whereHas('consumableType', function($query) {
+                $query->where('code', 'seed');
+            })->where('total_quantity', '>', 0)->count()
         );
     }
 }

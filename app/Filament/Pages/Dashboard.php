@@ -939,10 +939,10 @@ class Dashboard extends BaseDashboard
     protected function getUpcomingOrdersNeedingPlans()
     {
         return Order::with(['customer', 'orderItems.product', 'cropPlans'])
-            ->whereHas('orderStatus', function($query) {
+            ->whereHas('status', function($query) {
                 $query->whereIn('code', ['pending', 'confirmed', 'processing']);
             })
-            ->whereDoesntHave('orderStatus', function($query) {
+            ->whereDoesntHave('status', function($query) {
                 $query->where('code', 'template');
             })
             ->whereNotNull('delivery_date') // Ensure there's a delivery date
@@ -965,7 +965,7 @@ class Dashboard extends BaseDashboard
         
         // Add order delivery dates
         $orders = Order::with(['customer'])
-            ->whereHas('orderStatus', function($query) {
+            ->whereHas('status', function($query) {
                 $query->whereIn('code', ['pending', 'confirmed', 'processing']);
             })
             ->where('delivery_date', '>=', now()->subDays(30))

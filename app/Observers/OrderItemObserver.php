@@ -60,7 +60,7 @@ class OrderItemObserver
         }
         
         // Skip if order is in final state or is a template
-        if ($order->isInFinalState() || $order->unifiedStatus?->code === 'template') {
+        if ($order->isInFinalState() || $order->status?->code === 'template') {
             return;
         }
         

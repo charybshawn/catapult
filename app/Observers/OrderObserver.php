@@ -22,7 +22,7 @@ class OrderObserver
     public function created(Order $order): void
     {
         // Only generate plans for new orders (not templates or recurring)
-        $statusCode = $order->unifiedStatus?->code ?? $order->orderStatus?->code;
+        $statusCode = $order->status?->code;
         if (in_array($statusCode, ['draft', 'pending', 'confirmed', 'new'])) {
             if (!$order->is_recurring && $order->requiresCropProduction()) {
                 try {
@@ -112,7 +112,7 @@ class OrderObserver
         $completedPlans = $existingPlans->filter(fn($p) => $p->status->code === 'completed');
         
         // If order was cancelled, cancel draft plans
-        if ($order->isInFinalState() || $order->unifiedStatus?->code === 'cancelled') {
+        if ($order->isInFinalState() || $order->status?->code === 'cancelled') {
             foreach ($draftPlans as $plan) {
                 $plan->cancel();
                 $plan->update(['admin_notes' => 'Cancelled due to order cancellation']);

@@ -25,8 +25,7 @@ class Order extends Model
         'customer_id',
         'harvest_date',
         'delivery_date',
-        'order_status_id',
-        'unified_status_id',
+        'status_id',
         'crop_status_id',
         'fulfillment_status_id',
         'customer_type',
@@ -95,11 +94,11 @@ class Order extends Model
             }
             
             // Set default unified status for new orders
-            if (!$order->unified_status_id) {
+            if (!$order->status_id) {
                 $defaultStatusCode = $order->is_recurring ? 'template' : 'pending';
-                $defaultUnifiedStatus = \App\Models\UnifiedOrderStatus::where('code', $defaultStatusCode)->first();
+                $defaultUnifiedStatus = \App\Models\OrderStatus::where('code', $defaultStatusCode)->first();
                 if ($defaultUnifiedStatus) {
-                    $order->unified_status_id = $defaultUnifiedStatus->id;
+                    $order->status_id = $defaultUnifiedStatus->id;
                 }
             }
         });
@@ -119,9 +118,9 @@ class Order extends Model
                     $order->order_status_id = $templateStatus->id;
                 }
                 // Also update unified status
-                $templateUnifiedStatus = \App\Models\UnifiedOrderStatus::where('code', 'template')->first();
+                $templateUnifiedStatus = \App\Models\OrderStatus::where('code', 'template')->first();
                 if ($templateUnifiedStatus) {
-                    $order->unified_status_id = $templateUnifiedStatus->id;
+                    $order->status_id = $templateUnifiedStatus->id;
                 }
             } elseif (!$order->is_recurring && $currentStatus === 'template') {
                 // If no longer recurring, change status from template to pending
@@ -130,9 +129,9 @@ class Order extends Model
                     $order->order_status_id = $pendingStatus->id;
                 }
                 // Also update unified status
-                $pendingUnifiedStatus = \App\Models\UnifiedOrderStatus::where('code', 'pending')->first();
+                $pendingUnifiedStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
                 if ($pendingUnifiedStatus) {
-                    $order->unified_status_id = $pendingUnifiedStatus->id;
+                    $order->status_id = $pendingUnifiedStatus->id;
                 }
             }
             
@@ -195,17 +194,9 @@ class Order extends Model
     /**
      * Get the order status for this order.
      */
-    public function orderStatus(): BelongsTo
+    public function status(): BelongsTo
     {
-        return $this->belongsTo(OrderStatus::class);
-    }
-    
-    /**
-     * Get the unified order status for this order.
-     */
-    public function unifiedStatus(): BelongsTo
-    {
-        return $this->belongsTo(UnifiedOrderStatus::class, 'unified_status_id');
+        return $this->belongsTo(OrderStatus::class, 'status_id');
     }
     
     /**
@@ -509,18 +500,18 @@ class Order extends Model
             if ($pendingStatus) {
                 $newOrder->order_status_id = $pendingStatus->id;
             }
-            $pendingUnifiedStatus = \App\Models\UnifiedOrderStatus::where('code', 'pending')->first();
+            $pendingUnifiedStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
             if ($pendingUnifiedStatus) {
-                $newOrder->unified_status_id = $pendingUnifiedStatus->id;
+                $newOrder->status_id = $pendingUnifiedStatus->id;
             }
         } else {
             $pendingStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
             if ($pendingStatus) {
                 $newOrder->order_status_id = $pendingStatus->id;
             }
-            $pendingUnifiedStatus = \App\Models\UnifiedOrderStatus::where('code', 'pending')->first();
+            $pendingUnifiedStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
             if ($pendingUnifiedStatus) {
-                $newOrder->unified_status_id = $pendingUnifiedStatus->id;
+                $newOrder->status_id = $pendingUnifiedStatus->id;
             }
         }
         
@@ -692,7 +683,7 @@ class Order extends Model
         // Order should have plans if it requires crops and is not in a final or template state
         return $this->requiresCropProduction() 
             && !$this->isInFinalState() 
-            && $this->unifiedStatus?->code !== 'template'
+            && $this->status?->code !== 'template'
             && !$this->is_recurring; // Don't generate for recurring templates
     }
     
@@ -815,9 +806,9 @@ class Order extends Model
      */
     private function updateUnifiedStatus(string $statusCode): void
     {
-        $unifiedStatus = UnifiedOrderStatus::findByCode($statusCode);
-        if ($unifiedStatus && $unifiedStatus->id !== $this->unified_status_id) {
-            $this->update(['unified_status_id' => $unifiedStatus->id]);
+        $status = OrderStatus::findByCode($statusCode);
+        if ($status && $status->id !== $this->status_id) {
+            $this->update(['status_id' => $status->id]);
         }
     }
     
@@ -827,8 +818,8 @@ class Order extends Model
     public function getCombinedStatusAttribute(): string
     {
         // If unified status is available, use it as primary display
-        if ($this->unifiedStatus) {
-            return $this->unifiedStatus->name;
+        if ($this->status) {
+            return $this->status->name;
         }
         
         // Fallback to old combined display
@@ -867,14 +858,14 @@ class Order extends Model
      */
     public function getUnifiedStatusDisplayAttribute(): string
     {
-        if (!$this->unifiedStatus) {
+        if (!$this->status) {
             return 'Unknown';
         }
         
         return sprintf(
             '%s (%s)',
-            $this->unifiedStatus->name,
-            $this->unifiedStatus->stage_display
+            $this->status->name,
+            $this->status->stage_display
         );
     }
     
@@ -883,7 +874,7 @@ class Order extends Model
      */
     public function getUnifiedStatusColorAttribute(): string
     {
-        return $this->unifiedStatus?->getDisplayColor() ?? 'gray';
+        return $this->status?->getDisplayColor() ?? 'gray';
     }
     
     /**
@@ -891,7 +882,7 @@ class Order extends Model
      */
     public function canBeModified(): bool
     {
-        return $this->unifiedStatus?->canBeModified() ?? true;
+        return $this->status?->canBeModified() ?? true;
     }
     
     /**
@@ -899,7 +890,7 @@ class Order extends Model
      */
     public function isInFinalState(): bool
     {
-        return $this->unifiedStatus?->is_final ?? false;
+        return $this->status?->is_final ?? false;
     }
     
     /**
@@ -907,11 +898,11 @@ class Order extends Model
      */
     public function getValidNextStatuses(): Collection
     {
-        if (!$this->unifiedStatus) {
+        if (!$this->status) {
             return collect();
         }
         
-        return UnifiedOrderStatus::getValidNextStatuses($this->unifiedStatus->code);
+        return OrderStatus::getValidNextStatuses($this->status->code);
     }
     
     /**
@@ -922,7 +913,7 @@ class Order extends Model
         return LogOptions::defaults()
             ->logOnly([
                 'customer_id', 'harvest_date', 'delivery_date', 'status', 'crop_status', 
-                'fulfillment_status', 'unified_status_id', 'customer_type', 'is_recurring', 
+                'fulfillment_status', 'status_id', 'customer_type', 'is_recurring', 
                 'recurring_frequency', 'recurring_start_date', 'recurring_end_date', 
                 'is_recurring_active', 'notes'
             ])
@@ -936,7 +927,7 @@ class Order extends Model
      */
     public function getLoggedRelationships(): array
     {
-        return ['customer', 'orderStatus', 'unifiedStatus', 'orderType', 'orderItems', 'crops'];
+        return ['customer', 'orderStatus', 'status', 'orderType', 'orderItems', 'crops'];
     }
 
     /**
@@ -947,7 +938,7 @@ class Order extends Model
         return [
             'customer' => ['id', 'name', 'email', 'phone'],
             'orderStatus' => ['id', 'name', 'code'],
-            'unifiedStatus' => ['id', 'name', 'code', 'stage'],
+            'status' => ['id', 'name', 'code', 'stage'],
             'orderType' => ['id', 'name', 'code'],
             'orderItems' => ['id', 'product_id', 'quantity', 'price'],
             'crops' => ['id', 'recipe_id', 'tray_number', 'current_stage_id', 'planting_at'],
