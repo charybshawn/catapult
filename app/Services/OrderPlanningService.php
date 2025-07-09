@@ -6,7 +6,7 @@ use App\Models\Order;
 use App\Models\CropPlan;
 use App\Models\User;
 use App\Notifications\OrderCannotBeFulfilled;
-use App\Services\AggregatedCropPlanService;
+use App\Services\CropPlanAggregateService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -67,7 +67,7 @@ class OrderPlanningService
             }
 
             // Create aggregated plans
-            $aggregationService = app(AggregatedCropPlanService::class);
+            $aggregationService = app(CropPlanAggregateService::class);
             $aggregatedPlans = $aggregationService->processAndAggregatePlans($cropPlans);
             
             // Return the individual crop plans (they are now linked to aggregated plans)

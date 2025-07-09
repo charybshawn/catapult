@@ -4,17 +4,17 @@ namespace App\Observers;
 
 use App\Models\OrderItem;
 use App\Services\OrderPlanningService;
-use App\Services\AggregatedCropPlanService;
+use App\Services\CropPlanAggregateService;
 use Illuminate\Support\Facades\Log;
 
 class OrderItemObserver
 {
     protected OrderPlanningService $orderPlanningService;
-    protected AggregatedCropPlanService $aggregatedCropPlanService;
+    protected CropPlanAggregateService $aggregatedCropPlanService;
 
     public function __construct(
         OrderPlanningService $orderPlanningService,
-        AggregatedCropPlanService $aggregatedCropPlanService
+        CropPlanAggregateService $aggregatedCropPlanService
     ) {
         $this->orderPlanningService = $orderPlanningService;
         $this->aggregatedCropPlanService = $aggregatedCropPlanService;

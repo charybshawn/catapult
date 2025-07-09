@@ -119,7 +119,7 @@ class OrderObserver
             }
             
             // Remove from aggregation
-            $aggregationService = app(\App\Services\AggregatedCropPlanService::class);
+            $aggregationService = app(\App\Services\CropPlanAggregateService::class);
             foreach ($existingPlans as $plan) {
                 $aggregationService->removeFromAggregation($plan);
             }
