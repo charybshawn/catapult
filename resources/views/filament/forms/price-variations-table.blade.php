@@ -53,13 +53,13 @@
                 </thead>
                 <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
                     @foreach($variations as $variation)
+                        @php
+                            // Use the stored variation name or fallback to 'Default'
+                            $displayName = $variation->name ?: 'Default';
+                        @endphp
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-800" x-data="{ editing: false, name: '{{ $displayName }}', packaging_type_id: '{{ $variation->packaging_type_id }}', pricing_unit: '{{ $variation->pricing_unit ?? 'per_item' }}', fill_weight_grams: '{{ $variation->fill_weight }}', price: '{{ $variation->price }}' }">
                             <td class="px-4 py-4 whitespace-nowrap">
                                 <div x-show="!editing" class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                    @php
-                                        // Use the stored variation name or fallback to 'Default'
-                                        $displayName = $variation->name ?: 'Default';
-                                    @endphp
                                     {{ $displayName }}
                                 </div>
                                 <input x-show="editing" 

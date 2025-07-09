@@ -27,7 +27,6 @@ class RecipesTableSeeder extends Seeder
             [
                 'id' => 1,
                 'name' => 'SUNFLOWER - BLACK OIL - SF4K - 100G',
-                'supplier_soil_id' => null,
                 'soil_consumable_id' => $soilConsumable ? $soilConsumable->id : null,
                 'seed_consumable_id' => $sunflowerConsumable ? $sunflowerConsumable->id : null,
                 'seed_density' => 1, // Default density
@@ -45,14 +44,12 @@ class RecipesTableSeeder extends Seeder
                 'is_active' => 1,
                 'created_at' => '2025-06-24 17:00:50',
                 'updated_at' => '2025-06-24 17:00:50',
-                'seed_entry_id' => null,
                 'common_name' => null,
                 'cultivar_name' => null,
             ],
             [
                 'id' => 2,
                 'name' => 'SUNFLOWER  - BLACK OIL - SFK16 - 100 GRAMS',
-                'supplier_soil_id' => null,
                 'soil_consumable_id' => $soilConsumable ? $soilConsumable->id : null,
                 'seed_consumable_id' => $sunflowerConsumable ? $sunflowerConsumable->id : null,
                 'seed_density' => 1, // Default density
@@ -70,14 +67,12 @@ class RecipesTableSeeder extends Seeder
                 'is_active' => 1,
                 'created_at' => '2025-06-24 17:56:15',
                 'updated_at' => '2025-06-24 17:56:15',
-                'seed_entry_id' => null,
                 'common_name' => null,
                 'cultivar_name' => null,
             ],
             [
                 'id' => 3,
                 'name' => 'BASIL (GENOVESE) - BAS8Y - 5G -21 DAY',
-                'supplier_soil_id' => null,
                 'soil_consumable_id' => $soilConsumable ? $soilConsumable->id : null,
                 'seed_consumable_id' => $basilConsumable ? $basilConsumable->id : null,
                 'seed_density' => 1, // Default density
@@ -95,7 +90,6 @@ class RecipesTableSeeder extends Seeder
                 'is_active' => 1,
                 'created_at' => '2025-06-24 21:16:57',
                 'updated_at' => '2025-06-24 21:16:57',
-                'seed_entry_id' => null,
                 'common_name' => null,
                 'cultivar_name' => null,
             ],

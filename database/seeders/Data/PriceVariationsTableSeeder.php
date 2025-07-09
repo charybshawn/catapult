@@ -64,7 +64,7 @@ class PriceVariationsTableSeeder extends Seeder
             ],
             [
                 'id' => 4,
-                'name' => 'Retail - 32oz Clamshell (32oz) - $5.00',
+                'name' => 'Retail - Clamshell (32oz) - $5.00',
                 'is_name_manual' => 0,
                 'unit' => 'units',
                 'pricing_unit' => null,
@@ -85,7 +85,7 @@ class PriceVariationsTableSeeder extends Seeder
             ],
             [
                 'id' => 5,
-                'name' => 'Retail - 32oz Clamshell (32oz) - $3.50',
+                'name' => 'Retail - Clamshell (32oz) - $3.50',
                 'is_name_manual' => 0,
                 'unit' => 'units',
                 'pricing_unit' => null,
