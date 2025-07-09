@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\HarvestResource\Pages;
 use App\Models\Harvest;
 use App\Models\MasterCultivar;
+use App\Models\Crop;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Tables;
@@ -50,58 +51,100 @@ class HarvestResource extends BaseResource
                             })
                             ->required()
                             ->searchable()
-                            ->reactive(),
-                        Forms\Components\Grid::make(2)
-                            ->schema([
-                                Forms\Components\TextInput::make('total_weight_grams')
-                                    ->label('Total Weight (grams)')
-                                    ->required()
-                                    ->numeric()
-                                    ->minValue(0)
-                                    ->step(0.01),
-                                Forms\Components\Select::make('tray_count')
-                                    ->label('Number of Trays')
-                                    ->required()
-                                    ->options([
-                                        '0.25' => '0.25',
-                                        '0.5' => '0.5',
-                                        '0.75' => '0.75',
-                                        '1' => '1',
-                                        '1.25' => '1.25',
-                                        '1.5' => '1.5',
-                                        '1.75' => '1.75',
-                                        '2' => '2',
-                                        '2.25' => '2.25',
-                                        '2.5' => '2.5',
-                                        '3' => '3',
-                                        '4' => '4',
-                                        '5' => '5',
-                                    ])
-                                    ->allowHtml()
-                                    ->searchable()
-                                    ->createOptionForm([
-                                        Forms\Components\TextInput::make('custom_value')
-                                            ->label('Custom Tray Count')
-                                            ->required()
-                                            ->rules(['numeric', 'min:0.1', 'max:999'])
-                                    ])
-                                    ->createOptionUsing(function (array $data) {
-                                        return $data['custom_value'];
-                                    }),
-                            ]),
+                            ->reactive()
+                            ->afterStateUpdated(function ($state, $set) {
+                                // Clear crops when variety changes
+                                $set('crops', []);
+                            }),
                         Forms\Components\DatePicker::make('harvest_date')
                             ->label('Harvest Date')
                             ->required()
                             ->default(now())
-                            ->maxDate(now()),
+                            ->maxDate(now())
+                            ->reactive(),
                         Forms\Components\Hidden::make('user_id')
                             ->default(auth()->id()),
+                    ])
+                    ->columns(2),
+                Forms\Components\Section::make('Tray Selection')
+                    ->schema([
+                        Forms\Components\Repeater::make('crops')
+                            ->label('Select Trays to Harvest')
+                            ->schema([
+                                Forms\Components\Grid::make(4)
+                                    ->schema([
+                                        Forms\Components\Select::make('crop_id')
+                                            ->label('Tray')
+                                            ->options(function (callable $get) {
+                                                $cultivarId = $get('../../master_cultivar_id');
+                                                if (!$cultivarId) {
+                                                    return [];
+                                                }
+                                                
+                                                return Crop::with(['recipe.masterSeedCatalog', 'currentStage'])
+                                                    ->whereHas('recipe', function ($query) use ($cultivarId) {
+                                                        $query->whereHas('masterSeedCatalog', function ($q) use ($cultivarId) {
+                                                            $q->whereHas('masterCultivars', function ($mc) use ($cultivarId) {
+                                                                $mc->where('id', $cultivarId);
+                                                            });
+                                                        });
+                                                    })
+                                                    ->whereHas('currentStage', function ($query) {
+                                                        $query->whereNotIn('code', ['harvested', 'cancelled']);
+                                                    })
+                                                    ->get()
+                                                    ->mapWithKeys(function ($crop) {
+                                                        $stageName = $crop->currentStage->name ?? 'Unknown';
+                                                        $plantedDate = $crop->planting_at ? $crop->planting_at->format('M j') : 'Not planted';
+                                                        return [$crop->id => "Tray {$crop->tray_number} - {$stageName} (Planted: {$plantedDate})"];
+                                                    });
+                                            })
+                                            ->required()
+                                            ->searchable()
+                                            ->reactive(),
+                                        Forms\Components\TextInput::make('harvested_weight_grams')
+                                            ->label('Weight (g)')
+                                            ->required()
+                                            ->numeric()
+                                            ->minValue(0)
+                                            ->step(0.01),
+                                        Forms\Components\TextInput::make('percentage_harvested')
+                                            ->label('% Harvested')
+                                            ->required()
+                                            ->numeric()
+                                            ->minValue(0)
+                                            ->maxValue(100)
+                                            ->default(100)
+                                            ->step(0.1)
+                                            ->suffix('%'),
+                                        Forms\Components\TextInput::make('notes')
+                                            ->label('Tray Notes')
+                                            ->placeholder('Optional notes for this tray'),
+                                    ]),
+                            ])
+                            ->addActionLabel('Add Another Tray')
+                            ->collapsible()
+                            ->itemLabel(function (array $state): ?string {
+                                if (!$state['crop_id']) {
+                                    return 'New Tray';
+                                }
+                                
+                                $crop = Crop::find($state['crop_id']);
+                                if (!$crop) {
+                                    return 'Unknown Tray';
+                                }
+                                
+                                $weight = $state['harvested_weight_grams'] ?? 0;
+                                $percentage = $state['percentage_harvested'] ?? 100;
+                                
+                                return "Tray {$crop->tray_number} - {$weight}g ({$percentage}%)";
+                            }),
                         Forms\Components\Textarea::make('notes')
-                            ->label('Notes')
+                            ->label('General Notes')
                             ->rows(3)
                             ->columnSpanFull(),
                     ])
-                    ->columns(2),
+                    ->columns(1),
             ]);
     }
 

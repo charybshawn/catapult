@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Spatie\Activitylog\LogOptions;
 use App\Traits\Logging\ExtendedLogsActivity;
 use App\Services\CropLifecycleService;
@@ -13,6 +14,7 @@ use App\Services\CropTimeCalculator;
 use App\Services\InventoryManagementService;
 use App\Services\CropValidationService;
 use App\Models\SeedEntry;
+use App\Models\Harvest;
 use Illuminate\Support\Facades\Log;
 use App\Traits\HasTimestamps;
 
@@ -108,7 +110,19 @@ class Crop extends Model
         return $this->belongsTo(CropStage::class, 'current_stage_id');
     }
     
-    
+    /**
+     * Get the harvests for this crop.
+     */
+    public function harvests(): BelongsToMany
+    {
+        return $this->belongsToMany(Harvest::class, 'crop_harvest')
+            ->withPivot([
+                'harvested_weight_grams',
+                'percentage_harvested',
+                'notes'
+            ])
+            ->withTimestamps();
+    }
     
     /**
      * Enable bulk operation mode to prevent recursive events

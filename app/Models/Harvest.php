@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Carbon;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -36,6 +37,17 @@ class Harvest extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function crops(): BelongsToMany
+    {
+        return $this->belongsToMany(Crop::class, 'crop_harvest')
+            ->withPivot([
+                'harvested_weight_grams',
+                'percentage_harvested',
+                'notes'
+            ])
+            ->withTimestamps();
     }
 
     public function getWeekStartDateAttribute(): Carbon
