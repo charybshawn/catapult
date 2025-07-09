@@ -53,6 +53,7 @@ class ProductResource extends BaseResource
                 'category',
                 'masterSeedCatalog',
                 'productMix',
+                'recipe',
                 'priceVariations.packagingType'
             ]))
             ->columns([
@@ -584,6 +585,12 @@ class ProductResource extends BaseResource
                                         ? 'Disabled: Product already has a single variety assigned' 
                                         : 'Select for multi-variety products'
                                 ),
+                            Forms\Components\Select::make('recipe_id')
+                                ->label('Recipe')
+                                ->relationship('recipe', 'name')
+                                ->searchable()
+                                ->preload()
+                                ->helperText('Select a recipe for this product (optional)'),
                             Forms\Components\FileUpload::make('photo')
                                 ->label('Primary Photo')
                                 ->image()

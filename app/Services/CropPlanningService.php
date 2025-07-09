@@ -177,10 +177,9 @@ class CropPlanningService
                     // This is a live tray - need to convert trays to grams
                     // Find the recipe for this product to get yield per tray
                     $product = $item->product;
-                    $masterSeedCatalogId = $product->master_seed_catalog_id;
                     
-                    if ($masterSeedCatalogId) {
-                        $recipe = $this->findActiveRecipeForVariety($masterSeedCatalogId);
+                    if ($product->master_seed_catalog_id || $product->recipe_id) {
+                        $recipe = $this->findActiveRecipeForProduct($product);
                         if ($recipe) {
                             // Calculate grams per tray with buffer
                             $planningYield = $this->yieldCalculator->calculatePlanningYield($recipe);
@@ -336,8 +335,8 @@ class CropPlanningService
             return null;
         }
 
-        // Find active recipe for this variety
-        $recipe = $this->findActiveRecipeForVariety($masterSeedCatalogId);
+        // Find active recipe for this product
+        $recipe = $this->findActiveRecipeForProduct($product);
         
         // Get draft status
         $draftStatus = CropPlanStatus::where('code', 'draft')->first();
@@ -471,8 +470,8 @@ class CropPlanningService
             return null;
         }
 
-        // Find active recipe for this variety
-        $recipe = $this->findActiveRecipeForVariety($masterSeedCatalogId);
+        // Find active recipe for this product
+        $recipe = $this->findActiveRecipeForProduct($product);
         
         // Get draft status
         $draftStatus = CropPlanStatus::where('code', 'draft')->first();
@@ -578,6 +577,45 @@ class CropPlanningService
         ]);
 
         return $cropPlan;
+    }
+
+    /**
+     * Find an active recipe for a given product.
+     * Prioritizes direct product->recipe relationship, then falls back to seed catalog lookup.
+     * 
+     * @param Product $product
+     * @return Recipe|null
+     */
+    protected function findActiveRecipeForProduct(Product $product): ?Recipe
+    {
+        // First check if product has a direct recipe relationship
+        if ($product->recipe_id) {
+            $recipe = Recipe::where('id', $product->recipe_id)
+                ->where('is_active', true)
+                ->whereNull('lot_depleted_at')
+                ->first();
+                
+            if ($recipe) {
+                Log::info('Found recipe by direct product relationship', [
+                    'product_id' => $product->id,
+                    'recipe_id' => $recipe->id,
+                    'recipe_name' => $recipe->name
+                ]);
+                return $recipe;
+            } else {
+                Log::warning('Product has recipe_id but recipe is inactive or depleted', [
+                    'product_id' => $product->id,
+                    'recipe_id' => $product->recipe_id
+                ]);
+            }
+        }
+        
+        // Fall back to master_seed_catalog_id lookup if no direct recipe
+        if ($product->master_seed_catalog_id) {
+            return $this->findActiveRecipeForVariety($product->master_seed_catalog_id);
+        }
+        
+        return null;
     }
 
     /**

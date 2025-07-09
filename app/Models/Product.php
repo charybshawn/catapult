@@ -43,6 +43,7 @@ class Product extends Model
         'is_visible_in_store',
         'product_mix_id',
         'master_seed_catalog_id',
+        'recipe_id',
         'total_stock',
         'reserved_stock',
         'reorder_threshold',
@@ -75,7 +76,7 @@ class Product extends Model
      */
     public function getLoggedRelationships(): array
     {
-        return ['category', 'priceVariations', 'defaultPhoto', 'productMix'];
+        return ['category', 'priceVariations', 'defaultPhoto', 'productMix', 'recipe'];
     }
 
     /**
@@ -621,6 +622,14 @@ class Product extends Model
     public function masterSeedCatalog(): BelongsTo
     {
         return $this->belongsTo(MasterSeedCatalog::class);
+    }
+
+    /**
+     * Get the recipe for this product.
+     */
+    public function recipe(): BelongsTo
+    {
+        return $this->belongsTo(Recipe::class);
     }
 
     /**

@@ -27,6 +27,7 @@ return new class extends Migration
             $table->string('image', 255)->nullable();
             $table->unsignedBigInteger('category_id')->nullable();
             $table->unsignedBigInteger('product_mix_id')->nullable();
+            $table->unsignedBigInteger('recipe_id')->nullable();
             $table->decimal('total_stock', 10, 2)->default(0.00);
             $table->decimal('reserved_stock', 10, 2)->default(0.00);
             $table->decimal('reorder_threshold', 10, 2)->default(0.00);
