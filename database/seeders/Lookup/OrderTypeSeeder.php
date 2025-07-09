@@ -12,38 +12,38 @@ class OrderTypeSeeder extends Seeder
      */
     public function run(): void
     {
+        // Clear existing order types first
+        \App\Models\OrderType::query()->delete();
+        
         $orderTypes = [
-            [
-                'code' => 'standard',
-                'name' => 'Standard',
-                'description' => 'Regular one-time order',
-                'color' => 'blue',
-                'is_active' => true,
-                'sort_order' => 1,
-            ],
-            [
-                'code' => 'subscription',
-                'name' => 'Subscription',
-                'description' => 'Recurring subscription order',
-                'color' => 'green',
-                'is_active' => true,
-                'sort_order' => 2,
-            ],
             [
                 'code' => 'b2b',
                 'name' => 'B2B',
                 'description' => 'Business-to-business bulk order',
                 'color' => 'purple',
                 'is_active' => true,
+                'sort_order' => 1,
+            ],
+            [
+                'code' => 'website_order',
+                'name' => 'Website Order',
+                'description' => 'Order placed through the website',
+                'color' => 'blue',
+                'is_active' => true,
+                'sort_order' => 2,
+            ],
+            [
+                'code' => 'farmers_market',
+                'name' => 'Farmer\'s Market',
+                'description' => 'Order for farmer\'s market sales',
+                'color' => 'green',
+                'is_active' => true,
                 'sort_order' => 3,
             ],
         ];
 
         foreach ($orderTypes as $type) {
-            \App\Models\OrderType::updateOrCreate(
-                ['code' => $type['code']],
-                $type
-            );
+            \App\Models\OrderType::create($type);
         }
     }
 }
