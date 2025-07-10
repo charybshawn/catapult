@@ -36,7 +36,6 @@ class RecipeFactory extends Factory
             'common_name' => $commonName,
             'cultivar_name' => $cultivarName,
             'lot_number' => strtoupper(fake()->bothify('???##??')),
-            'seed_density' => fake()->randomFloat(2, 1, 10),
             'germination_days' => fake()->randomFloat(1, 1, 5),
             'blackout_days' => fake()->numberBetween(0, 5),
             'light_days' => fake()->randomFloat(1, 3, 12),

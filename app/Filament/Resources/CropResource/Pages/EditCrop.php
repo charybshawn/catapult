@@ -39,7 +39,7 @@ class EditCrop extends BaseEditRecord
         // Get all trays in this grow batch
         $allTrays = Crop::where('recipe_id', $record->recipe_id)
             ->where('planting_at', $record->planting_at)
-            ->where('current_stage', $record->current_stage)
+            ->where('current_stage_id', $record->current_stage_id)
             ->pluck('tray_number')
             ->toArray();
         
@@ -54,7 +54,7 @@ class EditCrop extends BaseEditRecord
         // Get the first actual record from this group to ensure we have complete data
         $firstRecord = Crop::where('recipe_id', $record->recipe_id)
             ->where('planting_at', $record->planting_at)
-            ->where('current_stage', $record->current_stage)
+            ->where('current_stage_id', $record->current_stage_id)
             ->first();
             
         if ($firstRecord) {
@@ -70,7 +70,7 @@ class EditCrop extends BaseEditRecord
         // Get all current trays in this grow batch
         $currentTrays = Crop::where('recipe_id', $record->recipe_id)
             ->where('planting_at', $record->planting_at)
-            ->where('current_stage', $record->current_stage)
+            ->where('current_stage_id', $record->current_stage_id)
             ->get();
             
         // Get the new tray numbers from the form and ensure it's a flat array

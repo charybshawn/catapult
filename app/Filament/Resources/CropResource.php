@@ -886,7 +886,11 @@ class CropResource extends BaseResource
                                             ->where('current_stage_id', $record->current_stage_id)
                                             ->get();
                                         
-                                        $nextStage = $crops->first()->getNextStage();
+                                        $currentStage = \App\Models\CropStage::find($record->current_stage_id);
+                                        $nextStage = $currentStage ? \App\Models\CropStage::where('sort_order', '>', $currentStage->sort_order)
+                                            ->where('is_active', true)
+                                            ->orderBy('sort_order')
+                                            ->first() : null;
                                         if ($nextStage) {
                                             $advancementTime = $data['advancement_timestamp'];
                                             foreach ($crops as $crop) {

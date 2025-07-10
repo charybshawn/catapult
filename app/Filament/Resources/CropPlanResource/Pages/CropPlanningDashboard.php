@@ -72,12 +72,6 @@ class CropPlanningDashboard extends Page
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('create_crop_plan')
-                ->label('Manual Planning')
-                ->icon('heroicon-o-calculator')
-                ->color('success')
-                ->url(fn() => CropPlanResource::getUrl('manual-planning')),
-                
             Action::make('auto_generate_plans')
                 ->label('Auto Generate Plans')
                 ->icon('heroicon-o-bolt')

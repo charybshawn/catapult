@@ -12,14 +12,18 @@ class CurrentSeedConsumableDataSeeder extends Seeder
 {
     /**
      * Seed consumables with actual current inventory data
-     * This represents the real state of seed inventory as manually entered
+     * This represents the real state of seed and soil inventory as manually entered
      */
     public function run(): void
     {
-        $this->command->info('Seeding seed consumables with current inventory data...');
+        $this->command->info('Seeding seed and soil consumables with current inventory data...');
         
-        // Define the actual seed consumable data based on current inventory
-        $seedConsumables = [
+        // Define the actual consumable data based on current inventory
+        $consumables = [
+            // Soil consumables
+            ['name' => 'Pro Mix HP', 'total' => 428, 'consumed' => 0, 'unit' => 'l', 'type' => 'soil'],
+            
+            // Seed consumables
             ['name' => 'Arugula (Arugula)', 'total' => 1000, 'consumed' => 502, 'unit' => 'g', 'lot' => 'AR2-01'],
             ['name' => 'Borage (Borage)', 'total' => 1000, 'consumed' => 540, 'unit' => 'g', 'lot' => 'BOR0Y'],
             ['name' => 'Kale (Red)', 'total' => 1000, 'consumed' => 538, 'unit' => 'g', 'lot' => 'KR3Y-01'],
@@ -49,18 +53,54 @@ class CurrentSeedConsumableDataSeeder extends Seeder
         
         $created = 0;
         $updated = 0;
+        $cultivarMatches = 0;
+        $catalogMatches = 0;
         
-        foreach ($seedConsumables as $data) {
-            // Extract common name and cultivar from the name format
+        foreach ($consumables as $data) {
+            $consumableType = $data['type'] ?? 'seed'; // Default to seed if not specified
+            
+            // Handle soil consumables differently
+            if ($consumableType === 'soil') {
+                $this->createSoilConsumable($data);
+                $created++; // Assume it's created for simplicity
+                continue;
+            }
+            
+            // Extract common name and cultivar from the name format for seeds
             if (preg_match('/^(.+?)\s*\((.+?)\)$/', $data['name'], $matches)) {
                 $commonName = trim($matches[1]);
                 $cultivarName = trim($matches[2]);
+                
+                // Clean up common name - remove trailing commas and normalize
+                $commonName = rtrim($commonName, ',');
+                $commonName = trim($commonName);
+                
+                // Create missing catalog entries if they don't exist
+                $this->ensureCatalogExists($commonName, $cultivarName);
                 
                 // Get default supplier for seeds
                 $supplier = Supplier::where('name', "Mumm's Sprouting Seeds")->first();
                 
                 // Find the matching master seed catalog
                 $masterSeedCatalog = \App\Models\MasterSeedCatalog::where('common_name', $commonName)->first();
+                
+                // Find the matching master cultivar
+                $masterCultivar = null;
+                if ($masterSeedCatalog) {
+                    $masterCultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $masterSeedCatalog->id)
+                        ->where('cultivar_name', $cultivarName)
+                        ->first();
+                    
+                    if (!$masterCultivar) {
+                        $this->command->warn("No cultivar found for '{$cultivarName}' in '{$commonName}' catalog");
+                    }
+                } else {
+                    $this->command->warn("No master seed catalog found for '{$commonName}'");
+                }
+                
+                // Track statistics
+                if ($masterSeedCatalog) $catalogMatches++;
+                if ($masterCultivar) $cultivarMatches++;
                 
                 // Get the Seeds consumable type
                 $seedsType = \App\Models\ConsumableType::where('name', 'Seeds')->first();
@@ -78,6 +118,7 @@ class CurrentSeedConsumableDataSeeder extends Seeder
                         'consumable_type_id' => $seedsType ? $seedsType->id : null,
                         'consumable_unit_id' => $gramUnit ? $gramUnit->id : null,
                         'master_seed_catalog_id' => $masterSeedCatalog ? $masterSeedCatalog->id : null,
+                        'master_cultivar_id' => $masterCultivar ? $masterCultivar->id : null,
                         'supplier_id' => $supplier ? $supplier->id : null,
                         'initial_stock' => $data['total'], // Set initial stock to match total
                         'consumed_quantity' => $data['consumed'],
@@ -105,10 +146,90 @@ class CurrentSeedConsumableDataSeeder extends Seeder
         $this->command->info("\nSeeding completed!");
         $this->command->info("Created: {$created} consumables");
         $this->command->info("Updated: {$updated} consumables");
+        $seedCount = count(array_filter($consumables, fn($item) => ($item['type'] ?? 'seed') === 'seed'));
+        $this->command->info("Catalog matches: {$catalogMatches}/" . $seedCount);
+        $this->command->info("Cultivar matches: {$cultivarMatches}/" . $seedCount);
         $this->command->info("Total seed consumables with inventory: " . 
             Consumable::whereHas('consumableType', function($query) {
                 $query->where('code', 'seed');
             })->where('total_quantity', '>', 0)->count()
         );
+    }
+    
+    /**
+     * Ensure a master seed catalog and cultivar exist for the given names
+     */
+    private function ensureCatalogExists(string $commonName, string $cultivarName): void
+    {
+        // Check if catalog exists
+        $catalog = \App\Models\MasterSeedCatalog::where('common_name', $commonName)->first();
+        
+        if (!$catalog) {
+            // Create missing catalog entry
+            $catalog = \App\Models\MasterSeedCatalog::create([
+                'common_name' => $commonName,
+                'cultivars' => json_encode([$cultivarName]),
+                'is_active' => true,
+            ]);
+            $this->command->info("Created missing catalog entry: {$commonName}");
+        }
+        
+        // Check if cultivar exists
+        $cultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $catalog->id)
+            ->where('cultivar_name', $cultivarName)
+            ->first();
+            
+        if (!$cultivar) {
+            // Create missing cultivar entry
+            \App\Models\MasterCultivar::create([
+                'master_seed_catalog_id' => $catalog->id,
+                'cultivar_name' => $cultivarName,
+                'is_active' => true,
+            ]);
+            $this->command->info("Created missing cultivar: {$cultivarName} for {$commonName}");
+        }
+    }
+    
+    /**
+     * Create or update a soil consumable
+     */
+    private function createSoilConsumable(array $data): void
+    {
+        // Get the Soil consumable type
+        $soilType = \App\Models\ConsumableType::where('code', 'soil')->first();
+        
+        // Get the liter unit for soil
+        $literUnit = \App\Models\ConsumableUnit::where('code', 'liter')->first();
+        
+        // Get default soil supplier
+        $supplier = Supplier::where('name', 'Ecoline')->first();
+        
+        // Create or update the soil consumable
+        $consumable = Consumable::updateOrCreate(
+            [
+                'name' => $data['name'],
+            ],
+            [
+                'consumable_type_id' => $soilType ? $soilType->id : null,
+                'consumable_unit_id' => $literUnit ? $literUnit->id : null,
+                'supplier_id' => $supplier ? $supplier->id : null,
+                'initial_stock' => $data['total'],
+                'consumed_quantity' => $data['consumed'],
+                'total_quantity' => $data['total'],
+                'quantity_unit' => $data['unit'],
+                'quantity_per_unit' => 1,
+                'cost_per_unit' => null,
+                'restock_threshold' => 50,
+                'restock_quantity' => 250,
+                'is_active' => true,
+                'notes' => 'Current soil inventory as of ' . date('Y-m-d'),
+            ]
+        );
+        
+        if ($consumable->wasRecentlyCreated) {
+            $this->command->info("Created: {$data['name']} - {$data['total']}{$data['unit']} (consumed: {$data['consumed']}{$data['unit']})");
+        } else {
+            $this->command->comment("Updated: {$data['name']} - {$data['total']}{$data['unit']} (consumed: {$data['consumed']}{$data['unit']})");
+        }
     }
 }

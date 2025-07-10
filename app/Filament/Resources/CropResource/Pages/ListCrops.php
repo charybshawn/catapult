@@ -49,12 +49,12 @@ class ListCrops extends ListRecords
         
         // Add additional logging for debugging
         Log::info('Recipe and Seed Entry Data:', [
-            'recipes' => \App\Models\Recipe::with('seedEntry')->get()->map(function($recipe) {
+            'recipes' => \App\Models\Recipe::with('masterSeedCatalog', 'masterCultivar')->get()->map(function($recipe) {
                 return [
                     'id' => $recipe->id,
                     'name' => $recipe->name,
-                    'seed_entry_id' => $recipe->seed_entry_id,
-                    'seed_entry_name' => $recipe->seedEntry ? ($recipe->seedEntry->common_name . ' - ' . $recipe->seedEntry->cultivar_name) : null,
+                    'common_name' => $recipe->common_name,
+                    'cultivar_name' => $recipe->cultivar_name,
                 ];
             })
         ]);
@@ -63,7 +63,7 @@ class ListCrops extends ListRecords
         // Force ordering by a column that's part of the GROUP BY
         $query->reorder('crops.planting_at', 'desc');
         
-        return $query->with(['recipe.seedEntry']);
+        return $query->with(['recipe.masterSeedCatalog', 'recipe.masterCultivar']);
     }
     
     public function getTableRecords(): Collection|Paginator|CursorPaginator
@@ -86,35 +86,7 @@ class ListCrops extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\Action::make('debug')
-                ->label('Debug Data')
-                ->icon('heroicon-o-bug-ant')
-                ->color('gray')
-                ->action(function () {
-                    $query = parent::getTableQuery();
-                    
-                    // Get the SQL query with bindings
-                    $sql = $query->toSql();
-                    $bindings = $query->getBindings();
-                    
-                    // Get a sample of records
-                    $records = $query->limit(5)->get()->toArray();
-                    
-                    // Log everything
-                    Log::debug('Debug data', [
-                        'sql' => $sql,
-                        'bindings' => $bindings,
-                        'records' => $records,
-                    ]);
-                    
-                    return view('filament.resources.crop-resource.debug', [
-                        'query' => [
-                            'sql' => $sql,
-                            'bindings' => $bindings,
-                        ],
-                        'records' => $records,
-                    ]);
-                }),
+            Actions\CreateAction::make(),
             ...parent::getHeaderActions(),
         ];
     }

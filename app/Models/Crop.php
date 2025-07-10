@@ -355,4 +355,16 @@ class Crop extends Model
         return self::$bulkOperation;
     }
 
+    /**
+     * Check if the crop is ready to harvest.
+     * A crop is ready to harvest when it's in the "light" stage.
+     * 
+     * @return bool
+     */
+    public function isReadyToHarvest(): bool
+    {
+        // The current_stage attribute returns a string code, not the object
+        return $this->current_stage === 'light';
+    }
+
 }

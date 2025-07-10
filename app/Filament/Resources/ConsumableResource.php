@@ -84,8 +84,8 @@ class ConsumableResource extends BaseResource
 
                         // Item Name Field - varies by type
                         Forms\Components\Grid::make()
-                            ->schema(function (Get $get) {
-                                $typeId = $get('consumable_type_id');
+                            ->schema(function (Get $get, $record = null) {
+                                $typeId = $get('consumable_type_id') ?? $record?->consumable_type_id;
                                 $type = $typeId ? ConsumableType::find($typeId) : null;
                                 
                                 if ($type && $type->isPackaging()) {
@@ -118,12 +118,18 @@ class ConsumableResource extends BaseResource
                                         Forms\Components\Hidden::make('name')
                                     ];
                                 } else if ($type && $type->isSeed()) {
-                                    // For seed types, just show supplier since cultivar is handled separately
+                                    // For seed types, show supplier and generated name
                                     return [
                                         FormCommon::supplierSelect(),
                                         
-                                        // Hidden fields - will be set from the master cultivar selection
-                                        Forms\Components\Hidden::make('name'),
+                                        // Read-only name field that will be auto-generated
+                                        Forms\Components\TextInput::make('name')
+                                            ->label('Generated Name')
+                                            ->readonly()
+                                            ->helperText('Auto-generated from seed catalog and cultivar selection')
+                                            ->placeholder('Will be generated automatically'),
+                                        
+                                        // Hidden cultivar field for storage
                                         Forms\Components\Hidden::make('cultivar'),
                                     ];
                                 } else if ($type && $type->code === 'mix') {
@@ -180,8 +186,8 @@ class ConsumableResource extends BaseResource
                         
                         // Supplier field moved to be beside seed entry for seed type
                         Forms\Components\Grid::make()
-                            ->schema(function (Get $get) {
-                                $typeId = $get('consumable_type_id');
+                            ->schema(function (Get $get, $record = null) {
+                                $typeId = $get('consumable_type_id') ?? $record?->consumable_type_id;
                                 $type = $typeId ? ConsumableType::find($typeId) : null;
                                 
                                 if ($type && $type->isSeed()) {
@@ -195,53 +201,112 @@ class ConsumableResource extends BaseResource
                                 }
                             })->columnSpanFull(),
                         
-                        // Seed catalog and cultivar field - using master catalog composite key approach
+                        // Seed catalog field - simplified approach
                         Forms\Components\Select::make('master_seed_catalog_id')
-                            ->label('Seed Catalog & Cultivar')
+                            ->label('Seed Catalog')
                             ->options(function () {
                                 return \App\Models\MasterSeedCatalog::query()
                                     ->where('is_active', true)
-                                    ->get()
-                                    ->flatMap(function ($catalog) {
-                                        $cultivars = is_array($catalog->cultivars) ? $catalog->cultivars : [];
-                                        $options = [];
-                                        
-                                        foreach ($cultivars as $index => $cultivar) {
-                                            $key = $catalog->id . ':' . $index;
-                                            $label = ucwords(strtolower($catalog->common_name)) . ' (' . ucwords(strtolower($cultivar)) . ')';
-                                            $options[$key] = $label;
-                                        }
-                                        
-                                        return $options;
-                                    });
+                                    ->pluck('common_name', 'id')
+                                    ->toArray();
                             })
                             ->searchable()
-                            ->visible(function (Get $get): bool {
-                                $typeId = $get('consumable_type_id');
+                            ->visible(function (Get $get, $record = null): bool {
+                                $typeId = $get('consumable_type_id') ?? $record?->consumable_type_id;
                                 $type = $typeId ? ConsumableType::find($typeId) : null;
                                 return $type && $type->isSeed();
                             })
-                            ->required(function (Get $get): bool {
-                                $typeId = $get('consumable_type_id');
+                            ->required(function (Get $get, $record = null): bool {
+                                $typeId = $get('consumable_type_id') ?? $record?->consumable_type_id;
                                 $type = $typeId ? ConsumableType::find($typeId) : null;
                                 return $type && $type->isSeed();
                             })
                             ->live()
-                            ->afterStateUpdated(function ($state, Set $set) {
-                                if ($state && strpos($state, ':') !== false) {
-                                    [$catalogId, $cultivarIndex] = explode(':', $state, 2);
-                                    $cultivarIndex = (int)$cultivarIndex;
-                                    
+                            ->afterStateUpdated(function ($state, Set $set, Get $get) {
+                                if ($state) {
+                                    $masterCatalog = \App\Models\MasterSeedCatalog::find($state);
+                                    if ($masterCatalog) {
+                                        // Auto-select first cultivar if none selected
+                                        $cultivar = $get('cultivar');
+                                        if (!$cultivar) {
+                                            $cultivars = is_array($masterCatalog->cultivars) ? $masterCatalog->cultivars : [];
+                                            $firstCultivar = $cultivars[0] ?? '';
+                                            $set('cultivar', $firstCultivar);
+                                            
+                                            // Generate name immediately if we have a cultivar
+                                            if ($firstCultivar) {
+                                                $name = $masterCatalog->common_name . ' (' . $firstCultivar . ')';
+                                                $set('name', $name);
+                                                
+                                                // Set master_cultivar_id
+                                                $masterCultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $state)
+                                                    ->where('cultivar_name', $firstCultivar)
+                                                    ->first();
+                                                if ($masterCultivar) {
+                                                    $set('master_cultivar_id', $masterCultivar->id);
+                                                }
+                                            }
+                                        } else {
+                                            // Update name with existing cultivar
+                                            $name = $masterCatalog->common_name . ' (' . $cultivar . ')';
+                                            $set('name', $name);
+                                            
+                                            // Set master_cultivar_id
+                                            $masterCultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $state)
+                                                ->where('cultivar_name', $cultivar)
+                                                ->first();
+                                            if ($masterCultivar) {
+                                                $set('master_cultivar_id', $masterCultivar->id);
+                                            }
+                                        }
+                                    }
+                                }
+                            }),
+                            
+                        // Cultivar field - separate field for better control
+                        Forms\Components\Select::make('cultivar')
+                            ->label('Cultivar')
+                            ->options(function (Get $get) {
+                                $catalogId = $get('master_seed_catalog_id');
+                                if ($catalogId) {
                                     $masterCatalog = \App\Models\MasterSeedCatalog::find($catalogId);
                                     if ($masterCatalog) {
                                         $cultivars = is_array($masterCatalog->cultivars) ? $masterCatalog->cultivars : [];
-                                        $selectedCultivar = $cultivars[$cultivarIndex] ?? $cultivars[0] ?? 'Unknown';
+                                        return array_combine($cultivars, $cultivars);
+                                    }
+                                }
+                                return [];
+                            })
+                            ->searchable()
+                            ->visible(function (Get $get, $record = null): bool {
+                                $typeId = $get('consumable_type_id') ?? $record?->consumable_type_id;
+                                $type = $typeId ? ConsumableType::find($typeId) : null;
+                                return $type && $type->isSeed();
+                            })
+                            ->required(function (Get $get, $record = null): bool {
+                                $typeId = $get('consumable_type_id') ?? $record?->consumable_type_id;
+                                $type = $typeId ? ConsumableType::find($typeId) : null;
+                                return $type && $type->isSeed();
+                            })
+                            ->live()
+                            ->afterStateUpdated(function ($state, Set $set, Get $get) {
+                                // Generate name from common name and cultivar
+                                $catalogId = $get('master_seed_catalog_id');
+                                $cultivar = $state;
+                                
+                                if ($catalogId && $cultivar) {
+                                    $masterCatalog = \App\Models\MasterSeedCatalog::find($catalogId);
+                                    if ($masterCatalog) {
+                                        $name = $masterCatalog->common_name . ' (' . $cultivar . ')';
+                                        $set('name', $name);
                                         
-                                        $commonName = ucwords(strtolower($masterCatalog->common_name));
-                                        $cultivarName = ucwords(strtolower($selectedCultivar));
-                                        
-                                        $set('name', $commonName . ' (' . $cultivarName . ')');
-                                        $set('cultivar', $cultivarName);
+                                        // Also set the master_cultivar_id
+                                        $masterCultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $catalogId)
+                                            ->where('cultivar_name', $cultivar)
+                                            ->first();
+                                        if ($masterCultivar) {
+                                            $set('master_cultivar_id', $masterCultivar->id);
+                                        }
                                     }
                                 }
                             })
@@ -256,8 +321,8 @@ class ConsumableResource extends BaseResource
                     ->schema([
                         // Conditional form fields based on consumable type
                         Forms\Components\Grid::make()
-                            ->schema(function (Get $get) use ($isEditMode) {
-                                $typeId = $get('consumable_type_id');
+                            ->schema(function (Get $get, $record = null) use ($isEditMode) {
+                                $typeId = $get('consumable_type_id') ?? $record?->consumable_type_id;
                                 $type = $typeId ? ConsumableType::find($typeId) : null;
                                 
                                 // For seed consumables - use remaining_quantity directly

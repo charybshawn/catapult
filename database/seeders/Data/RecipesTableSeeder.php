@@ -17,14 +17,17 @@ class RecipesTableSeeder extends Seeder
         DB::table('recipes')->truncate();
         DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
-        // Get consumables by name/type to avoid hardcoded IDs
-        $sunflowerConsumable = DB::table('consumables')->where('name', 'like', '%Sunflower%')->first();
-        $basilConsumable = DB::table('consumables')->where('name', 'like', '%Basil (Genovese)%')->first();
+        // Get specific consumables by lot number to match recipes
+        $sunflowerSfr16Consumable = DB::table('consumables')->where('lot_no', 'SFR16')->first();
+        $basilBas8yConsumable = DB::table('consumables')->where('lot_no', 'BAS8Y')->first();
+        
+        // Note: We'll use SFR16 for both sunflower recipes since it's the only available lot
         $soilConsumable = DB::table('consumables')
             ->join('consumable_types', 'consumables.consumable_type_id', '=', 'consumable_types.id')
             ->where('consumable_types.code', 'soil')
+            ->where('consumables.name', 'Pro Mix HP')
             ->select('consumables.*')
-            ->first(); // If soil consumables exist
+            ->first();
 
         // Get master seed catalog entries directly
         $sunflowerCatalog = DB::table('master_seed_catalog')
@@ -58,7 +61,7 @@ class RecipesTableSeeder extends Seeder
                 'master_seed_catalog_id' => $sunflowerCatalog ? $sunflowerCatalog->id : null,
                 'master_cultivar_id' => $sunflowerCultivar ? $sunflowerCultivar->id : null,
                 'soil_consumable_id' => $soilConsumable ? $soilConsumable->id : null,
-                'seed_consumable_id' => $sunflowerConsumable ? $sunflowerConsumable->id : null,
+                'seed_consumable_id' => $sunflowerSfr16Consumable ? $sunflowerSfr16Consumable->id : null,
                 'lot_number' => 'SF4K',
                 'seed_soak_hours' => 9,
                 'germination_days' => 3,
@@ -84,7 +87,7 @@ class RecipesTableSeeder extends Seeder
                 'master_cultivar_id' => $sunflowerCultivar ? $sunflowerCultivar->id : null,
                 'lot_number' => 'SFK16',
                 'soil_consumable_id' => $soilConsumable ? $soilConsumable->id : null,
-                'seed_consumable_id' => $sunflowerConsumable ? $sunflowerConsumable->id : null,
+                'seed_consumable_id' => $sunflowerSfr16Consumable ? $sunflowerSfr16Consumable->id : null,
                 'seed_soak_hours' => 4,
                 'germination_days' => 3,
                 'blackout_days' => 0,
@@ -108,7 +111,7 @@ class RecipesTableSeeder extends Seeder
                 'master_seed_catalog_id' => $basilCatalog ? $basilCatalog->id : null,
                 'master_cultivar_id' => $basilCultivar ? $basilCultivar->id : null,
                 'soil_consumable_id' => $soilConsumable ? $soilConsumable->id : null,
-                'seed_consumable_id' => $basilConsumable ? $basilConsumable->id : null,
+                'seed_consumable_id' => $basilBas8yConsumable ? $basilBas8yConsumable->id : null,
                 'lot_number' => 'BAS8Y',
                 'seed_soak_hours' => 0,
                 'germination_days' => 4,

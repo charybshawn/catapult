@@ -113,11 +113,20 @@ class AppServiceProvider extends ServiceProvider
         
         // Prevent migrations in production unless explicitly allowed
         Model::preventLazyLoading(! app()->isProduction());
+        
+        // Fix Livewire debouncing issues with numeric inputs
+        $this->configureFilamentLivewireDebouncing();
 
         // Add git branch indicator to Filament admin panel topbar
         FilamentView::registerRenderHook(
             PanelsRenderHook::TOPBAR_START,
             fn (): string => $this->renderGitBranchIndicator()
+        );
+        
+        // Add numeric input debounce fix script to Filament
+        FilamentView::registerRenderHook(
+            PanelsRenderHook::BODY_END,
+            fn (): string => '<script src="' . asset('js/filament-numeric-debounce-fix.js') . '"></script>'
         );
 
         if ($this->app->environment('production') && !$this->app->runningInConsole()) {
@@ -140,6 +149,27 @@ class AppServiceProvider extends ServiceProvider
         }
     }
 
+    /**
+     * Configure Filament Livewire debouncing to fix input issues
+     */
+    private function configureFilamentLivewireDebouncing(): void
+    {
+        // Set longer debounce for numeric inputs to prevent character loss
+        \Filament\Forms\Components\TextInput::configureUsing(function (\Filament\Forms\Components\TextInput $component): void {
+            if ($component->isNumeric()) {
+                $component->lazy(); // Use lazy evaluation instead of live for numeric inputs
+            }
+        });
+        
+        // Also configure for specific numeric field types
+        \Filament\Forms\Components\TextInput::configureUsing(function (\Filament\Forms\Components\TextInput $component): void {
+            $numericTypes = ['integer', 'decimal', 'numeric'];
+            if (in_array($component->getType(), $numericTypes) || $component->isNumeric()) {
+                $component->debounce(500); // 500ms debounce for numeric fields
+            }
+        });
+    }
+    
     /**
      * Render the git branch indicator for Filament
      */

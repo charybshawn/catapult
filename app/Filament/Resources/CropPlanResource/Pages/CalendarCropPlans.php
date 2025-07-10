@@ -27,12 +27,6 @@ class CalendarCropPlans extends Page
                 ->icon('heroicon-o-list-bullet')
                 ->url(CropPlanResource::getUrl('index'))
                 ->color('gray'),
-            
-            Action::make('manual_planning')
-                ->label('Manual Planning')
-                ->icon('heroicon-o-calculator')
-                ->url(CropPlanResource::getUrl('manual-planning'))
-                ->color('success'),
         ];
     }
 

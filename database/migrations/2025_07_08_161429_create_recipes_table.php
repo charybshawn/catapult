@@ -20,7 +20,6 @@ return new class extends Migration
             $table->unsignedBigInteger('seed_consumable_id')->nullable();
             $table->string('lot_number', 255)->nullable();
             $table->timestamp('lot_depleted_at')->nullable();
-            $table->integer('seed_density');
             $table->decimal('seed_soak_hours', 5, 2)->default(0.00);
             $table->integer('germination_days');
             $table->integer('blackout_days');

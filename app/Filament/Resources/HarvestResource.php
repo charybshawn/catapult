@@ -225,36 +225,7 @@ class HarvestResource extends BaseResource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('harvest_date', 'desc')
-            ->modifyQueryUsing(function (Builder $query) {
-                return $query->selectRaw("
-                    harvests.*,
-                    CONCAT(harvests.master_cultivar_id, '_', DATE_FORMAT(harvests.harvest_date, '%Y-%m-%d')) as variety_date_key
-                ");
-            })
             ->groups([
-                Tables\Grouping\Group::make('variety_date_key')
-                    ->label('Variety & Date')
-                    ->getTitleFromRecordUsing(function (Harvest $record): string {
-                        return $record->masterCultivar->full_name . ' - ' . $record->harvest_date->format('M j, Y');
-                    })
-                    ->orderQueryUsing(function (Builder $query, string $direction) {
-                        // Check if joins already exist to avoid duplicates
-                        $joins = collect($query->getQuery()->joins);
-                        
-                        if (!$joins->pluck('table')->contains('master_cultivars')) {
-                            $query->join('master_cultivars', 'harvests.master_cultivar_id', '=', 'master_cultivars.id');
-                        }
-                        
-                        if (!$joins->pluck('table')->contains('master_seed_catalog')) {
-                            $query->join('master_seed_catalog', 'master_cultivars.master_seed_catalog_id', '=', 'master_seed_catalog.id');
-                        }
-                        
-                        return $query
-                            ->orderBy('harvests.harvest_date', $direction)
-                            ->orderBy('master_seed_catalog.common_name', $direction)
-                            ->orderBy('master_cultivars.cultivar_name', $direction);
-                    })
-                    ->collapsible(),
                 Tables\Grouping\Group::make('harvest_date')
                     ->label('Date Only')
                     ->date()
@@ -280,7 +251,7 @@ class HarvestResource extends BaseResource
                     })
                     ->collapsible(),
             ])
-            ->defaultGroup('variety_date_key')
+            ->defaultGroup('harvest_date')
             ->groupsInDropdownOnDesktop()
             ->filters([
                 Tables\Filters\SelectFilter::make('master_cultivar_id')
@@ -338,7 +309,6 @@ class HarvestResource extends BaseResource
     {
         return [
             'index' => Pages\ListHarvests::route('/'),
-            'create' => Pages\CreateHarvest::route('/create'),
             'edit' => Pages\EditHarvest::route('/{record}/edit'),
         ];
     }

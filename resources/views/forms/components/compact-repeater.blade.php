@@ -16,6 +16,13 @@
         $statePath = $getStatePath();
         $columnWidths = $getColumnWidths();
         $isCompact = $isCompact();
+        $isFlat = $isFlat();
+        
+        // Safe way to get empty state message
+        $emptyStateMessage = 'No items';
+        if (method_exists($field, 'getEmptyStateMessage')) {
+            $emptyStateMessage = $field->getEmptyStateMessage() ?? 'No items';
+        }
     @endphp
 
     <div
@@ -26,7 +33,59 @@
                 ->class(['fi-fo-repeater'])
         }}
     >
-        @if ($isCompact && count($containers) > 0)
+        @if ($isFlat && count($containers) > 0)
+            {{-- Flat Inline View --}}
+            <div 
+                @if ($isReorderableWithDragAndDrop)
+                    x-sortable
+                    x-on:end="$wire.reorderFormComponent(@js($statePath), $event.target.sortable.toArray())"
+                @endif
+                class="space-y-3"
+            >
+                @foreach ($containers as $uuid => $container)
+                    <div 
+                        wire:key="{{ $container->getStatePath() }}"
+                        x-sortable-item="{{ $uuid }}"
+                        class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                    >
+                        @if ($isReorderableWithDragAndDrop)
+                            <div x-sortable-handle class="cursor-move">
+                                <x-filament::icon-button
+                                    icon="heroicon-m-bars-3"
+                                    color="gray"
+                                    size="sm"
+                                />
+                            </div>
+                        @endif
+                        
+                        <div class="flex-1 grid grid-cols-3 gap-3 items-start">
+                            @foreach ($container->getComponents() as $field)
+                                @php
+                                    $fieldType = class_basename($field);
+                                @endphp
+                                @if ($fieldType !== 'Hidden')
+                                    <div class="flex flex-col">
+                                        <label class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                                            {{ $field->getLabel() }}
+                                            @if ($field->isRequired())
+                                                <span class="text-danger-600 dark:text-danger-400">*</span>
+                                            @endif
+                                        </label>
+                                        {{ $field->hiddenLabel() }}
+                                    </div>
+                                @else
+                                    {{ $field }}
+                                @endif
+                            @endforeach
+                        </div>
+                        
+                        <div class="flex-shrink-0">
+                            {{ $deleteAction(['item' => $uuid]) }}
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        @elseif ($isCompact && count($containers) > 0)
             {{-- Compact Table View --}}
             <div class="overflow-x-auto overflow-y-visible rounded-lg border border-gray-300 dark:border-gray-700" style="overflow-y: visible;">
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -157,7 +216,7 @@
                 @empty
                     <div class="text-center p-6">
                         <p class="text-sm text-gray-500 dark:text-gray-400">
-                            {{ (is_callable($getEmptyStateMessage) ? $getEmptyStateMessage() : null) ?? 'No items' }}
+                            {{ $emptyStateMessage }}
                         </p>
                     </div>
                 @endforelse

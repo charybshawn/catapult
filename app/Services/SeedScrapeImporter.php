@@ -63,6 +63,7 @@ class SeedScrapeImporter
             } else {
                 // Fallback to old behavior for backward compatibility
                 $supplier = Supplier::firstOrCreate(['name' => $sourceUrl]);
+                $supplier->load('supplierType');
                 
                 // Create mapping for future use
                 if ($sourceUrl !== 'Unknown Supplier') {
@@ -327,7 +328,8 @@ class SeedScrapeImporter
         
         // First check for existing seed entry with same common_name, cultivar_name, and supplier
         // This prevents creating duplicates that would later need to be merged
-        $seedEntry = SeedEntry::where('supplier_id', $supplier->id)
+        $seedEntry = SeedEntry::with('supplier.supplierType')
+            ->where('supplier_id', $supplier->id)
             ->where('common_name', $commonName)
             ->where('cultivar_name', $cultivarName)
             ->first();
@@ -378,6 +380,9 @@ class SeedScrapeImporter
                 'description' => $productData['description'] ?? null,
                 'tags' => $productData['tags'] ?? [],
             ]);
+            
+            // Load supplier relationship to prevent lazy loading issues
+            $seedEntry->load('supplier.supplierType');
             
             Log::info('Created new seed entry', [
                 'entry_id' => $seedEntry->id,

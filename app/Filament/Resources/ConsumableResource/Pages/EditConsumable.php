@@ -26,53 +26,42 @@ class EditConsumable extends BaseEditRecord
             }
         }
         
-        // For seed consumables, handle master seed catalog composite key
-        if (isset($data['type']) && $data['type'] === 'seed' && !empty($data['master_seed_catalog_id'])) {
-            // Parse composite key if present: catalog_id:cultivar_index
-            $catalogId = $data['master_seed_catalog_id'];
-            $cultivarIndex = null;
-            $selectedCultivarName = null;
-            
-            if (strpos($data['master_seed_catalog_id'], ':') !== false) {
-                [$catalogId, $cultivarIndex] = explode(':', $data['master_seed_catalog_id'], 2);
-                $cultivarIndex = (int)$cultivarIndex;
-            }
-            
-            // Get the master seed catalog and ensure it exists
-            $masterCatalog = \App\Models\MasterSeedCatalog::find($catalogId);
-            if ($masterCatalog) {
-                // Get the specific cultivar if an index was provided
-                $cultivars = is_array($masterCatalog->cultivars) ? $masterCatalog->cultivars : [];
-                if ($cultivarIndex !== null && isset($cultivars[$cultivarIndex])) {
-                    $selectedCultivarName = ucwords(strtolower($cultivars[$cultivarIndex]));
-                } else {
-                    $selectedCultivarName = !empty($cultivars) ? ucwords(strtolower($cultivars[0])) : 'Unknown Cultivar';
+        // For seed consumables, generate name from master catalog and cultivar
+        if (!empty($data['consumable_type_id']) && $data['consumable_type_id'] == 3) {
+            if (!empty($data['master_seed_catalog_id']) && !empty($data['cultivar'])) {
+                $masterCatalog = \App\Models\MasterSeedCatalog::find($data['master_seed_catalog_id']);
+                if ($masterCatalog) {
+                    // Generate name from catalog and cultivar
+                    $data['name'] = $masterCatalog->common_name . ' (' . $data['cultivar'] . ')';
+                    
+                    // Set master_cultivar_id if not set
+                    if (empty($data['master_cultivar_id'])) {
+                        $masterCultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $data['master_seed_catalog_id'])
+                            ->where('cultivar_name', $data['cultivar'])
+                            ->first();
+                        if ($masterCultivar) {
+                            $data['master_cultivar_id'] = $masterCultivar->id;
+                        }
+                    }
+                    
+                    Log::info('Updated seed consumable name from catalog and cultivar', [
+                        'id' => $this->record->id ?? 'new',
+                        'master_seed_catalog_id' => $data['master_seed_catalog_id'],
+                        'cultivar' => $data['cultivar'],
+                        'generated_name' => $data['name'],
+                        'master_cultivar_id' => $data['master_cultivar_id'] ?? 'none'
+                    ]);
                 }
-                
-                // Store the actual catalog ID (not the composite key) in the database
-                $data['master_seed_catalog_id'] = $catalogId;
-                
-                // Update name from the master catalog with the specific cultivar
-                $commonName = ucwords(strtolower($masterCatalog->common_name));
-                $data['name'] = $commonName . ' (' . $selectedCultivarName . ')';
-                
-                Log::info('Updating seed consumable from master catalog', [
-                    'id' => $this->record->id ?? 'new',
-                    'original_selection' => $catalogId . ($cultivarIndex !== null ? ':' . $cultivarIndex : ''),
-                    'master_seed_catalog_id' => $data['master_seed_catalog_id'],
-                    'name' => $data['name'],
-                    'selected_cultivar' => $selectedCultivarName
-                ]);
             }
         }
         
         // For seed consumables, if remaining_quantity is set, calculate consumed_quantity
-        if (isset($data['type']) && $data['type'] === 'seed' && isset($data['remaining_quantity']) && isset($data['total_quantity'])) {
+        if (!empty($data['consumable_type_id']) && $data['consumable_type_id'] == 3 && isset($data['remaining_quantity']) && isset($data['total_quantity'])) {
             $total = (float) $data['total_quantity'];
             $remaining = (float) $data['remaining_quantity'];
             $data['consumed_quantity'] = max(0, $total - $remaining);
             
-            Log::info('Seed consumable update:', [
+            Log::info('Seed consumable update - calculated consumed quantity:', [
                 'id' => $this->record->id ?? 'new',
                 'total_quantity' => $total,
                 'remaining_quantity' => $remaining,
@@ -96,6 +85,12 @@ class EditConsumable extends BaseEditRecord
     }
 protected function mutateFormDataBeforeFill(array $data): array
     {
+        Log::info('EditConsumable mutateFormDataBeforeFill called', [
+            'record_id' => $this->record->id ?? 'unknown',
+            'consumable_type_id' => $data['consumable_type_id'] ?? 'null',
+            'total_quantity' => $data['total_quantity'] ?? 'null',
+            'consumed_quantity' => $data['consumed_quantity'] ?? 'null'
+        ]);
         
         // Calculate current stock for display
         if (isset($data['initial_stock']) && isset($data['consumed_quantity'])) {
@@ -103,10 +98,10 @@ protected function mutateFormDataBeforeFill(array $data): array
         }
         
         // For seed consumables, calculate remaining_quantity from total_quantity and consumed_quantity
-        if (isset($data['type']) && $data['type'] === 'seed' && isset($data['total_quantity']) && isset($data['consumed_quantity'])) {
+        if (!empty($data['consumable_type_id']) && $data['consumable_type_id'] == 3 && isset($data['total_quantity']) && isset($data['consumed_quantity'])) {
             $data['remaining_quantity'] = max(0, $data['total_quantity'] - $data['consumed_quantity']);
             
-            Log::info('Seed consumable form fill:', [
+            Log::info('Seed consumable form fill - calculated remaining quantity:', [
                 'id' => $this->record->id ?? 'unknown',
                 'total_quantity' => $data['total_quantity'],
                 'consumed_quantity' => $data['consumed_quantity'],
@@ -114,39 +109,17 @@ protected function mutateFormDataBeforeFill(array $data): array
             ]);
         }
         
-        // For seed consumables, convert the master_seed_catalog_id to composite key format for proper display
-        if (isset($data['type']) && $data['type'] === 'seed' && !empty($data['master_seed_catalog_id']) && is_numeric($data['master_seed_catalog_id'])) {
-            $catalogId = $data['master_seed_catalog_id'];
-            $masterCatalog = \App\Models\MasterSeedCatalog::find($catalogId);
-            
-            if ($masterCatalog && !empty($data['name'])) {
-                // Try to determine which cultivar was selected based on the stored name
-                $cultivars = is_array($masterCatalog->cultivars) ? $masterCatalog->cultivars : [];
-                $cultivarIndex = 0; // Default to first cultivar
+        // For seed consumables, populate cultivar field from master_cultivar_id relationship
+        if (!empty($data['consumable_type_id']) && $data['consumable_type_id'] == 3 && !empty($data['master_cultivar_id'])) {
+            $masterCultivar = \App\Models\MasterCultivar::find($data['master_cultivar_id']);
+            if ($masterCultivar) {
+                $data['cultivar'] = $masterCultivar->cultivar_name;
                 
-                // Extract cultivar name from the stored name (e.g., "Broccoli (Walthams)" -> "Walthams")
-                if (preg_match('/\(([^)]+)\)$/', $data['name'], $matches)) {
-                    $storedCultivarName = strtolower(trim($matches[1]));
-                    
-                    // Find the index of the matching cultivar
-                    foreach ($cultivars as $index => $cultivar) {
-                        if (strtolower(trim($cultivar)) === $storedCultivarName) {
-                            $cultivarIndex = $index;
-                            break;
-                        }
-                    }
-                }
-                
-                // Set the composite key format for the form field
-                if (!empty($cultivars)) {
-                    $data['master_seed_catalog_id'] = $catalogId . ':' . $cultivarIndex;
-                }
-                
-                Log::info('Converting master catalog ID to composite key for form fill:', [
-                    'original_id' => $catalogId,
-                    'composite_key' => $data['master_seed_catalog_id'],
-                    'detected_cultivar_index' => $cultivarIndex,
-                    'stored_name' => $data['name']
+                Log::info('Populated cultivar from master_cultivar_id for edit form:', [
+                    'record_id' => $this->record->id ?? 'unknown',
+                    'master_cultivar_id' => $data['master_cultivar_id'],
+                    'cultivar_name' => $data['cultivar'],
+                    'master_seed_catalog_id' => $data['master_seed_catalog_id'] ?? 'none'
                 ]);
             }
         }

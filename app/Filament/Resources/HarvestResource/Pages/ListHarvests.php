@@ -5,12 +5,16 @@ namespace App\Filament\Resources\HarvestResource\Pages;
 use App\Filament\Resources\HarvestResource;
 use App\Models\Harvest;
 use App\Models\MasterCultivar;
+use App\Models\Crop;
+use App\Forms\Components\CompactRepeater;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Section;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 
 class ListHarvests extends ListRecords
 {
@@ -19,91 +23,206 @@ class ListHarvests extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\Action::make('bulk_harvest')
+            Actions\CreateAction::make()
                 ->label('Add Harvest')
                 ->icon('heroicon-o-plus')
-                ->color('primary')
+                ->modal()
                 ->form([
-                    Section::make('Bulk Harvest Entry')
-                        ->description('Enter harvest data for multiple trays of the same variety')
+                    Forms\Components\Section::make('Harvest Details')
                         ->schema([
-                            Forms\Components\Select::make('master_cultivar_id')
-                                ->label('Crop Variety')
+                            Forms\Components\Select::make('recipe_id')
+                                ->label('Recipe')
                                 ->options(function () {
-                                    return MasterCultivar::with('masterSeedCatalog')
+                                    return \App\Models\Recipe::with('masterCultivar.masterSeedCatalog')
                                         ->where('is_active', true)
-                                        ->whereHas('masterSeedCatalog', function ($query) {
-                                            $query->where('is_active', true);
-                                        })
                                         ->get()
-                                        ->mapWithKeys(function ($cultivar) {
-                                            return [$cultivar->id => $cultivar->full_name];
+                                        ->mapWithKeys(function ($recipe) {
+                                            return [$recipe->id => $recipe->name];
                                         });
                                 })
                                 ->required()
                                 ->searchable()
-                                ->reactive(),
-                            Grid::make(2)
-                                ->schema([
-                                    Forms\Components\TextInput::make('total_weight_grams')
-                                        ->label('Total Weight (grams)')
-                                        ->required()
-                                        ->numeric()
-                                        ->minValue(0)
-                                        ->step(0.01)
-                                        ->reactive()
-                                        ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
-                                            $trayCount = $get('tray_count');
-                                            if ($state && $trayCount) {
-                                                $set('average_per_tray', round($state / $trayCount, 2));
-                                            }
-                                        }),
-                                    Forms\Components\TextInput::make('tray_count')
-                                        ->label('Number of Trays Harvested')
-                                        ->required()
-                                        ->rules(['numeric', 'min:0.1'])
-                                        ->placeholder('e.g. 1.5, 0.25, 2.75')
-                                        ->reactive()
-                                        ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
-                                            $totalWeight = $get('total_weight_grams');
-                                            if ($state && $totalWeight) {
-                                                $set('average_per_tray', round($totalWeight / $state, 2));
-                                            }
-                                        }),
-                                ]),
-                            Forms\Components\Placeholder::make('average_per_tray')
-                                ->label('Average Weight per Tray')
-                                ->content(fn ($get) => ($get('average_per_tray') ?? 0).' g'),
+                                ->reactive()
+                                ->extraAttributes([
+                                    'style' => 'position: relative; z-index: 9999;',
+                                ])
+                                ->afterStateUpdated(function ($state, $set) {
+                                    // Clear crops and add one empty row when recipe changes
+                                    if ($state) {
+                                        $set('crops', [['crop_id' => null, 'harvested_weight_grams' => null, 'percentage_harvested' => 100]]);
+                                    } else {
+                                        $set('crops', []);
+                                    }
+                                }),
                             Forms\Components\DatePicker::make('harvest_date')
                                 ->label('Harvest Date')
                                 ->required()
                                 ->default(now())
-                                ->maxDate(now()),
+                                ->maxDate(now())
+                                ->reactive(),
+                            Forms\Components\Hidden::make('user_id')
+                                ->default(auth()->id()),
+                        ])
+                        ->columns(2),
+                    Forms\Components\Section::make('Tray Selection')
+                        ->schema([
+                            CompactRepeater::make('crops')
+                                ->label('')
+                                ->addActionLabel('Add Tray')
+                                ->defaultItems(0)
+                                ->minItems(0)
+                                ->reorderable()
+                                ->live()
+                                ->columnWidths([
+                                    'crop_id' => '50%',
+                                    'harvested_weight_grams' => '25%',
+                                    'percentage_harvested' => '25%',
+                                ])
+                                ->extraAttributes([
+                                    'style' => 'overflow: visible;',
+                                    'class' => 'relative z-10'
+                                ])
+                                ->default([])
+                                ->schema([
+                                    Forms\Components\Select::make('crop_id')
+                                        ->label('Tray')
+                                        ->options(function (callable $get) {
+                                            $recipeId = $get('../../recipe_id');
+                                            if (!$recipeId) {
+                                                return [];
+                                            }
+                                            
+                                            return Crop::with(['recipe', 'currentStage'])
+                                                ->where('recipe_id', $recipeId)
+                                                ->whereHas('currentStage', function ($query) {
+                                                    $query->whereNotIn('code', ['harvested', 'cancelled']);
+                                                })
+                                                ->get()
+                                                ->mapWithKeys(function ($crop) {
+                                                    // Use the relationship directly to avoid the accessor
+                                                    $stage = $crop->getRelationValue('currentStage');
+                                                    $stageName = $stage ? $stage->name : 'Unknown';
+                                                    
+                                                    $plantedDate = $crop->planting_at ? $crop->planting_at->format('M j') : 'Not planted';
+                                                    return [$crop->id => "Tray {$crop->tray_number} - {$stageName} - {$plantedDate}"];
+                                                });
+                                        })
+                                        ->required()
+                                        ->searchable()
+                                        ->live()
+                                        ->dehydrated()
+                                        ->extraAttributes([
+                                            'style' => 'position: relative; z-index: 9998;',
+                                        ]),
+                                    Forms\Components\TextInput::make('harvested_weight_grams')
+                                        ->label('Weight (g)')
+                                        ->required()
+                                        ->numeric()
+                                        ->minValue(0)
+                                        ->step(0.01),
+                                    Forms\Components\TextInput::make('percentage_harvested')
+                                        ->label('% Harvested')
+                                        ->required()
+                                        ->numeric()
+                                        ->minValue(0)
+                                        ->maxValue(100)
+                                        ->default(100)
+                                        ->step(0.1)
+                                        ->suffix('%'),
+                                ]),
                             Forms\Components\Textarea::make('notes')
-                                ->label('Notes')
+                                ->label('General Notes')
                                 ->rows(3)
                                 ->columnSpanFull(),
                         ])
-                        ->columns(2),
+                        ->columns(1),
                 ])
-                ->modalWidth('lg')
-                ->action(function (array $data): void {
+                ->mutateFormDataUsing(function (array $data): array {
+                    // Debug: Log the form data to see what's being submitted
+                    Log::info('Harvest form data (full):', $data);
+                    Log::info('Harvest form data (crops only):', ['crops' => $data['crops'] ?? 'NOT SET']);
+                    
+                    // Validate that we have crops selected
+                    if (empty($data['crops']) || !is_array($data['crops']) || count($data['crops']) === 0) {
+                        throw new \Exception('At least one tray must be selected for harvest.');
+                    }
+                    
+                    // Validate each crop has required fields
+                    foreach ($data['crops'] as $index => $crop) {
+                        Log::info("Crop data for index {$index}:", [
+                            'raw_data' => $crop,
+                            'is_array' => is_array($crop),
+                            'keys' => is_array($crop) ? array_keys($crop) : 'NOT_ARRAY',
+                            'crop_id_present' => isset($crop['crop_id']),
+                            'crop_id_value' => $crop['crop_id'] ?? 'NOT_SET',
+                        ]);
+                        
+                        if (!is_array($crop) || empty($crop['crop_id'])) {
+                            throw new \Exception("Tray selection is required for item " . ($index + 1));
+                        }
+                        if (empty($crop['harvested_weight_grams']) || $crop['harvested_weight_grams'] <= 0) {
+                            throw new \Exception("Weight is required and must be greater than 0 for item " . ($index + 1));
+                        }
+                    }
+                    
+                    // Get master_cultivar_id from the selected recipe
+                    if (isset($data['recipe_id'])) {
+                        $recipe = \App\Models\Recipe::find($data['recipe_id']);
+                        if ($recipe && $recipe->master_cultivar_id) {
+                            $data['master_cultivar_id'] = $recipe->master_cultivar_id;
+                        }
+                    }
+                    
+                    // Calculate total weight and tray count from selected crops
+                    $totalWeight = 0;
+                    $totalTrays = 0;
+                    
+                    foreach ($data['crops'] as $crop) {
+                        $totalWeight += $crop['harvested_weight_grams'] ?? 0;
+                        $totalTrays += ($crop['percentage_harvested'] ?? 100) / 100;
+                    }
+                    
+                    $data['total_weight_grams'] = $totalWeight;
+                    $data['tray_count'] = round($totalTrays, 2);
+                    
+                    // Remove recipe_id as it's not stored in harvest table
+                    unset($data['recipe_id']);
+                    
+                    return $data;
+                })
+                ->using(function (array $data): Model {
+                    $crops = $data['crops'] ?? [];
+                    unset($data['crops']);
+                    
                     // Create the harvest record
-                    $harvest = Harvest::create([
-                        'master_cultivar_id' => $data['master_cultivar_id'],
-                        'user_id' => auth()->id(),
-                        'total_weight_grams' => $data['total_weight_grams'],
-                        'tray_count' => $data['tray_count'],
-                        'harvest_date' => $data['harvest_date'],
-                        'notes' => $data['notes'] ?? null,
-                    ]);
-
-                    Notification::make()
-                        ->title('Harvest Recorded')
-                        ->success()
-                        ->body("Harvested {$data['tray_count']} trays with total weight {$data['total_weight_grams']}g")
-                        ->send();
-                }),
+                    $harvest = Harvest::create($data);
+                    
+                    // Attach crops with pivot data and update their status
+                    if (!empty($crops)) {
+                        $harvestedStage = \App\Models\CropStage::where('code', 'harvested')->first();
+                        
+                        foreach ($crops as $crop) {
+                            $harvest->crops()->attach($crop['crop_id'], [
+                                'harvested_weight_grams' => $crop['harvested_weight_grams'],
+                                'percentage_harvested' => $crop['percentage_harvested'] ?? 100,
+                                'notes' => $crop['notes'] ?? null,
+                            ]);
+                            
+                            // Update the crop status to harvested with relevant timestamps
+                            if ($harvestedStage) {
+                                \App\Models\Crop::where('id', $crop['crop_id'])
+                                    ->update([
+                                        'current_stage_id' => $harvestedStage->id,
+                                        'harvested_at' => $data['harvest_date'] ?? now(),
+                                        'harvest_weight_grams' => $crop['harvested_weight_grams'],
+                                    ]);
+                            }
+                        }
+                    }
+                    
+                    return $harvest;
+                })
+                ->successNotificationTitle('Harvest created successfully'),
         ];
     }
 
@@ -111,6 +230,19 @@ class ListHarvests extends ListRecords
     {
         return [
             HarvestResource\Widgets\WeeklyHarvestStats::class,
+            HarvestResource\Widgets\WeeklyVarietyComparison::class,
+            HarvestResource\Widgets\HarvestTrendsChart::class,
+        ];
+    }
+    
+    public function getHeaderWidgetsColumns(): int | array
+    {
+        return [
+            'default' => 1,
+            'sm' => 1,
+            'md' => 1,
+            'lg' => 2,
+            'xl' => 2,
         ];
     }
 }

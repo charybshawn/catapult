@@ -131,7 +131,8 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                                 
                                 // Add all other active suppliers
                                 $matchedSupplierIds = collect($this->supplierMatches)->pluck('supplier.id')->toArray();
-                                $otherSuppliers = Supplier::where('is_active', true)
+                                $otherSuppliers = Supplier::with('supplierType')
+                                    ->where('is_active', true)
                                     ->whereNotIn('id', $matchedSupplierIds)
                                     ->orderBy('name')
                                     ->get();
@@ -238,7 +239,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                                     return '';
                                 }
                                 
-                                $supplier = Supplier::find($value);
+                                $supplier = Supplier::with('supplierType')->find($value);
                                 return $supplier ? $supplier->name : "Supplier #{$value}";
                             }),
                             
@@ -336,6 +337,9 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                 
                 // Check for existing mapping
                 $existingMapping = SupplierSourceMapping::findMappingForSource($sourceUrl);
+                if ($existingMapping) {
+                    $existingMapping->load('supplier.supplierType');
+                }
                 Log::debug('SeedScrapeUploader: Checked for existing supplier mapping', [
                     'source_url' => $sourceUrl,
                     'mapping_exists' => $existingMapping !== null,
@@ -425,7 +429,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
         ]);
         
         try {
-            $supplier = Supplier::find($this->selectedSupplier);
+            $supplier = Supplier::with('supplierType')->find($this->selectedSupplier);
             
             if (!$supplier) {
                 Log::error('SeedScrapeUploader: Supplier not found', [
@@ -847,7 +851,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
     public function table(Table $table): Table
     {
         return $table
-            ->query(SeedScrapeUpload::query()->with(['supplier', 'uploadedBy']))
+            ->query(SeedScrapeUpload::query()->with(['supplier.supplierType', 'uploadedBy']))
             ->columns([
                 Tables\Columns\TextColumn::make('filename')
                     ->label('File')

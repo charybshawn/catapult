@@ -242,12 +242,6 @@ class CropPlanResource extends Resource
                     ->query(fn (Builder $query) => $query->where('is_missing_recipe', true)),
             ])
             ->headerActions([
-                Tables\Actions\Action::make('manual_planning')
-                    ->label('Manual Crop Planning')
-                    ->icon('heroicon-o-calculator')
-                    ->color('success')
-                    ->url(static::getUrl('manual-planning'))
-                    ->button(),
             ])
             ->actions([
                 Tables\Actions\Action::make('approve')
@@ -384,7 +378,6 @@ class CropPlanResource extends Resource
             'index' => Pages\ListCropPlans::route('/'),
             'calendar' => Pages\CalendarCropPlans::route('/calendar'),
             'edit' => Pages\EditCropPlan::route('/{record}/edit'),
-            'manual-planning' => Pages\ManualCropPlanning::route('/manual-planning'),
         ];
     }
 

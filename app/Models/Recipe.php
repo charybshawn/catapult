@@ -34,7 +34,6 @@ class Recipe extends Model
         'lot_number',
         'lot_depleted_at',
         'soil_consumable_id',
-        'seed_density',
         'germination_days',
         'blackout_days',
         'days_to_maturity',

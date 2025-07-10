@@ -31,7 +31,7 @@ class SupplierMatchingService
             'original_host' => parse_url($sourceUrl, PHP_URL_HOST)
         ]);
         
-        $suppliers = Supplier::where('is_active', true)->get();
+        $suppliers = Supplier::with('supplierType')->where('is_active', true)->get();
         $matches = [];
         
         Log::debug('SupplierMatchingService: Loaded active suppliers for matching', [

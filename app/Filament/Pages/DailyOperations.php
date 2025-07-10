@@ -31,7 +31,8 @@ class DailyOperations extends Page
         $today = Carbon::today();
         
         return [
-            'crops_to_advance' => Crop::whereNotIn('current_stage', ['harvested'])
+            'crops_to_advance' => Crop::join('crop_stages', 'crops.current_stage_id', '=', 'crop_stages.id')
+                ->where('crop_stages.code', '!=', 'harvested')
                 ->whereRaw("time_to_next_stage_minutes <= 0")
                 ->count(),
             'todays_alerts' => CropAlert::whereDate('next_run_at', $today)
@@ -39,9 +40,11 @@ class DailyOperations extends Page
                 ->count(),
             'low_stock_items' => Consumable::whereRaw('(initial_stock - consumed_quantity) <= restock_threshold')
                 ->count(),
-            'pending_orders' => Order::where('status', 'pending')
+            'pending_orders' => Order::join('order_statuses', 'orders.status_id', '=', 'order_statuses.id')
+                ->where('order_statuses.code', '=', 'pending')
                 ->count(),
-            'crops_ready_to_harvest' => Crop::where('current_stage', 'light')
+            'crops_ready_to_harvest' => Crop::join('crop_stages', 'crops.current_stage_id', '=', 'crop_stages.id')
+                ->where('crop_stages.code', '=', 'light')
                 ->whereRaw("time_to_next_stage_minutes <= 0")
                 ->count(),
         ];

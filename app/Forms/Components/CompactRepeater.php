@@ -10,6 +10,8 @@ class CompactRepeater extends Repeater
     
     protected bool $isCompact = true;
     
+    protected bool $isFlat = true;
+    
     protected array $columnWidths = [];
     
     public function compact(bool $condition = true): static
@@ -34,5 +36,17 @@ class CompactRepeater extends Repeater
     public function getColumnWidths(): array
     {
         return $this->columnWidths;
+    }
+    
+    public function flat(bool $condition = true): static
+    {
+        $this->isFlat = $condition;
+        
+        return $this;
+    }
+    
+    public function isFlat(): bool
+    {
+        return $this->isFlat;
     }
 }

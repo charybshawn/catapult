@@ -72,9 +72,10 @@ trait ConsumableTableComponents
                 ->formatStateUsing(function ($state, $record) {
                     if (!$record) return $state;
                     
-                    // For seed consumables, show total weight
+                    // For seed consumables, show actual remaining amount
                     if ($record->consumableType && $record->consumableType->isSeed()) {
-                        return "{$record->remaining_quantity} {$record->quantity_unit}";
+                        $remaining = max(0, $record->total_quantity - $record->consumed_quantity);
+                        return "{$remaining} {$record->quantity_unit}";
                     }
                     
                     // For other types, use the consumable unit symbol
@@ -112,8 +113,8 @@ trait ConsumableTableComponents
                 ->getStateUsing(function ($record) {
                     if (!$record || !$record->consumableType || !$record->consumableType->isSeed()) return null;
                     
-                    // Use the remaining_quantity field directly for seeds
-                    return $record->remaining_quantity;
+                    // Calculate actual remaining seed: total_quantity - consumed_quantity
+                    return max(0, $record->total_quantity - $record->consumed_quantity);
                 })
                 ->formatStateUsing(function ($state, $record) {
                     if (!$record || !$record->consumableType || !$record->consumableType->isSeed() || $state === null) return '-';
@@ -123,16 +124,22 @@ trait ConsumableTableComponents
                 ->numeric()
                 ->sortable(query: fn (Builder $query, string $direction): Builder => 
                     $query->whereHas('consumableType', fn ($q) => $q->where('code', 'seed'))
-                          ->orderByRaw("remaining_quantity {$direction}")
+                          ->orderByRaw("(total_quantity - consumed_quantity) {$direction}")
                 )
                 ->size('sm')
                 ->toggleable(),
             Tables\Columns\TextColumn::make('percentage_remaining')
                 ->label('% Remaining')
                 ->getStateUsing(function ($record) {
-                    if (!$record || !$record->consumableType || !$record->consumableType->isSeed() || !$record->total_quantity || $record->total_quantity <= 0) return null;
+                    if (!$record || !$record->consumableType || !$record->consumableType->isSeed()) return null;
                     
-                    $percentage = ($record->remaining_quantity / $record->total_quantity) * 100;
+                    // For seeds, calculate percentage based on original purchase vs current amount
+                    $originalAmount = $record->initial_stock * $record->quantity_per_unit;
+                    $currentAmount = $record->total_quantity;
+                    
+                    if ($originalAmount <= 0) return null;
+                    
+                    $percentage = ($currentAmount / $originalAmount) * 100;
                     return round($percentage, 1);
                 })
                 ->formatStateUsing(function ($state) {
@@ -151,7 +158,9 @@ trait ConsumableTableComponents
                     $query->whereHas('consumableType', fn ($q) => $q->where('code', 'seed'))
                           ->whereNotNull('total_quantity')
                           ->where('total_quantity', '>', 0)
-                          ->orderByRaw("(remaining_quantity / total_quantity * 100) {$direction}")
+                          ->where('initial_stock', '>', 0)
+                          ->where('quantity_per_unit', '>', 0)
+                          ->orderByRaw("(total_quantity / (initial_stock * quantity_per_unit) * 100) {$direction}")
                 )
                 ->size('sm')
                 ->toggleable(),
