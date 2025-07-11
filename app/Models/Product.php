@@ -418,7 +418,7 @@ class Product extends Model
     /**
      * Get the wholesale price for a price variation (with discount applied).
      */
-    public function getWholesalePrice(?int $priceVariationId = null, ?int $packagingTypeId = null, ?User $customer = null): float
+    public function getWholesalePrice(?int $priceVariationId = null, ?int $packagingTypeId = null, ?Customer $customer = null): float
     {
         $retailPrice = $this->getRetailPrice($priceVariationId, $packagingTypeId);
         
@@ -463,7 +463,7 @@ class Product extends Model
     /**
      * Get price for a specific customer, considering their type and individual discount.
      */
-    public function getPriceForSpecificCustomer(User $customer, ?int $priceVariationId = null, ?int $packagingTypeId = null): float
+    public function getPriceForSpecificCustomer(Customer $customer, ?int $priceVariationId = null, ?int $packagingTypeId = null): float
     {
         if ($customer->isWholesaleCustomer()) {
             return $this->getWholesalePrice($priceVariationId, $packagingTypeId, $customer);

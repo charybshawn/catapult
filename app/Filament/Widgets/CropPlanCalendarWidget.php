@@ -12,6 +12,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 use Saade\FilamentFullCalendar\Actions\EditAction;
 use Saade\FilamentFullCalendar\Actions\ViewAction;
 use Saade\FilamentFullCalendar\Widgets\FullCalendarWidget;
@@ -48,135 +49,87 @@ class CropPlanCalendarWidget extends FullCalendarWidget
     }
 
     /**
-     * Fetch events from aggregated crop plans
+     * Fetch events from individual crop plans and aggregate them for display
      */
     public function fetchEvents(array $info): array
     {
         $start = Carbon::parse($info['start']);
         $end = Carbon::parse($info['end']);
 
-        $events = [];
-
-        // Fetch aggregated crop plans within the date range
-        $aggregatedPlans = CropPlanAggregate::with(['variety', 'cropPlans'])
-            ->where(function ($query) use ($start, $end) {
-                $query->whereBetween('plant_date', [$start, $end])
-                    ->orWhereBetween('seed_soak_date', [$start, $end]);
-            })
-            ->get();
-
-        foreach ($aggregatedPlans as $plan) {
-            // Determine the primary date (seed soak if exists, otherwise plant date)
-            $eventDate = $plan->seed_soak_date ?? $plan->plant_date;
-            
-            if (!$eventDate) {
-                continue;
-            }
-
-            // Get color based on status
-            $color = $this->getStatusColor($plan->status);
-
-            // Build event title with key information
-            $variety = $plan->variety->common_name ?? 'Unknown Variety';
-            $title = sprintf(
-                "%s\n%.1fg (%d trays)%s",
-                $variety,
-                $plan->total_grams_needed,
-                $plan->total_trays_needed,
-                $plan->seed_soak_date ? "\n[Seed Soak]" : ""
-            );
-
-            $events[] = [
-                'id' => 'aggregated_' . $plan->id,
-                'title' => $title,
-                'start' => $eventDate->format('Y-m-d'),
-                'backgroundColor' => $color,
-                'borderColor' => $color,
-                'textColor' => $this->getTextColor($color),
-                'extendedProps' => [
-                    'type' => 'aggregated',
-                    'model_id' => $plan->id,
-                    'variety' => $variety,
-                    'total_grams' => $plan->total_grams_needed,
-                    'total_trays' => $plan->total_trays_needed,
-                    'seed_soak_required' => !is_null($plan->seed_soak_date),
-                    'plant_date' => $plan->plant_date?->format('Y-m-d'),
-                    'harvest_date' => $plan->harvest_date?->format('Y-m-d'),
-                    'status' => $plan->status,
-                    'order_count' => $plan->total_orders,
-                ],
-            ];
-
-            // If there's a seed soak date AND a plant date, add a secondary event for planting
-            if ($plan->seed_soak_date && $plan->plant_date && !$plan->seed_soak_date->isSameDay($plan->plant_date)) {
-                $events[] = [
-                    'id' => 'aggregated_plant_' . $plan->id,
-                    'title' => $variety . "\n[Plant after soak]",
-                    'start' => $plan->plant_date->format('Y-m-d'),
-                    'backgroundColor' => $this->lightenColor($color),
-                    'borderColor' => $color,
-                    'textColor' => $this->getTextColor($color),
-                    'extendedProps' => [
-                        'type' => 'aggregated_planting',
-                        'model_id' => $plan->id,
-                        'variety' => $variety,
-                        'is_secondary' => true,
-                    ],
-                ];
-            }
-        }
-
-        // Also fetch individual crop plans that aren't part of aggregations
-        $individualPlans = CropPlan::with(['variety', 'recipe', 'status', 'order.customer'])
-            ->whereNull('aggregated_crop_plan_id')
+        // Fetch all individual crop plans within the date range
+        $cropPlans = CropPlan::with(['variety', 'order.customer', 'status'])
             ->where(function ($query) use ($start, $end) {
                 $query->whereBetween('plant_by_date', [$start, $end])
                     ->orWhereBetween('seed_soak_date', [$start, $end]);
             })
             ->get();
 
-        foreach ($individualPlans as $plan) {
-            // Determine the primary date
+        // Group plans by variety and date for aggregation
+        $groupedPlans = $cropPlans->groupBy(function ($plan) {
             $eventDate = $plan->seed_soak_date ?? $plan->plant_by_date;
+            $variety = $plan->variety->common_name ?? 'Unknown';
+            $cultivar = $plan->cultivar ? " ({$plan->cultivar})" : '';
+            return $eventDate->format('Y-m-d') . '|' . $variety . $cultivar;
+        });
+
+        $events = [];
+
+        foreach ($groupedPlans as $key => $plans) {
+            [$date, $varietyName] = explode('|', $key);
             
-            if (!$eventDate) {
-                continue;
-            }
+            // Calculate totals for this variety/date combination
+            $totalGrams = $plans->sum('grams_needed');
+            $totalTrays = $plans->sum('trays_needed');
+            $orderCount = $plans->count();
+            $firstPlan = $plans->first();
+            
+            // Determine if this is seed soak or plant date
+            $isSeedSoak = $plans->contains(fn($plan) => $plan->seed_soak_date && $plan->seed_soak_date->format('Y-m-d') == $date);
+            
+            // Get status color (use most common status)
+            $statusCounts = $plans->groupBy('status.code')->map->count();
+            $dominantStatus = $statusCounts->sortDesc()->keys()->first() ?? 'draft';
+            $color = $this->getStatusColor($dominantStatus);
 
-            // Get color based on status
-            $color = $plan->status ? $this->getStatusColor($plan->status->code) : '#6b7280';
-
-            // Build event title
-            $variety = $plan->variety->common_name ?? ($plan->recipe->name ?? 'Unknown');
-            $customer = $plan->order->customer->contact_name ?? 'Unknown Customer';
+            // Build aggregated event title
             $title = sprintf(
-                "%s\n%.1fg (%d trays)\n[%s]%s",
-                $variety,
-                $plan->grams_needed,
-                $plan->trays_needed,
-                $customer,
-                $plan->seed_soak_date ? "\n[Seed Soak]" : ""
+                "%s\n%.1fg (%d trays)\n%d orders%s",
+                $varietyName,
+                $totalGrams,
+                $totalTrays,
+                $orderCount,
+                $isSeedSoak ? "\n[Seed Soak]" : ""
             );
 
             $events[] = [
-                'id' => 'individual_' . $plan->id,
+                'id' => 'variety_' . md5($key),
                 'title' => $title,
-                'start' => $eventDate->format('Y-m-d'),
+                'start' => $date,
                 'backgroundColor' => $color,
                 'borderColor' => $color,
                 'textColor' => $this->getTextColor($color),
                 'extendedProps' => [
-                    'type' => 'individual',
-                    'model_id' => $plan->id,
-                    'variety' => $variety,
-                    'grams_needed' => $plan->grams_needed,
-                    'trays_needed' => $plan->trays_needed,
-                    'seed_soak_required' => !is_null($plan->seed_soak_date),
-                    'plant_date' => $plan->plant_by_date?->format('Y-m-d'),
-                    'harvest_date' => $plan->expected_harvest_date?->format('Y-m-d'),
-                    'status' => $plan->status?->code,
-                    'customer' => $customer,
-                    'order_id' => $plan->order_id,
+                    'type' => 'aggregated_variety',
+                    'variety' => $varietyName,
+                    'date' => $date,
+                    'total_grams' => $totalGrams,
+                    'total_trays' => $totalTrays,
+                    'order_count' => $orderCount,
+                    'is_seed_soak' => $isSeedSoak,
+                    'status' => $dominantStatus,
+                    'individual_plans' => $plans->map(function ($plan) {
+                        return [
+                            'id' => $plan->id,
+                            'order_id' => $plan->order_id,
+                            'customer' => $plan->order->customer->contact_name ?? 'Unknown',
+                            'grams_needed' => $plan->grams_needed,
+                            'trays_needed' => $plan->trays_needed,
+                            'status' => $plan->status->name ?? 'Unknown',
+                            'plant_date' => $plan->plant_by_date?->format('Y-m-d'),
+                            'seed_soak_date' => $plan->seed_soak_date?->format('Y-m-d'),
+                            'harvest_date' => $plan->expected_harvest_date?->format('Y-m-d'),
+                        ];
+                    })->toArray(),
                 ],
             ];
         }
@@ -240,48 +193,57 @@ class CropPlanCalendarWidget extends FullCalendarWidget
     protected function viewAction(): ViewAction
     {
         return ViewAction::make()
-            ->modalHeading(fn ($arguments) => $arguments['extendedProps']['variety'] ?? 'Crop Plan Details')
-            ->modalDescription(function ($arguments) {
-                $props = $arguments['extendedProps'];
-                $details = [];
-
-                if ($props['type'] === 'aggregated') {
-                    $details[] = "Total Orders: {$props['order_count']}";
-                    $details[] = "Total Grams: {$props['total_grams']}g";
-                    $details[] = "Total Trays: {$props['total_trays']}";
+            ->modalHeading(function ($arguments) {
+                // Debug: Let's see what we're getting
+                Log::info('Calendar modal arguments:', $arguments ?? []);
+                
+                // Extract event data from the click event
+                $event = $arguments['event'] ?? [];
+                $props = $event['extendedProps'] ?? [];
+                $variety = $props['variety'] ?? 'Crop Plan';
+                $date = $props['date'] ?? 'Details';
+                return $variety . ' - ' . $date;
+            })
+            ->modalContent(function ($arguments) {
+                // Extract event data from the click event
+                $event = $arguments['event'] ?? [];
+                $props = $event['extendedProps'] ?? [];
+                
+                Log::info('Calendar modal props:', $props);
+                
+                if (($props['type'] ?? '') === 'aggregated_variety') {
+                    $individualPlans = $props['individual_plans'] ?? [];
+                    
+                    return view('filament.widgets.crop-plan-calendar-modal', [
+                        'variety' => $props['variety'] ?? 'Unknown',
+                        'date' => $props['date'] ?? 'Unknown',
+                        'totalOrders' => $props['order_count'] ?? 0,
+                        'totalGrams' => $props['total_grams'] ?? 0,
+                        'totalTrays' => $props['total_trays'] ?? 0,
+                        'status' => ucfirst($props['status'] ?? 'unknown'),
+                        'isSeedSoak' => $props['is_seed_soak'] ?? false,
+                        'individualPlans' => $individualPlans,
+                    ]);
                 } else {
-                    $details[] = "Customer: {$props['customer']}";
-                    $details[] = "Grams Needed: {$props['grams_needed']}g";
-                    $details[] = "Trays Needed: {$props['trays_needed']}";
+                    return view('filament.widgets.crop-plan-calendar-modal-debug', [
+                        'props' => $props,
+                    ]);
                 }
-
-                if ($props['seed_soak_required']) {
-                    $details[] = "Seed Soak Required: Yes";
-                }
-
-                if ($props['plant_date']) {
-                    $details[] = "Plant Date: {$props['plant_date']}";
-                }
-
-                if ($props['harvest_date']) {
-                    $details[] = "Expected Harvest: {$props['harvest_date']}";
-                }
-
-                $details[] = "Status: " . ucfirst($props['status']);
-
-                return implode("\n", $details);
             })
             ->modalSubmitActionLabel('Close')
-            ->modalCancelActionLabel('Edit')
+            ->modalCancelActionLabel('View List')
             ->url(function ($arguments) {
-                $props = $arguments['extendedProps'];
+                $event = $arguments['event'] ?? [];
+                $props = $event['extendedProps'] ?? [];
                 
-                if ($props['type'] === 'aggregated') {
-                    // Link to aggregated crop plan view/edit page if it exists
-                    return null; // Adjust this based on your routes
+                if (($props['type'] ?? '') === 'aggregated_variety') {
+                    // Link to crop plans list filtered by this variety and date
+                    return route('filament.admin.resources.crop-plans.index', [
+                        'tableFilters[plant_by_date][value]' => $props['date'] ?? null,
+                    ]);
                 } else {
                     // Link to individual crop plan edit page
-                    return route('filament.admin.resources.crop-plans.edit', $props['model_id']);
+                    return route('filament.admin.resources.crop-plans.edit', $props['model_id'] ?? 1);
                 }
             });
     }

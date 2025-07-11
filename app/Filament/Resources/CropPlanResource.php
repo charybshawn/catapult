@@ -174,12 +174,23 @@ class CropPlanResource extends Resource
 
                 Tables\Columns\TextColumn::make('order.id')
                     ->label('Order')
-                    ->formatStateUsing(fn ($record) => "#{$record->order->id}")
-                    ->url(fn ($record) => route('filament.admin.resources.orders.edit', $record->order_id))
+                    ->formatStateUsing(fn ($record) => $record->order ? "#{$record->order->id}" : "#{$record->order_id}")
+                    ->url(fn ($record) => $record->order_id ? route('filament.admin.resources.orders.edit', $record->order_id) : null)
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('order.customer.contact_name')
                     ->label('Customer')
+                    ->formatStateUsing(fn ($record) => $record->order?->customer?->contact_name ?? 'Unknown')
+                    ->searchable()
+                    ->sortable(),
+                
+                Tables\Columns\TextColumn::make('variety.common_name')
+                    ->label('Variety')
+                    ->searchable()
+                    ->sortable(),
+                
+                Tables\Columns\TextColumn::make('cultivar')
+                    ->label('Cultivar')
                     ->searchable()
                     ->sortable(),
 
@@ -200,7 +211,16 @@ class CropPlanResource extends Resource
 
                 Tables\Columns\TextColumn::make('trays_needed')
                     ->label('Trays')
-                    ->sortable(),
+                    ->numeric()
+                    ->sortable()
+                    ->summarize(Tables\Columns\Summarizers\Sum::make()),
+                    
+                Tables\Columns\TextColumn::make('grams_needed')
+                    ->label('Grams')
+                    ->numeric()
+                    ->formatStateUsing(fn ($state) => number_format($state, 1) . 'g')
+                    ->sortable()
+                    ->summarize(Tables\Columns\Summarizers\Sum::make()),
 
                 Tables\Columns\TextColumn::make('plant_by_date')
                     ->label('Plant By')
@@ -369,6 +389,19 @@ class CropPlanResource extends Resource
                         })
                         ->requiresConfirmation(),
                 ]),
+            ])
+            ->groups([
+                Tables\Grouping\Group::make('variety.common_name')
+                    ->label('Variety')
+                    ->collapsible(),
+                Tables\Grouping\Group::make('plant_by_date')
+                    ->label('Plant Date')
+                    ->date()
+                    ->collapsible(),
+                Tables\Grouping\Group::make('expected_harvest_date')
+                    ->label('Harvest Date')
+                    ->date()
+                    ->collapsible(),
             ]);
     }
 

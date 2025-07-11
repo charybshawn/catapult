@@ -824,6 +824,81 @@ class OrderResource extends Resource
                         }
                     }),
                 
+                Tables\Actions\Action::make('convert_to_recurring')
+                    ->label('Convert to Recurring')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('primary')
+                    ->visible(fn (Order $record): bool => 
+                        !$record->is_recurring && 
+                        $record->status?->code !== 'template' &&
+                        $record->parent_recurring_order_id === null && // Not generated from recurring
+                        $record->customer &&
+                        $record->orderItems()->count() > 0
+                    )
+                    ->form([
+                        Forms\Components\Section::make('Recurring Settings')
+                            ->schema([
+                                Forms\Components\Select::make('frequency')
+                                    ->label('Frequency')
+                                    ->options([
+                                        'weekly' => 'Weekly',
+                                        'biweekly' => 'Bi-weekly',
+                                        'monthly' => 'Monthly',
+                                    ])
+                                    ->default('weekly')
+                                    ->required()
+                                    ->reactive(),
+                                    
+                                Forms\Components\TextInput::make('interval')
+                                    ->label('Interval (weeks)')
+                                    ->helperText('For bi-weekly: enter 2 for every 2 weeks')
+                                    ->numeric()
+                                    ->default(2)
+                                    ->minValue(1)
+                                    ->maxValue(12)
+                                    ->visible(fn (Get $get) => $get('frequency') === 'biweekly'),
+                                    
+                                Forms\Components\DatePicker::make('start_date')
+                                    ->label('Start Date')
+                                    ->default(now()->addWeek())
+                                    ->required()
+                                    ->minDate(now()),
+                                    
+                                Forms\Components\DatePicker::make('end_date')
+                                    ->label('End Date (Optional)')
+                                    ->helperText('Leave blank for indefinite recurring')
+                                    ->minDate(fn (Get $get) => $get('start_date')),
+                            ])
+                            ->columns(2),
+                    ])
+                    ->modalHeading('Convert Order to Recurring Template')
+                    ->modalDescription(fn (Order $record) => 
+                        "This will convert Order #{$record->id} into a recurring order template that will automatically generate new orders."
+                    )
+                    ->action(function (Order $record, array $data) {
+                        try {
+                            $recurringOrderService = app(\App\Services\RecurringOrderService::class);
+                            $convertedOrder = $recurringOrderService->convertToRecurringTemplate($record, $data);
+                            
+                            Notification::make()
+                                ->title('Order Converted Successfully')
+                                ->body("Order #{$record->id} has been converted to a recurring template.")
+                                ->success()
+                                ->actions([
+                                    \Filament\Notifications\Actions\Action::make('view')
+                                        ->label('View Template')
+                                        ->url(route('filament.admin.resources.recurring-orders.edit', ['record' => $convertedOrder->id]))
+                                ])
+                                ->send();
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Conversion Failed')
+                                ->body('Failed to convert order to recurring: ' . $e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
+                
                 Tables\Actions\Action::make('transition_status')
                     ->label('Change Status')
                     ->icon('heroicon-o-arrow-path')

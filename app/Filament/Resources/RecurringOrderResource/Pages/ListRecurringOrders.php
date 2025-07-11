@@ -23,22 +23,24 @@ class ListRecurringOrders extends ListRecords
                     $service = app(RecurringOrderService::class);
                     $results = $service->processRecurringOrders();
                     
-                    $generatedCount = count($results['generated']);
-                    $skippedCount = count($results['skipped']);
+                    $generatedCount = $results['generated'];
+                    $processedCount = $results['processed'];
+                    $deactivatedCount = $results['deactivated'];
                     $errorCount = count($results['errors']);
                     
                     if ($generatedCount > 0) {
                         Notification::make()
                             ->title('Orders Generated Successfully')
-                            ->body("Generated {$generatedCount} new orders" . 
-                                   ($skippedCount > 0 ? ", skipped {$skippedCount}" : "") . 
+                            ->body("Generated {$generatedCount} new orders from {$processedCount} templates" . 
+                                   ($deactivatedCount > 0 ? ", deactivated {$deactivatedCount}" : "") . 
                                    ($errorCount > 0 ? ", {$errorCount} errors" : ""))
                             ->success()
                             ->send();
-                    } elseif ($skippedCount > 0) {
+                    } elseif ($processedCount > 0) {
                         Notification::make()
                             ->title('No Orders Generated')
-                            ->body("All {$skippedCount} recurring orders were skipped (not yet due)")
+                            ->body("Processed {$processedCount} recurring orders but none were due for generation" . 
+                                   ($deactivatedCount > 0 ? ", deactivated {$deactivatedCount}" : ""))
                             ->warning()
                             ->send();
                     } else {

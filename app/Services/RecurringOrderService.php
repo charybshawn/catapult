@@ -266,4 +266,89 @@ class RecurringOrderService
             'upcoming_week' => $upcomingWeek
         ];
     }
+
+    /**
+     * Convert a regular order into a recurring order template.
+     */
+    public function convertToRecurringTemplate(Order $order, array $recurringSettings): Order
+    {
+        // Validate that the order can be converted
+        if ($order->is_recurring) {
+            throw new \InvalidArgumentException('Order is already a recurring order');
+        }
+
+        if (!$order->customer) {
+            throw new \InvalidArgumentException('Order must have a customer to be converted to recurring');
+        }
+
+        if ($order->orderItems()->count() === 0) {
+            throw new \InvalidArgumentException('Order must have order items to be converted to recurring');
+        }
+        
+        // Map form data to expected keys
+        $mappedSettings = [
+            'frequency' => $recurringSettings['frequency'],
+            'start_date' => $recurringSettings['start_date'], 
+            'end_date' => $recurringSettings['end_date'] ?? null,
+            'interval' => $recurringSettings['interval'] ?? 1,
+            'days_of_week' => null, // Not used in this conversion
+        ];
+
+        // Get template status for recurring orders
+        $templateStatus = \App\Models\OrderStatus::where('code', 'template')->first() ?: 
+                         \App\Models\OrderStatus::where('code', 'draft')->first();
+
+        if (!$templateStatus) {
+            throw new \InvalidArgumentException('No suitable status found for recurring template');
+        }
+
+        // Update the order to be a recurring template
+        $order->update([
+            'is_recurring' => true,
+            'is_recurring_active' => true,
+            'parent_recurring_order_id' => null, // This is the template, not a generated order
+            'status_id' => $templateStatus->id,
+            'recurring_frequency' => $mappedSettings['frequency'],
+            'recurring_start_date' => $mappedSettings['start_date'],
+            'recurring_end_date' => $mappedSettings['end_date'],
+            'recurring_interval' => $mappedSettings['interval'],
+            'recurring_days_of_week' => $mappedSettings['days_of_week'],
+            'harvest_date' => null, // Templates don't have specific dates
+            'delivery_date' => null, // Templates don't have specific dates
+            'next_generation_date' => $this->calculateNextGenerationDate($order, $mappedSettings),
+        ]);
+
+        Log::info('Converted order to recurring template', [
+            'order_id' => $order->id,
+            'customer' => $order->customer->contact_name,
+            'frequency' => $mappedSettings['frequency'],
+            'start_date' => $mappedSettings['start_date'],
+            'converted_by' => auth()->user()?->name ?? 'System'
+        ]);
+
+        return $order->fresh();
+    }
+
+    /**
+     * Calculate the next generation date for a new recurring template.
+     */
+    private function calculateNextGenerationDate(Order $order, array $recurringSettings): Carbon
+    {
+        $startDate = Carbon::parse($recurringSettings['start_date']);
+        $frequency = $recurringSettings['frequency'];
+        $interval = $recurringSettings['interval'] ?? 1;
+
+        switch ($frequency) {
+            case 'weekly':
+                return $startDate->copy()->addWeeks($interval);
+            case 'biweekly':
+                return $startDate->copy()->addWeeks(2 * $interval);
+            case 'monthly':
+                return $startDate->copy()->addMonths($interval);
+            case 'quarterly':
+                return $startDate->copy()->addMonths(3 * $interval);
+            default:
+                return $startDate->copy()->addWeek();
+        }
+    }
 }

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Spatie\Activitylog\LogOptions;
 use App\Traits\Logging\ExtendedLogsActivity;
 
@@ -28,6 +29,8 @@ class Order extends Model
         'status_id',
         'crop_status_id',
         'fulfillment_status_id',
+        'payment_status_id',
+        'delivery_status_id',
         'customer_type',
         'order_type_id',
         'billing_frequency',
@@ -491,58 +494,73 @@ class Order extends Model
         $newOrder->parent_recurring_order_id = $this->id;
         $newOrder->harvest_date = $nextDate->copy();
         $newOrder->delivery_date = $nextDate->copy()->addDay(); // Delivery next day
+        $newOrder->is_recurring = false; // Generated orders are not recurring themselves
         
-        // For B2B orders, keep the same order_type_id and billing_frequency
-        // but don't make the generated order recurring itself
-        if ($this->isB2BRecurringTemplate()) {
-            $newOrder->is_recurring = false;
-            $pendingStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
-            if ($pendingStatus) {
-                $newOrder->status_id = $pendingStatus->id;
-            }
-            $pendingUnifiedStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
-            if ($pendingUnifiedStatus) {
-                $newOrder->status_id = $pendingUnifiedStatus->id;
-            }
-        } else {
-            $pendingStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
-            if ($pendingStatus) {
-                $newOrder->status_id = $pendingStatus->id;
-            }
-            $pendingUnifiedStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
-            if ($pendingUnifiedStatus) {
-                $newOrder->status_id = $pendingUnifiedStatus->id;
-            }
+        // Set default statuses for generated orders
+        $pendingOrderStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
+        if ($pendingOrderStatus) {
+            $newOrder->status_id = $pendingOrderStatus->id;
+        }
+        
+        $pendingPaymentStatus = \App\Models\PaymentStatus::where('code', 'pending')->first();
+        if ($pendingPaymentStatus) {
+            $newOrder->payment_status_id = $pendingPaymentStatus->id;
+        }
+        
+        // Ensure relationships are loaded BEFORE saving the order
+        if (!$this->relationLoaded('orderItems')) {
+            $this->load(['orderItems.product', 'orderItems.priceVariation', 'customer']);
         }
         
         $newOrder->save();
-        
-        // Ensure relationships are loaded to avoid lazy loading in the loop
-        if (!$this->relationLoaded('orderItems')) {
-            $this->load(['orderItems.product', 'orderItems.priceVariation']);
-        }
-        if (!$newOrder->relationLoaded('customer')) {
-            $newOrder->load('customer');
-        }
         
         // Copy order items with recalculated prices
         foreach ($this->orderItems as $item) {
             $currentPrice = $item->price; // Default to original price
             
             // Recalculate price based on current customer and product pricing
-            if ($item->product && $newOrder->customer) {
-                $currentPrice = $item->product->getPriceForSpecificCustomer(
-                    $newOrder->customer, 
-                    $item->price_variation_id
-                );
+            if ($item->product && $this->customer) {
+                try {
+                    $currentPrice = $item->product->getPriceForSpecificCustomer(
+                        $this->customer, 
+                        $item->price_variation_id
+                    );
+                } catch (\Exception $e) {
+                    // If price calculation fails, use original price
+                    Log::warning('Failed to calculate price for recurring order item', [
+                        'template_id' => $this->id,
+                        'product_id' => $item->product_id,
+                        'error' => $e->getMessage()
+                    ]);
+                    $currentPrice = $item->price;
+                }
             }
             
-            $newOrder->orderItems()->create([
-                'product_id' => $item->product_id,
-                'price_variation_id' => $item->price_variation_id,
-                'quantity' => $item->quantity,
-                'price' => $currentPrice,
-            ]);
+            try {
+                $newOrderItem = $newOrder->orderItems()->create([
+                    'product_id' => $item->product_id,
+                    'price_variation_id' => $item->price_variation_id,
+                    'quantity' => $item->quantity,
+                    'price' => $currentPrice,
+                ]);
+                
+                Log::info('Created order item for recurring order', [
+                    'template_id' => $this->id,
+                    'new_order_id' => $newOrder->id,
+                    'order_item_id' => $newOrderItem->id,
+                    'product_id' => $item->product_id,
+                    'quantity' => $item->quantity,
+                    'price' => $currentPrice,
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to create order item for recurring order', [
+                    'template_id' => $this->id,
+                    'new_order_id' => $newOrder->id,
+                    'product_id' => $item->product_id,
+                    'error' => $e->getMessage()
+                ]);
+                throw $e;
+            }
         }
         
         // Copy packaging

@@ -50,7 +50,7 @@ class CropPlanAggregate extends Model
      */
     public function cropPlans(): HasMany
     {
-        return $this->hasMany(CropPlan::class);
+        return $this->hasMany(CropPlan::class, 'aggregated_crop_plan_id');
     }
 
     /**
@@ -98,7 +98,13 @@ class CropPlanAggregate extends Model
      */
     public function getTotalOrdersAttribute()
     {
-        return $this->cropPlans()->distinct('order_id')->count('order_id');
+        // Get from calculation_details if available, otherwise count crop plans
+        if ($this->calculation_details && isset($this->calculation_details['total_orders'])) {
+            return $this->calculation_details['total_orders'];
+        }
+        
+        // Fallback to counting crop plans with non-null order_id
+        return $this->cropPlans()->whereNotNull('order_id')->distinct('order_id')->count('order_id');
     }
 
     /**
