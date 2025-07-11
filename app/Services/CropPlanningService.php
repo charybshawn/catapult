@@ -288,7 +288,7 @@ class CropPlanningService
         // Break down the mix into component varieties
         $breakdown = $this->breakdownProductMix($product, $totalGramsNeeded);
 
-        foreach ($breakdown as $varietyId => $gramsNeeded) {
+        foreach ($breakdown as $varietyId => $componentData) {
             $varietyKey = $varietyId . '_' . $order->harvest_date->format('Y-m-d');
             
             // Skip if already processed (prevent duplicates)
@@ -297,7 +297,8 @@ class CropPlanningService
                     $order,
                     $product,
                     $varietyId,
-                    $gramsNeeded
+                    $componentData['grams'],
+                    $componentData['cultivar']
                 );
                 if ($plan) {
                     $plans->push($plan);
@@ -316,13 +317,15 @@ class CropPlanningService
      * @param Product $product
      * @param int $masterSeedCatalogId
      * @param float $gramsNeeded
+     * @param string|null $cultivar
      * @return CropPlan|null
      */
     protected function generatePlanForSingleVariety(
         Order $order, 
         Product $product, 
         int $masterSeedCatalogId, 
-        float $gramsNeeded
+        float $gramsNeeded,
+        ?string $cultivar = null
     ): ?CropPlan {
         // Get master seed catalog info
         $masterSeedCatalog = MasterSeedCatalog::find($masterSeedCatalogId);
@@ -335,8 +338,8 @@ class CropPlanningService
             return null;
         }
 
-        // Find active recipe for this product
-        $recipe = $this->findActiveRecipeForProduct($product);
+        // Find active recipe for this product/variety combination
+        $recipe = $this->findActiveRecipeForProductVariety($product, $masterSeedCatalogId);
         
         // Get draft status
         $draftStatus = CropPlanStatus::where('code', 'draft')->first();
@@ -354,6 +357,7 @@ class CropPlanningService
                 'order_id' => $order->id,
                 'recipe_id' => null,
                 'variety_id' => $masterSeedCatalogId,
+                'cultivar' => $cultivar,
                 'status_id' => $draftStatus->id,
                 'trays_needed' => 0, // Cannot calculate without recipe
                 'grams_needed' => $gramsNeeded,
@@ -417,6 +421,7 @@ class CropPlanningService
             'order_id' => $order->id,
             'recipe_id' => $recipe->id,
             'variety_id' => $masterSeedCatalogId,
+            'cultivar' => $cultivar,
             'status_id' => $draftStatus->id,
             'trays_needed' => $traysNeeded,
             'grams_needed' => $gramsNeeded,
@@ -457,7 +462,8 @@ class CropPlanningService
         Order $order, 
         Product $product, 
         int $masterSeedCatalogId, 
-        int $traysNeeded
+        int $traysNeeded,
+        ?string $cultivar = null
     ): ?CropPlan {
         // Get master seed catalog info
         $masterSeedCatalog = MasterSeedCatalog::find($masterSeedCatalogId);
@@ -470,8 +476,8 @@ class CropPlanningService
             return null;
         }
 
-        // Find active recipe for this product
-        $recipe = $this->findActiveRecipeForProduct($product);
+        // Find active recipe for this product/variety combination
+        $recipe = $this->findActiveRecipeForProductVariety($product, $masterSeedCatalogId);
         
         // Get draft status
         $draftStatus = CropPlanStatus::where('code', 'draft')->first();
@@ -489,6 +495,7 @@ class CropPlanningService
                 'order_id' => $order->id,
                 'recipe_id' => null,
                 'variety_id' => $masterSeedCatalogId,
+                'cultivar' => $cultivar,
                 'status_id' => $draftStatus->id,
                 'trays_needed' => $traysNeeded,
                 'grams_needed' => 0, // Cannot calculate without recipe
@@ -552,6 +559,7 @@ class CropPlanningService
             'order_id' => $order->id,
             'recipe_id' => $recipe->id,
             'variety_id' => $masterSeedCatalogId,
+            'cultivar' => $cultivar,
             'status_id' => $draftStatus->id,
             'trays_needed' => $traysNeeded,
             'grams_needed' => $totalGrams,
@@ -619,12 +627,41 @@ class CropPlanningService
     }
 
     /**
+     * Find active recipe for a product/variety combination
+     * Checks component-specific recipes first for mixes, then falls back to standard logic
+     * 
+     * @param Product $product
+     * @param int $masterSeedCatalogId
+     * @return Recipe|null
+     */
+    protected function findActiveRecipeForProductVariety(Product $product, int $masterSeedCatalogId): ?Recipe
+    {
+        // If product is a mix, check for component-specific recipe first
+        if ($product->product_mix_id && $product->productMix) {
+            $componentRecipe = $product->productMix->getComponentRecipe($masterSeedCatalogId);
+            if ($componentRecipe) {
+                Log::info('Found component-specific recipe for mix', [
+                    'product_id' => $product->id,
+                    'product_mix_id' => $product->product_mix_id,
+                    'master_seed_catalog_id' => $masterSeedCatalogId,
+                    'recipe_id' => $componentRecipe->id,
+                    'recipe_name' => $componentRecipe->name
+                ]);
+                return $componentRecipe;
+            }
+        }
+        
+        // Fall back to standard product recipe logic
+        return $this->findActiveRecipeForProduct($product);
+    }
+
+    /**
      * Find active recipe for a master seed catalog variety
      * 
      * @param int $masterSeedCatalogId
      * @return Recipe|null
      */
-    protected function findActiveRecipeForVariety(int $masterSeedCatalogId): ?Recipe
+    public function findActiveRecipeForVariety(int $masterSeedCatalogId): ?Recipe
     {
         // Get the master seed catalog
         $masterSeedCatalog = MasterSeedCatalog::find($masterSeedCatalogId);
@@ -857,7 +894,7 @@ class CropPlanningService
      * 
      * @param Product $product
      * @param float $gramsNeeded
-     * @return array [master_seed_catalog_id => grams]
+     * @return array [master_seed_catalog_id => ['grams' => float, 'cultivar' => string]]
      */
     public function breakdownProductMix(Product $product, float $gramsNeeded): array
     {
@@ -868,13 +905,16 @@ class CropPlanningService
             return $breakdown;
         }
 
-        // Load mix components
+        // Load mix components with pivot data
         $productMix->load('masterSeedCatalogs');
 
         foreach ($productMix->masterSeedCatalogs as $catalog) {
             $percentage = $catalog->pivot->percentage / 100;
             $componentGrams = $gramsNeeded * $percentage;
-            $breakdown[$catalog->id] = $componentGrams;
+            $breakdown[$catalog->id] = [
+                'grams' => $componentGrams,
+                'cultivar' => $catalog->pivot->cultivar
+            ];
         }
 
         return $breakdown;

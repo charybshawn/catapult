@@ -19,6 +19,8 @@ use Saade\FilamentFullCalendar\Widgets\FullCalendarWidget;
 class CropPlanCalendarWidget extends FullCalendarWidget
 {
     protected static ?string $heading = 'Crop Planning Calendar';
+    
+    public Model|string|int|null $record = null;
 
     /**
      * FullCalendar config options

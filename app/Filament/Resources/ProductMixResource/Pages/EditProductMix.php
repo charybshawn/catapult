@@ -11,12 +11,14 @@ use Illuminate\Support\Facades\Log;
 class EditProductMix extends BaseEditRecord
 {
     protected static string $resource = ProductMixResource::class;
+    
+    protected array $formData = [];
 
     protected function mutateFormDataBeforeFill(array $data): array
     {
         // Explicitly load the masterSeedCatalogs relationship data
         $components = $this->record->masterSeedCatalogs()
-            ->withPivot('percentage', 'cultivar')
+            ->withPivot('percentage', 'cultivar', 'recipe_id')
             ->get();
             
         $data['masterSeedCatalogs'] = $components->map(function ($catalog) {
@@ -25,6 +27,7 @@ class EditProductMix extends BaseEditRecord
                 'master_seed_catalog_id' => $catalog->id,
                 'cultivar' => $cultivar,
                 'percentage' => floatval($catalog->pivot->percentage),
+                'recipe_id' => $catalog->pivot->recipe_id,
                 'variety_selection' => $catalog->id . '|' . $cultivar,
             ];
         })->toArray();
@@ -42,10 +45,14 @@ class EditProductMix extends BaseEditRecord
     
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        // Store the form data for use in afterSave
+        $this->formData = $data;
+        
         // Log the data to debug
         Log::info('ProductMix save data:', [
             'data' => $data,
-            'masterSeedCatalogs' => $this->data['masterSeedCatalogs'] ?? []
+            'this_data_masterSeedCatalogs' => $this->data['masterSeedCatalogs'] ?? [],
+            'form_data_masterSeedCatalogs' => $data['masterSeedCatalogs'] ?? []
         ]);
         
         // Validate the percentages add up to 100
@@ -56,20 +63,43 @@ class EditProductMix extends BaseEditRecord
     
     protected function afterSave(): void
     {
-        // Manually sync the relationship with cultivar data
-        $components = $this->data['masterSeedCatalogs'] ?? [];
+        // Use the stored form data instead of $this->data
+        $components = $this->formData['masterSeedCatalogs'] ?? [];
         $syncData = [];
         
         foreach ($components as $component) {
-            if (isset($component['master_seed_catalog_id']) && isset($component['percentage'])) {
-                $syncData[$component['master_seed_catalog_id']] = [
-                    'percentage' => $component['percentage'],
-                    'cultivar' => $component['cultivar'] ?? null,
+            // Handle both new and existing components
+            $catalogId = null;
+            $cultivar = null;
+            $percentage = null;
+            $recipeId = null;
+            
+            // Check if this is a new component (has variety_selection)
+            if (isset($component['variety_selection']) && $component['variety_selection']) {
+                [$catalogId, $cultivar] = explode('|', $component['variety_selection']);
+                $percentage = $component['percentage'] ?? null;
+                $recipeId = $component['recipe_id'] ?? null;
+            } else {
+                // This is existing data
+                $catalogId = $component['master_seed_catalog_id'] ?? null;
+                $cultivar = $component['cultivar'] ?? null;
+                $percentage = $component['percentage'] ?? null;
+                $recipeId = $component['recipe_id'] ?? null;
+            }
+            
+            if ($catalogId && $percentage) {
+                $syncData[$catalogId] = [
+                    'percentage' => $percentage,
+                    'cultivar' => $cultivar,
+                    'recipe_id' => $recipeId,
                 ];
             }
         }
         
-        Log::info('Syncing components:', $syncData);
+        Log::info('Syncing components:', [
+            'raw_data' => $components,
+            'sync_data' => $syncData
+        ]);
         
         $this->record->masterSeedCatalogs()->sync($syncData);
     }

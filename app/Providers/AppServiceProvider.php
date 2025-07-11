@@ -129,6 +129,43 @@ class AppServiceProvider extends ServiceProvider
             fn (): string => '<script src="' . asset('js/filament-numeric-debounce-fix.js') . '"></script>'
         );
 
+        // Add custom CSS for dropdown z-index fixes - simplified approach
+        FilamentView::registerRenderHook(
+            PanelsRenderHook::HEAD_END,
+            function (): string {
+                return '<style>
+                    .fi-fo-repeater .fi-fo-select [role="listbox"] {
+                        z-index: 999999 !important;
+                        position: fixed !important;
+                        background-color: white !important;
+                        border: 1px solid #d1d5db !important;
+                        border-radius: 6px !important;
+                        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1) !important;
+                        max-height: 16rem !important;
+                        overflow-y: auto !important;
+                    }
+                    .fi-fo-repeater .fi-fo-select [role="listbox"] * {
+                        z-index: 999999 !important;
+                    }
+                    .fi-fo-repeater .fi-fo-select [role="listbox"] [role="option"] {
+                        padding: 8px 12px !important;
+                        color: #1f2937 !important;
+                        background-color: transparent !important;
+                        cursor: pointer !important;
+                    }
+                    .fi-fo-repeater .fi-fo-select [role="listbox"] [role="option"]:hover,
+                    .fi-fo-repeater .fi-fo-select [role="listbox"] [role="option"][data-headlessui-state~="active"] {
+                        background-color: #f3f4f6 !important;
+                    }
+                    .fi-fo-repeater,
+                    .fi-fo-repeater-item,
+                    .fi-fo-section {
+                        overflow: visible !important;
+                    }
+                </style>';
+            }
+        );
+
         if ($this->app->environment('production') && !$this->app->runningInConsole()) {
             // Prevent migrations in production unless explicitly overridden
             if (app()->environment('production') &&

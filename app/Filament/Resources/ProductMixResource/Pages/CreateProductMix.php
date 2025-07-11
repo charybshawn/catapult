@@ -29,15 +29,38 @@ class CreateProductMix extends BaseCreateRecord
         $syncData = [];
         
         foreach ($components as $component) {
-            if (isset($component['master_seed_catalog_id']) && isset($component['percentage'])) {
-                $syncData[$component['master_seed_catalog_id']] = [
-                    'percentage' => $component['percentage'],
-                    'cultivar' => $component['cultivar'] ?? null,
+            // Handle both new and existing components
+            $catalogId = null;
+            $cultivar = null;
+            $percentage = null;
+            $recipeId = null;
+            
+            // Check if this is a new component (has variety_selection)
+            if (isset($component['variety_selection']) && $component['variety_selection']) {
+                [$catalogId, $cultivar] = explode('|', $component['variety_selection']);
+                $percentage = $component['percentage'] ?? null;
+                $recipeId = $component['recipe_id'] ?? null;
+            } else {
+                // This is existing data
+                $catalogId = $component['master_seed_catalog_id'] ?? null;
+                $cultivar = $component['cultivar'] ?? null;
+                $percentage = $component['percentage'] ?? null;
+                $recipeId = $component['recipe_id'] ?? null;
+            }
+            
+            if ($catalogId && $percentage) {
+                $syncData[$catalogId] = [
+                    'percentage' => $percentage,
+                    'cultivar' => $cultivar,
+                    'recipe_id' => $recipeId,
                 ];
             }
         }
         
-        Log::info('Creating mix with components:', $syncData);
+        Log::info('Creating mix with components:', [
+            'raw_data' => $components,
+            'sync_data' => $syncData
+        ]);
         
         $this->record->masterSeedCatalogs()->sync($syncData);
     }

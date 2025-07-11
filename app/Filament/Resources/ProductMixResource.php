@@ -102,12 +102,12 @@ class ProductMixResource extends Resource
                             ->minItems(1)
                             ->reorderable()
                             ->columnWidths([
-                                'variety_selection' => '70%',
-                                'percentage' => '30%',
+                                'variety_selection' => '50%',
+                                'percentage' => '20%',
+                                'recipe_id' => '30%',
                             ])
                             ->extraAttributes([
-                                'style' => 'overflow: visible;',
-                                'class' => 'relative z-10'
+                                'style' => 'overflow: visible;'
                             ])
                             ->schema([
                                 Forms\Components\Select::make('variety_selection')
@@ -154,9 +154,7 @@ class ProductMixResource extends Resource
                                     ->dehydrated(false) // Don't save this field directly
                                     ->searchable()
                                     ->required()
-                                    ->extraAttributes([
-                                        'style' => 'position: relative; z-index: 50;'
-                                    ]),
+                                    ->extraAttributes([]),
                                 
                                 // Hidden fields to store the actual values
                                 Forms\Components\Hidden::make('master_seed_catalog_id'),
@@ -173,6 +171,20 @@ class ProductMixResource extends Resource
                                     ->step(0.01)
                                     ->inputMode('decimal')
                                     ->reactive(),
+                                    
+                                Forms\Components\Select::make('recipe_id')
+                                    ->label('Recipe (Optional)')
+                                    ->options(function () {
+                                        return \App\Models\Recipe::where('is_active', true)
+                                            ->whereNull('lot_depleted_at')
+                                            ->orderBy('name')
+                                            ->pluck('name', 'id')
+                                            ->toArray();
+                                    })
+                                    ->searchable()
+                                    ->placeholder('Use default recipe')
+                                    ->helperText('Leave empty to use the default recipe for this variety')
+                                    ->native(false),
                             ])
                             ->mutateRelationshipDataBeforeCreateUsing(function (array $data) {
                                 // Remove the variety_selection field as it's not part of the database
@@ -181,6 +193,11 @@ class ProductMixResource extends Resource
                                 // Ensure we have the required fields
                                 if (!isset($data['master_seed_catalog_id']) || !isset($data['percentage'])) {
                                     throw new \Exception('Missing required fields');
+                                }
+                                
+                                // Ensure recipe_id is properly handled (can be null)
+                                if (!isset($data['recipe_id'])) {
+                                    $data['recipe_id'] = null;
                                 }
                                 
                                 return $data;
@@ -194,6 +211,11 @@ class ProductMixResource extends Resource
                                     throw new \Exception('Missing required fields');
                                 }
                                 
+                                // Ensure recipe_id is properly handled (can be null)
+                                if (!isset($data['recipe_id'])) {
+                                    $data['recipe_id'] = null;
+                                }
+                                
                                 return $data;
                             })
                             ->mutateRelationshipDataBeforeFillUsing(function (array $data) {
@@ -204,6 +226,10 @@ class ProductMixResource extends Resource
                                 // Ensure percentage is properly cast
                                 if (isset($data['percentage'])) {
                                     $data['percentage'] = floatval($data['percentage']);
+                                }
+                                // Ensure recipe_id is properly handled (can be null)
+                                if (isset($data['recipe_id'])) {
+                                    $data['recipe_id'] = $data['recipe_id'] ? intval($data['recipe_id']) : null;
                                 }
                                 return $data;
                             })
@@ -217,7 +243,9 @@ class ProductMixResource extends Resource
             ->persistFiltersInSession()
             ->persistSortInSession()
             ->persistColumnSearchesInSession()
-            ->persistSearchInSession()            ->columns([
+            ->persistSearchInSession()
+            ->modifyQueryUsing(fn (Builder $query) => $query->with('masterSeedCatalogs'))
+            ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->label('Name')
                     ->searchable()
@@ -233,13 +261,13 @@ class ProductMixResource extends Resource
                         $components = $record->masterSeedCatalogs()
                             ->withPivot('percentage', 'cultivar')
                             ->get()
-                            ->map(fn ($catalog) => 
-                                "<span class='inline-flex items-center px-2 py-1 mr-1 mb-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full dark:bg-gray-700 dark:text-gray-300'>" .
+                            ->map(function ($catalog) {
+                                return "<span class='inline-flex items-center px-2 py-1 mr-1 mb-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full dark:bg-gray-700 dark:text-gray-300'>" .
                                 "{$catalog->common_name}" . 
                                 ($catalog->pivot->cultivar ? " ({$catalog->pivot->cultivar})" : "") .
                                 " - " . number_format($catalog->pivot->percentage, 2) . "%" .
-                                "</span>"
-                            )
+                                "</span>";
+                            })
                             ->join('');
                         
                         return $components ?: '<span class="text-gray-400">No components</span>';
@@ -255,6 +283,21 @@ class ProductMixResource extends Resource
                     ->badge()
                     ->color(fn (ProductMix $record): string => 
                         $record->products()->count() > 0 ? 'success' : 'gray'
+                    )
+                    ->sortable(false),
+                    
+                Tables\Columns\IconColumn::make('has_all_recipes')
+                    ->label('Recipes')
+                    ->getStateUsing(fn (ProductMix $record): bool => $record->hasAllRecipes())
+                    ->boolean()
+                    ->trueIcon('heroicon-o-check-circle')
+                    ->falseIcon('heroicon-o-exclamation-triangle')
+                    ->trueColor('success')
+                    ->falseColor('warning')
+                    ->tooltip(fn (ProductMix $record): string => 
+                        $record->hasAllRecipes() 
+                            ? 'All components have recipes'
+                            : 'Some components missing recipes'
                     )
                     ->sortable(false),
                     
@@ -302,6 +345,7 @@ class ProductMixResource extends Resource
                             $newMix->masterSeedCatalogs()->attach($catalog->id, [
                                 'percentage' => $catalog->pivot->percentage,
                                 'cultivar' => $catalog->pivot->cultivar,
+                                'recipe_id' => $catalog->pivot->recipe_id,
                             ]);
                         }
                         
