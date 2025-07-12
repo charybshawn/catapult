@@ -14,8 +14,8 @@ class SimpleBackupService
 
     public function __construct()
     {
-        // Use direct file system, check if path is relative to base or storage
-        $this->backupPath = config('backup.storage.path', 'database/backups');
+        // ALWAYS use database/backups - no exceptions
+        $this->backupPath = 'database/backups';
     }
 
     /**
@@ -28,12 +28,8 @@ class SimpleBackupService
         $lockHandle = null;
         
         try {
-            // Ensure backup directory exists - check if path starts with 'database' (new) or 'backups' (old storage)
-            if (str_starts_with($this->backupPath, 'database/')) {
-                $fullBackupDir = base_path($this->backupPath);
-            } else {
-                $fullBackupDir = storage_path('app/' . $this->backupPath);
-            }
+            // ALWAYS use database/backups directory - no conditional logic
+            $fullBackupDir = base_path($this->backupPath);
             
             if (!is_dir($fullBackupDir)) {
                 mkdir($fullBackupDir, 0755, true);
@@ -65,12 +61,8 @@ class SimpleBackupService
             // Get database connection details
             $config = config('database.connections.mysql');
             
-            // Full path to backup file
-            if (str_starts_with($this->backupPath, 'database/')) {
-                $backupPath = base_path($this->backupPath . '/' . $filename);
-            } else {
-                $backupPath = storage_path('app/' . $this->backupPath . '/' . $filename);
-            }
+            // Full path to backup file - ALWAYS in database/backups
+            $backupPath = base_path($this->backupPath . '/' . $filename);
             
             // Create mysqldump command
             $command = [
@@ -166,11 +158,8 @@ class SimpleBackupService
      */
     public function restoreBackup(string $filename): bool
     {
-        if (str_starts_with($this->backupPath, 'database/')) {
-            $fullFilepath = base_path($this->backupPath . '/' . $filename);
-        } else {
-            $fullFilepath = storage_path('app/' . $this->backupPath . '/' . $filename);
-        }
+        // ALWAYS use database/backups directory - no conditional logic
+        $fullFilepath = base_path($this->backupPath . '/' . $filename);
         
         if (!file_exists($fullFilepath)) {
             throw new \Exception("Backup file not found: {$filename}");
@@ -356,11 +345,8 @@ class SimpleBackupService
      */
     public function listBackups(): Collection
     {
-        if (str_starts_with($this->backupPath, 'database/')) {
-            $fullBackupDir = base_path($this->backupPath);
-        } else {
-            $fullBackupDir = storage_path('app/' . $this->backupPath);
-        }
+        // ALWAYS use database/backups directory - no conditional logic
+        $fullBackupDir = base_path($this->backupPath);
         
         // Debug: Log backup directory info
         error_log("SimpleBackupService: backupPath={$this->backupPath}, fullBackupDir={$fullBackupDir}, dir_exists=" . (is_dir($fullBackupDir) ? 'yes' : 'no'));
@@ -395,11 +381,8 @@ class SimpleBackupService
      */
     public function deleteBackup(string $filename): bool
     {
-        if (str_starts_with($this->backupPath, 'database/')) {
-            $filepath = base_path($this->backupPath . '/' . $filename);
-        } else {
-            $filepath = storage_path('app/' . $this->backupPath . '/' . $filename);
-        }
+        // ALWAYS use database/backups directory - no conditional logic
+        $filepath = base_path($this->backupPath . '/' . $filename);
         
         if (file_exists($filepath)) {
             return unlink($filepath);
@@ -412,11 +395,8 @@ class SimpleBackupService
      */
     public function downloadBackup(string $filename)
     {
-        if (str_starts_with($this->backupPath, 'database/')) {
-            $filepath = base_path($this->backupPath . '/' . $filename);
-        } else {
-            $filepath = storage_path('app/' . $this->backupPath . '/' . $filename);
-        }
+        // ALWAYS use database/backups directory - no conditional logic
+        $filepath = base_path($this->backupPath . '/' . $filename);
         
         if (!file_exists($filepath)) {
             throw new \Exception("Backup file not found: {$filename}");
