@@ -834,7 +834,7 @@ class DatabaseConsole extends Page
             // Log the merge activity
             $notes = $data['merge_notes'] ?? 'Schema file merged via database console';
             Log::info('Schema file merged successfully', [
-                'filename' => $fileName,
+                'filename' => basename($filePath ?? 'unknown'),
                 'notes' => $notes,
                 'backup_created' => $data['create_backup_first'] ?? false,
                 'backup_file' => $backupFilename ?? null,
