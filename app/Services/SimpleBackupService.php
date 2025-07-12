@@ -85,21 +85,29 @@ class SimpleBackupService
                 '--skip-routines',
                 '--skip-triggers',
                 '--skip-events',
+                '--quick',
+                '--lock-tables=false',
             ];
             
             // Add views exclusion if requested
             if ($excludeViews) {
-                // Get all views and exclude them (views are schema, not data)
+                // Always use the ignore-table approach for views
                 $views = $this->getDatabaseViews();
                 foreach ($views as $view) {
                     $command[] = '--ignore-table=' . $config['database'] . '.' . $view;
                 }
                 
-                // Also add the standard mysqldump flag to exclude views
                 $command[] = '--no-create-db';
             }
             
+            // Add database name at the end
             $command[] = $config['database'];
+            
+            // Try to find mysqldump in known locations
+            $mysqldumpPath = $this->findMysqldump();
+            if ($mysqldumpPath) {
+                $command[0] = $mysqldumpPath;
+            }
             
             $process = new Process($command, base_path());
             
@@ -480,6 +488,17 @@ class SimpleBackupService
             '/Applications/Herd.app/Contents/Resources/bin',
         ];
         
+        // Add DBngin MySQL paths dynamically
+        $dbngingBase = '/Users/Shared/DBngin/mysql';
+        if (is_dir($dbngingBase)) {
+            $mysqlDirs = glob($dbngingBase . '/*/bin');
+            foreach ($mysqlDirs as $binDir) {
+                if (is_dir($binDir)) {
+                    $defaultPaths[] = $binDir;
+                }
+            }
+        }
+        
         $pathsToAdd = $additionalPaths ?? $defaultPaths;
         
         return $currentPath . ':' . implode(':', $pathsToAdd);
@@ -601,5 +620,102 @@ class SimpleBackupService
         }
         
         return round($bytes, $precision) . ' ' . $units[$i];
+    }
+
+    /**
+     * Find mysqldump executable in known locations
+     */
+    private function findMysqldump(): ?string
+    {
+        $staticPaths = [
+            '/usr/bin/mysqldump',
+            '/usr/local/bin/mysqldump',
+            '/bin/mysqldump',
+            '/opt/homebrew/bin/mysqldump',
+            '/opt/homebrew/opt/mysql-client/bin/mysqldump',
+            '/usr/local/opt/mysql-client/bin/mysqldump',
+            '/opt/homebrew/opt/mysql/bin/mysqldump',
+            '/usr/local/opt/mysql/bin/mysqldump',
+            '/Users/' . get_current_user() . '/Library/Application Support/Herd/bin/mysqldump',
+            '/Applications/Herd.app/Contents/Resources/bin/mysqldump',
+            '/usr/local/mysql/bin/mysqldump',
+            '/Applications/DBngin.app/Contents/Resources/mysql/bin/mysqldump',
+            '/Applications/MAMP/Library/bin/mysqldump',
+            '/opt/lampp/bin/mysqldump',
+            '/Applications/XAMPP/xamppfiles/bin/mysqldump',
+        ];
+        
+        // Check static paths first
+        foreach ($staticPaths as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                return $path;
+            }
+        }
+        
+        // Check DBngin MySQL versions dynamically
+        $dbngingPaths = $this->findDbngingMysqlPaths();
+        foreach ($dbngingPaths as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                return $path;
+            }
+        }
+        
+        // Try which command as fallback
+        $which = shell_exec('which mysqldump 2>/dev/null');
+        if ($which && file_exists(trim($which))) {
+            return trim($which);
+        }
+        
+        return null;
+    }
+
+    /**
+     * Find DBngin MySQL paths dynamically
+     */
+    private function findDbngingMysqlPaths(): array
+    {
+        $paths = [];
+        $dbngingBase = '/Users/Shared/DBngin/mysql';
+        
+        if (is_dir($dbngingBase)) {
+            $mysqlVersions = glob($dbngingBase . '/*/bin/mysqldump');
+            foreach ($mysqlVersions as $path) {
+                if (is_executable($path)) {
+                    $paths[] = $path;
+                }
+            }
+        }
+        
+        return $paths;
+    }
+
+    /**
+     * Get all database tables (excluding views)
+     */
+    private function getDatabaseTables(): array
+    {
+        try {
+            $config = config('database.connections.mysql');
+            $pdo = new \PDO(
+                "mysql:host={$config['host']};port={$config['port']};dbname={$config['database']};charset={$config['charset']}",
+                $config['username'],
+                $config['password'],
+                [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
+            );
+
+            $stmt = $pdo->query("SHOW FULL TABLES WHERE Table_type = 'BASE TABLE'");
+            $tables = [];
+            
+            while ($row = $stmt->fetch(\PDO::FETCH_NUM)) {
+                $tables[] = $row[0];
+            }
+            
+            error_log("Found " . count($tables) . " database tables for backup: " . implode(', ', array_slice($tables, 0, 10)) . (count($tables) > 10 ? '...' : ''));
+            return $tables;
+            
+        } catch (\Exception $e) {
+            error_log("Could not fetch database tables: " . $e->getMessage());
+            return [];
+        }
     }
 }
