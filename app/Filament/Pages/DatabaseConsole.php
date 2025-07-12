@@ -139,11 +139,10 @@ class DatabaseConsole extends Page
                 ->form([
                     FileUpload::make('schema_file')
                         ->label('Upload Schema File')
-                        ->acceptedFileTypes(['application/sql', '.sql', 'text/plain'])
                         ->maxSize(50 * 1024) // 50MB max for schema files
                         ->directory('temp-schema')
                         ->required()
-                        ->helperText('Upload a .sql schema file to merge with the current database (data-only recommended)'),
+                        ->helperText('Upload a .sql schema file to merge with the current database (data-only recommended) - accepts any file type'),
                     Toggle::make('create_backup_first')
                         ->label('Create backup before merge')
                         ->helperText('Recommended: Create a safety backup before applying schema changes')
@@ -646,14 +645,33 @@ class DatabaseConsole extends Page
             }
 
             $fileName = $uploadedFiles[0]; // Get first uploaded file
-            $filePath = 'temp-schema/' . $fileName;
             
-            // Read the schema file content
-            if (!Storage::exists($filePath)) {
-                throw new \Exception("Schema file not found: {$filePath}");
+            // Try multiple possible storage paths (same logic as restore backup)
+            $possiblePaths = [
+                $fileName,                                    // Direct path as provided
+                'public/' . $fileName,                       // Public disk
+                'private/' . $fileName,                      // Private disk
+                'temp-schema/' . $fileName,                  // Expected temp-schema directory
+                'public/temp-schema/' . basename($fileName), // Public temp-schema with just filename
+                'private/livewire-tmp/' . basename($fileName), // Livewire temp location
+                'livewire-tmp/' . basename($fileName),       // Livewire without private prefix
+            ];
+            
+            $schemaContent = null;
+            $foundPath = null;
+            
+            // Try to find the file using multiple storage paths
+            foreach ($possiblePaths as $testPath) {
+                if (Storage::exists($testPath)) {
+                    $schemaContent = Storage::get($testPath);
+                    $foundPath = $testPath;
+                    break;
+                }
             }
-
-            $schemaContent = Storage::get($filePath);
+            
+            if (!$schemaContent) {
+                throw new \Exception("Schema file not found. Tried paths: " . implode(', ', $possiblePaths));
+            }
             
             if (empty($schemaContent)) {
                 throw new \Exception('Schema file is empty');
@@ -697,7 +715,9 @@ class DatabaseConsole extends Page
             }
 
             // Clean up uploaded file
-            Storage::delete($filePath);
+            if ($foundPath) {
+                Storage::delete($foundPath);
+            }
 
             if ($returnCode !== 0) {
                 throw new \Exception('Schema merge failed: ' . implode("\n", $output));
