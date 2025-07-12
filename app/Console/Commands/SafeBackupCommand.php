@@ -332,6 +332,12 @@ class SafeBackupCommand extends Command
      */
     protected function runMysqlDump(array $command, string $outputPath): void
     {
+        // Try to find mysqldump in known locations
+        $mysqldumpPath = $this->findMysqldumpPath();
+        if ($mysqldumpPath) {
+            $command[0] = $mysqldumpPath;
+        }
+        
         $process = new Process($command);
         
         // Enhance PATH for web server environment
@@ -363,5 +369,41 @@ class SafeBackupCommand extends Command
         }
 
         return $process->getOutput();
+    }
+
+    /**
+     * Find mysqldump executable path
+     */
+    protected function findMysqldumpPath(): ?string
+    {
+        $paths = [
+            '/usr/bin/mysqldump',
+            '/usr/local/bin/mysqldump', 
+            '/bin/mysqldump',
+            '/opt/homebrew/bin/mysqldump',
+            '/opt/homebrew/opt/mysql-client/bin/mysqldump',
+            '/usr/local/opt/mysql-client/bin/mysqldump',
+            '/opt/homebrew/opt/mysql/bin/mysqldump',
+            '/usr/local/opt/mysql/bin/mysqldump',
+            '/Users/' . get_current_user() . '/Library/Application Support/Herd/bin/mysqldump',
+            '/Applications/Herd.app/Contents/Resources/bin/mysqldump',
+            '/usr/local/mysql/bin/mysqldump',
+            '/Applications/DBngin.app/Contents/Resources/mysql/bin/mysqldump',
+            '/Users/Shared/DBngin/mysql/8.0.27/bin/mysqldump',
+            '/Users/Shared/DBngin/mysql/8.0.33/bin/mysqldump',
+            '/Users/Shared/DBngin/mysql/8.0.32/bin/mysqldump',
+            '/Users/Shared/DBngin/mysql/8.0.28/bin/mysqldump',
+            '/Applications/MAMP/Library/bin/mysqldump',
+            '/opt/lampp/bin/mysqldump',
+            '/Applications/XAMPP/xamppfiles/bin/mysqldump',
+        ];
+        
+        foreach ($paths as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                return $path;
+            }
+        }
+        
+        return null;
     }
 }

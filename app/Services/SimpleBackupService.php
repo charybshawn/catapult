@@ -92,6 +92,12 @@ class SimpleBackupService
             
             $command[] = $config['database'];
             
+            // Try to find mysqldump in known locations
+            $mysqldumpPath = $this->findMysqldump();
+            if ($mysqldumpPath) {
+                $command[0] = $mysqldumpPath;
+            }
+            
             $process = new Process($command, base_path());
             
             // Set memory and time limits for large databases
@@ -454,6 +460,10 @@ class SimpleBackupService
             '/usr/local/bin',
             '/usr/local/opt/mysql-client/bin',
             '/Applications/Herd.app/Contents/Resources/bin',
+            '/Users/Shared/DBngin/mysql/8.0.27/bin',
+            '/Users/Shared/DBngin/mysql/8.0.33/bin',
+            '/Users/Shared/DBngin/mysql/8.0.32/bin',
+            '/Users/Shared/DBngin/mysql/8.0.28/bin',
         ];
         
         $pathsToAdd = $additionalPaths ?? $defaultPaths;
@@ -577,5 +587,47 @@ class SimpleBackupService
         }
         
         return round($bytes, $precision) . ' ' . $units[$i];
+    }
+
+    /**
+     * Find mysqldump executable in known locations
+     */
+    private function findMysqldump(): ?string
+    {
+        $mysqldumpPaths = [
+            '/usr/bin/mysqldump',
+            '/usr/local/bin/mysqldump',
+            '/bin/mysqldump',
+            '/opt/homebrew/bin/mysqldump',
+            '/opt/homebrew/opt/mysql-client/bin/mysqldump',
+            '/usr/local/opt/mysql-client/bin/mysqldump',
+            '/opt/homebrew/opt/mysql/bin/mysqldump',
+            '/usr/local/opt/mysql/bin/mysqldump',
+            '/Users/' . get_current_user() . '/Library/Application Support/Herd/bin/mysqldump',
+            '/Applications/Herd.app/Contents/Resources/bin/mysqldump',
+            '/usr/local/mysql/bin/mysqldump',
+            '/Applications/DBngin.app/Contents/Resources/mysql/bin/mysqldump',
+            '/Users/Shared/DBngin/mysql/8.0.27/bin/mysqldump',
+            '/Users/Shared/DBngin/mysql/8.0.33/bin/mysqldump',
+            '/Users/Shared/DBngin/mysql/8.0.32/bin/mysqldump',
+            '/Users/Shared/DBngin/mysql/8.0.28/bin/mysqldump',
+            '/Applications/MAMP/Library/bin/mysqldump',
+            '/opt/lampp/bin/mysqldump',
+            '/Applications/XAMPP/xamppfiles/bin/mysqldump',
+        ];
+        
+        foreach ($mysqldumpPaths as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                return $path;
+            }
+        }
+        
+        // Try which command as fallback
+        $which = shell_exec('which mysqldump 2>/dev/null');
+        if ($which && file_exists(trim($which))) {
+            return trim($which);
+        }
+        
+        return null;
     }
 }
