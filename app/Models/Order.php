@@ -112,6 +112,24 @@ class Order extends Model
                 $order->recurring_start_date = $order->harvest_date;
             }
             
+            // Handle virtual harvest/delivery day/time fields for recurring orders
+            if ($order->is_recurring) {
+                $daysOfWeek = $order->recurring_days_of_week ?? [];
+                
+                // Check if we have individual day fields (from form submission)
+                $attributes = $order->getAttributes();
+                if (isset($attributes['harvest_day']) || isset($attributes['delivery_day'])) {
+                    
+                    $daysOfWeek['harvest_day'] = $attributes['harvest_day'] ?? $daysOfWeek['harvest_day'] ?? 'monday';
+                    $daysOfWeek['delivery_day'] = $attributes['delivery_day'] ?? $daysOfWeek['delivery_day'] ?? 'tuesday';
+                    
+                    $order->recurring_days_of_week = $daysOfWeek;
+                    
+                    // Remove the virtual fields to prevent database errors
+                    unset($order->harvest_day, $order->delivery_day);
+                }
+            }
+            
             // Automatically set status to template when marked as recurring (but not for B2B orders)
             $orderTypeCode = $order->orderType?->code ?? null;
             $currentStatus = $order->orderStatus?->code ?? null;
@@ -446,6 +464,43 @@ class Order extends Model
     }
     
     /**
+     * Calculate the next occurrence of a specific day from a given date.
+     */
+    public function calculateNextDateForDayTime(string $type, \Carbon\Carbon $fromDate): \Carbon\Carbon
+    {
+        $dayField = $type . '_day';
+        $targetDay = $this->recurring_days_of_week[$dayField] ?? null;
+        
+        if (!$targetDay) {
+            // Fallback to simple calculation if no schedule defined
+            return $type === 'harvest' ? $fromDate->copy() : $fromDate->copy()->addDay();
+        }
+        
+        // Convert day name to Carbon day constant
+        $dayMap = [
+            'sunday' => \Carbon\Carbon::SUNDAY,
+            'monday' => \Carbon\Carbon::MONDAY,
+            'tuesday' => \Carbon\Carbon::TUESDAY,
+            'wednesday' => \Carbon\Carbon::WEDNESDAY,
+            'thursday' => \Carbon\Carbon::THURSDAY,
+            'friday' => \Carbon\Carbon::FRIDAY,
+            'saturday' => \Carbon\Carbon::SATURDAY,
+        ];
+        
+        $targetDayConstant = $dayMap[strtolower($targetDay)] ?? \Carbon\Carbon::MONDAY;
+        
+        // Find the next occurrence of the target day
+        $targetDate = $fromDate->copy()->next($targetDayConstant);
+        
+        // If the target day is today, use today
+        if ($fromDate->dayOfWeek === $targetDayConstant) {
+            $targetDate = $fromDate->copy();
+        }
+        
+        return $targetDate;
+    }
+    
+    /**
      * Generate the next order in the recurring series.
      */
     public function generateNextRecurringOrder(): ?Order
@@ -492,9 +547,14 @@ class Order extends Model
         ]);
         
         $newOrder->parent_recurring_order_id = $this->id;
-        $newOrder->harvest_date = $nextDate->copy();
-        $newOrder->delivery_date = $nextDate->copy()->addDay(); // Delivery next day
         $newOrder->is_recurring = false; // Generated orders are not recurring themselves
+        
+        // Calculate actual harvest and delivery dates based on day/time settings
+        $harvestDate = $this->calculateNextDateForDayTime('harvest', $nextDate);
+        $deliveryDate = $this->calculateNextDateForDayTime('delivery', $nextDate);
+        
+        $newOrder->harvest_date = $harvestDate;
+        $newOrder->delivery_date = $deliveryDate;
         
         // Set default statuses for generated orders
         $pendingOrderStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
@@ -651,6 +711,22 @@ class Order extends Model
             'quarterly' => 'Quarterly',
             default => 'Immediate',
         };
+    }
+    
+    /**
+     * Get harvest day from recurring_days_of_week JSON.
+     */
+    public function getHarvestDayAttribute(): ?string
+    {
+        return $this->recurring_days_of_week['harvest_day'] ?? null;
+    }
+    
+    /**
+     * Get delivery day from recurring_days_of_week JSON.
+     */
+    public function getDeliveryDayAttribute(): ?string
+    {
+        return $this->recurring_days_of_week['delivery_day'] ?? null;
     }
     
     /**

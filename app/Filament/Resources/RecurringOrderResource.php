@@ -77,27 +77,27 @@ class RecurringOrderResource extends Resource
                                 return Customer::create($data)->getKey();
                             }),
                             
-                        Forms\Components\Select::make('order_type')
+                        Forms\Components\Select::make('order_type_id')
                             ->label('Order Type')
-                            ->options([
-                                'website' => 'Website Order Template',
-                                'farmers_market' => 'Farmer\'s Market Template',
-                                'b2b' => 'B2B Recurring',
-                            ])
-                            ->default('website')
+                            ->relationship('orderType', 'name')
+                            ->searchable()
+                            ->preload()
                             ->required()
                             ->reactive()
                             ->afterStateUpdated(function ($state, callable $set) {
                                 // Auto-set billing frequency based on order type
-                                if ($state === 'farmers_market') {
-                                    $set('billing_frequency', 'immediate');
-                                    $set('requires_invoice', false);
-                                } elseif ($state === 'website') {
-                                    $set('billing_frequency', 'immediate');
-                                    $set('requires_invoice', true);
-                                } elseif ($state === 'b2b') {
-                                    $set('billing_frequency', 'monthly');
-                                    $set('requires_invoice', true);
+                                $orderType = \App\Models\OrderType::find($state);
+                                if ($orderType) {
+                                    if ($orderType->code === 'farmers_market') {
+                                        $set('billing_frequency', 'immediate');
+                                        $set('requires_invoice', false);
+                                    } elseif ($orderType->code === 'website_order') {
+                                        $set('billing_frequency', 'immediate');
+                                        $set('requires_invoice', true);
+                                    } elseif ($orderType->code === 'b2b') {
+                                        $set('billing_frequency', 'monthly');
+                                        $set('requires_invoice', true);
+                                    }
                                 }
                             }),
                             
@@ -124,25 +124,43 @@ class RecurringOrderResource extends Resource
                             ])
                             ->default('immediate')
                             ->required()
-                            ->visible(fn ($get) => $get('order_type') === 'b2b'),
+                            ->visible(function ($get) {
+                                $orderTypeId = $get('order_type_id');
+                                if (!$orderTypeId) return false;
+                                $orderType = \App\Models\OrderType::find($orderTypeId);
+                                return $orderType?->code === 'b2b';
+                            }),
                         
                         Forms\Components\Toggle::make('requires_invoice')
                             ->label('Requires Invoice')
                             ->helperText('Uncheck for farmer\'s market orders that don\'t need invoicing')
                             ->default(true),
                     ])
-                    ->visible(fn ($get) => in_array($get('order_type'), ['b2b', 'farmers_market']))
+                    ->visible(function ($get) {
+                        $orderTypeId = $get('order_type_id');
+                        if (!$orderTypeId) return false;
+                        $orderType = \App\Models\OrderType::find($orderTypeId);
+                        return in_array($orderType?->code, ['b2b', 'farmers_market']);
+                    })
                     ->columns(2),
                 
                 Forms\Components\Section::make('Recurring Schedule')
                     ->schema([
                         Forms\Components\Select::make('recurring_frequency')
-                            ->label(fn ($get) => $get('order_type') === 'b2b' 
-                                ? 'Delivery Frequency' 
-                                : 'Generation Frequency')
-                            ->helperText(fn ($get) => $get('order_type') === 'b2b'
-                                ? 'How often to create new delivery orders (independent of billing frequency)'
-                                : 'How often to generate new orders')
+                            ->label(function ($get) {
+                                $orderTypeId = $get('order_type_id');
+                                if (!$orderTypeId) return 'Generation Frequency';
+                                $orderType = \App\Models\OrderType::find($orderTypeId);
+                                return $orderType?->code === 'b2b' ? 'Delivery Frequency' : 'Generation Frequency';
+                            })
+                            ->helperText(function ($get) {
+                                $orderTypeId = $get('order_type_id');
+                                if (!$orderTypeId) return 'How often to generate new orders';
+                                $orderType = \App\Models\OrderType::find($orderTypeId);
+                                return $orderType?->code === 'b2b'
+                                    ? 'How often to create new delivery orders (independent of billing frequency)'
+                                    : 'How often to generate new orders';
+                            })
                             ->options([
                                 'weekly' => 'Weekly',
                                 'biweekly' => 'Bi-weekly',
@@ -166,6 +184,39 @@ class RecurringOrderResource extends Resource
                             ->helperText('Uncheck to pause recurring order generation')
                             ->default(true),
                     ])
+                    ->columns(2),
+                
+                Forms\Components\Section::make('Schedule Days')
+                    ->schema([
+                        Forms\Components\Select::make('harvest_day')
+                            ->label('Harvest Day')
+                            ->options([
+                                'monday' => 'Monday',
+                                'tuesday' => 'Tuesday', 
+                                'wednesday' => 'Wednesday',
+                                'thursday' => 'Thursday',
+                                'friday' => 'Friday',
+                                'saturday' => 'Saturday',
+                                'sunday' => 'Sunday',
+                            ])
+                            ->default('monday')
+                            ->required(),
+                            
+                        Forms\Components\Select::make('delivery_day')
+                            ->label('Delivery Day')
+                            ->options([
+                                'monday' => 'Monday',
+                                'tuesday' => 'Tuesday',
+                                'wednesday' => 'Wednesday', 
+                                'thursday' => 'Thursday',
+                                'friday' => 'Friday',
+                                'saturday' => 'Saturday',
+                                'sunday' => 'Sunday',
+                            ])
+                            ->default('tuesday')
+                            ->required(),
+                    ])
+                    ->description('Set the day of week for harvest and delivery')
                     ->columns(2),
                 
                 Forms\Components\Section::make('Order Items')
@@ -214,8 +265,8 @@ class RecurringOrderResource extends Resource
                 Tables\Columns\TextColumn::make('order_type_display')
                     ->label('Type')
                     ->badge()
-                    ->color(fn (?Order $record): string => match ($record?->order_type) {
-                        'website' => 'success',
+                    ->color(fn (?Order $record): string => match ($record?->orderType?->code) {
+                        'website_order' => 'success',
                         'farmers_market' => 'warning', 
                         'b2b' => 'info',
                         default => 'gray',
@@ -276,12 +327,9 @@ class RecurringOrderResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('order_type')
-                    ->options([
-                        'website' => 'Website Template',
-                        'farmers_market' => 'Farmer\'s Market Template',
-                        'b2b' => 'B2B Recurring',
-                    ]),
+                Tables\Filters\SelectFilter::make('order_type_id')
+                    ->label('Order Type')
+                    ->relationship('orderType', 'name'),
                     
                 Tables\Filters\TernaryFilter::make('is_recurring_active')
                     ->label('Status')
