@@ -638,89 +638,113 @@ class DatabaseConsole extends Page
                 $backupFilename = $backupService->createBackup('full');
             }
 
-            // Get the uploaded file path
+            // Handle uploaded file (exact same logic as restore backup)
             $uploadedFile = $data['schema_file'] ?? null;
-            if (!$uploadedFile) {
-                throw new \Exception('No schema file was uploaded');
-            }
-
-            // Get the actual file path - Filament stores files in temp-schema directory
-            $filePath = null;
-            if (is_string($uploadedFile)) {
-                $filePath = $uploadedFile;
-            } elseif (is_array($uploadedFile) && !empty($uploadedFile)) {
-                // Get the first uploaded file
-                $filePath = reset($uploadedFile);
-            }
-            
-            if (!$filePath) {
-                throw new \Exception("No valid file path found in upload data: " . json_encode($uploadedFile));
-            }
-            
-            $fileName = $filePath;
-            
-            // Try to get file contents using multiple approaches (same as restore backup)
-            $schemaContent = null;
-            $foundPath = null;
-            $debugInfo = "Debug: File identifier: {$fileName}\n";
-            
-            try {
-                // Approach 1: Try all possible storage paths based on actual filesystem
-                $possiblePaths = [
-                    $fileName,                                    // Direct path as provided
-                    'public/' . $fileName,                       // Public disk (most likely)
-                    'private/' . $fileName,                      // Private disk
-                    basename($fileName),                         // Just the filename in root
-                    'public/' . basename($fileName),             // Public with just filename
-                    'private/' . basename($fileName),            // Private with just filename
-                    'public/temp-schema/' . basename($fileName), // Public temp-schema with just filename
-                    'private/livewire-tmp/' . basename($fileName), // Livewire temp location
-                    'livewire-tmp/' . basename($fileName),       // Livewire without private prefix
-                ];
-                
-                foreach ($possiblePaths as $testPath) {
-                    $debugInfo .= "Trying storage path: {$testPath}\n";
-                    if (Storage::exists($testPath)) {
-                        $schemaContent = Storage::get($testPath);
-                        $debugInfo .= "✓ Found file using Storage at: {$testPath}\n";
-                        $foundPath = $testPath;
-                        break;
-                    }
+            if ($uploadedFile) {
+                // Get the actual file path - Filament stores files in temp-schema directory
+                $filePath = null;
+                if (is_string($uploadedFile)) {
+                    $filePath = $uploadedFile;
+                } elseif (is_array($uploadedFile) && !empty($uploadedFile)) {
+                    // Get the first uploaded file
+                    $filePath = reset($uploadedFile);
                 }
                 
-                // Approach 2: If Storage doesn't work, try direct filesystem access
-                if (!$schemaContent) {
-                    $debugInfo .= "Storage approach failed, trying direct filesystem...\n";
-                    $directPaths = [
-                        storage_path('app/' . $fileName),
-                        storage_path('app/public/' . $fileName),
-                        storage_path('app/public/temp-schema/' . basename($fileName)),
-                        storage_path('app/private/livewire-tmp/' . basename($fileName)),
-                        storage_path('app/livewire-tmp/' . basename($fileName)),
-                        storage_path('app/temp-schema/' . basename($fileName)),
+                if (!$filePath) {
+                    throw new \Exception("No valid file path found in upload data: " . json_encode($uploadedFile));
+                }
+                
+                // Debug: Check what's actually in storage - check all directories
+                $debugOutput = "Debug: File identifier: {$filePath}\n";
+                $debugOutput .= "Checking storage directories:\n";
+                try {
+                    // Check multiple possible storage locations
+                    $checkPaths = ['', 'temp-schema', 'public', 'private', 'livewire-tmp'];
+                    foreach ($checkPaths as $checkPath) {
+                        try {
+                            $files = Storage::files($checkPath);
+                            if (!empty($files)) {
+                                $debugOutput .= "Directory '{$checkPath}': " . count($files) . " files\n";
+                                foreach ($files as $file) {
+                                    if (str_contains($file, $filePath) || str_contains($file, '.sql')) {
+                                        $debugOutput .= "  - Relevant: {$file}\n";
+                                    }
+                                }
+                            }
+                        } catch (\Exception $e) {
+                            // Skip directories that don't exist
+                        }
+                    }
+                    
+                    // Also check if it's a temporary file with livewire naming
+                    $debugOutput .= "Checking for livewire-tmp files...\n";
+                    try {
+                        $livewireTmpFiles = Storage::files('livewire-tmp');
+                        foreach ($livewireTmpFiles as $tmpFile) {
+                            $debugOutput .= "  - Livewire tmp: {$tmpFile}\n";
+                        }
+                    } catch (\Exception $e) {
+                        $debugOutput .= "  - No livewire-tmp directory\n";
+                    }
+                } catch (\Exception $e) {
+                    $debugOutput .= "- Error checking storage: " . $e->getMessage() . "\n";
+                }
+                
+                // Try to get file contents using multiple approaches
+                $schemaContent = null;
+                try {
+                    // Approach 1: Try all possible storage paths based on actual filesystem
+                    $possiblePaths = [
+                        $filePath,                                    // Direct path as provided
+                        'public/' . $filePath,                       // Public disk (most likely)
+                        'private/' . $filePath,                      // Private disk
+                        'public/temp-schema/' . basename($filePath), // Public temp-schema with just filename
+                        'private/livewire-tmp/' . basename($filePath), // Livewire temp location
                     ];
                     
-                    foreach ($directPaths as $directPath) {
-                        $debugInfo .= "Trying filesystem path: {$directPath}\n";
-                        if (file_exists($directPath)) {
-                            $schemaContent = file_get_contents($directPath);
-                            $debugInfo .= "✓ Found file using filesystem at: {$directPath}\n";
-                            $foundPath = $directPath;
+                    foreach ($possiblePaths as $testPath) {
+                        $debugOutput .= "Trying storage path: {$testPath}\n";
+                        if (Storage::exists($testPath)) {
+                            $schemaContent = Storage::get($testPath);
+                            $debugOutput .= "✓ Found file using Storage at: {$testPath}\n";
+                            $filePath = $testPath;
                             break;
                         }
                     }
+                    
+                    // Approach 2: If Storage doesn't work, try direct filesystem access
+                    if (!$schemaContent) {
+                        $debugOutput .= "Storage approach failed, trying direct filesystem...\n";
+                        $directPaths = [
+                            storage_path('app/' . $filePath),
+                            storage_path('app/public/' . $filePath),
+                            storage_path('app/public/temp-schema/' . basename($filePath)),
+                            storage_path('app/private/livewire-tmp/' . basename($filePath)),
+                        ];
+                        
+                        foreach ($directPaths as $directPath) {
+                            $debugOutput .= "Trying filesystem path: {$directPath}\n";
+                            if (file_exists($directPath)) {
+                                $schemaContent = file_get_contents($directPath);
+                                $debugOutput .= "✓ Found file using filesystem at: {$directPath}\n";
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (!$schemaContent) {
+                        throw new \Exception("Could not locate uploaded file using Storage or direct filesystem access\n\n" . $debugOutput);
+                    }
+                    
+                    if (strlen($schemaContent) == 0) {
+                        throw new \Exception("File is empty - upload may have failed");
+                    }
+                    
+                } catch (\Exception $e) {
+                    throw new \Exception("Could not read uploaded file: " . $e->getMessage() . "\n\n" . $debugOutput);
                 }
-                
-            } catch (\Exception $e) {
-                $debugInfo .= "Error during file location: " . $e->getMessage() . "\n";
-            }
-            
-            if (!$schemaContent) {
-                throw new \Exception("Schema file not found.\n\n" . $debugInfo);
-            }
-            
-            if (empty($schemaContent)) {
-                throw new \Exception('Schema file is empty');
+            } else {
+                throw new \Exception('No schema file was uploaded');
             }
 
             // Validate it's a SQL file
@@ -761,8 +785,12 @@ class DatabaseConsole extends Page
             }
 
             // Clean up uploaded file
-            if ($foundPath) {
-                Storage::delete($foundPath);
+            if ($filePath) {
+                try {
+                    Storage::delete($filePath);
+                } catch (\Exception $e) {
+                    // Ignore cleanup errors
+                }
             }
 
             if ($returnCode !== 0) {
