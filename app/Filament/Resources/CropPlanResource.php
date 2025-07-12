@@ -262,6 +262,47 @@ class CropPlanResource extends Resource
                     ->query(fn (Builder $query) => $query->where('is_missing_recipe', true)),
             ])
             ->headerActions([
+                Tables\Actions\Action::make('generate_crop_plans')
+                    ->label('Generate Crop Plans')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('primary')
+                    ->action(function () {
+                        $cropPlanningService = app(\App\Services\CropPlanningService::class);
+                        
+                        try {
+                            // Generate crop plans for orders in the next 30 days
+                            $cropPlans = $cropPlanningService->generateIndividualPlansForAllOrders(
+                                now()->toDateString(),
+                                now()->addDays(30)->toDateString()
+                            );
+                            
+                            $count = $cropPlans->count();
+                            
+                            if ($count > 0) {
+                                Notification::make()
+                                    ->title('Crop Plans Generated')
+                                    ->body("Successfully generated {$count} crop plans for the next 30 days")
+                                    ->success()
+                                    ->send();
+                            } else {
+                                Notification::make()
+                                    ->title('No New Crop Plans')
+                                    ->body('No new crop plans were generated. All current orders may already have plans.')
+                                    ->warning()
+                                    ->send();
+                            }
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Error Generating Crop Plans')
+                                ->body('Failed to generate crop plans: ' . $e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading('Generate Crop Plans')
+                    ->modalDescription('This will generate crop plans for all valid orders in the next 30 days. Existing draft plans for the same orders will be replaced.')
+                    ->modalSubmitActionLabel('Generate Plans'),
             ])
             ->actions([
                 Tables\Actions\Action::make('approve')

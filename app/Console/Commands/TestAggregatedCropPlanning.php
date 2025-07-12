@@ -28,13 +28,14 @@ class TestAggregatedCropPlanning extends Command
 
         $cropPlanningService = app(CropPlanningService::class);
 
-        // Show current orders in date range
-        $this->info('Current orders in date range:');
+        // Show current actual orders (not recurring templates) in date range
+        $this->info('Current actual orders in date range:');
         $orders = Order::with(['orderItems.product', 'orderItems.priceVariation', 'status'])
             ->where('harvest_date', '>=', $startDate ?: now())
             ->where('harvest_date', '<=', $endDate ?: now()->addDays(30))
+            ->where('is_recurring', false) // Exclude recurring order templates
             ->whereHas('status', function ($query) {
-                $query->whereIn('code', ['draft', 'confirmed', 'active']);
+                $query->whereIn('code', ['draft', 'pending', 'confirmed', 'in_production']);
             })
             ->get();
 

@@ -6,12 +6,14 @@ use App\Services\SimpleBackupService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\FileUpload;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class DatabaseConsole extends Page
@@ -129,6 +131,35 @@ class DatabaseConsole extends Page
                         ->body('The backup list has been updated.')
                         ->send();
                 }),
+
+            Action::make('mergeSchema')
+                ->label('Merge Schema File')
+                ->icon('heroicon-o-document-plus')
+                ->color('info')
+                ->form([
+                    FileUpload::make('schema_file')
+                        ->label('Upload Schema File')
+                        ->acceptedFileTypes(['application/sql', '.sql', 'text/plain'])
+                        ->maxSize(50 * 1024) // 50MB max for schema files
+                        ->directory('temp-schema')
+                        ->required()
+                        ->helperText('Upload a .sql schema file to merge with the current database (data-only recommended)'),
+                    Toggle::make('create_backup_first')
+                        ->label('Create backup before merge')
+                        ->helperText('Recommended: Create a safety backup before applying schema changes')
+                        ->default(true),
+                    Textarea::make('merge_notes')
+                        ->label('Merge Notes')
+                        ->placeholder('Optional: Describe what this schema merge contains...')
+                        ->rows(3),
+                ])
+                ->action(function (array $data) {
+                    $this->mergeSchemaFile($data);
+                })
+                ->requiresConfirmation()
+                ->modalHeading('Merge Schema File')
+                ->modalDescription('This will append/merge the uploaded schema with your current database. Existing data will be preserved.')
+                ->modalSubmitActionLabel('Merge Schema'),
         ];
     }
 
@@ -591,5 +622,142 @@ class DatabaseConsole extends Page
         }
         
         return $output ?: 'Command executed successfully.';
+    }
+
+    protected function mergeSchemaFile(array $data): void
+    {
+        try {
+            // Create backup first if requested
+            if ($data['create_backup_first']) {
+                $this->dispatch('show-notification', [
+                    'type' => 'info',
+                    'title' => 'Creating Backup',
+                    'body' => 'Creating safety backup before schema merge...'
+                ]);
+                
+                $backupService = new SimpleBackupService();
+                $backupFilename = $backupService->createBackup('full');
+            }
+
+            // Get the uploaded file path
+            $uploadedFiles = $data['schema_file'] ?? [];
+            if (empty($uploadedFiles)) {
+                throw new \Exception('No schema file was uploaded');
+            }
+
+            $fileName = $uploadedFiles[0]; // Get first uploaded file
+            $filePath = 'temp-schema/' . $fileName;
+            
+            // Read the schema file content
+            if (!Storage::exists($filePath)) {
+                throw new \Exception("Schema file not found: {$filePath}");
+            }
+
+            $schemaContent = Storage::get($filePath);
+            
+            if (empty($schemaContent)) {
+                throw new \Exception('Schema file is empty');
+            }
+
+            // Validate it's a SQL file
+            if (!$this->isValidSqlContent($schemaContent)) {
+                throw new \Exception('Invalid SQL content detected');
+            }
+
+            // Get database connection details
+            $connection = config('database.default');
+            $database = config("database.connections.{$connection}.database");
+            $username = config("database.connections.{$connection}.username");
+            $password = config("database.connections.{$connection}.password");
+            $host = config("database.connections.{$connection}.host");
+            $port = config("database.connections.{$connection}.port", 3306);
+
+            // Create temporary file for the schema
+            $tempFile = storage_path('app/temp-schema-merge.sql');
+            file_put_contents($tempFile, $schemaContent);
+
+            // Execute the schema merge using mysql command
+            $command = sprintf(
+                'mysql -h%s -P%s -u%s %s %s < %s',
+                escapeshellarg($host),
+                escapeshellarg($port),
+                escapeshellarg($username),
+                $password ? '-p' . escapeshellarg($password) : '',
+                escapeshellarg($database),
+                escapeshellarg($tempFile)
+            );
+
+            $output = [];
+            $returnCode = 0;
+            exec($command . ' 2>&1', $output, $returnCode);
+
+            // Clean up temporary file
+            if (file_exists($tempFile)) {
+                unlink($tempFile);
+            }
+
+            // Clean up uploaded file
+            Storage::delete($filePath);
+
+            if ($returnCode !== 0) {
+                throw new \Exception('Schema merge failed: ' . implode("\n", $output));
+            }
+
+            // Log the merge activity
+            $notes = $data['merge_notes'] ?? 'Schema file merged via database console';
+            Log::info('Schema file merged successfully', [
+                'filename' => $fileName,
+                'notes' => $notes,
+                'backup_created' => $data['create_backup_first'] ?? false,
+                'backup_file' => $backupFilename ?? null,
+            ]);
+
+            Notification::make()
+                ->success()
+                ->title('Schema Merged Successfully')
+                ->body('The schema file has been merged with your database. ' . 
+                       ($data['create_backup_first'] ? "Backup created: {$backupFilename}" : ''))
+                ->duration(8000)
+                ->send();
+
+        } catch (\Exception $e) {
+            Log::error('Schema merge failed', [
+                'error' => $e->getMessage(),
+                'file' => $data['schema_file'] ?? null,
+            ]);
+
+            Notification::make()
+                ->danger()
+                ->title('Schema Merge Failed')
+                ->body($e->getMessage())
+                ->duration(10000)
+                ->send();
+        }
+    }
+
+    private function isValidSqlContent(string $content): bool
+    {
+        // Basic validation for SQL content
+        $content = trim(strtolower($content));
+        
+        // Check for common SQL keywords that indicate valid schema content
+        $validKeywords = [
+            'create table',
+            'insert into',
+            'alter table',
+            'create index',
+            'create view',
+            'create procedure',
+            'create function'
+        ];
+
+        foreach ($validKeywords as $keyword) {
+            if (str_contains($content, $keyword)) {
+                return true;
+            }
+        }
+
+        // Also allow if it starts with SQL comments
+        return str_starts_with($content, '--') || str_starts_with($content, '/*');
     }
 }

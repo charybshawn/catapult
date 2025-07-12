@@ -38,7 +38,7 @@
 
 
 ### 🗂️ STANDARDIZED BACKUP STORAGE LOCATION
-**ALL backup files MUST be stored in: `storage/app/backups/database/`**
+**ALL backup files MUST be stored in: `database/backups/`**
 
 ## 🧹 Code Cleanup Checklist
 
