@@ -671,8 +671,9 @@ class DatabaseConsole extends Page
                         if (!empty($files)) {
                             $debugInfo .= "Directory '{$checkPath}': " . count($files) . " files\n";
                             foreach ($files as $file) {
+                                $debugInfo .= "  - File: {$file}\n";
                                 if (str_contains($file, $fileName) || str_contains($file, '.sql')) {
-                                    $debugInfo .= "  - Relevant: {$file}\n";
+                                    $debugInfo .= "    ^ RELEVANT!\n";
                                 }
                             }
                         }
