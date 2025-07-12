@@ -659,71 +659,64 @@ class DatabaseConsole extends Page
             
             $fileName = $filePath;
             
-            // Debug: Check what's actually in storage - check all directories (same as restore backup)
+            // Try to get file contents using multiple approaches (same as restore backup)
+            $schemaContent = null;
+            $foundPath = null;
             $debugInfo = "Debug: File identifier: {$fileName}\n";
-            $debugInfo .= "Checking storage directories:\n";
+            
             try {
-                // Check multiple possible storage locations
-                $checkPaths = ['', 'temp-schema', 'public', 'private', 'livewire-tmp'];
-                foreach ($checkPaths as $checkPath) {
-                    try {
-                        $files = Storage::files($checkPath);
-                        if (!empty($files)) {
-                            $debugInfo .= "Directory '{$checkPath}': " . count($files) . " files\n";
-                            foreach ($files as $file) {
-                                $debugInfo .= "  - File: {$file}\n";
-                                if (str_contains($file, $fileName) || str_contains($file, '.sql')) {
-                                    $debugInfo .= "    ^ RELEVANT!\n";
-                                }
-                            }
-                        }
-                    } catch (\Exception $e) {
-                        // Skip directories that don't exist
+                // Approach 1: Try all possible storage paths based on actual filesystem
+                $possiblePaths = [
+                    $fileName,                                    // Direct path as provided
+                    'public/' . $fileName,                       // Public disk (most likely)
+                    'private/' . $fileName,                      // Private disk
+                    basename($fileName),                         // Just the filename in root
+                    'public/' . basename($fileName),             // Public with just filename
+                    'private/' . basename($fileName),            // Private with just filename
+                    'public/temp-schema/' . basename($fileName), // Public temp-schema with just filename
+                    'private/livewire-tmp/' . basename($fileName), // Livewire temp location
+                    'livewire-tmp/' . basename($fileName),       // Livewire without private prefix
+                ];
+                
+                foreach ($possiblePaths as $testPath) {
+                    $debugInfo .= "Trying storage path: {$testPath}\n";
+                    if (Storage::exists($testPath)) {
+                        $schemaContent = Storage::get($testPath);
+                        $debugInfo .= "✓ Found file using Storage at: {$testPath}\n";
+                        $foundPath = $testPath;
+                        break;
                     }
                 }
                 
-                // Also check if it's a temporary file with livewire naming
-                $debugInfo .= "Checking for livewire-tmp files...\n";
-                try {
-                    $livewireTmpFiles = Storage::files('livewire-tmp');
-                    foreach ($livewireTmpFiles as $tmpFile) {
-                        $debugInfo .= "  - Livewire tmp: {$tmpFile}\n";
+                // Approach 2: If Storage doesn't work, try direct filesystem access
+                if (!$schemaContent) {
+                    $debugInfo .= "Storage approach failed, trying direct filesystem...\n";
+                    $directPaths = [
+                        storage_path('app/' . $fileName),
+                        storage_path('app/public/' . $fileName),
+                        storage_path('app/public/temp-schema/' . basename($fileName)),
+                        storage_path('app/private/livewire-tmp/' . basename($fileName)),
+                        storage_path('app/livewire-tmp/' . basename($fileName)),
+                        storage_path('app/temp-schema/' . basename($fileName)),
+                    ];
+                    
+                    foreach ($directPaths as $directPath) {
+                        $debugInfo .= "Trying filesystem path: {$directPath}\n";
+                        if (file_exists($directPath)) {
+                            $schemaContent = file_get_contents($directPath);
+                            $debugInfo .= "✓ Found file using filesystem at: {$directPath}\n";
+                            $foundPath = $directPath;
+                            break;
+                        }
                     }
-                } catch (\Exception $e) {
-                    $debugInfo .= "  - No livewire-tmp directory\n";
                 }
+                
             } catch (\Exception $e) {
-                $debugInfo .= "- Error checking storage: " . $e->getMessage() . "\n";
-            }
-            
-            // Try multiple possible storage paths (same logic as restore backup)
-            $possiblePaths = [
-                $fileName,                                    // Direct path as provided (temp-schema/XXXXX.sql)
-                'public/' . $fileName,                       // Public disk
-                'private/' . $fileName,                      // Private disk
-                basename($fileName),                         // Just the filename in root
-                'public/' . basename($fileName),             // Public with just filename
-                'private/' . basename($fileName),            // Private with just filename
-                'temp-schema/' . basename($fileName),        // temp-schema directory with just filename
-                'public/temp-schema/' . basename($fileName), // Public temp-schema with just filename
-                'private/livewire-tmp/' . basename($fileName), // Livewire temp location
-                'livewire-tmp/' . basename($fileName),       // Livewire without private prefix
-            ];
-            
-            $schemaContent = null;
-            $foundPath = null;
-            
-            // Try to find the file using multiple storage paths
-            foreach ($possiblePaths as $testPath) {
-                if (Storage::exists($testPath)) {
-                    $schemaContent = Storage::get($testPath);
-                    $foundPath = $testPath;
-                    break;
-                }
+                $debugInfo .= "Error during file location: " . $e->getMessage() . "\n";
             }
             
             if (!$schemaContent) {
-                throw new \Exception("Schema file not found. Tried paths: " . implode(', ', $possiblePaths) . "\n\n" . $debugInfo);
+                throw new \Exception("Schema file not found.\n\n" . $debugInfo);
             }
             
             if (empty($schemaContent)) {
