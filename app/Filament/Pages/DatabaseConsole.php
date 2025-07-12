@@ -659,6 +659,42 @@ class DatabaseConsole extends Page
             
             $fileName = $filePath;
             
+            // Debug: Check what's actually in storage - check all directories (same as restore backup)
+            $debugInfo = "Debug: File identifier: {$fileName}\n";
+            $debugInfo .= "Checking storage directories:\n";
+            try {
+                // Check multiple possible storage locations
+                $checkPaths = ['', 'temp-schema', 'public', 'private', 'livewire-tmp'];
+                foreach ($checkPaths as $checkPath) {
+                    try {
+                        $files = Storage::files($checkPath);
+                        if (!empty($files)) {
+                            $debugInfo .= "Directory '{$checkPath}': " . count($files) . " files\n";
+                            foreach ($files as $file) {
+                                if (str_contains($file, $fileName) || str_contains($file, '.sql')) {
+                                    $debugInfo .= "  - Relevant: {$file}\n";
+                                }
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        // Skip directories that don't exist
+                    }
+                }
+                
+                // Also check if it's a temporary file with livewire naming
+                $debugInfo .= "Checking for livewire-tmp files...\n";
+                try {
+                    $livewireTmpFiles = Storage::files('livewire-tmp');
+                    foreach ($livewireTmpFiles as $tmpFile) {
+                        $debugInfo .= "  - Livewire tmp: {$tmpFile}\n";
+                    }
+                } catch (\Exception $e) {
+                    $debugInfo .= "  - No livewire-tmp directory\n";
+                }
+            } catch (\Exception $e) {
+                $debugInfo .= "- Error checking storage: " . $e->getMessage() . "\n";
+            }
+            
             // Try multiple possible storage paths (same logic as restore backup)
             $possiblePaths = [
                 $fileName,                                    // Direct path as provided
@@ -683,7 +719,7 @@ class DatabaseConsole extends Page
             }
             
             if (!$schemaContent) {
-                throw new \Exception("Schema file not found. Tried paths: " . implode(', ', $possiblePaths));
+                throw new \Exception("Schema file not found. Tried paths: " . implode(', ', $possiblePaths) . "\n\n" . $debugInfo);
             }
             
             if (empty($schemaContent)) {
