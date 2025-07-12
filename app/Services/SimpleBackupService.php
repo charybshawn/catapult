@@ -460,11 +460,18 @@ class SimpleBackupService
             '/usr/local/bin',
             '/usr/local/opt/mysql-client/bin',
             '/Applications/Herd.app/Contents/Resources/bin',
-            '/Users/Shared/DBngin/mysql/8.0.27/bin',
-            '/Users/Shared/DBngin/mysql/8.0.33/bin',
-            '/Users/Shared/DBngin/mysql/8.0.32/bin',
-            '/Users/Shared/DBngin/mysql/8.0.28/bin',
         ];
+        
+        // Add DBngin MySQL paths dynamically
+        $dbngingBase = '/Users/Shared/DBngin/mysql';
+        if (is_dir($dbngingBase)) {
+            $mysqlDirs = glob($dbngingBase . '/*/bin');
+            foreach ($mysqlDirs as $binDir) {
+                if (is_dir($binDir)) {
+                    $defaultPaths[] = $binDir;
+                }
+            }
+        }
         
         $pathsToAdd = $additionalPaths ?? $defaultPaths;
         
@@ -594,7 +601,7 @@ class SimpleBackupService
      */
     private function findMysqldump(): ?string
     {
-        $mysqldumpPaths = [
+        $staticPaths = [
             '/usr/bin/mysqldump',
             '/usr/local/bin/mysqldump',
             '/bin/mysqldump',
@@ -607,16 +614,21 @@ class SimpleBackupService
             '/Applications/Herd.app/Contents/Resources/bin/mysqldump',
             '/usr/local/mysql/bin/mysqldump',
             '/Applications/DBngin.app/Contents/Resources/mysql/bin/mysqldump',
-            '/Users/Shared/DBngin/mysql/8.0.27/bin/mysqldump',
-            '/Users/Shared/DBngin/mysql/8.0.33/bin/mysqldump',
-            '/Users/Shared/DBngin/mysql/8.0.32/bin/mysqldump',
-            '/Users/Shared/DBngin/mysql/8.0.28/bin/mysqldump',
             '/Applications/MAMP/Library/bin/mysqldump',
             '/opt/lampp/bin/mysqldump',
             '/Applications/XAMPP/xamppfiles/bin/mysqldump',
         ];
         
-        foreach ($mysqldumpPaths as $path) {
+        // Check static paths first
+        foreach ($staticPaths as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                return $path;
+            }
+        }
+        
+        // Check DBngin MySQL versions dynamically
+        $dbngingPaths = $this->findDbngingMysqlPaths();
+        foreach ($dbngingPaths as $path) {
             if (file_exists($path) && is_executable($path)) {
                 return $path;
             }
@@ -629,5 +641,25 @@ class SimpleBackupService
         }
         
         return null;
+    }
+
+    /**
+     * Find DBngin MySQL paths dynamically
+     */
+    private function findDbngingMysqlPaths(): array
+    {
+        $paths = [];
+        $dbngingBase = '/Users/Shared/DBngin/mysql';
+        
+        if (is_dir($dbngingBase)) {
+            $mysqlVersions = glob($dbngingBase . '/*/bin/mysqldump');
+            foreach ($mysqlVersions as $path) {
+                if (is_executable($path)) {
+                    $paths[] = $path;
+                }
+            }
+        }
+        
+        return $paths;
     }
 }

@@ -244,6 +244,18 @@ class SafeBackupCommand extends Command
             }
         }
         
+        // Check DBngin MySQL versions dynamically
+        $dbngingBase = '/Users/Shared/DBngin/mysql';
+        if (is_dir($dbngingBase)) {
+            $mysqlVersions = glob($dbngingBase . '/*/bin/mysqldump');
+            foreach ($mysqlVersions as $path) {
+                if (file_exists($path) && is_executable($path)) {
+                    $this->line("Found mysqldump at: {$path}");
+                    return true;
+                }
+            }
+        }
+        
         // Also try PATH lookup as fallback
         $pathLookup = shell_exec('which mysqldump 2>/dev/null');
         if (!empty($pathLookup) && file_exists(trim($pathLookup))) {
@@ -376,7 +388,7 @@ class SafeBackupCommand extends Command
      */
     protected function findMysqldumpPath(): ?string
     {
-        $paths = [
+        $staticPaths = [
             '/usr/bin/mysqldump',
             '/usr/local/bin/mysqldump', 
             '/bin/mysqldump',
@@ -389,18 +401,26 @@ class SafeBackupCommand extends Command
             '/Applications/Herd.app/Contents/Resources/bin/mysqldump',
             '/usr/local/mysql/bin/mysqldump',
             '/Applications/DBngin.app/Contents/Resources/mysql/bin/mysqldump',
-            '/Users/Shared/DBngin/mysql/8.0.27/bin/mysqldump',
-            '/Users/Shared/DBngin/mysql/8.0.33/bin/mysqldump',
-            '/Users/Shared/DBngin/mysql/8.0.32/bin/mysqldump',
-            '/Users/Shared/DBngin/mysql/8.0.28/bin/mysqldump',
             '/Applications/MAMP/Library/bin/mysqldump',
             '/opt/lampp/bin/mysqldump',
             '/Applications/XAMPP/xamppfiles/bin/mysqldump',
         ];
         
-        foreach ($paths as $path) {
+        // Check static paths first
+        foreach ($staticPaths as $path) {
             if (file_exists($path) && is_executable($path)) {
                 return $path;
+            }
+        }
+        
+        // Check DBngin MySQL versions dynamically
+        $dbngingBase = '/Users/Shared/DBngin/mysql';
+        if (is_dir($dbngingBase)) {
+            $mysqlVersions = glob($dbngingBase . '/*/bin/mysqldump');
+            foreach ($mysqlVersions as $path) {
+                if (file_exists($path) && is_executable($path)) {
+                    return $path;
+                }
             }
         }
         
