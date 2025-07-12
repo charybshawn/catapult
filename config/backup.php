@@ -16,10 +16,10 @@ return [
      */
     'storage' => [
         /**
-         * Default backup path relative to storage/app.
-         * Standard location: storage/app/backups/database/
+         * Default backup path relative to base path.
+         * Standard location: database/backups/
          */
-        'path' => env('BACKUP_PATH', 'backups/database'),
+        'path' => env('BACKUP_PATH', 'database/backups'),
 
         /**
          * Disk to use for backups.
