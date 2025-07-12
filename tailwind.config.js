@@ -13,6 +13,8 @@ export default {
         './resources/**/*.vue',
     ],
     
+    darkMode: 'class',
+    
     safelist: [
         // Preserve dynamic Filament classes
         'bg-primary-50',

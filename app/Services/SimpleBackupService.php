@@ -80,28 +80,19 @@ class SimpleBackupService
                 '--lock-tables=false',
             ];
             
-            // Add database name first
-            $command[] = $config['database'];
-            
             // Add views exclusion if requested
             if ($excludeViews) {
-                // Get all regular tables (not views) and explicitly include only those
-                $tables = $this->getDatabaseTables();
-                if (!empty($tables)) {
-                    // Add each table explicitly after the database name
-                    foreach ($tables as $table) {
-                        $command[] = $table;
-                    }
-                } else {
-                    // Fallback: try to exclude problematic views individually
-                    $views = $this->getDatabaseViews();
-                    foreach ($views as $view) {
-                        $command[] = '--ignore-table=' . $config['database'] . '.' . $view;
-                    }
+                // Always use the ignore-table approach for views
+                $views = $this->getDatabaseViews();
+                foreach ($views as $view) {
+                    $command[] = '--ignore-table=' . $config['database'] . '.' . $view;
                 }
                 
                 $command[] = '--no-create-db';
             }
+            
+            // Add database name at the end
+            $command[] = $config['database'];
             
             // Try to find mysqldump in known locations
             $mysqldumpPath = $this->findMysqldump();
