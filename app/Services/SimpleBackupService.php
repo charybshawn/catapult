@@ -76,21 +76,32 @@ class SimpleBackupService
                 '--skip-routines',
                 '--skip-triggers',
                 '--skip-events',
+                '--quick',
+                '--lock-tables=false',
             ];
+            
+            // Add database name first
+            $command[] = $config['database'];
             
             // Add views exclusion if requested
             if ($excludeViews) {
-                // Get all views and exclude them (views are schema, not data)
-                $views = $this->getDatabaseViews();
-                foreach ($views as $view) {
-                    $command[] = '--ignore-table=' . $config['database'] . '.' . $view;
+                // Get all regular tables (not views) and explicitly include only those
+                $tables = $this->getDatabaseTables();
+                if (!empty($tables)) {
+                    // Add each table explicitly after the database name
+                    foreach ($tables as $table) {
+                        $command[] = $table;
+                    }
+                } else {
+                    // Fallback: try to exclude problematic views individually
+                    $views = $this->getDatabaseViews();
+                    foreach ($views as $view) {
+                        $command[] = '--ignore-table=' . $config['database'] . '.' . $view;
+                    }
                 }
                 
-                // Also add the standard mysqldump flag to exclude views
                 $command[] = '--no-create-db';
             }
-            
-            $command[] = $config['database'];
             
             // Try to find mysqldump in known locations
             $mysqldumpPath = $this->findMysqldump();
@@ -661,5 +672,35 @@ class SimpleBackupService
         }
         
         return $paths;
+    }
+
+    /**
+     * Get all database tables (excluding views)
+     */
+    private function getDatabaseTables(): array
+    {
+        try {
+            $config = config('database.connections.mysql');
+            $pdo = new \PDO(
+                "mysql:host={$config['host']};port={$config['port']};dbname={$config['database']};charset={$config['charset']}",
+                $config['username'],
+                $config['password'],
+                [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
+            );
+
+            $stmt = $pdo->query("SHOW FULL TABLES WHERE Table_type = 'BASE TABLE'");
+            $tables = [];
+            
+            while ($row = $stmt->fetch(\PDO::FETCH_NUM)) {
+                $tables[] = $row[0];
+            }
+            
+            error_log("Found " . count($tables) . " database tables for backup: " . implode(', ', array_slice($tables, 0, 10)) . (count($tables) > 10 ? '...' : ''));
+            return $tables;
+            
+        } catch (\Exception $e) {
+            error_log("Could not fetch database tables: " . $e->getMessage());
+            return [];
+        }
     }
 }
