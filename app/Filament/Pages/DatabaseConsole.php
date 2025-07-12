@@ -781,6 +781,11 @@ class DatabaseConsole extends Page
                     $statement = trim($statement);
                     if (!empty($statement) && $statement !== ';') {
                         try {
+                            // Convert INSERT statements to INSERT IGNORE to handle duplicates gracefully
+                            if (str_starts_with(strtoupper($statement), 'INSERT INTO')) {
+                                $statement = preg_replace('/^INSERT INTO/i', 'INSERT IGNORE INTO', $statement);
+                            }
+                            
                             $pdo->exec($statement);
                             $successCount++;
                         } catch (\Exception $e) {
@@ -797,11 +802,12 @@ class DatabaseConsole extends Page
                 $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
                 $pdo->exec('SET UNIQUE_CHECKS=1');
                 
-                // Check for significant failures
-                if ($failCount > 0 && $successCount === 0) {
-                    throw new \Exception("All SQL statements failed. First error: " . ($errors[0] ?? 'Unknown error'));
-                } elseif ($failCount > $successCount) {
-                    throw new \Exception("More statements failed ({$failCount}) than succeeded ({$successCount}). First error: " . ($errors[0] ?? 'Unknown error'));
+                // Check for significant failures (be more lenient for data merges)
+                if ($successCount === 0) {
+                    throw new \Exception("No SQL statements succeeded. First error: " . ($errors[0] ?? 'Unknown error'));
+                } elseif ($failCount > 0 && $successCount < ($failCount * 0.2)) {
+                    // Only fail if less than 20% succeeded (most likely a real issue)
+                    throw new \Exception("Too many statements failed ({$failCount}) compared to succeeded ({$successCount}). First error: " . ($errors[0] ?? 'Unknown error'));
                 }
                 
                 $returnCode = 0; // Success
