@@ -697,10 +697,13 @@ class DatabaseConsole extends Page
             
             // Try multiple possible storage paths (same logic as restore backup)
             $possiblePaths = [
-                $fileName,                                    // Direct path as provided
+                $fileName,                                    // Direct path as provided (temp-schema/XXXXX.sql)
                 'public/' . $fileName,                       // Public disk
                 'private/' . $fileName,                      // Private disk
-                'temp-schema/' . $fileName,                  // Expected temp-schema directory
+                basename($fileName),                         // Just the filename in root
+                'public/' . basename($fileName),             // Public with just filename
+                'private/' . basename($fileName),            // Private with just filename
+                'temp-schema/' . basename($fileName),        // temp-schema directory with just filename
                 'public/temp-schema/' . basename($fileName), // Public temp-schema with just filename
                 'private/livewire-tmp/' . basename($fileName), // Livewire temp location
                 'livewire-tmp/' . basename($fileName),       // Livewire without private prefix
