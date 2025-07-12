@@ -27,7 +27,9 @@
       "Bash(touch:*)",
       "Bash(mkdir:*)",
       "Bash(mv:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(git pull:*)"
     ],
     "deny": []
   }
