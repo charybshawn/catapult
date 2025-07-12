@@ -50,7 +50,7 @@ class CropPlanningService
         $startDate = $startDate ? Carbon::parse($startDate) : now();
         $endDate = $endDate ? Carbon::parse($endDate) : now()->addDays(30);
         
-        // Get all valid orders in the date range
+        // Get all valid actual orders (not recurring templates) in the date range
         $orders = Order::with([
             'orderItems.product.productMix.masterSeedCatalogs',
             'orderItems.product.masterSeedCatalog',
@@ -58,8 +58,9 @@ class CropPlanningService
         ])
         ->where('harvest_date', '>=', $startDate)
         ->where('harvest_date', '<=', $endDate)
+        ->where('is_recurring', false) // Exclude recurring order templates
         ->whereHas('status', function ($query) {
-            $query->whereIn('code', ['draft', 'confirmed', 'active']);
+            $query->whereIn('code', ['draft', 'pending', 'confirmed', 'in_production']);
         })
         ->get();
         

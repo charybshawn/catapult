@@ -416,10 +416,12 @@ class OrderResource extends Resource
                         return OrderStatus::getOptionsForDropdown(false, false);
                     })
                     ->selectablePlaceholder(false)
-                    ->disabled(fn (Order $record): bool => $record->status?->code === 'template' || $record->status?->is_final)
+                    ->disabled(fn ($record): bool => 
+                        $record instanceof Order && ($record->status?->code === 'template' || $record->status?->is_final)
+                    )
                     ->rules([
-                        fn (Order $record): \Closure => function (string $attribute, $value, \Closure $fail) use ($record) {
-                            if (!$record->status) {
+                        fn ($record): \Closure => function (string $attribute, $value, \Closure $fail) use ($record) {
+                            if (!($record instanceof Order) || !$record->status) {
                                 return;
                             }
                             
@@ -434,7 +436,10 @@ class OrderResource extends Resource
                             }
                         },
                     ])
-                    ->afterStateUpdated(function (Order $record, $state) {
+                    ->afterStateUpdated(function ($record, $state) {
+                        if (!($record instanceof Order)) {
+                            return;
+                        }
                         $oldStatus = $record->status;
                         $newStatus = OrderStatus::find($state);
                         
