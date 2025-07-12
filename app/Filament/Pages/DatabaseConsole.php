@@ -752,36 +752,64 @@ class DatabaseConsole extends Page
                 throw new \Exception('Invalid SQL content detected');
             }
 
-            // Get database connection details
-            $connection = config('database.default');
-            $database = config("database.connections.{$connection}.database");
-            $username = config("database.connections.{$connection}.username");
-            $password = config("database.connections.{$connection}.password");
-            $host = config("database.connections.{$connection}.host");
-            $port = config("database.connections.{$connection}.port", 3306);
+            // Execute schema merge using PDO (same approach as backup service restore)
+            try {
+                // Get database connection
+                $config = config('database.connections.mysql');
+                $pdo = new \PDO(
+                    "mysql:host={$config['host']};port={$config['port']};dbname={$config['database']};charset={$config['charset']}",
+                    $config['username'],
+                    $config['password'],
+                    [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
+                );
 
-            // Create temporary file for the schema
-            $tempFile = storage_path('app/temp-schema-merge.sql');
-            file_put_contents($tempFile, $schemaContent);
-
-            // Execute the schema merge using mysql command
-            $command = sprintf(
-                'mysql -h%s -P%s -u%s %s %s < %s',
-                escapeshellarg($host),
-                escapeshellarg($port),
-                escapeshellarg($username),
-                $password ? '-p' . escapeshellarg($password) : '',
-                escapeshellarg($database),
-                escapeshellarg($tempFile)
-            );
-
-            $output = [];
-            $returnCode = 0;
-            exec($command . ' 2>&1', $output, $returnCode);
-
-            // Clean up temporary file
-            if (file_exists($tempFile)) {
-                unlink($tempFile);
+                // Configure for schema merge
+                $pdo->exec('SET FOREIGN_KEY_CHECKS=0');
+                $pdo->exec('SET SQL_MODE="NO_AUTO_VALUE_ON_ZERO"');
+                $pdo->exec('SET AUTOCOMMIT=0');
+                $pdo->exec('SET UNIQUE_CHECKS=0');
+                $pdo->exec('START TRANSACTION');
+                
+                // Split SQL into individual statements (same method as backup service)
+                $statements = $this->splitSqlStatements($schemaContent);
+                
+                $successCount = 0;
+                $failCount = 0;
+                $errors = [];
+                
+                foreach ($statements as $statement) {
+                    $statement = trim($statement);
+                    if (!empty($statement) && $statement !== ';') {
+                        try {
+                            $pdo->exec($statement);
+                            $successCount++;
+                        } catch (\Exception $e) {
+                            $failCount++;
+                            $errorMsg = $e->getMessage();
+                            $stmtPreview = substr($statement, 0, 200) . "...";
+                            $errors[] = "SQL Error: {$errorMsg} | Statement: {$stmtPreview}";
+                        }
+                    }
+                }
+                
+                // Commit transaction and re-enable checks
+                $pdo->exec('COMMIT');
+                $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
+                $pdo->exec('SET UNIQUE_CHECKS=1');
+                
+                // Check for significant failures
+                if ($failCount > 0 && $successCount === 0) {
+                    throw new \Exception("All SQL statements failed. First error: " . ($errors[0] ?? 'Unknown error'));
+                } elseif ($failCount > $successCount) {
+                    throw new \Exception("More statements failed ({$failCount}) than succeeded ({$successCount}). First error: " . ($errors[0] ?? 'Unknown error'));
+                }
+                
+                $returnCode = 0; // Success
+                $output = ["Schema merge completed: {$successCount} successful, {$failCount} failed statements"];
+                
+            } catch (\Exception $e) {
+                $returnCode = 1; // Failure
+                $output = ["Schema merge failed: " . $e->getMessage()];
             }
 
             // Clean up uploaded file
@@ -853,5 +881,51 @@ class DatabaseConsole extends Page
 
         // Also allow if it starts with SQL comments
         return str_starts_with($content, '--') || str_starts_with($content, '/*');
+    }
+
+    /**
+     * Split SQL content into individual statements (same method as backup service)
+     */
+    private function splitSqlStatements(string $sql): array
+    {
+        // Remove comments and split by semicolons
+        $sql = preg_replace('/--.*$/m', '', $sql); // Remove single-line comments
+        $sql = preg_replace('/\/\*.*?\*\//s', '', $sql); // Remove multi-line comments
+        
+        // Split by semicolons, but be careful with quoted strings
+        $statements = [];
+        $current = '';
+        $inQuotes = false;
+        $quoteChar = '';
+        
+        for ($i = 0; $i < strlen($sql); $i++) {
+            $char = $sql[$i];
+            
+            if (!$inQuotes && ($char === '"' || $char === "'")) {
+                $inQuotes = true;
+                $quoteChar = $char;
+            } elseif ($inQuotes && $char === $quoteChar) {
+                // Check if it's escaped
+                if ($i > 0 && $sql[$i-1] !== '\\') {
+                    $inQuotes = false;
+                    $quoteChar = '';
+                }
+            } elseif (!$inQuotes && $char === ';') {
+                $statements[] = trim($current);
+                $current = '';
+                continue;
+            }
+            
+            $current .= $char;
+        }
+        
+        // Add the last statement if it exists
+        if (!empty(trim($current))) {
+            $statements[] = trim($current);
+        }
+        
+        return array_filter($statements, function($stmt) {
+            return !empty(trim($stmt));
+        });
     }
 }
