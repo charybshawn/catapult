@@ -443,7 +443,14 @@ class InventoryManagementService
         $entries = $this->getEntriesInLot($lotNumber);
         
         return $entries->sum(function (Consumable $consumable) {
-            return max(0, $consumable->total_quantity - $consumable->consumed_quantity);
+            $availableQuantity = max(0, $consumable->total_quantity - $consumable->consumed_quantity);
+            
+            // Convert to grams if the consumable is in kg (for seed inventory)
+            if ($consumable->quantity_unit === 'kg') {
+                return $availableQuantity * 1000;
+            }
+            
+            return $availableQuantity;
         });
     }
 

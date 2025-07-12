@@ -155,7 +155,7 @@ class CreateCrop extends BaseCreateRecord
                             ->persistent()
                             ->send();
                             
-                        return null;
+                        throw new \Exception("Cannot create crops: Recipe lot '{$recipe->lot_number}' is marked as depleted.");
                     }
                     
                     // Check if lot has enough available quantity
@@ -177,7 +177,7 @@ class CreateCrop extends BaseCreateRecord
                             ->persistent()
                             ->send();
                             
-                        return null;
+                        throw new \Exception("Cannot create crops: Lot '{$recipe->lot_number}' has insufficient stock. Required: {$totalSeedRequired}g, Available: {$availableQuantity}g");
                     }
                     
                     // Consume from lot using FIFO
