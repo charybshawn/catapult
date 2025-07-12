@@ -28,8 +28,17 @@ class DatabaseConsole extends Page
     {
         try {
             $backupService = new SimpleBackupService();
-            return $backupService->listBackups()->toArray();
+            $backups = $backupService->listBackups()->toArray();
+            
+            // Debug: Log backup directory and files found
+            \Log::info('Backup list debug', [
+                'backup_count' => count($backups),
+                'backup_files' => array_column($backups, 'name'),
+            ]);
+            
+            return $backups;
         } catch (\Exception $e) {
+            \Log::error('Failed to get backups', ['error' => $e->getMessage()]);
             return [];
         }
     }

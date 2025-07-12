@@ -362,11 +362,16 @@ class SimpleBackupService
             $fullBackupDir = storage_path('app/' . $this->backupPath);
         }
         
+        // Debug: Log backup directory info
+        error_log("SimpleBackupService: backupPath={$this->backupPath}, fullBackupDir={$fullBackupDir}, dir_exists=" . (is_dir($fullBackupDir) ? 'yes' : 'no'));
+        
         if (!is_dir($fullBackupDir)) {
+            error_log("SimpleBackupService: Directory does not exist: {$fullBackupDir}");
             return collect();
         }
 
         $files = glob($fullBackupDir . '/*.{sql,json}', GLOB_BRACE);
+        error_log("SimpleBackupService: Found " . count($files) . " files: " . implode(', ', array_map('basename', $files)));
         
         return collect($files)
             ->map(function($file) {
