@@ -639,12 +639,25 @@ class DatabaseConsole extends Page
             }
 
             // Get the uploaded file path
-            $uploadedFiles = $data['schema_file'] ?? [];
-            if (empty($uploadedFiles)) {
+            $uploadedFile = $data['schema_file'] ?? null;
+            if (!$uploadedFile) {
                 throw new \Exception('No schema file was uploaded');
             }
 
-            $fileName = $uploadedFiles[0]; // Get first uploaded file
+            // Get the actual file path - Filament stores files in temp-schema directory
+            $filePath = null;
+            if (is_string($uploadedFile)) {
+                $filePath = $uploadedFile;
+            } elseif (is_array($uploadedFile) && !empty($uploadedFile)) {
+                // Get the first uploaded file
+                $filePath = reset($uploadedFile);
+            }
+            
+            if (!$filePath) {
+                throw new \Exception("No valid file path found in upload data: " . json_encode($uploadedFile));
+            }
+            
+            $fileName = $filePath;
             
             // Try multiple possible storage paths (same logic as restore backup)
             $possiblePaths = [
