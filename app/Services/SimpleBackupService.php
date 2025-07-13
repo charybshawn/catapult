@@ -24,7 +24,7 @@ class SimpleBackupService
      */
     public function createBackup(?string $name = null, bool $excludeViews = true): string
     {
-        $lockFile = storage_path('app/backups/.backup.lock');
+        $lockFile = base_path('database/backups/.backup.lock');
         $lockHandle = null;
         
         try {

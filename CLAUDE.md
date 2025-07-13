@@ -25,6 +25,26 @@
 4. **Commit to ONE approach** - see it through to completion
 5. **Code changes require DB schema changes** - if a requested code change, absolutely requires a schema change at the DBMS level, then prompt the user to create a new git feature branch
 
+### 🔍 How to Prevent Common Mistakes:
+
+1. **Configuration Sprawl Prevention:**
+   - ALWAYS check existing code for configuration patterns
+   - Use existing constants and config files
+   - Don't hardcode paths - use Laravel helpers like `base_path()`, `storage_path()`
+   - When in doubt, grep for similar functionality first
+
+2. **Path Consistency:**
+   - Backup files: ONLY use `database/backups/`
+   - Temp files: Use `storage/app/temp/`
+   - Uploads: Use `storage/app/uploads/`
+   - NEVER create new directories without checking CLAUDE.md first
+
+3. **Before Creating ANY New File:**
+   - Search for existing files with similar names
+   - Check if the functionality already exists
+   - Look for TODO comments that might indicate planned features
+   - Ask yourself: "Am I creating a duplicate?"
+
 ### DURING coding:
 1. **Fix, don't replace** - prefer editing existing code over creating new files
 2. **Test as you go** - don't write 200 lines before testing
@@ -39,6 +59,15 @@
 
 ### 🗂️ STANDARDIZED BACKUP STORAGE LOCATION
 **ALL backup files MUST be stored in: `database/backups/`**
+
+⚠️ **NEVER USE THESE PATHS:**
+- `storage/app/backups/` - DO NOT USE
+- `storage/app/backups/database/` - DO NOT USE
+- Any other location - DO NOT USE
+
+**ALWAYS USE:** `base_path('database/backups/')` in PHP code
+
+**Why this matters:** Multiple backup locations create confusion, duplicate files, and make it impossible to reliably find backups. We've already fixed this issue multiple times - don't reintroduce it!
 
 ## 🧹 Code Cleanup Checklist
 

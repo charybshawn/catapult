@@ -72,7 +72,7 @@ class DatabaseBackupCommand extends Command
             
             // Handle custom output path
             if ($customPath = $this->option('output')) {
-                $backupPath = storage_path('app/backups/database/' . $filename);
+                $backupPath = base_path('database/backups/' . $filename);
                 $this->copyToCustomPath($backupPath, $customPath);
             }
         } catch (\Exception $e) {

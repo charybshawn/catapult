@@ -179,7 +179,7 @@ class DatabaseRestoreCommand extends Command
         }
 
         // Check standardized backup directory
-        $backupPath = storage_path("app/backups/database/{$file}");
+        $backupPath = base_path("database/backups/{$file}");
         if (file_exists($backupPath)) {
             return $backupPath;
         }
@@ -187,8 +187,7 @@ class DatabaseRestoreCommand extends Command
         // Check if user provided just the filename without extension
         if (!str_ends_with($file, '.sql')) {
             $possiblePathsWithExt = [
-                \Illuminate\Support\Facades\Storage::disk('local')->path("backups/database/{$file}.sql"),
-                storage_path("app/backups/database/{$file}.sql"),
+                base_path("database/backups/{$file}.sql"),
             ];
 
             foreach ($possiblePathsWithExt as $backupPath) {

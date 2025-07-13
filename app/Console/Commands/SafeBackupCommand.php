@@ -166,7 +166,7 @@ class SafeBackupCommand extends Command
         if ($mysqldumpAvailable && ($this->option('separate') || $this->option('schema-only') || $this->option('data-only'))) {
             $dbName = config('database.connections.mysql.database');
             $timestamp = now()->format('Y-m-d_H-i-s');
-            $backupDir = storage_path('app/backups/database');
+            $backupDir = base_path('database/backups');
             
             if (!is_dir($backupDir)) {
                 mkdir($backupDir, 0755, true);
