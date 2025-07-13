@@ -34,6 +34,10 @@ class EditRecurringOrder extends BaseEditRecord
             })->toArray();
         }
         
+        // Load virtual attributes for harvest_day and delivery_day
+        $data['harvest_day'] = $order->harvest_day;
+        $data['delivery_day'] = $order->delivery_day;
+        
         return $data;
     }
 }

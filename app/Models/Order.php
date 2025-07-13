@@ -114,23 +114,6 @@ class Order extends Model
                 $order->recurring_start_date = $order->harvest_date;
             }
             
-            // Handle virtual harvest/delivery day/time fields for recurring orders
-            if ($order->is_recurring) {
-                $daysOfWeek = $order->recurring_days_of_week ?? [];
-                
-                // Check if we have individual day fields (from form submission)
-                $attributes = $order->getAttributes();
-                if (isset($attributes['harvest_day']) || isset($attributes['delivery_day'])) {
-                    
-                    $daysOfWeek['harvest_day'] = $attributes['harvest_day'] ?? $daysOfWeek['harvest_day'] ?? 'monday';
-                    $daysOfWeek['delivery_day'] = $attributes['delivery_day'] ?? $daysOfWeek['delivery_day'] ?? 'tuesday';
-                    
-                    $order->recurring_days_of_week = $daysOfWeek;
-                    
-                    // Remove the virtual fields to prevent database errors
-                    unset($order->harvest_day, $order->delivery_day);
-                }
-            }
             
             // Automatically set status to template when marked as recurring (but not for B2B orders)
             $orderTypeCode = $order->orderType?->code ?? null;
@@ -471,7 +454,7 @@ class Order extends Model
     public function calculateNextDateForDayTime(string $type, \Carbon\Carbon $fromDate): \Carbon\Carbon
     {
         $dayField = $type . '_day';
-        $targetDay = $this->recurring_days_of_week[$dayField] ?? null;
+        $targetDay = $this->{$dayField} ?? null;
         
         if (!$targetDay) {
             // Fallback to simple calculation if no schedule defined
@@ -715,21 +698,6 @@ class Order extends Model
         };
     }
     
-    /**
-     * Get harvest day from recurring_days_of_week JSON.
-     */
-    public function getHarvestDayAttribute(): ?string
-    {
-        return $this->recurring_days_of_week['harvest_day'] ?? null;
-    }
-    
-    /**
-     * Get delivery day from recurring_days_of_week JSON.
-     */
-    public function getDeliveryDayAttribute(): ?string
-    {
-        return $this->recurring_days_of_week['delivery_day'] ?? null;
-    }
     
     /**
      * Check if this order requires immediate invoicing.

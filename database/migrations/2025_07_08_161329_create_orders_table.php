@@ -18,8 +18,6 @@ return new class extends Migration
             $table->unsignedBigInteger('customer_id')->nullable();
             $table->date('harvest_date')->nullable();
             $table->date('delivery_date')->nullable();
-            $table->enum('harvest_day', ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'])->nullable();
-            $table->enum('delivery_day', ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'])->nullable();
             $table->unsignedBigInteger('status_id')->nullable();
             $table->unsignedBigInteger('crop_status_id')->nullable();
             $table->unsignedBigInteger('fulfillment_status_id')->nullable();
