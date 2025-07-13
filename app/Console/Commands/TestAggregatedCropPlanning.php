@@ -75,7 +75,7 @@ class TestAggregatedCropPlanning extends Command
                 $cropPlans->map(function ($plan) {
                     return [
                         $plan->variety_id ?? 'N/A',
-                        $plan->cultivar ?? 'N/A',
+                        $plan->recipe?->cultivar_name ?? 'N/A',
                         $plan->expected_harvest_date->format('Y-m-d'),
                         number_format($plan->grams_needed, 2),
                         $plan->trays_needed

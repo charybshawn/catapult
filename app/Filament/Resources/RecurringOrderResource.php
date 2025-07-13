@@ -74,6 +74,15 @@ class RecurringOrderResource extends Resource
                                     ->required(),
                             ])
                             ->createOptionUsing(function (array $data): int {
+                                // Map customer_type string to customer_type_id
+                                if (isset($data['customer_type'])) {
+                                    $customerType = \App\Models\CustomerType::where('code', $data['customer_type'])->first();
+                                    if ($customerType) {
+                                        $data['customer_type_id'] = $customerType->id;
+                                    }
+                                    unset($data['customer_type']); // Remove the string field
+                                }
+                                
                                 return Customer::create($data)->getKey();
                             }),
                             

@@ -68,7 +68,7 @@ class CropPlanCalendarWidget extends FullCalendarWidget
         $groupedPlans = $cropPlans->groupBy(function ($plan) {
             $eventDate = $plan->seed_soak_date ?? $plan->plant_by_date;
             $variety = $plan->variety->common_name ?? 'Unknown';
-            $cultivar = $plan->cultivar ? " ({$plan->cultivar})" : '';
+            $cultivar = $plan->recipe?->cultivar_name ? " ({$plan->recipe->cultivar_name})" : '';
             return $eventDate->format('Y-m-d') . '|' . $variety . $cultivar;
         });
 

@@ -189,7 +189,7 @@ class CropPlanResource extends Resource
                     ->searchable()
                     ->sortable(),
                 
-                Tables\Columns\TextColumn::make('cultivar')
+                Tables\Columns\TextColumn::make('recipe.cultivar_name')
                     ->label('Cultivar')
                     ->searchable()
                     ->sortable(),

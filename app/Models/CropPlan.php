@@ -17,7 +17,6 @@ class CropPlan extends Model
         'order_id',
         'recipe_id',
         'variety_id',
-        'cultivar',
         'status_id',
         'trays_needed',
         'grams_needed',

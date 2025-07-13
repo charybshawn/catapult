@@ -430,7 +430,7 @@ class CropPlanningService
                 'order_id' => $order->id,
                 'recipe_id' => null,
                 'variety_id' => $masterSeedCatalogId,
-                'cultivar' => $cultivar,
+                // cultivar accessed via recipe relationship
                 'status_id' => $draftStatus->id,
                 'trays_needed' => 0, // Cannot calculate without recipe
                 'grams_needed' => $gramsNeeded,
@@ -494,7 +494,7 @@ class CropPlanningService
             'order_id' => $order->id,
             'recipe_id' => $recipe->id,
             'variety_id' => $masterSeedCatalogId,
-            'cultivar' => $cultivar,
+            // cultivar accessed via recipe relationship
             'status_id' => $draftStatus->id,
             'trays_needed' => $traysNeeded,
             'grams_needed' => $gramsNeeded,
@@ -568,7 +568,7 @@ class CropPlanningService
                 'order_id' => $order->id,
                 'recipe_id' => null,
                 'variety_id' => $masterSeedCatalogId,
-                'cultivar' => $cultivar,
+                // cultivar accessed via recipe relationship
                 'status_id' => $draftStatus->id,
                 'trays_needed' => $traysNeeded,
                 'grams_needed' => 0, // Cannot calculate without recipe
@@ -632,7 +632,7 @@ class CropPlanningService
             'order_id' => $order->id,
             'recipe_id' => $recipe->id,
             'variety_id' => $masterSeedCatalogId,
-            'cultivar' => $cultivar,
+            // cultivar accessed via recipe relationship
             'status_id' => $draftStatus->id,
             'trays_needed' => $traysNeeded,
             'grams_needed' => $totalGrams,
@@ -1102,7 +1102,7 @@ class CropPlanningService
         if (!isset($varietyAggregates[$key])) {
             $varietyAggregates[$key] = [
                 'variety_id' => $varietyId,
-                'cultivar' => $cultivar,
+                // cultivar accessed via recipe relationship
                 'harvest_date' => $harvestDate,
                 'total_grams' => 0,
                 'orders' => [],
@@ -1152,7 +1152,7 @@ class CropPlanningService
                 Log::warning('No recipe found for aggregated variety', [
                     'variety_id' => $varietyId,
                     'variety_name' => $masterSeedCatalog->common_name,
-                    'cultivar' => $cultivar,
+                    // cultivar accessed via recipe relationship
                     'total_grams' => $totalGrams
                 ]);
                 continue;
@@ -1179,7 +1179,7 @@ class CropPlanningService
                     // Generate individual crop plan for this order and variety combination
                     $individualPlans = $this->generatePlanFromOrder($order);
                     foreach ($individualPlans as $plan) {
-                        if ($plan->variety_id == $varietyId && $plan->cultivar == $cultivar) {
+                        if ($plan->variety_id == $varietyId && $plan->recipe?->cultivar_name == $cultivar) {
                             $cropPlans->push($plan);
                         }
                     }
@@ -1190,7 +1190,7 @@ class CropPlanningService
                 'crop_plan_id' => $cropPlan->id,
                 'variety_id' => $varietyId,
                 'variety_name' => $masterSeedCatalog->common_name,
-                'cultivar' => $cultivar,
+                // cultivar accessed via recipe relationship
                 'total_grams' => $totalGrams,
                 'trays_needed' => $traysNeeded,
                 'orders_count' => count($orderIds),

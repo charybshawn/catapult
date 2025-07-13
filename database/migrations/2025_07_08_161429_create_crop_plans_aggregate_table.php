@@ -24,6 +24,7 @@ return new class extends Migration
             $table->json('calculation_details')->nullable();
             $table->unsignedBigInteger('created_by');
             $table->unsignedBigInteger('updated_by')->nullable();
+            $table->timestamps();
         });
     }
 
