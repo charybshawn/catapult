@@ -77,7 +77,7 @@ class TimeCard extends Model
 
         static::saving(function ($timeCard) {
             if ($timeCard->clock_in && $timeCard->clock_out) {
-                $timeCard->duration_minutes = $timeCard->clock_in->diffInMinutes($timeCard->clock_out);
+                $timeCard->duration_minutes = $timeCard->clock_out->diffInMinutes($timeCard->clock_in);
             }
         });
     }
