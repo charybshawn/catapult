@@ -76,7 +76,7 @@ class OrderResource extends Resource
                                 return \App\Models\Customer::all()
                                     ->mapWithKeys(function ($customer) {
                                         $display = $customer->business_name 
-                                            ? $customer->business_name . ' - ' . $customer->contact_name
+                                            ? $customer->business_name . ' (' . $customer->contact_name . ')'
                                             : $customer->contact_name;
                                         return [$customer->id => $display];
                                     });
@@ -387,13 +387,13 @@ class OrderResource extends Resource
                             return '—';
                         }
                         
-                        $name = $record->customer->contact_name ?: 'No name';
+                        $contactName = $record->customer->contact_name ?: 'No name';
                         
                         if ($record->customer->business_name) {
-                            return $name . ' (' . $record->customer->business_name . ')';
+                            return $record->customer->business_name . ' (' . $contactName . ')';
                         }
                         
-                        return $name;
+                        return $contactName;
                     })
                     ->searchable(query: function ($query, string $search) {
                         return $query->whereHas('customer', function ($q) use ($search) {

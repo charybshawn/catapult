@@ -57,7 +57,7 @@ class CropPlanCalendarWidget extends FullCalendarWidget
         $end = Carbon::parse($info['end']);
 
         // Fetch all individual crop plans within the date range
-        $cropPlans = CropPlan::with(['variety', 'order.customer', 'status'])
+        $cropPlans = CropPlan::with(['variety', 'order.customer', 'status', 'recipe'])
             ->where(function ($query) use ($start, $end) {
                 $query->whereBetween('plant_by_date', [$start, $end])
                     ->orWhereBetween('seed_soak_date', [$start, $end]);
@@ -86,19 +86,31 @@ class CropPlanCalendarWidget extends FullCalendarWidget
             // Determine if this is seed soak or plant date
             $isSeedSoak = $plans->contains(fn($plan) => $plan->seed_soak_date && $plan->seed_soak_date->format('Y-m-d') == $date);
             
-            // Get status color (use most common status)
+            // Check if any plans are overdue (plant date in the past)
+            $hasOverduePlans = $plans->contains(function($plan) {
+                return $plan->plant_by_date && $plan->plant_by_date->isPast();
+            });
+            
+            // Calculate dominant status for all cases
             $statusCounts = $plans->groupBy('status.code')->map->count();
             $dominantStatus = $statusCounts->sortDesc()->keys()->first() ?? 'draft';
-            $color = $this->getStatusColor($dominantStatus);
+            
+            // Get status color (use most common status, but override for overdue)
+            if ($hasOverduePlans) {
+                $color = '#ef4444'; // Red for overdue plans
+            } else {
+                $color = $this->getStatusColor($dominantStatus);
+            }
 
             // Build aggregated event title
             $title = sprintf(
-                "%s\n%.1fg (%d trays)\n%d orders%s",
+                "%s\n%.1fg (%d trays)\n%d orders%s%s",
                 $varietyName,
                 $totalGrams,
                 $totalTrays,
                 $orderCount,
-                $isSeedSoak ? "\n[Seed Soak]" : ""
+                $isSeedSoak ? "\n[Seed Soak]" : "",
+                $hasOverduePlans ? "\n⚠️ OVERDUE" : ""
             );
 
             $events[] = [
@@ -117,6 +129,7 @@ class CropPlanCalendarWidget extends FullCalendarWidget
                     'order_count' => $orderCount,
                     'is_seed_soak' => $isSeedSoak,
                     'status' => $dominantStatus,
+                    'has_overdue_plans' => $hasOverduePlans,
                     'individual_plans' => $plans->map(function ($plan) {
                         return [
                             'id' => $plan->id,
@@ -128,6 +141,8 @@ class CropPlanCalendarWidget extends FullCalendarWidget
                             'plant_date' => $plan->plant_by_date?->format('Y-m-d'),
                             'seed_soak_date' => $plan->seed_soak_date?->format('Y-m-d'),
                             'harvest_date' => $plan->expected_harvest_date?->format('Y-m-d'),
+                            'days_to_maturity' => $plan->recipe?->days_to_maturity ?? null,
+                            'is_overdue' => $plan->plant_by_date && $plan->plant_by_date->isPast(),
                         ];
                     })->toArray(),
                 ],

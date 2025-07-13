@@ -52,7 +52,7 @@ class ListRecurringOrders extends ListRecords
                     }
                     
                     // Refresh the table to show updated next generation dates
-                    $this->refreshFormData();
+                    $this->resetTable();
                 })
                 ->requiresConfirmation()
                 ->modalDescription('This will generate new orders for all recurring templates that are due for their next generation.')

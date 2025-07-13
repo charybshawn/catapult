@@ -23,6 +23,8 @@ class RecurringOrderResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-arrow-path';
     protected static ?string $navigationLabel = 'Recurring Orders';
+    protected static ?string $modelLabel = 'Recurring Order';
+    protected static ?string $pluralModelLabel = 'Recurring Orders';
     protected static ?string $navigationGroup = 'Orders & Sales';
     protected static ?int $navigationSort = 3;
     protected static ?string $recordTitleAttribute = 'id';
@@ -43,7 +45,15 @@ class RecurringOrderResource extends Resource
                     ->schema([
                         Forms\Components\Select::make('customer_id')
                             ->label('Customer')
-                            ->relationship('customer', 'contact_name')
+                            ->options(function () {
+                                return \App\Models\Customer::all()
+                                    ->mapWithKeys(function ($customer) {
+                                        $display = $customer->business_name 
+                                            ? $customer->business_name . ' (' . $customer->contact_name . ')'
+                                            : $customer->contact_name;
+                                        return [$customer->id => $display];
+                                    });
+                            })
                             ->searchable()
                             ->preload()
                             ->required()
@@ -188,6 +198,15 @@ class RecurringOrderResource extends Resource
                             ->maxValue(12)
                             ->visible(fn ($get) => $get('recurring_frequency') === 'biweekly'),
                             
+                        Forms\Components\TextInput::make('start_delay_weeks')
+                            ->label('Start Delay (weeks)')
+                            ->helperText('Number of weeks to wait before generating the first order')
+                            ->numeric()
+                            ->default(2)
+                            ->minValue(0)
+                            ->maxValue(12)
+                            ->suffix('weeks'),
+                            
                         Forms\Components\Toggle::make('is_recurring_active')
                             ->label('Active')
                             ->helperText('Uncheck to pause recurring order generation')
@@ -268,6 +287,19 @@ class RecurringOrderResource extends Resource
                     
                 Tables\Columns\TextColumn::make('customer.contact_name')
                     ->label('Customer')
+                    ->formatStateUsing(function ($state, Order $record) {
+                        if (!$record->customer) {
+                            return '—';
+                        }
+                        
+                        $contactName = $record->customer->contact_name ?: 'No name';
+                        
+                        if ($record->customer->business_name) {
+                            return $record->customer->business_name . ' (' . $contactName . ')';
+                        }
+                        
+                        return $contactName;
+                    })
                     ->searchable()
                     ->sortable(),
                     
@@ -359,21 +391,23 @@ class RecurringOrderResource extends Resource
                     ->tooltip('Edit recurring order template'),
                     
                 Tables\Actions\Action::make('generate_next')
-                    ->label('Generate Next')
+                    ->label('Generate Orders')
                     ->icon('heroicon-o-plus-circle')
                     ->color('primary')
                     ->action(function (?Order $record): void {
                         if (!$record) return;
-                        $newOrder = $record->generateNextRecurringOrder();
-                        if ($newOrder) {
+                        $generatedOrders = $record->generateRecurringOrdersCatchUp();
+                        if (!empty($generatedOrders)) {
+                            $count = count($generatedOrders);
+                            $latestOrder = end($generatedOrders);
                             Notification::make()
-                                ->title('Order generated successfully')
-                                ->body("Order #{$newOrder->id} created for {$newOrder->delivery_date->format('M d, Y')}")
+                                ->title("Generated {$count} order(s) successfully")
+                                ->body("Latest order #{$latestOrder->id} for {$latestOrder->delivery_date->format('M d, Y')}")
                                 ->success()
                                 ->send();
                         } else {
                             Notification::make()
-                                ->title('Unable to generate order')
+                                ->title('Unable to generate orders')
                                 ->body('Check template settings and end date')
                                 ->warning()
                                 ->send();
@@ -399,9 +433,163 @@ class RecurringOrderResource extends Resource
                 Tables\Actions\DeleteAction::make()
                     ->tooltip('Delete recurring order template'),
             ])
+            ->headerActions([
+                Tables\Actions\Action::make('generate_all_due')
+                    ->label('Generate All Due Orders')
+                    ->icon('heroicon-o-plus-circle')
+                    ->color('primary')
+                    ->action(function () {
+                        $templates = Order::with(['customer', 'orderType', 'orderItems.product', 'orderItems.priceVariation', 'packagingTypes'])
+                            ->where('is_recurring', true)
+                            ->where('is_recurring_active', true)
+                            ->get();
+                        
+                        $successCount = 0;
+                        $errorCount = 0;
+                        $skippedCount = 0;
+                        $errors = [];
+                        $generatedOrders = [];
+                        
+                        foreach ($templates as $template) {
+                            try {
+                                // Generate multiple weeks ahead for proper planning
+                                $weeksToGenerate = 4; // Generate 4 weeks ahead
+                                $newOrders = [];
+                                
+                                for ($week = 0; $week < $weeksToGenerate; $week++) {
+                                    // Force generation by temporarily making next_generation_date due
+                                    $originalNextDate = $template->next_generation_date;
+                                    $template->next_generation_date = now()->subMinute(); // Make it due
+                                    
+                                    $newOrder = $template->generateNextRecurringOrder();
+                                    if ($newOrder) {
+                                        $newOrders[] = $newOrder;
+                                    } else {
+                                        break; // Stop if generation fails
+                                    }
+                                }
+                                if (!empty($newOrders)) {
+                                    foreach ($newOrders as $newOrder) {
+                                        $successCount++;
+                                        $generatedOrders[] = [
+                                            'order_id' => $newOrder->id,
+                                            'customer' => $template->customer->contact_name ?? 'Unknown',
+                                            'delivery_date' => $newOrder->delivery_date->format('M d, Y')
+                                        ];
+                                    }
+                                } else {
+                                    $errorCount++;
+                                    $customerName = $template->customer->contact_name ?? 'Unknown';
+                                    $errors[] = "Template #{$template->id} ({$customerName}): Generation returned null";
+                                }
+                            } catch (\Exception $e) {
+                                $errorCount++;
+                                $customerName = $template->customer->contact_name ?? 'Unknown';
+                                $errors[] = "Template #{$template->id} ({$customerName}): {$e->getMessage()}";
+                            }
+                        }
+                        
+                        // Build detailed feedback message
+                        $title = "Recurring Order Generation Complete";
+                        $body = "Processed {$templates->count()} templates:\n";
+                        $body .= "✅ Successfully generated: {$successCount} orders\n";
+                        $body .= "⏭️ Skipped (not due): {$skippedCount} templates\n";
+                        $body .= "❌ Errors: {$errorCount} templates";
+                        
+                        if (count($generatedOrders) > 0) {
+                            $body .= "\n\nGenerated Orders:\n";
+                            foreach ($generatedOrders as $order) {
+                                $body .= "• Order #{$order['order_id']} - {$order['customer']} (Delivery: {$order['delivery_date']})\n";
+                            }
+                        }
+                        
+                        if (count($errors) > 0) {
+                            $body .= "\n\nErrors:\n";
+                            foreach ($errors as $error) {
+                                $body .= "• {$error}\n";
+                            }
+                        }
+                        
+                        $notificationType = $errorCount > 0 ? 'warning' : ($successCount > 0 ? 'success' : 'info');
+                        
+                        Notification::make()
+                            ->title($title)
+                            ->body($body)
+                            ->{$notificationType}()
+                            ->persistent()
+                            ->send();
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading('Generate All Due Orders')
+                    ->modalDescription('This will generate orders for all active recurring templates that are due for generation.')
+                    ->modalSubmitActionLabel('Generate Orders'),
+            ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
+                    
+                    Tables\Actions\BulkAction::make('generate_selected')
+                        ->label('Generate Orders from Selected')
+                        ->icon('heroicon-o-plus-circle')
+                        ->color('primary')
+                        ->action(function (Collection $records) {
+                            $successCount = 0;
+                            $errorCount = 0;
+                            $errors = [];
+                            $generatedOrders = [];
+                            
+                            foreach ($records as $template) {
+                                try {
+                                    $newOrders = $template->generateRecurringOrdersCatchUp();
+                                    if (!empty($newOrders)) {
+                                        foreach ($newOrders as $newOrder) {
+                                            $successCount++;
+                                            $generatedOrders[] = [
+                                                'order_id' => $newOrder->id,
+                                                'customer' => $template->customer->contact_name ?? 'Unknown',
+                                                'delivery_date' => $newOrder->delivery_date->format('M d, Y')
+                                            ];
+                                        }
+                                    } else {
+                                        $errorCount++;
+                                        $errors[] = "Template #{$template->id}: Generation returned null";
+                                    }
+                                } catch (\Exception $e) {
+                                    $errorCount++;
+                                    $errors[] = "Template #{$template->id}: {$e->getMessage()}";
+                                }
+                            }
+                            
+                            $title = "Bulk Order Generation Complete";
+                            $body = "Processed {$records->count()} templates:\n";
+                            $body .= "✅ Successfully generated: {$successCount} orders\n";
+                            $body .= "❌ Errors: {$errorCount} templates";
+                            
+                            if (count($generatedOrders) > 0) {
+                                $body .= "\n\nGenerated Orders:\n";
+                                foreach ($generatedOrders as $order) {
+                                    $body .= "• Order #{$order['order_id']} - {$order['customer']} (Delivery: {$order['delivery_date']})\n";
+                                }
+                            }
+                            
+                            if (count($errors) > 0) {
+                                $body .= "\n\nErrors:\n";
+                                foreach ($errors as $error) {
+                                    $body .= "• {$error}\n";
+                                }
+                            }
+                            
+                            $notificationType = $errorCount > 0 ? 'warning' : 'success';
+                            
+                            Notification::make()
+                                ->title($title)
+                                ->body($body)
+                                ->{$notificationType}()
+                                ->persistent()
+                                ->send();
+                        })
+                        ->requiresConfirmation()
+                        ->deselectRecordsAfterCompletion(),
                     
                     Tables\Actions\BulkAction::make('pause_all')
                         ->label('Pause All')

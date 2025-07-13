@@ -84,7 +84,7 @@ class OrderItemObserver
         }
         
         // Check if only draft plans exist
-        $onlyDraftPlans = $existingPlans->every(fn($p) => $p->status->code === 'draft');
+        $onlyDraftPlans = $existingPlans->every(fn($p) => $p->status && $p->status->code === 'draft');
         
         if ($onlyDraftPlans) {
             // For draft plans, we can update them
@@ -100,7 +100,7 @@ class OrderItemObserver
             $this->orderPlanningService->updatePlansForOrder($order);
             
             // Recalculate aggregations
-            $affectedPlans = $order->cropPlans()->with('aggregatedCropPlan')->get();
+            $affectedPlans = $order->cropPlans()->with(['aggregatedCropPlan', 'status'])->get();
             foreach ($affectedPlans as $plan) {
                 if ($plan->aggregatedCropPlan) {
                     $this->aggregatedCropPlanService->recalculateAggregation($plan->aggregatedCropPlan);
@@ -112,8 +112,8 @@ class OrderItemObserver
                 'order_id' => $order->id,
                 'item_id' => $orderItem->id,
                 'action' => $action,
-                'active_plans' => $existingPlans->filter(fn($p) => $p->status->code === 'active')->count(),
-                'completed_plans' => $existingPlans->filter(fn($p) => $p->status->code === 'completed')->count()
+                'active_plans' => $existingPlans->filter(fn($p) => $p->status && $p->status->code === 'active')->count(),
+                'completed_plans' => $existingPlans->filter(fn($p) => $p->status && $p->status->code === 'completed')->count()
             ]);
             
             // Notify managers

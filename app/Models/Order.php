@@ -52,6 +52,7 @@ class Order extends Model
         'next_generation_date',
         'harvest_day',
         'delivery_day',
+        'start_delay_weeks',
         'notes',
     ];
     
@@ -176,6 +177,13 @@ class Order extends Model
                         $order->billing_period_end = $deliveryDate->copy()->endOfQuarter()->toDateString();
                         break;
                 }
+            }
+            
+            // Automatically calculate and set next_generation_date for recurring templates
+            if ($order->is_recurring && $order->parent_recurring_order_id === null) {
+                $order->next_generation_date = $order->calculateNextGenerationDate();
+            } elseif (!$order->is_recurring || $order->parent_recurring_order_id !== null) {
+                $order->next_generation_date = null;
             }
         });
     }
@@ -433,17 +441,49 @@ class Order extends Model
             return null;
         }
         
-        $lastGenerated = $this->last_generated_at ?? $this->recurring_start_date;
-        if (!$lastGenerated) {
+        // If we already have a next_generation_date set, use it
+        if ($this->next_generation_date) {
+            return $this->next_generation_date instanceof \Carbon\Carbon 
+                ? $this->next_generation_date 
+                : \Carbon\Carbon::parse($this->next_generation_date);
+        }
+        
+        $baseStartDate = $this->recurring_start_date;
+        if (!$baseStartDate) {
             return null;
         }
         
-        $lastDate = $lastGenerated instanceof \Carbon\Carbon ? $lastGenerated : \Carbon\Carbon::parse($lastGenerated);
+        // Apply the start delay to get the effective start date
+        $effectiveStartDate = $baseStartDate instanceof \Carbon\Carbon 
+            ? $baseStartDate->copy() 
+            : \Carbon\Carbon::parse($baseStartDate);
+        
+        if ($this->start_delay_weeks > 0) {
+            $effectiveStartDate->addWeeks($this->start_delay_weeks);
+        }
+        
+        // If this is the first generation and we haven't generated any orders yet
+        if (!$this->last_generated_at) {
+            // Find the first harvest day (based on harvest_day) on or after the effective start date
+            $firstHarvestDate = $this->calculateNextDateForDayTime('harvest', $effectiveStartDate);
+            
+            // If the calculated harvest date is before the effective start date, move to next week
+            if ($firstHarvestDate->lt($effectiveStartDate)) {
+                $firstHarvestDate->addWeek();
+            }
+            
+            return $firstHarvestDate;
+        }
+        
+        // For subsequent generations, use the last generated date as the base
+        $lastDate = $this->last_generated_at instanceof \Carbon\Carbon 
+            ? $this->last_generated_at 
+            : \Carbon\Carbon::parse($this->last_generated_at);
         
         return match($this->recurring_frequency) {
-            'weekly' => $lastDate->addWeek(),
-            'biweekly' => $lastDate->addWeeks($this->recurring_interval ?? 2),
-            'monthly' => $lastDate->addMonth(),
+            'weekly' => $lastDate->copy()->addWeek(),
+            'biweekly' => $lastDate->copy()->addWeeks($this->recurring_interval ?? 2),
+            'monthly' => $lastDate->copy()->addMonth(),
             default => null
         };
     }
@@ -486,6 +526,39 @@ class Order extends Model
     }
     
     /**
+     * Generate multiple orders to catch up to current date plus several weeks ahead.
+     */
+    public function generateRecurringOrdersCatchUp(): array
+    {
+        if (!$this->isRecurringTemplate() || !$this->is_recurring_active) {
+            return [];
+        }
+        
+        $generatedOrders = [];
+        $weeksToGenerate = 4; // Generate 4 weeks ahead
+        
+        for ($week = 0; $week < $weeksToGenerate; $week++) {
+            // Refresh the model to get the latest next_generation_date
+            $this->refresh();
+            
+            // Check if we should generate (or force generation for planning)
+            $nextDate = $this->calculateNextGenerationDate();
+            if (!$nextDate) {
+                break;
+            }
+            
+            $nextOrder = $this->generateNextRecurringOrder();
+            if (!$nextOrder) {
+                break; // Stop if generation fails
+            }
+            
+            $generatedOrders[] = $nextOrder;
+        }
+        
+        return $generatedOrders;
+    }
+
+    /**
      * Generate the next order in the recurring series.
      */
     public function generateNextRecurringOrder(): ?Order
@@ -512,9 +585,16 @@ class Order extends Model
             ->first();
             
         if ($existingOrder) {
-            // Order already exists for this date, update next generation date and skip
+            // Order already exists for this date, advance to next generation date
+            $nextGenerationDate = match($this->recurring_frequency) {
+                'weekly' => $nextDate->copy()->addWeek(),
+                'biweekly' => $nextDate->copy()->addWeeks($this->recurring_interval ?? 2),
+                'monthly' => $nextDate->copy()->addMonth(),
+                default => null
+            };
+            
             $this->update([
-                'next_generation_date' => $this->calculateNextGenerationDate()
+                'next_generation_date' => $nextGenerationDate
             ]);
             return null;
         }
@@ -554,7 +634,7 @@ class Order extends Model
         
         // Ensure relationships are loaded BEFORE saving the order
         if (!$this->relationLoaded('orderItems')) {
-            $this->load(['orderItems.product', 'orderItems.priceVariation', 'customer']);
+            $this->load(['orderItems.product', 'orderItems.priceVariation', 'customer', 'orderType', 'packagingTypes']);
         }
         
         $newOrder->save();
@@ -616,10 +696,24 @@ class Order extends Model
             ]);
         }
         
-        // Update template's last generated date
+        // Calculate next generation date before updating last_generated_at
+        $currentGenerationDate = $nextDate;
+        
+        // Update the last_generated_at first
+        $this->last_generated_at = now();
+        
+        // Now calculate the next generation date based on the updated last_generated_at
+        $nextGenerationDate = match($this->recurring_frequency) {
+            'weekly' => $currentGenerationDate->copy()->addWeek(),
+            'biweekly' => $currentGenerationDate->copy()->addWeeks($this->recurring_interval ?? 2),
+            'monthly' => $currentGenerationDate->copy()->addMonth(),
+            default => null
+        };
+        
+        // Save both fields
         $this->update([
-            'last_generated_at' => now(),
-            'next_generation_date' => $this->calculateNextGenerationDate()
+            'last_generated_at' => $this->last_generated_at,
+            'next_generation_date' => $nextGenerationDate
         ]);
         
         return $newOrder;

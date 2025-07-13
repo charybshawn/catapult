@@ -461,7 +461,7 @@ class CropPlanningService
         }
 
         // Calculate planting dates
-        $plantByDate = $this->calculatePlantByDate($recipe, $order->delivery_date);
+        $plantByDate = $this->calculatePlantByDate($recipe, $order->harvest_date);
         $seedSoakDate = $this->calculateSeedSoakDate($recipe, $plantByDate);
 
         // Calculate yield and trays needed
@@ -600,7 +600,7 @@ class CropPlanningService
         }
 
         // Calculate planting dates
-        $plantByDate = $this->calculatePlantByDate($recipe, $order->delivery_date);
+        $plantByDate = $this->calculatePlantByDate($recipe, $order->harvest_date);
         $seedSoakDate = $this->calculateSeedSoakDate($recipe, $plantByDate);
 
         // For live trays, we don't need to calculate yield - just use the tray count
@@ -856,18 +856,15 @@ class CropPlanningService
     }
 
     /**
-     * Calculate when to plant based on delivery date and recipe growth stages
+     * Calculate when to plant based on harvest date and recipe growth stages
      * 
      * @param Recipe $recipe
-     * @param Carbon $deliveryDate
+     * @param Carbon $harvestDate
      * @return Carbon
      */
-    public function calculatePlantByDate(Recipe $recipe, Carbon $deliveryDate): Carbon
+    public function calculatePlantByDate(Recipe $recipe, Carbon $harvestDate): Carbon
     {
-        // Work backwards from delivery date
-        // Subtract harvest window (typically 1 day before delivery)
-        $harvestDate = $deliveryDate->copy()->subDay();
-        
+        // Work backwards from harvest date
         // Subtract total growth days
         $totalDays = $recipe->totalDays();
         $plantDate = $harvestDate->copy()->subDays(ceil($totalDays));

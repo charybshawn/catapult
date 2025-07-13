@@ -20,5 +20,4 @@
         </div>
     </div>
 
-    @livewire(\App\Filament\Widgets\CropPlanCalendarWidget::class)
 </x-filament-panels::page>

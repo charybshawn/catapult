@@ -27,19 +27,22 @@ class RecurringOrderService
             try {
                 $results['processed']++;
                 
-                if ($this->shouldGenerateOrder($order)) {
-                    $newOrder = $order->generateNextRecurringOrder();
-                    
-                    if ($newOrder) {
-                        $results['generated']++;
-                        Log::info('Generated recurring order', [
-                            'template_id' => $order->id,
-                            'new_order_id' => $newOrder->id,
-                            'customer' => $order->user->name ?? 'Unknown',
-                            'harvest_date' => $newOrder->harvest_date
-                        ]);
-                    }
-                } elseif ($this->shouldDeactivateOrder($order)) {
+                // Always generate catch-up orders for active templates (for crop planning)
+                $generatedOrders = $order->generateRecurringOrdersCatchUp();
+                
+                foreach ($generatedOrders as $newOrder) {
+                    $results['generated']++;
+                    Log::info('Generated recurring order', [
+                        'template_id' => $order->id,
+                        'new_order_id' => $newOrder->id,
+                        'customer' => $order->user->name ?? 'Unknown',
+                        'harvest_date' => $newOrder->harvest_date,
+                        'delivery_date' => $newOrder->delivery_date,
+                        'is_future' => $newOrder->delivery_date->isFuture() ? 'yes' : 'no'
+                    ]);
+                }
+                
+                if ($this->shouldDeactivateOrder($order)) {
                     $order->update(['is_recurring_active' => false]);
                     $results['deactivated']++;
                     Log::info('Deactivated recurring order (past end date)', [
@@ -70,7 +73,7 @@ class RecurringOrderService
         return Order::where('is_recurring', true)
             ->where('is_recurring_active', true)
             ->whereNull('parent_recurring_order_id') // Only templates, not generated orders
-            ->with(['user', 'orderItems', 'packagingTypes'])
+            ->with(['user', 'customer', 'orderType', 'orderItems.product', 'orderItems.priceVariation', 'packagingTypes'])
             ->get();
     }
 
@@ -81,7 +84,7 @@ class RecurringOrderService
     {
         return Order::where('is_recurring', true)
             ->whereNull('parent_recurring_order_id') // Only templates, not generated orders
-            ->with(['user', 'orderItems', 'packagingTypes'])
+            ->with(['user', 'customer', 'orderType', 'orderItems.product', 'orderItems.priceVariation', 'packagingTypes'])
             ->get();
     }
 
