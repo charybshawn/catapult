@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\TimeCardResource\Pages;
 use App\Filament\Resources\TimeCardResource\RelationManagers;
 use App\Models\TimeCard;
@@ -14,8 +15,9 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Filament\Support\Enums\FontWeight;
 
-class TimeCardResource extends Resource
+class TimeCardResource extends BaseResource
 {
+    
     protected static ?string $model = TimeCard::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-clock';
@@ -277,6 +279,7 @@ class TimeCardResource extends Resource
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])
+            ->headerActions(static::getDefaultHeaderActions())
             ->defaultSort('work_date', 'desc');
     }
 
@@ -294,5 +297,36 @@ class TimeCardResource extends Resource
             'create' => Pages\CreateTimeCard::route('/create'),
             'edit' => Pages\EditTimeCard::route('/{record}/edit'),
         ];
+    }
+    
+    /**
+     * Define CSV export columns for timecard data
+     */
+    protected static function getCsvExportColumns(): array
+    {
+        return [
+            'id' => 'Time Card ID',
+            'user.name' => 'Employee Name',
+            'user.email' => 'Employee Email',
+            'work_date' => 'Work Date',
+            'clock_in' => 'Clock In Time',
+            'clock_out' => 'Clock Out Time',
+            'duration_minutes' => 'Duration (Minutes)',
+            'status' => 'Status',
+            'notes' => 'Notes',
+            'max_shift_exceeded' => 'Exceeded 8 Hours',
+            'requires_review' => 'Requires Review',
+            'review_notes' => 'Review Notes',
+            'created_at' => 'Created At',
+            'updated_at' => 'Updated At',
+        ];
+    }
+    
+    /**
+     * Define relationships to include in export
+     */
+    protected static function getCsvExportRelationships(): array
+    {
+        return ['user', 'tasks'];
     }
 }

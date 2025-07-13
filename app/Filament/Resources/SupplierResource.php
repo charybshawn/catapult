@@ -95,6 +95,7 @@ class SupplierResource extends BaseResource
             ])
             ->actions(static::getDefaultTableActions())
             ->bulkActions([static::getDefaultBulkActions()])
+            ->headerActions(static::getDefaultHeaderActions())
             ->toggleColumnsTriggerAction(
                 fn (Tables\Actions\Action $action) => $action
                     ->button()

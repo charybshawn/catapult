@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Traits\CsvExportAction;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -10,6 +11,7 @@ use Filament\Tables\Columns\IconColumn;
 
 abstract class BaseResource extends Resource
 {
+    use CsvExportAction;
     /**
      * Configure default table settings with persistence
      */
@@ -114,6 +116,74 @@ abstract class BaseResource extends Resource
                 ->requiresConfirmation()
                 ->color('danger'),
         ];
+    }
+
+    /**
+     * Get default header actions including CSV export
+     */
+    protected static function getDefaultHeaderActions(): array
+    {
+        return [
+            static::getCsvExportAction(),
+        ];
+    }
+
+    /**
+     * Default CSV export columns - automatically includes common fields
+     * Override this method in your resource to customize export columns
+     */
+    protected static function getCsvExportColumns(): array
+    {
+        $model = new (static::getModel());
+        $table = $model->getTable();
+        $schemaColumns = $model->getConnection()->getSchemaBuilder()->getColumnListing($table);
+        
+        // Standard columns that most models have
+        $standardColumns = [
+            'id' => 'ID',
+            'name' => 'Name', 
+            'title' => 'Title',
+            'description' => 'Description',
+            'status' => 'Status',
+            'is_active' => 'Active',
+            'created_at' => 'Created At',
+            'updated_at' => 'Updated At'
+        ];
+        
+        // Filter to only include columns that exist in this table
+        $availableColumns = [];
+        foreach ($standardColumns as $column => $label) {
+            if (in_array($column, $schemaColumns)) {
+                $availableColumns[$column] = $label;
+            }
+        }
+        
+        // Add any remaining columns from schema (excluding sensitive ones)
+        $excludeColumns = ['password', 'remember_token', 'email_verified_at'];
+        foreach ($schemaColumns as $column) {
+            if (!isset($availableColumns[$column]) && !in_array($column, $excludeColumns)) {
+                $availableColumns[$column] = static::formatColumnLabel($column);
+            }
+        }
+        
+        return $availableColumns;
+    }
+
+    /**
+     * Default relationships to include in export
+     * Override this method in your resource to specify relationships
+     */
+    protected static function getCsvExportRelationships(): array
+    {
+        return [];
+    }
+
+    /**
+     * Format column name into a readable label
+     */
+    protected static function formatColumnLabel(string $columnName): string
+    {
+        return \Illuminate\Support\Str::title(str_replace('_', ' ', $columnName));
     }
 
     /**

@@ -57,7 +57,8 @@ class CategoryResource extends BaseResource
                     ->falseLabel('Inactive Categories'),
             ])
             ->actions(static::getDefaultTableActions())
-            ->bulkActions([static::getDefaultBulkActions()]);
+            ->bulkActions([static::getDefaultBulkActions()])
+            ->headerActions(static::getDefaultHeaderActions());
     }
 
     public static function getRelations(): array
