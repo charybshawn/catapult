@@ -208,10 +208,10 @@ class CropTimeCalculator
     private function getCurrentStageStartTime(Crop $crop): ?Carbon
     {
         $timestamp = match ($crop->current_stage) {
-            'germination' => $crop->germination_at ?? $crop->planting_at,
-            'blackout' => $crop->blackout_at,
-            'light' => $crop->light_at,
-            'harvested' => $crop->harvested_at,
+            'germination' => $crop->planting_at,
+            'blackout' => $crop->germination_at,
+            'light' => $crop->blackout_at,
+            'harvested' => $crop->light_at,
             default => null
         };
 
