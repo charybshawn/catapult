@@ -200,13 +200,13 @@ class RecurringOrderResource extends Resource
                         Forms\Components\Select::make('harvest_day')
                             ->label('Harvest Day')
                             ->options([
+                                'sunday' => 'Sunday',
                                 'monday' => 'Monday',
                                 'tuesday' => 'Tuesday', 
                                 'wednesday' => 'Wednesday',
                                 'thursday' => 'Thursday',
                                 'friday' => 'Friday',
                                 'saturday' => 'Saturday',
-                                'sunday' => 'Sunday',
                             ])
                             ->default('monday')
                             ->required(),
@@ -214,13 +214,13 @@ class RecurringOrderResource extends Resource
                         Forms\Components\Select::make('delivery_day')
                             ->label('Delivery Day')
                             ->options([
+                                'sunday' => 'Sunday',
                                 'monday' => 'Monday',
                                 'tuesday' => 'Tuesday',
                                 'wednesday' => 'Wednesday', 
                                 'thursday' => 'Thursday',
                                 'friday' => 'Friday',
                                 'saturday' => 'Saturday',
-                                'sunday' => 'Sunday',
                             ])
                             ->default('tuesday')
                             ->required(),

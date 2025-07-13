@@ -171,6 +171,34 @@ class SimpleBackupService
             throw new \Exception("Backup file is empty or corrupted");
         }
 
+        // Use the shared restoration logic
+        return $this->executeRestore($sqlContent);
+    }
+
+    /**
+     * Restore database from a file with full path (for temporary uploaded files)
+     */
+    public function restoreFromFile(string $fullFilePath): bool
+    {
+        if (!file_exists($fullFilePath)) {
+            throw new \Exception("Backup file not found: {$fullFilePath}");
+        }
+
+        $sqlContent = file_get_contents($fullFilePath);
+        
+        if (empty($sqlContent)) {
+            throw new \Exception("Backup file is empty or corrupted");
+        }
+
+        // Use the same logic as restoreBackup but with direct file path
+        return $this->executeRestore($sqlContent);
+    }
+
+    /**
+     * Execute the actual restore process (shared by both restore methods)
+     */
+    private function executeRestore(string $sqlContent): bool
+    {
         try {
             // Get database connection
             $config = config('database.connections.mysql');

@@ -24,6 +24,7 @@
 3. **Plan your approach** - don't code until you have a clear plan
 4. **Commit to ONE approach** - see it through to completion
 5. **Code changes require DB schema changes** - if a requested code change, absolutely requires a schema change at the DBMS level, then prompt the user to create a new git feature branch
+6. **Require evidence of relevance** - when encountering variables, fields, or objects that don't have corresponding DB columns or seem unused, require DIRECT EVIDENCE that they are connected to the current codebase before making accommodations or schema changes. Example: finding a reference to `status` instead of `status_id` doesn't mean we create a `status` column - it means we fix the reference to use `status_id` since we've clearly moved from enums to lookup tables. Don't change the entire codebase architecture because of one dangling legacy reference!
 
 ### 🔍 How to Prevent Common Mistakes:
 

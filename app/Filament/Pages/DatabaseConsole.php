@@ -386,15 +386,15 @@ class DatabaseConsole extends Page
                         $preview = substr($fileContents, 0, 200);
                         $this->restoreOutput .= "File preview: " . $preview . "...\n";
                         
-                        // Create a temporary file in the backup directory
+                        // Create a temporary file in the temp directory (will be cleaned up after restore)
                         $tempBackupName = 'uploaded_' . now()->format('Y-m-d_H-i-s') . '.sql';
-                        $backupDir = storage_path('app/backups/database');
+                        $tempDir = storage_path('app/temp');
                         
-                        if (!is_dir($backupDir)) {
-                            mkdir($backupDir, 0755, true);
+                        if (!is_dir($tempDir)) {
+                            mkdir($tempDir, 0755, true);
                         }
                         
-                        $tempBackupPath = $backupDir . '/' . $tempBackupName;
+                        $tempBackupPath = $tempDir . '/' . $tempBackupName;
                         file_put_contents($tempBackupPath, $fileContents);
                         
                         $uploadedFilePath = $tempBackupPath;
@@ -439,7 +439,7 @@ class DatabaseConsole extends Page
                     
                     try {
                         $this->restoreOutput .= "Calling backup service restore...\n";
-                        $result = $backupService->restoreBackup($tempBackupName);
+                        $result = $backupService->restoreFromFile($tempBackupPath);
                         
                         if ($result) {
                             $this->restoreOutput .= "Backup service returned success - verifying data...\n";
@@ -482,6 +482,7 @@ class DatabaseConsole extends Page
                     // Clean up temp file
                     if (file_exists($uploadedFilePath)) {
                         unlink($uploadedFilePath);
+                        $this->restoreOutput .= "Cleaned up temp file: {$tempBackupName}\n";
                     }
                     
                     // Clean up the uploaded file from storage

@@ -50,6 +50,8 @@ class Order extends Model
         'recurring_interval',
         'last_generated_at',
         'next_generation_date',
+        'harvest_day',
+        'delivery_day',
         'notes',
     ];
     
