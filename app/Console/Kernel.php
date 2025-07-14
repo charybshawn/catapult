@@ -72,6 +72,12 @@ class Kernel extends ConsoleKernel
             ->weekly()
             ->sundays()
             ->at('04:00');
+        
+        // Update migration schema cache daily at 2 AM (after typical deployment times)
+        $schedule->command('schema:update-cache')
+            ->dailyAt('02:00')
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/schema-cache.log'));
     }
 
     /**

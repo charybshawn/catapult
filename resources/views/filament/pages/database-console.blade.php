@@ -169,6 +169,15 @@
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                                                 <button 
+                                                    wire:click="recheckCompatibility('{{ $backup['name'] }}')"
+                                                    class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 inline-flex items-center"
+                                                    title="Run a quick compatibility check against current database"
+                                                >
+                                                    <x-filament::icon icon="heroicon-o-arrow-path" class="h-3 w-3 mr-1"/>
+                                                    Re-check
+                                                </button>
+                                                
+                                                <button 
                                                     wire:click="downloadBackup('{{ $backup['name'] }}')"
                                                     class="text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300 inline-flex items-center"
                                                 >
@@ -507,6 +516,27 @@
                                     {{ ($schemaCheckData['backup_type'] ?? '') === 'data-only' ? 'Data-only' : 'Full' }}
                                 </span>
                             </div>
+                            @if(($schemaCheckData['details']['is_dynamic_check'] ?? false))
+                                <div class="text-sm text-gray-600 dark:text-gray-400">
+                                    <span class="font-medium">Check Type:</span> 
+                                    <span class="text-gray-900 dark:text-white">
+                                        🔄 Dynamic (real-time check against current database)
+                                    </span>
+                                </div>
+                                <div class="text-sm text-gray-600 dark:text-gray-400">
+                                    <span class="font-medium">Execution Time:</span> 
+                                    <span class="text-gray-900 dark:text-white">
+                                        {{ $schemaCheckData['details']['execution_time_ms'] ?? 'Unknown' }}ms
+                                    </span>
+                                </div>
+                            @else
+                                <div class="text-sm text-gray-600 dark:text-gray-400">
+                                    <span class="font-medium">Check Type:</span> 
+                                    <span class="text-gray-900 dark:text-white">
+                                        📌 Static (snapshot taken when backup was created)
+                                    </span>
+                                </div>
+                            @endif
                             @if(($schemaCheckData['backup_type'] ?? '') === 'data-only' && ($schemaCheckData['details']['data_only_warning'] ?? false))
                                 <div class="mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded">
                                     <div class="flex items-start space-x-2">

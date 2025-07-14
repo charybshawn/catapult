@@ -283,7 +283,11 @@ class DatabaseConsole extends Page
                 $this->schemaCheckData = [
                     'backup_filename' => $backupFileName,
                     'timestamp' => $schemaCheck['checked_at'] ?? 'Unknown',
-                    'formatted_report' => $schemaCheck['formatted_report'] ?? 'No report available'
+                    'backup_type' => $schemaCheck['backup_type'] ?? (str_contains($backupFileName, '_data_') ? 'data-only' : 'full'),
+                    'formatted_report' => $schemaCheck['formatted_report'] ?? 'No report available',
+                    'details' => [
+                        'is_dynamic_check' => false, // This is a static check from backup time
+                    ]
                 ];
                 $this->showSchemaCheckModal = true;
             } else {
@@ -307,6 +311,95 @@ class DatabaseConsole extends Page
         $this->showSchemaCheckModal = false;
         $this->schemaCheckData = null;
     }
+
+    public function recheckCompatibility(string $backupFileName): void
+    {
+        try {
+            Notification::make()
+                ->info()
+                ->title('Running Full Schema Check')
+                ->body('Creating temporary database and comparing schemas... This may take 5-15 seconds.')
+                ->duration(10000)
+                ->send();
+            
+            $backupService = new SimpleBackupService();
+            $backupPath = base_path('database/backups/' . $backupFileName);
+            
+            if (!file_exists($backupPath)) {
+                throw new \Exception('Backup file not found');
+            }
+            
+            // Use full schema comparison service
+            $schemaComparison = new \App\Services\SchemaComparisonService();
+            $differences = $schemaComparison->compareSchemas();
+            
+            // Format the full schema comparison report
+            $formattedReport = $schemaComparison->formatDifferences($differences);
+            
+            // Save as dynamic check with full schema comparison results
+            $schemaCheckPath = str_replace('.sql', '_dynamic_check.json', $backupPath);
+            $schemaCheckData = [
+                'timestamp' => now()->toIso8601String(),
+                'backup_type' => str_contains($backupFileName, '_data_') ? 'data-only' : 'full',
+                'has_issues' => $differences['has_issues'],
+                'summary' => $differences['summary'],
+                'details' => $differences,
+                'formatted_report' => $formattedReport,
+                'checked_at' => now()->toIso8601String(),
+            ];
+            
+            file_put_contents($schemaCheckPath, json_encode($schemaCheckData, JSON_PRETTY_PRINT));
+            
+            if (!$differences['has_issues']) {
+                Notification::make()
+                    ->success()
+                    ->title('Schema Check Passed')
+                    ->body('Database schema matches migrations perfectly!')
+                    ->duration(5000)
+                    ->send();
+            } else {
+                $issueCount = 0;
+                if (!empty($differences['extra_tables'])) {
+                    $issueCount += count($differences['extra_tables']);
+                }
+                if (!empty($differences['missing_tables'])) {
+                    $issueCount += count($differences['missing_tables']);
+                }
+                if (!empty($differences['column_differences'])) {
+                    $issueCount += count($differences['column_differences']);
+                }
+                
+                Notification::make()
+                    ->warning()
+                    ->title('Schema Mismatches Found')
+                    ->body($differences['summary'])
+                    ->duration(8000)
+                    ->send();
+                
+                // Always show modal when there are issues
+                $this->schemaCheckData = [
+                    'backup_filename' => $backupFileName,
+                    'timestamp' => now()->toIso8601String(),
+                    'backup_type' => str_contains($backupFileName, '_data_') ? 'data-only' : 'full',
+                    'formatted_report' => $formattedReport,
+                    'details' => [
+                        'is_dynamic_check' => true,
+                    ]
+                ];
+                $this->showSchemaCheckModal = true;
+            }
+            
+            $this->dispatch('refresh-backups');
+            
+        } catch (\Exception $e) {
+            Notification::make()
+                ->danger()
+                ->title('Compatibility Check Failed')
+                ->body($e->getMessage())
+                ->send();
+        }
+    }
+    
 
 
     protected function restoreBackup(array $data): void

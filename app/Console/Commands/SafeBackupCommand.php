@@ -329,6 +329,7 @@ class SafeBackupCommand extends Command
             '--user=' . config('database.connections.mysql.username'),
             '--password=' . config('database.connections.mysql.password'),
             '--no-create-info',
+            '--complete-insert',  // Include column names in INSERT statements
             '--skip-triggers',
             '--no-tablespaces',
             '--single-transaction',

@@ -571,15 +571,21 @@ class SimpleBackupService
                 $timestamp = filemtime($file);
                 $filename = basename($file);
                 
-                // Check if schema check file exists
+                // Check if schema check file exists (static or dynamic)
                 $schemaCheckFile = str_replace('.sql', '_schema_check.json', $file);
-                $hasSchemaCheck = file_exists($schemaCheckFile);
+                $dynamicCheckFile = str_replace('.sql', '_dynamic_check.json', $file);
+                
+                // Prefer dynamic check over static check
+                $activeCheckFile = file_exists($dynamicCheckFile) ? $dynamicCheckFile : 
+                                  (file_exists($schemaCheckFile) ? $schemaCheckFile : null);
+                
+                $hasSchemaCheck = $activeCheckFile !== null;
                 $schemaHasIssues = false;
                 $schemaSummary = '';
                 
                 if ($hasSchemaCheck) {
                     try {
-                        $schemaData = json_decode(file_get_contents($schemaCheckFile), true);
+                        $schemaData = json_decode(file_get_contents($activeCheckFile), true);
                         $schemaHasIssues = $schemaData['has_issues'] ?? false;
                         $schemaSummary = $schemaData['summary'] ?? '';
                     } catch (\Exception $e) {
@@ -609,16 +615,26 @@ class SimpleBackupService
     {
         $backupPath = base_path($this->backupPath . '/' . $backupFilename);
         $schemaCheckFile = str_replace('.sql', '_schema_check.json', $backupPath);
+        $dynamicCheckFile = str_replace('.sql', '_dynamic_check.json', $backupPath);
         
-        if (!file_exists($schemaCheckFile)) {
-            return null;
+        // Prefer dynamic check over static check
+        if (file_exists($dynamicCheckFile)) {
+            try {
+                return json_decode(file_get_contents($dynamicCheckFile), true);
+            } catch (\Exception $e) {
+                // Fall through to static check
+            }
         }
         
-        try {
-            return json_decode(file_get_contents($schemaCheckFile), true);
-        } catch (\Exception $e) {
-            return null;
+        if (file_exists($schemaCheckFile)) {
+            try {
+                return json_decode(file_get_contents($schemaCheckFile), true);
+            } catch (\Exception $e) {
+                return null;
+            }
         }
+        
+        return null;
     }
 
     /**
