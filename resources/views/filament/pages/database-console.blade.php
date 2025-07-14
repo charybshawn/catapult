@@ -501,6 +501,22 @@
                                 <span class="font-medium">Check Performed:</span> 
                                 <span class="text-gray-900 dark:text-white">{{ $schemaCheckData['timestamp'] ?? 'Unknown' }}</span>
                             </div>
+                            <div class="text-sm text-gray-600 dark:text-gray-400">
+                                <span class="font-medium">Backup Type:</span> 
+                                <span class="text-gray-900 dark:text-white">
+                                    {{ ($schemaCheckData['backup_type'] ?? '') === 'data-only' ? 'Data-only' : 'Full' }}
+                                </span>
+                            </div>
+                            @if(($schemaCheckData['backup_type'] ?? '') === 'data-only' && ($schemaCheckData['details']['data_only_warning'] ?? false))
+                                <div class="mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded">
+                                    <div class="flex items-start space-x-2">
+                                        <x-filament::icon icon="heroicon-o-exclamation-triangle" class="h-5 w-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5"/>
+                                        <div class="text-sm text-yellow-800 dark:text-yellow-200">
+                                            {{ $schemaCheckData['details']['data_only_warning'] }}
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif
                         </div>
 
                         <div class="bg-gray-900 rounded-lg p-4 font-mono text-sm overflow-y-auto max-h-96">
