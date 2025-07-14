@@ -241,6 +241,9 @@ class SimpleBackupService
      */
     public function dryRunRestore(string $sqlContent): bool
     {
+        // CRITICAL SAFETY: Log that this is a dry run
+        error_log("EXECUTING DRY RUN RESTORE - No changes should be committed!");
+        
         try {
             // Get database connection
             $config = config('database.connections.mysql');
@@ -251,10 +254,10 @@ class SimpleBackupService
                 [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
             );
 
-            // Configure for dry run
+            // Configure for dry run - CRITICAL: Disable autocommit!
+            $pdo->exec('SET AUTOCOMMIT=0'); // This MUST be first
             $pdo->exec('SET FOREIGN_KEY_CHECKS=0');
             $pdo->exec('SET SQL_MODE="NO_AUTO_VALUE_ON_ZERO"');
-            $pdo->exec('SET AUTOCOMMIT=0');
             $pdo->exec('START TRANSACTION');
             
             // Split SQL into individual statements
@@ -268,6 +271,12 @@ class SimpleBackupService
             foreach ($statements as $statement) {
                 $statement = trim($statement);
                 if (!empty($statement) && $statement !== ';') {
+                    // CRITICAL: Skip any COMMIT or transaction control statements in dry run
+                    if (preg_match('/^(COMMIT|ROLLBACK|START TRANSACTION|BEGIN)/i', $statement)) {
+                        $warnings[] = "Skipped transaction control statement in dry run";
+                        continue;
+                    }
+                    
                     try {
                         // For dry run, we try to prepare the statement to check syntax
                         // and execute it within a transaction that we'll roll back

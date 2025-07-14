@@ -573,7 +573,18 @@ class DatabaseConsole extends Page
                     $backupService = new SimpleBackupService();
                     
                     try {
+                        // Debug the dry_run value
+                        $this->restoreOutput .= "Debug: dry_run raw value = " . json_encode($data['dry_run'] ?? 'not set') . "\n";
+                        $this->restoreOutput .= "Debug: full data = " . json_encode($data) . "\n";
+                        
                         $isDryRun = $data['dry_run'] ?? true;
+                        
+                        // Extra safety check - ensure dry_run is truly boolean
+                        if (is_string($isDryRun)) {
+                            $isDryRun = $isDryRun === 'true' || $isDryRun === '1' || $isDryRun === true;
+                        }
+                        
+                        $this->restoreOutput .= "Debug: isDryRun final value = " . ($isDryRun ? 'TRUE' : 'FALSE') . "\n\n";
                         
                         if ($isDryRun) {
                             $this->restoreOutput .= "🧪 PERFORMING DRY RUN - No changes will be made...\n";
@@ -700,6 +711,15 @@ class DatabaseConsole extends Page
                 // Always use force mode in web interface (no STDIN available)
                 $parameters['--force'] = true;
                 
+                // CRITICAL: Pass dry-run flag
+                $isDryRun = $data['dry_run'] ?? true;
+                if ($isDryRun) {
+                    $parameters['--dry-run'] = true;
+                    $this->restoreOutput = "🧪 PERFORMING DRY RUN - No changes will be made...\n\n";
+                } else {
+                    $this->restoreOutput = "⚠️ PERFORMING ACTUAL RESTORE - Changes will be permanent...\n\n";
+                }
+                
                 if ($restoreSource === 'latest') {
                     $parameters['--latest'] = true;
                 } else {
@@ -712,7 +732,7 @@ class DatabaseConsole extends Page
                 $exitCode = Artisan::call('db:restore', $parameters);
                 $output = Artisan::output();
                 
-                $this->restoreOutput = $output;
+                $this->restoreOutput .= $output;
                 $this->restoreSuccess = ($exitCode === 0);
             }
             

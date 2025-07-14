@@ -16,7 +16,8 @@ class DatabaseRestoreCommand extends Command
                             {file? : Backup file path or filename (from backup directory)}
                             {--list : List available backups to restore from}
                             {--latest : Restore from the most recent backup}
-                            {--force : Skip confirmation prompt}';
+                            {--force : Skip confirmation prompt}
+                            {--dry-run : Test restore without making changes}';
 
     /**
      * The console command description.
@@ -85,14 +86,53 @@ class DatabaseRestoreCommand extends Command
             }
         }
 
-        $this->info('Restoring database...');
+        $isDryRun = $this->option('dry-run');
+        
+        if ($isDryRun) {
+            $this->info('🧪 PERFORMING DRY RUN - No changes will be made...');
+        } else {
+            $this->info('Restoring database...');
+        }
         
         try {
             $filename = basename($fullPath);
-            $this->backupService->restoreBackup($filename);
             
-            $this->info("Database restored successfully!");
-            $this->line("Restored at: " . now()->format('M j, Y g:i A'));
+            if ($isDryRun) {
+                // Read file and perform dry run
+                $sqlContent = file_get_contents($fullPath);
+                $result = $this->backupService->dryRunRestore($sqlContent);
+                
+                $restoreResults = $this->backupService->lastRestoreSchemaFixes ?? [];
+                
+                if (!empty($restoreResults['summary'])) {
+                    $this->info($restoreResults['summary']);
+                }
+                
+                if (!empty($restoreResults['warnings'])) {
+                    $this->warn('Warnings:');
+                    foreach ($restoreResults['warnings'] as $warning) {
+                        $this->line("  - {$warning}");
+                    }
+                }
+                
+                if (!empty($restoreResults['errors']) && count($restoreResults['errors']) > 0) {
+                    $this->error('First 5 errors:');
+                    foreach (array_slice($restoreResults['errors'], 0, 5) as $error) {
+                        $this->line("  - {$error}");
+                    }
+                }
+                
+                if ($result) {
+                    $this->info("✅ Dry run passed - restore should succeed");
+                } else {
+                    $this->error("❌ Dry run failed - fix errors before attempting restore");
+                }
+            } else {
+                // Perform actual restore
+                $this->backupService->restoreBackup($filename);
+                $this->info("Database restored successfully!");
+                $this->line("Restored at: " . now()->format('M j, Y g:i A'));
+            }
         } catch (\Exception $e) {
             $this->error("Restore failed: {$e->getMessage()}");
         }
