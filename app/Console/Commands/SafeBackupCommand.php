@@ -177,7 +177,8 @@ class SafeBackupCommand extends Command
             } elseif ($this->option('schema-only')) {
                 return $this->createSchemaBackup($dbName, $timestamp, $backupDir);
             } elseif ($this->option('data-only')) {
-                return $this->createDataBackup($dbName, $timestamp, $backupDir);
+                // Use the service method that includes schema checking
+                return $this->backupService->createDataOnlyBackup();
             }
         }
         
