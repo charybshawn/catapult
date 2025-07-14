@@ -19,6 +19,23 @@ class SimpleBackupService
     }
 
     /**
+     * Check for schema mismatches before backup
+     */
+    public function checkSchemaBeforeBackup(): array
+    {
+        try {
+            $comparisonService = new SchemaComparisonService();
+            return $comparisonService->compareSchemas();
+        } catch (\Exception $e) {
+            return [
+                'has_issues' => true,
+                'summary' => 'Could not compare schemas: ' . $e->getMessage(),
+                'error' => true
+            ];
+        }
+    }
+    
+    /**
      * Create a database backup using native mysqldump
      * For data-only backups, views are always excluded since they're schema, not data
      */
@@ -34,6 +51,10 @@ class SimpleBackupService
             if (!is_dir($fullBackupDir)) {
                 mkdir($fullBackupDir, 0755, true);
             }
+            
+            // Check schema before creating backup
+            $schemaCheck = $this->checkSchemaBeforeBackup();
+            $schemaHasIssues = $schemaCheck['has_issues'] ?? false;
             
             // Create lock directory if it doesn't exist
             $lockDir = dirname($lockFile);
@@ -135,6 +156,22 @@ class SimpleBackupService
             // Basic SQL validation
             if (!$this->validateBackupFile($backupPath)) {
                 throw new \Exception('Backup file appears to be corrupted or invalid');
+            }
+            
+            // Save schema check results
+            if (!empty($schemaCheck)) {
+                $schemaResultFile = str_replace('.sql', '_schema_check.json', $backupPath);
+                $comparisonService = new SchemaComparisonService();
+                
+                $schemaCheckData = [
+                    'timestamp' => now()->toIso8601String(),
+                    'has_issues' => $schemaHasIssues,
+                    'summary' => $schemaCheck['summary'] ?? '',
+                    'details' => $schemaCheck,
+                    'formatted_report' => $comparisonService->formatDifferences($schemaCheck)
+                ];
+                
+                file_put_contents($schemaResultFile, json_encode($schemaCheckData, JSON_PRETTY_PRINT));
             }
             
             return $filename;
@@ -523,24 +560,64 @@ class SimpleBackupService
             return collect();
         }
 
-        $files = glob($fullBackupDir . '/*.{sql,json}', GLOB_BRACE);
-        error_log("SimpleBackupService: Found " . count($files) . " files: " . implode(', ', array_map('basename', $files)));
+        // Only get SQL files, not the JSON schema check files
+        $files = glob($fullBackupDir . '/*.sql');
+        error_log("SimpleBackupService: Found " . count($files) . " SQL files");
         
         return collect($files)
             ->map(function($file) {
                 $size = filesize($file);
                 $timestamp = filemtime($file);
+                $filename = basename($file);
+                
+                // Check if schema check file exists
+                $schemaCheckFile = str_replace('.sql', '_schema_check.json', $file);
+                $hasSchemaCheck = file_exists($schemaCheckFile);
+                $schemaHasIssues = false;
+                $schemaSummary = '';
+                
+                if ($hasSchemaCheck) {
+                    try {
+                        $schemaData = json_decode(file_get_contents($schemaCheckFile), true);
+                        $schemaHasIssues = $schemaData['has_issues'] ?? false;
+                        $schemaSummary = $schemaData['summary'] ?? '';
+                    } catch (\Exception $e) {
+                        // Ignore JSON parse errors
+                    }
+                }
                 
                 return [
-                    'name' => basename($file),
+                    'name' => $filename,
                     'path' => $file,
                     'size' => $this->formatBytes($size),
                     'size_bytes' => $size,
                     'created_at' => Carbon::createFromTimestamp($timestamp),
+                    'has_schema_check' => $hasSchemaCheck,
+                    'schema_has_issues' => $schemaHasIssues,
+                    'schema_summary' => $schemaSummary,
                 ];
             })
             ->sortByDesc('created_at')
             ->values();
+    }
+    
+    /**
+     * Get schema check results for a backup
+     */
+    public function getSchemaCheckResults(string $backupFilename): ?array
+    {
+        $backupPath = base_path($this->backupPath . '/' . $backupFilename);
+        $schemaCheckFile = str_replace('.sql', '_schema_check.json', $backupPath);
+        
+        if (!file_exists($schemaCheckFile)) {
+            return null;
+        }
+        
+        try {
+            return json_decode(file_get_contents($schemaCheckFile), true);
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 
     /**

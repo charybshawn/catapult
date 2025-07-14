@@ -99,6 +99,9 @@
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                             Created At
                                         </th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                            Schema Check
+                                        </th>
                                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                             Actions
                                         </th>
@@ -137,6 +140,32 @@
                                                     />
                                                     {{ $backup['created_at']->format('M j, Y g:i A') }}
                                                 </div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                                @if($backup['has_schema_check'] ?? false)
+                                                    @if($backup['schema_has_issues'] ?? false)
+                                                        <button 
+                                                            wire:click="viewSchemaCheck('{{ $backup['name'] }}')"
+                                                            class="inline-flex items-center text-yellow-600 hover:text-yellow-700 dark:text-yellow-400 dark:hover:text-yellow-300"
+                                                            title="{{ $backup['schema_summary'] ?? 'View schema issues' }}"
+                                                        >
+                                                            <x-filament::icon icon="heroicon-o-exclamation-triangle" class="h-4 w-4 mr-1"/>
+                                                            <span class="text-xs">Issues Found</span>
+                                                        </button>
+                                                    @else
+                                                        <button 
+                                                            wire:click="viewSchemaCheck('{{ $backup['name'] }}')"
+                                                            class="inline-flex items-center text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
+                                                        >
+                                                            <x-filament::icon icon="heroicon-o-check-circle" class="h-4 w-4 mr-1"/>
+                                                            <span class="text-xs">No Issues</span>
+                                                        </button>
+                                                    @endif
+                                                @else
+                                                    <span class="text-gray-400 dark:text-gray-600 text-xs">
+                                                        No check
+                                                    </span>
+                                                @endif
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                                                 <button 
@@ -422,6 +451,75 @@
 
                     <div class="mt-6 flex justify-end space-x-3">
                         <button @click="$wire.closeRestoreModal()" 
+                                class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm font-medium">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Schema Check Modal -->
+        <div x-data="{ show: @entangle('showSchemaCheckModal') }" 
+             x-show="show" 
+             x-transition.opacity
+             class="fixed inset-0 z-50 overflow-y-auto"
+             style="display: none;">
+            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                <div x-show="show" 
+                     x-transition.opacity
+                     class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+                     @click="$wire.closeSchemaCheckModal()"></div>
+
+                <div x-show="show" 
+                     x-transition:enter="ease-out duration-300"
+                     x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                     x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                     x-transition:leave="ease-in duration-200"
+                     x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                     x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                     class="inline-block w-full max-w-4xl p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white dark:bg-gray-800 shadow-xl rounded-lg">
+                    
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                            <x-filament::icon icon="heroicon-o-document-magnifying-glass" class="h-5 w-5 inline mr-2"/>
+                            Schema Check Report
+                        </h3>
+                        <button @click="$wire.closeSchemaCheckModal()" 
+                                class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                            <x-filament::icon icon="heroicon-o-x-mark" class="h-6 w-6"/>
+                        </button>
+                    </div>
+
+                    @if($schemaCheckData)
+                        <div class="mb-4 space-y-2">
+                            <div class="text-sm text-gray-600 dark:text-gray-400">
+                                <span class="font-medium">Backup File:</span> 
+                                <span class="text-gray-900 dark:text-white">{{ $schemaCheckData['backup_filename'] ?? 'Unknown' }}</span>
+                            </div>
+                            <div class="text-sm text-gray-600 dark:text-gray-400">
+                                <span class="font-medium">Check Performed:</span> 
+                                <span class="text-gray-900 dark:text-white">{{ $schemaCheckData['timestamp'] ?? 'Unknown' }}</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-900 rounded-lg p-4 font-mono text-sm overflow-y-auto max-h-96">
+                            <pre class="text-green-400 whitespace-pre-wrap">{{ $schemaCheckData['formatted_report'] ?? 'No report available' }}</pre>
+                        </div>
+                    @else
+                        <div class="text-center py-8">
+                            <x-filament::icon 
+                                icon="heroicon-o-exclamation-circle" 
+                                class="mx-auto h-12 w-12 text-gray-400"
+                            />
+                            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                No schema check data available
+                            </p>
+                        </div>
+                    @endif
+
+                    <div class="mt-6 flex justify-end">
+                        <button @click="$wire.closeSchemaCheckModal()" 
                                 class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm font-medium">
                             Close
                         </button>

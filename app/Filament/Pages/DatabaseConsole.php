@@ -253,6 +253,9 @@ class DatabaseConsole extends Page
     public $restoreSuccess = false;
     public $showRestoreModal = false;
 
+    public $showSchemaCheckModal = false;
+    public $schemaCheckData = null;
+
 
     public function closeSafeBackupModal(): void
     {
@@ -268,6 +271,41 @@ class DatabaseConsole extends Page
         $this->restoreOutput = '';
         $this->restoreRunning = false;
         $this->restoreSuccess = false;
+    }
+
+    public function viewSchemaCheck(string $backupFileName): void
+    {
+        try {
+            $backupService = new SimpleBackupService();
+            $schemaCheck = $backupService->getSchemaCheckResults($backupFileName);
+            
+            if ($schemaCheck) {
+                $this->schemaCheckData = [
+                    'backup_filename' => $backupFileName,
+                    'timestamp' => $schemaCheck['checked_at'] ?? 'Unknown',
+                    'formatted_report' => $schemaCheck['formatted_report'] ?? 'No report available'
+                ];
+                $this->showSchemaCheckModal = true;
+            } else {
+                Notification::make()
+                    ->warning()
+                    ->title('Schema Check Not Found')
+                    ->body('No schema check report found for this backup.')
+                    ->send();
+            }
+        } catch (\Exception $e) {
+            Notification::make()
+                ->danger()
+                ->title('Error Loading Schema Check')
+                ->body($e->getMessage())
+                ->send();
+        }
+    }
+
+    public function closeSchemaCheckModal(): void
+    {
+        $this->showSchemaCheckModal = false;
+        $this->schemaCheckData = null;
     }
 
 
