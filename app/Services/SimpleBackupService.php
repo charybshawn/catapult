@@ -165,6 +165,7 @@ class SimpleBackupService
                 
                 $schemaCheckData = [
                     'timestamp' => now()->toIso8601String(),
+                    'backup_type' => 'full',
                     'has_issues' => $schemaHasIssues,
                     'summary' => $schemaCheck['summary'] ?? '',
                     'details' => $schemaCheck,
@@ -738,6 +739,10 @@ class SimpleBackupService
      */
     public function createDataOnlyBackup(?string $name = null): string
     {
+        // Check schema before creating backup - ESPECIALLY important for data-only backups!
+        $schemaCheck = $this->checkSchemaBeforeBackup();
+        $schemaHasIssues = $schemaCheck['has_issues'] ?? false;
+        
         $timestamp = Carbon::now()->format('Y-m-d_H-i-s');
         $filename = $name ?? "data_only_backup_{$timestamp}.sql";
         
@@ -842,6 +847,28 @@ class SimpleBackupService
         // Validate file was created
         if (!file_exists($filepath) || filesize($filepath) === 0) {
             throw new \Exception('Backup file was not created successfully');
+        }
+        
+        // Save schema check results - CRITICAL for data-only backups!
+        if (!empty($schemaCheck)) {
+            $schemaResultFile = str_replace('.sql', '_schema_check.json', $filepath);
+            $comparisonService = new SchemaComparisonService();
+            
+            // Add extra warning for data-only backups with schema issues
+            if ($schemaHasIssues) {
+                $schemaCheck['data_only_warning'] = "⚠️ WARNING: This data-only backup has schema mismatches. Restore may fail for tables with column differences.";
+            }
+            
+            $schemaCheckData = [
+                'timestamp' => now()->toIso8601String(),
+                'backup_type' => 'data-only',
+                'has_issues' => $schemaHasIssues,
+                'summary' => $schemaCheck['summary'] ?? '',
+                'details' => $schemaCheck,
+                'formatted_report' => $comparisonService->formatDifferences($schemaCheck)
+            ];
+            
+            file_put_contents($schemaResultFile, json_encode($schemaCheckData, JSON_PRETTY_PRINT));
         }
         
         return $filename;
