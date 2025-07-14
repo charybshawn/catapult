@@ -347,3 +347,42 @@
     border-color: rgb(220 38 38) !important;
 }
 
+/* Enhanced primary button contrast in dark mode */
+.dark .fi-btn-color-primary {
+    background-color: rgb(59 130 246) !important;
+    border-color: rgb(59 130 246) !important;
+    color: white !important;
+}
+
+.dark .fi-btn-color-primary:hover {
+    background-color: rgb(37 99 235) !important;
+    border-color: rgb(37 99 235) !important;
+}
+
+.dark .fi-btn-color-primary:focus {
+    box-shadow: 0 0 0 2px rgb(59 130 246 / 0.5) !important;
+}
+
+/* Enhanced primary button contrast for outlined style */
+.dark .fi-btn-outline.fi-btn-color-primary {
+    border-color: rgb(96 165 250) !important;
+    color: rgb(96 165 250) !important;
+    background-color: transparent !important;
+}
+
+.dark .fi-btn-outline.fi-btn-color-primary:hover {
+    background-color: rgb(59 130 246) !important;
+    border-color: rgb(59 130 246) !important;
+    color: white !important;
+}
+
+/* Enhanced action button contrast in dark mode */
+.dark .fi-ac-btn-action.fi-color-primary {
+    background-color: rgb(59 130 246) !important;
+    color: white !important;
+}
+
+.dark .fi-ac-btn-action.fi-color-primary:hover {
+    background-color: rgb(37 99 235) !important;
+}
+

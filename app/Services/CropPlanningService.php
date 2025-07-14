@@ -64,15 +64,378 @@ class CropPlanningService
         })
         ->get();
         
+        return $this->generateAggregatedPlansForOrders($orders);
+    }
+
+    /**
+     * Generate aggregated crop plans for multiple orders
+     * Groups orders by variety and harvest date, applies buffer to aggregated totals
+     * 
+     * @param Collection $orders
+     * @return Collection
+     */
+    public function generateAggregatedPlansForOrders(Collection $orders): Collection
+    {
         $allCropPlans = collect();
         
-        // Generate individual crop plans for each order
+        // First, collect all variety requirements by harvest date
+        $varietyRequirements = collect();
+        
         foreach ($orders as $order) {
-            $orderPlans = $this->generatePlanFromOrder($order);
-            $allCropPlans = $allCropPlans->merge($orderPlans);
+            // Delete any existing draft and cancelled plans for this order to prevent duplicates
+            CropPlan::where('order_id', $order->id)
+                ->whereHas('status', function ($query) {
+                    $query->whereIn('code', ['draft', 'cancelled']);
+                })
+                ->delete();
+
+            // Analyze order requirements without creating individual plans
+            $orderRequirements = $this->analyzeOrderRequirements($order);
+            
+            foreach ($orderRequirements as $requirement) {
+                $varietyId = $requirement['variety_id'];
+                $harvestDate = $order->harvest_date->format('Y-m-d');
+                $key = $varietyId . '_' . $harvestDate;
+                
+                if (!$varietyRequirements->has($key)) {
+                    $varietyRequirements[$key] = [
+                        'variety_id' => $varietyId,
+                        'harvest_date' => $order->harvest_date,
+                        'total_grams' => 0,
+                        'orders' => collect(),
+                        'recipe' => $requirement['recipe']
+                    ];
+                }
+                
+                $varietyRequirements[$key]['total_grams'] += $requirement['grams_needed'];
+                $varietyRequirements[$key]['orders']->push([
+                    'order' => $order,
+                    'product' => $requirement['product'],
+                    'grams' => $requirement['grams_needed']
+                ]);
+            }
+        }
+        
+        // Now create aggregated crop plans with buffer applied to totals
+        foreach ($varietyRequirements as $requirement) {
+            $cropPlan = $this->createAggregatedCropPlan($requirement);
+            if ($cropPlan) {
+                $allCropPlans->push($cropPlan);
+            }
         }
         
         return $allCropPlans;
+    }
+
+    /**
+     * Analyze order requirements without creating individual crop plans
+     * 
+     * @param Order $order
+     * @return array
+     */
+    protected function analyzeOrderRequirements(Order $order): array
+    {
+        $requirements = [];
+        $processedProducts = [];
+        
+        // Load order items with products and their relationships
+        $order->load([
+            'orderItems.product.productMix.masterSeedCatalogs',
+            'orderItems.product.masterSeedCatalog',
+            'orderItems.priceVariation.packagingType'
+        ]);
+
+        // Group items by product to aggregate quantities
+        $productGroups = $order->orderItems->groupBy('product_id');
+
+        foreach ($productGroups as $productId => $items) {
+            $product = $items->first()->product;
+            
+            if (!$product) {
+                continue;
+            }
+
+            $productKey = $product->id;
+            if (isset($processedProducts[$productKey])) {
+                continue; // Skip duplicates
+            }
+            $processedProducts[$productKey] = true;
+
+            // Check if this is a live tray order
+            if ($this->isLiveTrayOrder($items)) {
+                $totalTrays = $this->calculateTotalTraysForProduct($items);
+                $this->addLiveTrayRequirement($requirements, $order, $product, $totalTrays);
+            } else {
+                $totalGramsNeeded = $this->calculateTotalGramsForProduct($items);
+                $this->addProductRequirements($requirements, $order, $product, $totalGramsNeeded);
+            }
+        }
+        
+        return $requirements;
+    }
+
+    /**
+     * Add product requirements to the requirements array
+     * 
+     * @param array &$requirements
+     * @param Order $order
+     * @param Product $product
+     * @param float $totalGramsNeeded
+     * @return void
+     */
+    protected function addProductRequirements(array &$requirements, Order $order, Product $product, float $totalGramsNeeded): void
+    {
+        if ($product->productMix) {
+            // Product has a mix - break down into components
+            $breakdown = $this->breakdownProductMix($product, $totalGramsNeeded);
+            
+            foreach ($breakdown as $varietyId => $componentData) {
+                $recipe = $this->findActiveRecipeForProductVariety($product, $varietyId);
+                
+                $requirements[] = [
+                    'variety_id' => $varietyId,
+                    'grams_needed' => $componentData['grams'],
+                    'cultivar' => $componentData['cultivar'],
+                    'product' => $product,
+                    'recipe' => $recipe
+                ];
+            }
+        } else {
+            // Single variety product
+            if ($product->master_seed_catalog_id) {
+                $recipe = $this->findActiveRecipeForProduct($product);
+                
+                $requirements[] = [
+                    'variety_id' => $product->master_seed_catalog_id,
+                    'grams_needed' => $totalGramsNeeded,
+                    'cultivar' => null,
+                    'product' => $product,
+                    'recipe' => $recipe
+                ];
+            }
+        }
+    }
+
+    /**
+     * Add live tray requirements to the requirements array
+     * 
+     * @param array &$requirements
+     * @param Order $order
+     * @param Product $product
+     * @param int $totalTrays
+     * @return void
+     */
+    protected function addLiveTrayRequirement(array &$requirements, Order $order, Product $product, int $totalTrays): void
+    {
+        if ($product->master_seed_catalog_id) {
+            $recipe = $this->findActiveRecipeForProduct($product);
+            
+            // For live trays, we need to calculate equivalent grams
+            $gramsPerTray = $recipe ? $this->yieldCalculator->calculatePlanningYield($recipe) : 75;
+            $totalGrams = $totalTrays * $gramsPerTray;
+            
+            $requirements[] = [
+                'variety_id' => $product->master_seed_catalog_id,
+                'grams_needed' => $totalGrams,
+                'cultivar' => null,
+                'product' => $product,
+                'recipe' => $recipe,
+                'is_live_tray' => true,
+                'trays_requested' => $totalTrays
+            ];
+        }
+    }
+
+    /**
+     * Create aggregated crop plan with buffer applied to total grams
+     * 
+     * @param array $requirement
+     * @return CropPlan|null
+     */
+    protected function createAggregatedCropPlan(array $requirement): ?CropPlan
+    {
+        $varietyId = $requirement['variety_id'];
+        $harvestDate = $requirement['harvest_date'];
+        $totalGrams = $requirement['total_grams'];
+        $orders = $requirement['orders'];
+        $recipe = $requirement['recipe'];
+        
+        // Get master seed catalog info
+        $masterSeedCatalog = MasterSeedCatalog::find($varietyId);
+        if (!$masterSeedCatalog) {
+            return null;
+        }
+        
+        // Get draft status
+        $draftStatus = CropPlanStatus::where('code', 'draft')->first();
+        
+        if (!$recipe) {
+            // Create incomplete plan without recipe
+            return $this->createIncompletePlan($orders->first()['order'], $varietyId, $totalGrams, $orders, $draftStatus);
+        }
+        
+        // Apply buffer to total grams, then calculate trays once
+        $bufferPercentage = $recipe->buffer_percentage ?? 10.0;
+        $bufferedGrams = $totalGrams * (1 + $bufferPercentage / 100);
+        $baseYield = $recipe->expected_yield_grams ?? 400.0;
+        $traysNeeded = ceil($bufferedGrams / $baseYield);
+        $gramsPerTray = $baseYield; // Store the base yield, not planning yield
+        
+        // Calculate planting dates
+        $plantByDate = $this->calculatePlantByDate($recipe, $harvestDate);
+        $seedSoakDate = $this->calculateSeedSoakDate($recipe, $plantByDate);
+        
+        // Use the first order for the main crop plan record
+        $primaryOrder = $orders->first()['order'];
+        
+        // Create calculation details for audit trail
+        $calculationDetails = [
+            'aggregated_orders' => $orders->map(function ($item) {
+                return [
+                    'order_id' => $item['order']->id,
+                    'customer' => $item['order']->customer?->contact_name ?? 'Unknown',
+                    'grams' => $item['grams'],
+                    'product' => $item['product']->name
+                ];
+            })->toArray(),
+            'total_grams_requested' => $totalGrams,
+            'buffer_percentage' => $bufferPercentage,
+            'buffered_grams' => $bufferedGrams,
+            'base_yield_per_tray' => $baseYield,
+            'trays_calculated' => $traysNeeded,
+            'orders_count' => $orders->count(),
+            'variety_name' => $masterSeedCatalog->name,
+            'seed_soak_required' => $recipe->seed_soak_hours > 0,
+            'seed_soak_date' => $seedSoakDate?->toDateString(),
+            'growth_stages' => [
+                'germination_days' => $recipe->germination_days,
+                'blackout_days' => $recipe->blackout_days,
+                'light_days' => $recipe->light_days,
+                'total_days' => $recipe->totalDays()
+            ]
+        ];
+
+        // Create the aggregated crop plan
+        $cropPlan = CropPlan::create([
+            'order_id' => $primaryOrder->id, // Use first order as primary
+            'recipe_id' => $recipe->id,
+            'variety_id' => $varietyId,
+            'status_id' => $draftStatus->id,
+            'trays_needed' => $traysNeeded,
+            'grams_needed' => $totalGrams, // Store original total, not buffered
+            'grams_per_tray' => $gramsPerTray,
+            'plant_by_date' => $plantByDate,
+            'seed_soak_date' => $seedSoakDate,
+            'expected_harvest_date' => $harvestDate,
+            'delivery_date' => $primaryOrder->delivery_date,
+            'is_missing_recipe' => false,
+            'calculation_details' => $calculationDetails,
+            'order_items_included' => $this->getAggregatedOrderItemIds($orders),
+            'created_by' => auth()->id() ?: $primaryOrder->user_id,
+            'notes' => $this->generateAggregatedPlanNotes($recipe, $orders, $seedSoakDate)
+        ]);
+
+        Log::info('Created aggregated crop plan', [
+            'crop_plan_id' => $cropPlan->id,
+            'variety_id' => $varietyId,
+            'variety_name' => $masterSeedCatalog->name,
+            'total_grams' => $totalGrams,
+            'buffered_grams' => $bufferedGrams,
+            'trays_needed' => $traysNeeded,
+            'orders_count' => $orders->count(),
+            'harvest_date' => $harvestDate->format('Y-m-d')
+        ]);
+
+        return $cropPlan;
+    }
+
+    /**
+     * Create incomplete crop plan when no recipe is found
+     * 
+     * @param Order $order
+     * @param int $varietyId
+     * @param float $totalGrams
+     * @param Collection $orders
+     * @param CropPlanStatus $draftStatus
+     * @return CropPlan
+     */
+    protected function createIncompletePlan(Order $order, int $varietyId, float $totalGrams, Collection $orders, CropPlanStatus $draftStatus): CropPlan
+    {
+        $masterSeedCatalog = MasterSeedCatalog::find($varietyId);
+        
+        return CropPlan::create([
+            'order_id' => $order->id,
+            'recipe_id' => null,
+            'variety_id' => $varietyId,
+            'status_id' => $draftStatus->id,
+            'trays_needed' => 0, // Cannot calculate without recipe
+            'grams_needed' => $totalGrams,
+            'grams_per_tray' => 0,
+            'plant_by_date' => $order->harvest_date->copy()->subDays(14), // Default 14 days
+            'seed_soak_date' => null,
+            'expected_harvest_date' => $order->harvest_date,
+            'delivery_date' => $order->delivery_date,
+            'is_missing_recipe' => true,
+            'missing_recipe_notes' => "No recipe found for {$masterSeedCatalog->name}. Please create a recipe or manually update this plan.",
+            'calculation_details' => [
+                'aggregated_orders' => $orders->map(function ($item) {
+                    return [
+                        'order_id' => $item['order']->id,
+                        'customer' => $item['order']->customer?->contact_name ?? 'Unknown',
+                        'grams' => $item['grams']
+                    ];
+                })->toArray(),
+                'orders_count' => $orders->count(),
+                'variety_name' => $masterSeedCatalog->name,
+            ],
+            'order_items_included' => $this->getAggregatedOrderItemIds($orders),
+            'created_by' => auth()->id() ?: $order->user_id,
+        ]);
+    }
+
+    /**
+     * Generate notes for aggregated crop plan
+     * 
+     * @param Recipe $recipe
+     * @param Collection $orders
+     * @param Carbon|null $seedSoakDate
+     * @return string|null
+     */
+    protected function generateAggregatedPlanNotes(Recipe $recipe, Collection $orders, ?Carbon $seedSoakDate): ?string
+    {
+        $notes = [];
+        
+        if ($recipe->seed_soak_hours > 0 && $seedSoakDate) {
+            $notes[] = "Seed soak required starting {$seedSoakDate->format('M j, Y')}";
+        }
+        
+        $orderCount = $orders->count();
+        if ($orderCount > 1) {
+            $customerNames = $orders->map(fn($item) => $item['order']->customer?->contact_name ?? 'Unknown')->unique()->implode(', ');
+            $notes[] = "Aggregated from {$orderCount} orders: {$customerNames}";
+        }
+        
+        return $notes ? implode('. ', $notes) : null;
+    }
+
+    /**
+     * Get all order item IDs from aggregated orders
+     * 
+     * @param Collection $orders
+     * @return array
+     */
+    protected function getAggregatedOrderItemIds(Collection $orders): array
+    {
+        $allItemIds = [];
+        
+        foreach ($orders as $orderData) {
+            $order = $orderData['order'];
+            $product = $orderData['product'];
+            $itemIds = $this->getOrderItemIds($order, $product);
+            $allItemIds = array_merge($allItemIds, $itemIds);
+        }
+        
+        return array_unique($allItemIds);
     }
 
     /**
@@ -93,10 +456,10 @@ class CropPlanningService
             'orderItems.priceVariation.packagingType'
         ]);
 
-        // Delete any existing draft plans for this order to prevent duplicates
+        // Delete any existing draft and cancelled plans for this order to prevent duplicates
         CropPlan::where('order_id', $order->id)
             ->whereHas('status', function ($query) {
-                $query->where('code', 'draft');
+                $query->whereIn('code', ['draft', 'cancelled']);
             })
             ->delete();
 

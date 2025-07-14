@@ -114,11 +114,15 @@ class DatabaseConsole extends Page
                         ->visible(fn ($get) => $get('restore_source') === 'existing'),
                     FileUpload::make('upload_file')
                         ->label('Upload Backup File')
-                        ->maxSize(1024 * 1024) // 1GB max
+                        ->maxSize(10 * 1024) // 10MB max
                         ->directory('temp-backups')
                         ->required(fn ($get) => $get('restore_source') === 'upload')
-                        ->helperText('Upload a .sql backup file (max 1GB) - accepts any file type')
+                        ->helperText('Upload a .sql backup file (max 10MB)')
                         ->visible(fn ($get) => $get('restore_source') === 'upload'),
+                    Toggle::make('dry_run')
+                        ->label('Dry Run Mode')
+                        ->helperText('Test the restore without making any changes - shows potential errors first')
+                        ->default(true),
                 ])
                 ->action(function (array $data) {
                     $this->restoreBackup($data);
@@ -438,41 +442,105 @@ class DatabaseConsole extends Page
                     $backupService = new SimpleBackupService();
                     
                     try {
-                        $this->restoreOutput .= "Calling backup service restore...\n";
-                        $result = $backupService->restoreFromFile($tempBackupPath);
+                        $isDryRun = $data['dry_run'] ?? true;
                         
-                        if ($result) {
-                            $this->restoreOutput .= "Backup service returned success - verifying data...\n";
+                        if ($isDryRun) {
+                            $this->restoreOutput .= "🧪 PERFORMING DRY RUN - No changes will be made...\n";
+                        } else {
+                            $this->restoreOutput .= "⚠️ PERFORMING ACTUAL RESTORE - Changes will be permanent...\n";
+                        }
+                        
+                        $result = $backupService->restoreFromFile($tempBackupPath, $isDryRun);
+                        
+                        // Get dry run results or schema fixes
+                        $restoreResults = $backupService->lastRestoreSchemaFixes ?? [];
+                        
+                        if (isset($restoreResults['dry_run']) && $restoreResults['dry_run']) {
+                            // Display dry run results
+                            $this->restoreOutput .= "\n" . ($restoreResults['summary'] ?? 'Dry run completed') . "\n";
                             
+                            if (isset($restoreResults['total_statements'])) {
+                                $this->restoreOutput .= "Total SQL statements: " . $restoreResults['total_statements'] . "\n";
+                                $this->restoreOutput .= "Would succeed: " . ($restoreResults['success_count'] ?? 0) . "\n";
+                                $this->restoreOutput .= "Would fail: " . ($restoreResults['fail_count'] ?? 0) . "\n\n";
+                            }
                             
-                            // Quick verification - check a few table row counts
-                            try {
-                                $cropCount = DB::table('crops')->count();
-                                $userCount = DB::table('users')->count();
-                                $recipeCount = DB::table('recipes')->count();
-                                
-                                $this->restoreOutput .= "Post-restore verification:\n";
-                                $this->restoreOutput .= "- Crops: {$cropCount} records\n";
-                                $this->restoreOutput .= "- Users: {$userCount} records\n";
-                                $this->restoreOutput .= "- Recipes: {$recipeCount} records\n";
-                                
-                                // Check if any data was actually restored
-                                $totalRestored = ($cropCount - $preCropCount) + ($userCount - $preUserCount) + ($recipeCount - $preRecipeCount);
-                                if ($totalRestored > 0) {
-                                    $this->restoreSuccess = true;
-                                    $this->restoreOutput .= "Successfully restored {$totalRestored} new records!\n";
-                                } else {
-                                    $this->restoreSuccess = false;
-                                    $this->restoreOutput .= "⚠️ WARNING: No new records were added. The SQL statements may have failed silently.\n";
-                                    $this->restoreOutput .= "Check the backup file format and database schema compatibility.\n";
+                            if (!empty($restoreResults['warnings'])) {
+                                $this->restoreOutput .= "⚠️ WARNINGS:\n";
+                                foreach ($restoreResults['warnings'] as $warning) {
+                                    $this->restoreOutput .= "- {$warning}\n";
                                 }
-                            } catch (\Exception $verifyException) {
-                                $this->restoreOutput .= "Verification failed: " . $verifyException->getMessage() . "\n";
+                                $this->restoreOutput .= "\n";
+                            }
+                            
+                            if (!empty($restoreResults['errors'])) {
+                                $this->restoreOutput .= "❌ ERRORS (first 5):\n";
+                                $errorCount = 0;
+                                foreach ($restoreResults['errors'] as $error) {
+                                    if ($errorCount >= 5) break;
+                                    $this->restoreOutput .= "- {$error}\n";
+                                    $errorCount++;
+                                }
+                                if (count($restoreResults['errors']) > 5) {
+                                    $remaining = count($restoreResults['errors']) - 5;
+                                    $this->restoreOutput .= "... and {$remaining} more errors\n";
+                                }
+                                $this->restoreOutput .= "\n";
+                            }
+                            
+                            if ($result) {
+                                $this->restoreOutput .= "✅ Dry run passed - restore should succeed\n";
+                                $this->restoreOutput .= "💡 Uncheck 'Dry Run Mode' to perform actual restore\n";
+                                $this->restoreSuccess = true;
+                            } else {
+                                $this->restoreOutput .= "❌ Dry run failed - too many errors detected\n";
+                                $this->restoreOutput .= "Fix the errors above before attempting restore\n";
                                 $this->restoreSuccess = false;
                             }
                         } else {
-                            $this->restoreOutput .= "Restore failed - backup service returned false\n";
-                            $this->restoreSuccess = false;
+                            // Regular restore mode
+                            if (!empty($restoreResults)) {
+                                $this->restoreOutput .= "Schema fixes applied:\n";
+                                foreach ($restoreResults as $fix) {
+                                    if (is_string($fix)) {
+                                        $this->restoreOutput .= "- {$fix}\n";
+                                    }
+                                }
+                            }
+                            
+                            if ($result) {
+                                $this->restoreOutput .= "Backup service returned success - verifying data...\n";
+                            
+                            
+                                // Quick verification - check a few table row counts
+                                try {
+                                    $cropCount = DB::table('crops')->count();
+                                    $userCount = DB::table('users')->count();
+                                    $recipeCount = DB::table('recipes')->count();
+                                    
+                                    $this->restoreOutput .= "Post-restore verification:\n";
+                                    $this->restoreOutput .= "- Crops: {$cropCount} records\n";
+                                    $this->restoreOutput .= "- Users: {$userCount} records\n";
+                                    $this->restoreOutput .= "- Recipes: {$recipeCount} records\n";
+                                    
+                                    // Check if any data was actually restored
+                                    $totalRestored = ($cropCount - $preCropCount) + ($userCount - $preUserCount) + ($recipeCount - $preRecipeCount);
+                                    if ($totalRestored > 0) {
+                                        $this->restoreSuccess = true;
+                                        $this->restoreOutput .= "Successfully restored {$totalRestored} new records!\n";
+                                    } else {
+                                        $this->restoreSuccess = false;
+                                        $this->restoreOutput .= "⚠️ WARNING: No new records were added. The SQL statements may have failed silently.\n";
+                                        $this->restoreOutput .= "Check the backup file format and database schema compatibility.\n";
+                                    }
+                                } catch (\Exception $verifyException) {
+                                    $this->restoreOutput .= "Verification failed: " . $verifyException->getMessage() . "\n";
+                                    $this->restoreSuccess = false;
+                                }
+                            } else {
+                                $this->restoreOutput .= "Restore failed - backup service returned false\n";
+                                $this->restoreSuccess = false;
+                            }
                         }
                     } catch (\Exception $restoreException) {
                         $this->restoreOutput .= "Restore exception: " . $restoreException->getMessage() . "\n";

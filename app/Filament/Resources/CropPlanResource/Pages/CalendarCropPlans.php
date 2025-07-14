@@ -27,6 +27,8 @@ class CalendarCropPlans extends Page
                 ->label('Regenerate Crop Plans')
                 ->icon('heroicon-o-arrow-path')
                 ->color('primary')
+                ->modalHeading('Crop Plan Generation Results')
+                ->modalWidth('4xl')
                 ->action(function () {
                     $cropPlanningService = app(\App\Services\CropPlanningService::class);
                     
@@ -50,63 +52,39 @@ class CalendarCropPlans extends Page
                         $count = $cropPlans->count();
                         $orderCount = $orders->count();
                         
-                        // Group plans by order for detailed feedback
-                        $plansByOrder = $cropPlans->groupBy('order_id');
+                        // Store results in session for modal display
+                        session([
+                            'crop_plan_results' => [
+                                'success' => true,
+                                'start_date' => $startDate,
+                                'end_date' => $endDate,
+                                'order_count' => $orderCount,
+                                'plan_count' => $count,
+                                'orders' => $orders,
+                                'plans' => $cropPlans,
+                                'plans_by_order' => $cropPlans->groupBy('order_id'),
+                                'variety_breakdown' => $cropPlans->groupBy('variety.common_name')->map->count(),
+                            ]
+                        ]);
                         
-                        $title = "Crop Plan Generation Complete";
-                        $body = "Date range: {$startDate} to {$endDate}\n";
-                        $body .= "📦 Found {$orderCount} orders eligible for crop planning\n";
-                        $body .= "🌱 Generated {$count} crop plans total";
-                        
-                        if ($count > 0) {
-                            $body .= "\n\nPlans by Order:\n";
-                            foreach ($plansByOrder as $orderId => $plans) {
-                                $order = $orders->find($orderId);
-                                $customerName = $order?->customer?->contact_name ?? 'Unknown';
-                                $harvestDate = $order?->harvest_date?->format('M d') ?? 'Unknown';
-                                $body .= "• Order #{$orderId} ({$customerName}) - {$plans->count()} plans (Harvest: {$harvestDate})\n";
-                            }
-                            
-                            // Show variety breakdown
-                            $varietyBreakdown = $cropPlans->groupBy('variety.common_name')->map->count();
-                            if ($varietyBreakdown->count() > 0) {
-                                $body .= "\nVariety Breakdown:\n";
-                                foreach ($varietyBreakdown as $variety => $planCount) {
-                                    $body .= "• {$variety}: {$planCount} plans\n";
-                                }
-                            }
-                        } else {
-                            if ($orderCount === 0) {
-                                $body .= "\n\nNo orders found in the date range. You may need to:\n";
-                                $body .= "• Generate orders from recurring templates first\n";
-                                $body .= "• Check that orders have harvest dates in the next 30 days\n";
-                                $body .= "• Verify order statuses are valid (draft, pending, confirmed, in_production)";
-                            } else {
-                                $body .= "\n\nAll {$orderCount} orders already have crop plans or couldn't be processed.";
-                            }
-                        }
-                        
-                        $notificationType = $count > 0 ? 'success' : 'warning';
-                        
-                        Notification::make()
-                            ->title($title)
-                            ->body($body)
-                            ->{$notificationType}()
-                            ->persistent()
-                            ->send();
-                            
                         // Refresh the calendar widget
                         $this->dispatch('refresh-calendar');
+                        
+                        // Redirect to show modal
+                        $this->dispatch('open-results-modal');
                             
                     } catch (\Exception $e) {
-                        Notification::make()
-                            ->title('Error Generating Crop Plans')
-                            ->body("Failed to generate crop plans: {$e->getMessage()}\n\nPlease check the logs for more details.")
-                            ->danger()
-                            ->persistent()
-                            ->send();
+                        session([
+                            'crop_plan_results' => [
+                                'success' => false,
+                                'error' => $e->getMessage(),
+                            ]
+                        ]);
+                        
+                        $this->dispatch('open-results-modal');
                     }
                 })
+                ->modalContent(view('filament.modals.crop-plan-generation-results'))
                 ->requiresConfirmation()
                 ->modalHeading('Regenerate Crop Plans')
                 ->modalDescription('This will generate crop plans for all valid orders in the next 30 days. Existing draft plans for the same orders will be replaced.')

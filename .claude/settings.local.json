@@ -29,7 +29,9 @@
       "Bash(mv:*)",
       "Bash(git push:*)",
       "Bash(git commit:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(cat:*)",
+      "Bash(herd restart:*)"
     ],
     "deny": []
   }

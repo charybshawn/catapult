@@ -102,9 +102,9 @@ class CropPlanCalendarWidget extends FullCalendarWidget
                 $color = $this->getStatusColor($dominantStatus);
             }
 
-            // Build aggregated event title
+            // Build aggregated event title with clear line breaks
             $title = sprintf(
-                "%s\n%.1fg (%d trays)\n%d orders%s%s",
+                "%s\n\n%.1fg (%d trays)\n%d orders%s%s",
                 $varietyName,
                 $totalGrams,
                 $totalTrays,
