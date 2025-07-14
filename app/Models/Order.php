@@ -535,27 +535,168 @@ class Order extends Model
         }
         
         $generatedOrders = [];
-        $weeksToGenerate = 4; // Generate 4 weeks ahead
+        $weeksToGenerate = 6; // Generate 6 weeks ahead to accommodate crops with longer growth periods like basil (21 days)
+        
+        // Track the current generation date locally instead of relying on database refresh
+        $currentGenerationDate = $this->calculateNextGenerationDate();
+        if (!$currentGenerationDate) {
+            return [];
+        }
         
         for ($week = 0; $week < $weeksToGenerate; $week++) {
-            // Refresh the model to get the latest next_generation_date
-            $this->refresh();
-            
-            // Check if we should generate (or force generation for planning)
-            $nextDate = $this->calculateNextGenerationDate();
-            if (!$nextDate) {
-                break;
-            }
-            
-            $nextOrder = $this->generateNextRecurringOrder();
+            // Generate order for the current generation date
+            $nextOrder = $this->generateOrderForSpecificDate($currentGenerationDate);
             if (!$nextOrder) {
                 break; // Stop if generation fails
             }
             
             $generatedOrders[] = $nextOrder;
+            
+            // Advance to next generation date locally
+            $currentGenerationDate = match($this->recurring_frequency) {
+                'weekly' => $currentGenerationDate->copy()->addWeek(),
+                'biweekly' => $currentGenerationDate->copy()->addWeeks($this->recurring_interval ?? 2),
+                'monthly' => $currentGenerationDate->copy()->addMonth(),
+                default => null
+            };
+            
+            if (!$currentGenerationDate) {
+                break;
+            }
+        }
+        
+        // Update the template's dates after all orders are generated
+        if (!empty($generatedOrders)) {
+            $this->update([
+                'last_generated_at' => now(),
+                'next_generation_date' => $currentGenerationDate
+            ]);
         }
         
         return $generatedOrders;
+    }
+
+    /**
+     * Generate an order for a specific generation date without updating template state.
+     * Used internally by generateRecurringOrdersCatchUp().
+     */
+    protected function generateOrderForSpecificDate(\Carbon\Carbon $generationDate): ?Order
+    {
+        if (!$this->isRecurringTemplate() || !$this->is_recurring_active) {
+            return null;
+        }
+        
+        // Check if we're past the end date
+        if ($this->recurring_end_date && $generationDate->gt($this->recurring_end_date)) {
+            return null;
+        }
+        
+        // Calculate actual harvest and delivery dates based on day/time settings
+        $harvestDate = $this->calculateNextDateForDayTime('harvest', $generationDate);
+        $deliveryDate = $this->calculateNextDateForDayTime('delivery', $generationDate);
+        
+        // Check if an order already exists for this delivery date to prevent duplicates
+        $existingOrder = $this->generatedOrders()
+            ->where('delivery_date', $deliveryDate->format('Y-m-d'))
+            ->first();
+            
+        if ($existingOrder) {
+            return null; // Skip if order already exists
+        }
+        
+        // Create new order based on template
+        $newOrder = $this->replicate([
+            'is_recurring',
+            'recurring_frequency',
+            'recurring_start_date', 
+            'recurring_end_date',
+            'recurring_days_of_week',
+            'recurring_interval',
+            'last_generated_at',
+            'next_generation_date'
+        ]);
+        
+        $newOrder->parent_recurring_order_id = $this->id;
+        $newOrder->is_recurring = false; // Generated orders are not recurring themselves
+        $newOrder->harvest_date = $harvestDate;
+        $newOrder->delivery_date = $deliveryDate;
+        
+        // Set default statuses for generated orders
+        $pendingOrderStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
+        if ($pendingOrderStatus) {
+            $newOrder->status_id = $pendingOrderStatus->id;
+        }
+        
+        $pendingPaymentStatus = \App\Models\PaymentStatus::where('code', 'pending')->first();
+        if ($pendingPaymentStatus) {
+            $newOrder->payment_status_id = $pendingPaymentStatus->id;
+        }
+        
+        // Ensure relationships are loaded BEFORE saving the order
+        if (!$this->relationLoaded('orderItems')) {
+            $this->load(['orderItems.product', 'orderItems.priceVariation', 'customer', 'orderType', 'packagingTypes']);
+        }
+        
+        $newOrder->save();
+        
+        // Copy order items with recalculated prices
+        foreach ($this->orderItems as $item) {
+            $currentPrice = $item->price; // Default to original price
+            
+            // Recalculate price based on current customer and product pricing
+            if ($item->product && $this->customer) {
+                try {
+                    $currentPrice = $item->product->getPriceForSpecificCustomer(
+                        $this->customer, 
+                        $item->price_variation_id
+                    );
+                } catch (\Exception $e) {
+                    // If price calculation fails, use original price
+                    Log::warning('Failed to calculate price for recurring order item', [
+                        'template_id' => $this->id,
+                        'product_id' => $item->product_id,
+                        'error' => $e->getMessage()
+                    ]);
+                    $currentPrice = $item->price;
+                }
+            }
+            
+            try {
+                $newOrderItem = $newOrder->orderItems()->create([
+                    'product_id' => $item->product_id,
+                    'price_variation_id' => $item->price_variation_id,
+                    'quantity' => $item->quantity,
+                    'price' => $currentPrice,
+                ]);
+                
+                Log::info('Created order item for recurring order', [
+                    'template_id' => $this->id,
+                    'new_order_id' => $newOrder->id,
+                    'order_item_id' => $newOrderItem->id,
+                    'product_id' => $item->product_id,
+                    'quantity' => $item->quantity,
+                    'price' => $currentPrice,
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to create order item for recurring order', [
+                    'template_id' => $this->id,
+                    'new_order_id' => $newOrder->id,
+                    'product_id' => $item->product_id,
+                    'error' => $e->getMessage()
+                ]);
+                throw $e;
+            }
+        }
+        
+        // Copy packaging
+        foreach ($this->packagingTypes as $packaging) {
+            $newOrder->packagingTypes()->attach($packaging->id, [
+                'quantity' => $packaging->pivot->quantity,
+                'notes' => $packaging->pivot->notes,
+            ]);
+        }
+        
+        return $newOrder;
     }
 
     /**

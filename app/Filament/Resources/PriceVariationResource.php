@@ -260,7 +260,22 @@ class PriceVariationResource extends Resource
                                         }
                                         return '';
                                     })
-                                    ->required(fn (Forms\Get $get): bool => !$get('is_global'))
+                                    ->required(function (Forms\Get $get): bool {
+                                        // Not required for global templates
+                                        if ($get('is_global')) {
+                                            return false;
+                                        }
+                                        
+                                        // Not required for per-gram pricing with no packaging
+                                        $pricingUnit = $get('pricing_unit');
+                                        $packagingId = $get('packaging_type_id');
+                                        if ($pricingUnit === 'per_g' && !$packagingId) {
+                                            return false;
+                                        }
+                                        
+                                        // Required for all other cases
+                                        return true;
+                                    })
                                     ->live(),
 
                                 Forms\Components\TextInput::make('sku')

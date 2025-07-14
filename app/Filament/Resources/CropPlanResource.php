@@ -493,8 +493,8 @@ class CropPlanResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListCropPlans::route('/'),
-            'calendar' => Pages\CalendarCropPlans::route('/calendar'),
+            'index' => Pages\CalendarCropPlans::route('/'),
+            'list' => Pages\ListCropPlans::route('/list'),
             'edit' => Pages\EditCropPlan::route('/{record}/edit'),
         ];
     }

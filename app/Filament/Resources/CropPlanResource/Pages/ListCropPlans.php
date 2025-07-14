@@ -16,7 +16,7 @@ class ListCropPlans extends ListRecords
             Actions\Action::make('calendar')
                 ->label('Calendar View')
                 ->icon('heroicon-o-calendar-days')
-                ->url(CropPlanResource::getUrl('calendar'))
+                ->url(CropPlanResource::getUrl('index'))
                 ->color('primary'),
         ];
     }

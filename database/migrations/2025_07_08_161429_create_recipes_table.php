@@ -30,9 +30,6 @@ return new class extends Migration
             $table->decimal('seed_density_grams_per_tray', 8, 2)->nullable();
             $table->decimal('buffer_percentage', 5, 2)->default(10.00);
             $table->integer('suspend_watering_hours')->default(0);
-            $table->text('germination_notes')->nullable();
-            $table->text('blackout_notes')->nullable();
-            $table->text('light_notes')->nullable();
             $table->integer('is_active')->default(1);
             $table->text('notes')->nullable();
             $table->integer('suspend_water_hours')->default(24);

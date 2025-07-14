@@ -452,22 +452,8 @@ class RecurringOrderResource extends Resource
                         
                         foreach ($templates as $template) {
                             try {
-                                // Generate multiple weeks ahead for proper planning
-                                $weeksToGenerate = 4; // Generate 4 weeks ahead
-                                $newOrders = [];
-                                
-                                for ($week = 0; $week < $weeksToGenerate; $week++) {
-                                    // Force generation by temporarily making next_generation_date due
-                                    $originalNextDate = $template->next_generation_date;
-                                    $template->next_generation_date = now()->subMinute(); // Make it due
-                                    
-                                    $newOrder = $template->generateNextRecurringOrder();
-                                    if ($newOrder) {
-                                        $newOrders[] = $newOrder;
-                                    } else {
-                                        break; // Stop if generation fails
-                                    }
-                                }
+                                // Use the new catch-up method that properly advances dates
+                                $newOrders = $template->generateRecurringOrdersCatchUp();
                                 if (!empty($newOrders)) {
                                     foreach ($newOrders as $newOrder) {
                                         $successCount++;

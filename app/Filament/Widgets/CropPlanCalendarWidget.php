@@ -134,10 +134,10 @@ class CropPlanCalendarWidget extends FullCalendarWidget
                         return [
                             'id' => $plan->id,
                             'order_id' => $plan->order_id,
-                            'customer' => $plan->order->customer->contact_name ?? 'Unknown',
+                            'customer' => $plan->order?->customer?->contact_name ?? 'Unknown',
                             'grams_needed' => $plan->grams_needed,
                             'trays_needed' => $plan->trays_needed,
-                            'status' => $plan->status->name ?? 'Unknown',
+                            'status' => $plan->status?->name ?? 'Unknown',
                             'plant_date' => $plan->plant_by_date?->format('Y-m-d'),
                             'seed_soak_date' => $plan->seed_soak_date?->format('Y-m-d'),
                             'harvest_date' => $plan->expected_harvest_date?->format('Y-m-d'),

@@ -366,16 +366,38 @@ class CropPlanningService
             
             // Skip if already processed (prevent duplicates)
             if (!isset($processedVarieties[$varietyKey])) {
-                $plan = $this->generatePlanForSingleVariety(
-                    $order,
-                    $product,
-                    $varietyId,
-                    $componentData['grams'],
-                    $componentData['cultivar']
-                );
-                if ($plan) {
-                    $plans->push($plan);
-                    $processedVarieties[$varietyKey] = true;
+                try {
+                    $plan = $this->generatePlanForSingleVariety(
+                        $order,
+                        $product,
+                        $varietyId,
+                        $componentData['grams'],
+                        $componentData['cultivar']
+                    );
+                    if ($plan) {
+                        $plans->push($plan);
+                        $processedVarieties[$varietyKey] = true;
+                        
+                        Log::info('Generated crop plan for mix component', [
+                            'order_id' => $order->id,
+                            'product_id' => $product->id,
+                            'variety_id' => $varietyId,
+                            'grams_needed' => $componentData['grams'],
+                            'cultivar' => $componentData['cultivar']
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Failed to generate crop plan for mix component', [
+                        'order_id' => $order->id,
+                        'product_id' => $product->id,
+                        'product_name' => $product->name,
+                        'variety_id' => $varietyId,
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                    
+                    // Continue processing other varieties even if one fails
+                    continue;
                 }
             }
         }

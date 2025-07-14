@@ -187,8 +187,17 @@ class RecipeResource extends BaseResource
                                 })
                         ),
 
-                    // Keep the old field hidden for backward compatibility
-                    Forms\Components\Hidden::make('seed_consumable_id'),
+                    // Seed Consumable Selection (unhidden for proper form functionality)
+                    Forms\Components\Select::make('seed_consumable_id')
+                        ->label('Seed Consumable')
+                        ->relationship('seedConsumable', 'name', function ($query) {
+                            return $query->whereHas('consumableType', function ($q) {
+                                $q->where('name', 'like', '%seed%');
+                            });
+                        })
+                        ->searchable()
+                        ->preload()
+                        ->helperText('Select the seed consumable for this recipe'),
 
                     // Show lot status information when editing
                     Forms\Components\Placeholder::make('lot_status')
@@ -924,9 +933,6 @@ class RecipeResource extends BaseResource
                 'seed_density_grams_per_tray',
                 'is_active',
                 'planting_notes',
-                'germination_notes',
-                'blackout_notes',
-                'light_notes',
                 'harvesting_notes'
             ])
             ->logOnlyDirty()
