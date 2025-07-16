@@ -15,6 +15,7 @@ use Filament\Tables\Table;
 class ListCrops extends ListRecords
 {
     protected static string $resource = CropResource::class;
+    protected static string $view = 'filament.resources.crop-resource.pages.list-crops';
 
     // Set default sort for the page
     protected function getDefaultTableSortColumn(): ?string

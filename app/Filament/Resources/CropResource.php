@@ -189,7 +189,8 @@ class CropResource extends BaseResource
                     ->from('crops')
                     ->groupBy(['crops.recipe_id', 'crops.planting_at', 'crops.current_stage_id']);
             })
-            ->recordUrl(fn ($record) => static::getUrl('edit', ['record' => $record]))
+            ->recordAction(null)
+            ->recordUrl(null)
             ->columns([
                 Tables\Columns\TextColumn::make('recipe_name')
                     ->label('Recipe')
@@ -1029,6 +1030,65 @@ class CropResource extends BaseResource
             'index' => Pages\ListCrops::route('/'),
             'create' => Pages\CreateCrop::route('/create'),
             'edit' => Pages\EditCrop::route('/{record}/edit'),
+        ];
+    }
+    
+    /**
+     * Get crop details for the modal
+     */
+    public static function getCropDetails($recordId): array
+    {
+        $crop = Crop::with(['recipe.masterSeedCatalog', 'recipe.masterCultivar', 'currentStage'])
+            ->where('id', $recordId)
+            ->first();
+            
+        if (!$crop) {
+            throw new \Exception('Crop not found');
+        }
+        
+        // Get all crops in this batch
+        $batchCrops = Crop::where('recipe_id', $crop->recipe_id)
+            ->where('planting_at', $crop->planting_at)
+            ->where('current_stage_id', $crop->current_stage_id)
+            ->get();
+            
+        $trayNumbers = $batchCrops->pluck('tray_number')->sort()->values()->toArray();
+        
+        // Get variety name
+        $varietyName = 'Unknown';
+        if ($crop->recipe) {
+            $varietyService = app(\App\Services\RecipeVarietyService::class);
+            $varietyName = $varietyService->getFullVarietyName($crop->recipe);
+        }
+        
+        // Get stage timings
+        $dashboard = new \App\Filament\Pages\Dashboard();
+        $reflection = new \ReflectionClass($dashboard);
+        $method = $reflection->getMethod('getStageTimings');
+        $method->setAccessible(true);
+        $stageTimings = $method->invoke($dashboard, $crop);
+        
+        // Check if can advance/rollback
+        $currentStage = $crop->getRelationValue('currentStage');
+        $canAdvance = $currentStage?->code !== 'harvested';
+        $canRollback = $currentStage?->code !== 'germination';
+        
+        return [
+            'id' => $crop->id,
+            'variety' => $varietyName,
+            'recipe_name' => $crop->recipe?->name ?? 'Unknown Recipe',
+            'current_stage_name' => $currentStage?->name ?? 'Unknown',
+            'stage_color' => $currentStage?->color ?? 'gray',
+            'tray_count' => count($trayNumbers),
+            'tray_numbers_array' => $trayNumbers,
+            'stage_age_display' => $crop->stage_age_display ?? 'N/A',
+            'time_to_next_stage_display' => $crop->time_to_next_stage_display ?? 'N/A',
+            'total_age_display' => $crop->total_age_display ?? 'N/A',
+            'planting_at_formatted' => $crop->planting_at ? $crop->planting_at->format('M j, Y g:i A') : 'Unknown',
+            'expected_harvest_at_formatted' => $crop->expected_harvest_at ? $crop->expected_harvest_at->format('M j, Y') : null,
+            'stage_timings' => $stageTimings,
+            'can_advance' => $canAdvance,
+            'can_rollback' => $canRollback,
         ];
     }
     
