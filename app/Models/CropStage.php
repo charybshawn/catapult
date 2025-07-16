@@ -136,6 +136,33 @@ class CropStage extends Model
     }
 
     /**
+     * Get the next viable stage based on recipe timing (skipping stages with 0 days)
+     */
+    public function getNextViableStage($recipe): ?self
+    {
+        $currentStage = $this;
+        $nextStage = $this->getNextStage();
+        
+        while ($nextStage) {
+            // Check if this stage should be skipped based on recipe
+            $shouldSkip = false;
+            
+            if ($nextStage->code === 'blackout' && ($recipe->blackout_days ?? 0) <= 0) {
+                $shouldSkip = true;
+            }
+            
+            if (!$shouldSkip) {
+                return $nextStage;
+            }
+            
+            // This stage should be skipped, check the next one
+            $nextStage = $nextStage->getNextStage();
+        }
+        
+        return null;
+    }
+
+    /**
      * Get the previous stage in the workflow.
      */
     public function getPreviousStage(): ?self

@@ -14,6 +14,7 @@ use App\Models\CropPlan;
 use App\Services\InventoryManagementService;
 use App\Services\CropPlanCalculatorService;
 use App\Services\RecipeVarietyService;
+use App\Services\CropTaskManagementService;
 use Filament\Pages\Dashboard as BaseDashboard;
 use Filament\Panel;
 use Illuminate\Contracts\View\View;
@@ -184,12 +185,13 @@ class Dashboard extends BaseDashboard
      */
     protected function getTodaysAlerts()
     {
+        $now = now();
         $today = now()->startOfDay();
         $tomorrow = now()->addDay()->startOfDay();
         
         $alerts = TaskSchedule::where('resource_type', 'crops')
             ->where('is_active', true)
-            ->where('next_run_at', '>=', $today)
+            ->where('next_run_at', '>=', $now) // Only get alerts from now onwards (not overdue)
             ->where('next_run_at', '<', $tomorrow)
             ->orderBy('next_run_at', 'asc')
             ->get();
@@ -374,10 +376,10 @@ class Dashboard extends BaseDashboard
             // Create batch key: variety + planted date + current stage + target stage + task
             
             // Try to get variety name from multiple sources in order of preference
-            $variety = $this->varietyService->getCultivarName($crop->recipe) 
-                ?? $alert->conditions['variety'] 
+            $variety = $this->varietyService->getFullVarietyName($crop->recipe) 
+                ?: ($alert->conditions['variety'] 
                 ?? $crop->recipe?->name 
-                ?? 'Unknown';
+                ?? 'Unknown');
             $plantedAt = $crop->planting_at ? $crop->planting_at->format('Y-m-d') : 'unknown';
             // Safely get current stage
             $currentStage = 'unknown';
@@ -424,6 +426,7 @@ class Dashboard extends BaseDashboard
                     'tray_info' => count($trayNumbers) . ' trays',
                     'batch_key' => $batchKey,
                     'conditions' => $earliestAlert->conditions,
+                    'stage_timings' => $this->getStageTimings($crop),
                 ];
             }
             
@@ -561,7 +564,7 @@ class Dashboard extends BaseDashboard
         $cropsByVariety = Crop::whereHas('currentStage', function($query) {
                 $query->where('code', '!=', 'harvested');
             })
-            ->with(['recipe'])
+            ->with(['recipe.masterSeedCatalog', 'recipe.masterCultivar.masterSeedCatalog'])
             ->get()
             ->groupBy(function ($crop) {
                 return $crop->recipe->cultivar_name ?? 'Unknown';
@@ -1072,8 +1075,9 @@ class Dashboard extends BaseDashboard
                 }
                 
                 try {
-                    // Advance the crop stage
-                    $crop->advanceStage();
+                    // Advance the crop stage using the service
+                    $taskManagementService = app(\App\Services\CropTaskManagementService::class);
+                    $taskManagementService->advanceStage($crop);
                     
                     // Mark the alert as completed
                     $alert->update([
@@ -1144,8 +1148,19 @@ class Dashboard extends BaseDashboard
                 }
                 
                 try {
+                    // Load current stage if not already loaded
+                    if (!$crop->relationLoaded('currentStage')) {
+                        $crop->load('currentStage');
+                    }
+                    
+                    // Get current stage code
+                    $currentStageCode = $crop->currentStage?->code;
+                    if (!$currentStageCode) {
+                        throw new \Exception('Cannot determine current stage');
+                    }
+                    
                     // Rollback the crop stage
-                    $previousStage = $this->getPreviousStage($crop->current_stage);
+                    $previousStage = $this->getPreviousStage($currentStageCode);
                     
                     if (!$previousStage) {
                         throw new \Exception('Cannot rollback from current stage');
@@ -1156,7 +1171,6 @@ class Dashboard extends BaseDashboard
                     if ($previousStageRecord) {
                         $crop->update([
                             'current_stage_id' => $previousStageRecord->id,
-                            'stage_updated_at' => now(),
                             "{$previousStage}_at" => now(),
                         ]);
                     } else {
@@ -1210,5 +1224,178 @@ class Dashboard extends BaseDashboard
         ];
         
         return $stages[$currentStage] ?? null;
+    }
+    
+    /**
+     * Get stage timing information for a crop
+     */
+    protected function getStageTimings(Crop $crop): array
+    {
+        $timings = [];
+        
+        // Load current stage if not loaded
+        if (!$crop->relationLoaded('currentStage')) {
+            $crop->load('currentStage');
+        }
+        
+        $currentStageCode = $crop->getRelationValue('currentStage')?->code ?? 'unknown';
+        
+        // Define stage progression with proper fallback logic for skipped stages
+        $stageData = [
+            'germination' => [
+                'start_field' => 'planting_at',
+                'end_field' => 'germination_at',
+                'next_stage_start' => 'germination_at'
+            ],
+            'blackout' => [
+                'start_field' => 'germination_at', 
+                'end_field' => 'blackout_at',
+                'next_stage_start' => 'blackout_at'
+            ],
+            'light' => [
+                'start_field' => null, // Will be determined dynamically
+                'end_field' => 'light_at',
+                'next_stage_start' => 'light_at'
+            ],
+            'harvested' => [
+                'start_field' => 'light_at',
+                'end_field' => 'harvested_at', 
+                'next_stage_start' => null
+            ]
+        ];
+        
+        // Handle germination stage
+        if ($crop->planting_at) {
+            $startTime = \Carbon\Carbon::parse($crop->planting_at);
+            
+            if ($currentStageCode === 'germination') {
+                // Currently in germination stage - show time since planting
+                $timings['germination'] = [
+                    'status' => 'current',
+                    'duration' => $this->formatDuration($startTime->diff(\Carbon\Carbon::now())),
+                    'start_date' => $startTime->format('M j, Y g:i A'),
+                    'end_date' => null,
+                ];
+            } elseif ($crop->germination_at && $currentStageCode !== 'germination') {
+                // Germination stage completed
+                $endTime = \Carbon\Carbon::parse($crop->germination_at);
+                
+                // Only show completed germination if it actually took some time
+                $duration = $startTime->diff($endTime);
+                if ($duration->d > 0 || $duration->h > 0 || $duration->i > 0 || $duration->s > 0) {
+                    $timings['germination'] = [
+                        'status' => 'completed',
+                        'duration' => $this->formatDuration($duration),
+                        'start_date' => $startTime->format('M j, Y g:i A'),
+                        'end_date' => $endTime->format('M j, Y g:i A'),
+                    ];
+                }
+            }
+        }
+        
+        // Handle blackout stage (may be skipped)
+        if ($crop->germination_at && $crop->blackout_at) {
+            // Blackout stage was not skipped
+            $startTime = \Carbon\Carbon::parse($crop->germination_at);
+            $endTime = \Carbon\Carbon::parse($crop->blackout_at);
+            
+            $timings['blackout'] = [
+                'status' => 'completed',
+                'duration' => $this->formatDuration($startTime->diff($endTime)),
+                'start_date' => $startTime->format('M j, Y g:i A'),
+                'end_date' => $endTime->format('M j, Y g:i A'),
+            ];
+        } elseif ($currentStageCode === 'blackout' && $crop->germination_at) {
+            // Currently in blackout stage
+            $startTime = \Carbon\Carbon::parse($crop->germination_at);
+            $timings['blackout'] = [
+                'status' => 'current',
+                'duration' => $this->formatDuration($startTime->diff(\Carbon\Carbon::now())),
+                'start_date' => $startTime->format('M j, Y g:i A'),
+                'end_date' => null,
+            ];
+        }
+        
+        // Handle light stage
+        if ($currentStageCode === 'light') {
+            // Currently in light stage - calculate from when light stage actually started
+            $lightStartTime = $crop->blackout_at ? 
+                \Carbon\Carbon::parse($crop->blackout_at) : 
+                \Carbon\Carbon::parse($crop->germination_at);
+                
+            $timings['light'] = [
+                'status' => 'current',
+                'duration' => $this->formatDuration($lightStartTime->diff(\Carbon\Carbon::now())),
+                'start_date' => $lightStartTime->format('M j, Y g:i A'),
+                'end_date' => null,
+            ];
+        } elseif ($crop->light_at && $crop->harvested_at) {
+            // Light stage completed (moved to harvested)
+            $lightStartTime = $crop->blackout_at ? 
+                \Carbon\Carbon::parse($crop->blackout_at) : 
+                \Carbon\Carbon::parse($crop->germination_at);
+            $lightEndTime = \Carbon\Carbon::parse($crop->light_at);
+            
+            $timings['light'] = [
+                'status' => 'completed',
+                'duration' => $this->formatDuration($lightStartTime->diff($lightEndTime)),
+                'start_date' => $lightStartTime->format('M j, Y g:i A'),
+                'end_date' => $lightEndTime->format('M j, Y g:i A'),
+            ];
+        }
+        
+        // Handle harvested stage
+        if ($crop->harvested_at && $crop->light_at) {
+            $startTime = \Carbon\Carbon::parse($crop->light_at);
+            $endTime = \Carbon\Carbon::parse($crop->harvested_at);
+            
+            $timings['harvested'] = [
+                'status' => 'completed',
+                'duration' => $this->formatDuration($startTime->diff($endTime)),
+                'start_date' => $startTime->format('M j, Y g:i A'),
+                'end_date' => $endTime->format('M j, Y g:i A'),
+            ];
+        } elseif ($currentStageCode === 'harvested' && $crop->light_at) {
+            $startTime = \Carbon\Carbon::parse($crop->light_at);
+            $timings['harvested'] = [
+                'status' => 'current',
+                'duration' => $this->formatDuration($startTime->diff(\Carbon\Carbon::now())),
+                'start_date' => $startTime->format('M j, Y g:i A'),
+                'end_date' => null,
+            ];
+        }
+        
+        return $timings;
+    }
+    
+    /**
+     * Format a DateInterval into a human-readable string
+     */
+    protected function formatDuration(\DateInterval $duration): string
+    {
+        $parts = [];
+        
+        // Check if it's exactly 0 duration (instant transition)
+        if ($duration->d === 0 && $duration->h === 0 && $duration->i === 0 && $duration->s === 0) {
+            return 'Instant';
+        }
+        
+        if ($duration->d > 0) {
+            $parts[] = $duration->d . ' day' . ($duration->d > 1 ? 's' : '');
+        }
+        
+        if ($duration->h > 0) {
+            $parts[] = $duration->h . ' hour' . ($duration->h > 1 ? 's' : '');
+        }
+        
+        if ($duration->i > 0 && count($parts) < 2) {
+            $parts[] = $duration->i . ' minute' . ($duration->i > 1 ? 's' : '');
+        }
+        
+        if (empty($parts)) {
+            return 'Less than 1 minute';
+        }
+        
+        return implode(' ', $parts);
     }
 } 

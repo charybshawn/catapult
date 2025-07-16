@@ -22,17 +22,36 @@ class RecipeVarietyService
             return 'Unknown';
         }
         
-        if ($recipe->masterCultivar) {
-            return $recipe->masterCultivar->getFullNameAttribute();
+        // Try to get from relationships first
+        if ($recipe->masterCultivar && $recipe->masterSeedCatalog) {
+            $commonName = $recipe->masterSeedCatalog->common_name;
+            $cultivarName = $recipe->masterCultivar->cultivar_name;
+            return $commonName . ' (' . $cultivarName . ')';
         }
         
+        // If masterCultivar exists but no masterSeedCatalog, check if masterCultivar has its own masterSeedCatalog
+        if ($recipe->masterCultivar) {
+            $cultivarName = $recipe->masterCultivar->cultivar_name;
+            
+            // Check if the cultivar has the masterSeedCatalog relationship loaded
+            if ($recipe->masterCultivar->relationLoaded('masterSeedCatalog') && $recipe->masterCultivar->masterSeedCatalog) {
+                $commonName = $recipe->masterCultivar->masterSeedCatalog->common_name;
+                return $commonName . ' (' . $cultivarName . ')';
+            }
+            
+            // Fallback to just cultivar name if no seed catalog available
+            return $cultivarName;
+        }
+        
+        // If only masterSeedCatalog is available
         if ($recipe->masterSeedCatalog) {
             return $recipe->masterSeedCatalog->common_name;
         }
         
         // Fallback to direct fields if relationships not loaded
         if ($recipe->cultivar_name) {
-            return $recipe->common_name . ' (' . $recipe->cultivar_name . ')';
+            $commonName = $recipe->common_name ?? 'Unknown';
+            return $commonName . ' (' . $recipe->cultivar_name . ')';
         }
         
         return $recipe->common_name ?? 'Unknown';

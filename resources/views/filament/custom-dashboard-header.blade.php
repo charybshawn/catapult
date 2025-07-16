@@ -535,8 +535,8 @@
                                         </div>
                                         
                                         <div>
-                                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Stage Progress</div>
-                                            <div class="flex items-center gap-2">
+                                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Current Stage</div>
+                                            <div class="flex items-center gap-2 mb-3">
                                                 <x-filament::badge color="info" size="sm">{{ ucfirst($alert->current_stage) }}</x-filament::badge>
                                                 <span class="text-gray-500">→</span>
                                                 <x-filament::badge :color="match($alert->target_stage) {
@@ -546,6 +546,31 @@
                                                     'harvested' => 'danger',
                                                     default => 'gray'
                                                 }" size="sm">{{ ucfirst($alert->target_stage) }}</x-filament::badge>
+                                            </div>
+                                            
+                                            <!-- Stage Timeline -->
+                                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Stage Timeline</div>
+                                            <div class="space-y-2">
+                                                @foreach(['germination', 'blackout', 'light', 'harvested'] as $stage)
+                                                    @if(isset($alert->stage_timings[$stage]))
+                                                        @php $timing = $alert->stage_timings[$stage]; @endphp
+                                                        <div class="flex items-center justify-between py-1 px-2 rounded {{ $timing['status'] === 'current' ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-gray-50 dark:bg-gray-800' }}">
+                                                            <div class="flex items-center gap-2">
+                                                                <x-filament::badge 
+                                                                    :color="$timing['status'] === 'current' ? 'primary' : 'success'" 
+                                                                    size="xs">
+                                                                    {{ ucfirst($stage) }}
+                                                                </x-filament::badge>
+                                                                @if($timing['status'] === 'current')
+                                                                    <span class="text-xs text-blue-600 dark:text-blue-400 font-medium">Current</span>
+                                                                @endif
+                                                            </div>
+                                                            <div class="text-xs text-gray-600 dark:text-gray-400">
+                                                                {{ $timing['duration'] }}
+                                                            </div>
+                                                        </div>
+                                                    @endif
+                                                @endforeach
                                             </div>
                                         </div>
                                         
@@ -564,9 +589,9 @@
                                                 <div class="flex gap-3">
                                                     <button type="button"
                                                             x-data
-                                                            @click="
-                                                                if (confirm('Advance {{ $alert->tray_count }} crops to {{ $alert->target_stage }}?')) {
-                                                                    fetch('{{ route('dashboard.advance-crops') }}', {
+                                                            @click.prevent.stop="
+                                                                console.log('Advance clicked'); 
+                                                                fetch('{{ route('dashboard.advance-crops') }}', {
                                                                         method: 'POST',
                                                                         headers: {
                                                                             'X-CSRF-TOKEN': '{{ csrf_token() }}',
@@ -576,19 +601,27 @@
                                                                             alert_ids: {{ json_encode($alert->alert_ids) }}
                                                                         })
                                                                     })
-                                                                    .then(response => response.json())
+                                                                    .then(response => {
+                                                                        if (!response.ok) {
+                                                                            throw new Error('Network response was not ok');
+                                                                        }
+                                                                        return response.json();
+                                                                    })
                                                                     .then(data => {
+                                                                        console.log('Response:', data);
                                                                         if (data.success) {
-                                                                            alert(data.message);
-                                                                            window.location.reload();
+                                                                            console.log('Action successful:', data.message);
+                                                                            showDetails = false; // Close the modal
+                                                                            setTimeout(() => { 
+                                                                                window.location.reload(); // Refresh to show updated alerts
+                                                                            }, 500);
                                                                         } else {
-                                                                            alert('Error: ' + data.message);
+                                                                            console.log('Action failed:', data.message);
                                                                         }
                                                                     })
                                                                     .catch(error => {
-                                                                        alert('Error: ' + error);
+                                                                        console.error('Error:', error);
                                                                     });
-                                                                }
                                                             "
                                                             class="flex-1 text-center py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
                                                         Advance Stage
@@ -596,8 +629,8 @@
                                                     <button type="button"
                                                             x-data
                                                             @click="
-                                                                if (confirm('Rollback {{ $alert->tray_count }} crops to previous stage?')) {
-                                                                    fetch('{{ route('dashboard.rollback-crops') }}', {
+                                                                console.log('Rollback clicked'); 
+                                                                fetch('{{ route('dashboard.rollback-crops') }}', {
                                                                         method: 'POST',
                                                                         headers: {
                                                                             'X-CSRF-TOKEN': '{{ csrf_token() }}',
@@ -607,19 +640,27 @@
                                                                             alert_ids: {{ json_encode($alert->alert_ids) }}
                                                                         })
                                                                     })
-                                                                    .then(response => response.json())
+                                                                    .then(response => {
+                                                                        if (!response.ok) {
+                                                                            throw new Error('Network response was not ok');
+                                                                        }
+                                                                        return response.json();
+                                                                    })
                                                                     .then(data => {
+                                                                        console.log('Response:', data);
                                                                         if (data.success) {
-                                                                            alert(data.message);
-                                                                            window.location.reload();
+                                                                            console.log('Action successful:', data.message);
+                                                                            showDetails = false; // Close the modal
+                                                                            setTimeout(() => { 
+                                                                                window.location.reload(); // Refresh to show updated alerts
+                                                                            }, 500);
                                                                         } else {
-                                                                            alert('Error: ' + data.message);
+                                                                            console.log('Action failed:', data.message);
                                                                         }
                                                                     })
                                                                     .catch(error => {
-                                                                        alert('Error: ' + error);
+                                                                        console.error('Error:', error);
                                                                     });
-                                                                }
                                                             "
                                                             class="flex-1 text-center py-2 px-4 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors">
                                                         Rollback Stage
@@ -753,8 +794,8 @@
                                         </div>
                                         
                                         <div>
-                                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Stage Progress</div>
-                                            <div class="flex items-center gap-2">
+                                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Current Stage</div>
+                                            <div class="flex items-center gap-2 mb-3">
                                                 <x-filament::badge color="info" size="sm">{{ ucfirst($alert->current_stage) }}</x-filament::badge>
                                                 <span class="text-gray-500">→</span>
                                                 <x-filament::badge :color="match($alert->target_stage) {
@@ -764,6 +805,31 @@
                                                     'harvested' => 'danger',
                                                     default => 'gray'
                                                 }" size="sm">{{ ucfirst($alert->target_stage) }}</x-filament::badge>
+                                            </div>
+                                            
+                                            <!-- Stage Timeline -->
+                                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Stage Timeline</div>
+                                            <div class="space-y-2">
+                                                @foreach(['germination', 'blackout', 'light', 'harvested'] as $stage)
+                                                    @if(isset($alert->stage_timings[$stage]))
+                                                        @php $timing = $alert->stage_timings[$stage]; @endphp
+                                                        <div class="flex items-center justify-between py-1 px-2 rounded {{ $timing['status'] === 'current' ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-gray-50 dark:bg-gray-800' }}">
+                                                            <div class="flex items-center gap-2">
+                                                                <x-filament::badge 
+                                                                    :color="$timing['status'] === 'current' ? 'primary' : 'success'" 
+                                                                    size="xs">
+                                                                    {{ ucfirst($stage) }}
+                                                                </x-filament::badge>
+                                                                @if($timing['status'] === 'current')
+                                                                    <span class="text-xs text-blue-600 dark:text-blue-400 font-medium">Current</span>
+                                                                @endif
+                                                            </div>
+                                                            <div class="text-xs text-gray-600 dark:text-gray-400">
+                                                                {{ $timing['duration'] }}
+                                                            </div>
+                                                        </div>
+                                                    @endif
+                                                @endforeach
                                             </div>
                                         </div>
                                         
@@ -782,9 +848,9 @@
                                                 <div class="flex gap-3">
                                                     <button type="button"
                                                             x-data
-                                                            @click="
-                                                                if (confirm('Advance {{ $alert->tray_count }} crops to {{ $alert->target_stage }}?')) {
-                                                                    fetch('{{ route('dashboard.advance-crops') }}', {
+                                                            @click.prevent.stop="
+                                                                console.log('Advance clicked'); 
+                                                                fetch('{{ route('dashboard.advance-crops') }}', {
                                                                         method: 'POST',
                                                                         headers: {
                                                                             'X-CSRF-TOKEN': '{{ csrf_token() }}',
@@ -794,19 +860,27 @@
                                                                             alert_ids: {{ json_encode($alert->alert_ids) }}
                                                                         })
                                                                     })
-                                                                    .then(response => response.json())
+                                                                    .then(response => {
+                                                                        if (!response.ok) {
+                                                                            throw new Error('Network response was not ok');
+                                                                        }
+                                                                        return response.json();
+                                                                    })
                                                                     .then(data => {
+                                                                        console.log('Response:', data);
                                                                         if (data.success) {
-                                                                            alert(data.message);
-                                                                            window.location.reload();
+                                                                            console.log('Action successful:', data.message);
+                                                                            showDetails = false; // Close the modal
+                                                                            setTimeout(() => { 
+                                                                                window.location.reload(); // Refresh to show updated alerts
+                                                                            }, 500);
                                                                         } else {
-                                                                            alert('Error: ' + data.message);
+                                                                            console.log('Action failed:', data.message);
                                                                         }
                                                                     })
                                                                     .catch(error => {
-                                                                        alert('Error: ' + error);
+                                                                        console.error('Error:', error);
                                                                     });
-                                                                }
                                                             "
                                                             class="flex-1 text-center py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
                                                         Advance Stage
@@ -814,8 +888,8 @@
                                                     <button type="button"
                                                             x-data
                                                             @click="
-                                                                if (confirm('Rollback {{ $alert->tray_count }} crops to previous stage?')) {
-                                                                    fetch('{{ route('dashboard.rollback-crops') }}', {
+                                                                console.log('Rollback clicked'); 
+                                                                fetch('{{ route('dashboard.rollback-crops') }}', {
                                                                         method: 'POST',
                                                                         headers: {
                                                                             'X-CSRF-TOKEN': '{{ csrf_token() }}',
@@ -825,19 +899,27 @@
                                                                             alert_ids: {{ json_encode($alert->alert_ids) }}
                                                                         })
                                                                     })
-                                                                    .then(response => response.json())
+                                                                    .then(response => {
+                                                                        if (!response.ok) {
+                                                                            throw new Error('Network response was not ok');
+                                                                        }
+                                                                        return response.json();
+                                                                    })
                                                                     .then(data => {
+                                                                        console.log('Response:', data);
                                                                         if (data.success) {
-                                                                            alert(data.message);
-                                                                            window.location.reload();
+                                                                            console.log('Action successful:', data.message);
+                                                                            showDetails = false; // Close the modal
+                                                                            setTimeout(() => { 
+                                                                                window.location.reload(); // Refresh to show updated alerts
+                                                                            }, 500);
                                                                         } else {
-                                                                            alert('Error: ' + data.message);
+                                                                            console.log('Action failed:', data.message);
                                                                         }
                                                                     })
                                                                     .catch(error => {
-                                                                        alert('Error: ' + error);
+                                                                        console.error('Error:', error);
                                                                     });
-                                                                }
                                                             "
                                                             class="flex-1 text-center py-2 px-4 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors">
                                                         Rollback Stage
@@ -983,8 +1065,8 @@
                                         </div>
                                         
                                         <div>
-                                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Stage Progress</div>
-                                            <div class="flex items-center gap-2">
+                                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Current Stage</div>
+                                            <div class="flex items-center gap-2 mb-3">
                                                 <x-filament::badge color="info" size="sm">{{ ucfirst($alert->current_stage) }}</x-filament::badge>
                                                 <span class="text-gray-500">→</span>
                                                 <x-filament::badge :color="match($alert->target_stage) {
@@ -994,6 +1076,31 @@
                                                     'harvested' => 'danger',
                                                     default => 'gray'
                                                 }" size="sm">{{ ucfirst($alert->target_stage) }}</x-filament::badge>
+                                            </div>
+                                            
+                                            <!-- Stage Timeline -->
+                                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Stage Timeline</div>
+                                            <div class="space-y-2">
+                                                @foreach(['germination', 'blackout', 'light', 'harvested'] as $stage)
+                                                    @if(isset($alert->stage_timings[$stage]))
+                                                        @php $timing = $alert->stage_timings[$stage]; @endphp
+                                                        <div class="flex items-center justify-between py-1 px-2 rounded {{ $timing['status'] === 'current' ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-gray-50 dark:bg-gray-800' }}">
+                                                            <div class="flex items-center gap-2">
+                                                                <x-filament::badge 
+                                                                    :color="$timing['status'] === 'current' ? 'primary' : 'success'" 
+                                                                    size="xs">
+                                                                    {{ ucfirst($stage) }}
+                                                                </x-filament::badge>
+                                                                @if($timing['status'] === 'current')
+                                                                    <span class="text-xs text-blue-600 dark:text-blue-400 font-medium">Current</span>
+                                                                @endif
+                                                            </div>
+                                                            <div class="text-xs text-gray-600 dark:text-gray-400">
+                                                                {{ $timing['duration'] }}
+                                                            </div>
+                                                        </div>
+                                                    @endif
+                                                @endforeach
                                             </div>
                                         </div>
                                         
@@ -1012,9 +1119,9 @@
                                                 <div class="flex gap-3">
                                                     <button type="button"
                                                             x-data
-                                                            @click="
-                                                                if (confirm('Advance {{ $alert->tray_count }} crops to {{ $alert->target_stage }}?')) {
-                                                                    fetch('{{ route('dashboard.advance-crops') }}', {
+                                                            @click.prevent.stop="
+                                                                console.log('Advance clicked'); 
+                                                                fetch('{{ route('dashboard.advance-crops') }}', {
                                                                         method: 'POST',
                                                                         headers: {
                                                                             'X-CSRF-TOKEN': '{{ csrf_token() }}',
@@ -1024,19 +1131,27 @@
                                                                             alert_ids: {{ json_encode($alert->alert_ids) }}
                                                                         })
                                                                     })
-                                                                    .then(response => response.json())
+                                                                    .then(response => {
+                                                                        if (!response.ok) {
+                                                                            throw new Error('Network response was not ok');
+                                                                        }
+                                                                        return response.json();
+                                                                    })
                                                                     .then(data => {
+                                                                        console.log('Response:', data);
                                                                         if (data.success) {
-                                                                            alert(data.message);
-                                                                            window.location.reload();
+                                                                            console.log('Action successful:', data.message);
+                                                                            showDetails = false; // Close the modal
+                                                                            setTimeout(() => { 
+                                                                                window.location.reload(); // Refresh to show updated alerts
+                                                                            }, 500);
                                                                         } else {
-                                                                            alert('Error: ' + data.message);
+                                                                            console.log('Action failed:', data.message);
                                                                         }
                                                                     })
                                                                     .catch(error => {
-                                                                        alert('Error: ' + error);
+                                                                        console.error('Error:', error);
                                                                     });
-                                                                }
                                                             "
                                                             class="flex-1 text-center py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
                                                         Advance Stage
@@ -1044,8 +1159,8 @@
                                                     <button type="button"
                                                             x-data
                                                             @click="
-                                                                if (confirm('Rollback {{ $alert->tray_count }} crops to previous stage?')) {
-                                                                    fetch('{{ route('dashboard.rollback-crops') }}', {
+                                                                console.log('Rollback clicked'); 
+                                                                fetch('{{ route('dashboard.rollback-crops') }}', {
                                                                         method: 'POST',
                                                                         headers: {
                                                                             'X-CSRF-TOKEN': '{{ csrf_token() }}',
@@ -1055,19 +1170,27 @@
                                                                             alert_ids: {{ json_encode($alert->alert_ids) }}
                                                                         })
                                                                     })
-                                                                    .then(response => response.json())
+                                                                    .then(response => {
+                                                                        if (!response.ok) {
+                                                                            throw new Error('Network response was not ok');
+                                                                        }
+                                                                        return response.json();
+                                                                    })
                                                                     .then(data => {
+                                                                        console.log('Response:', data);
                                                                         if (data.success) {
-                                                                            alert(data.message);
-                                                                            window.location.reload();
+                                                                            console.log('Action successful:', data.message);
+                                                                            showDetails = false; // Close the modal
+                                                                            setTimeout(() => { 
+                                                                                window.location.reload(); // Refresh to show updated alerts
+                                                                            }, 500);
                                                                         } else {
-                                                                            alert('Error: ' + data.message);
+                                                                            console.log('Action failed:', data.message);
                                                                         }
                                                                     })
                                                                     .catch(error => {
-                                                                        alert('Error: ' + error);
+                                                                        console.error('Error:', error);
                                                                     });
-                                                                }
                                                             "
                                                             class="flex-1 text-center py-2 px-4 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors">
                                                         Rollback Stage

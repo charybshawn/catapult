@@ -367,4 +367,15 @@ class Crop extends Model
         return $this->current_stage === 'light';
     }
 
+    /**
+     * Calculate the expected harvest date for this crop.
+     * 
+     * @return \Carbon\Carbon|null
+     */
+    public function expectedHarvestDate(): ?\Carbon\Carbon
+    {
+        $taskManagementService = app(\App\Services\CropTaskManagementService::class);
+        return $taskManagementService->calculateExpectedHarvestDate($this);
+    }
+
 }

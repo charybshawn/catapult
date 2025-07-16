@@ -173,27 +173,20 @@ class CropAlertResource extends Resource
                         $cropId = $record->conditions['crop_id'] ?? null;
                         if (!$cropId) return 'Unknown';
                         
-                        $crop = Crop::with(['recipe.seedEntry'])->find($cropId);
+                        $crop = Crop::with(['recipe.masterSeedCatalog', 'recipe.masterCultivar'])->find($cropId);
                         if (!$crop) return 'Unknown - Crop Not Found';
                         
                         if (!$crop->recipe) return 'Unknown - No Recipe';
                         
-                        // First try to get from recipe's own fields
-                        if ($crop->recipe->common_name && $crop->recipe->cultivar_name) {
-                            return $crop->recipe->common_name . ' - ' . $crop->recipe->cultivar_name;
-                        }
+                        // Get common name from masterSeedCatalog and cultivar name from masterCultivar
+                        $commonName = $crop->recipe->masterSeedCatalog?->common_name ?? 'Unknown';
+                        $cultivarName = $crop->recipe->masterCultivar?->cultivar_name ?? '';
                         
-                        // Then try seedEntry relationship
-                        if ($crop->recipe->seedEntry) {
-                            return $crop->recipe->seedEntry->common_name . ' - ' . $crop->recipe->seedEntry->cultivar_name;
+                        if ($cultivarName) {
+                            return $commonName . ' (' . $cultivarName . ')';
+                        } else {
+                            return $commonName;
                         }
-                        
-                        // Fallback: use the recipe name since it contains the variety info
-                        if ($crop->recipe->name) {
-                            return $crop->recipe->name;
-                        }
-                        
-                        return 'Unknown - No Seed Entry';
                     })
                     ->toggleable(),
                     

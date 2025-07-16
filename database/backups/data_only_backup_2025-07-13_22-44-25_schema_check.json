@@ -1,0 +1,22 @@
+{
+    "timestamp": "2025-07-13T22:44:25-07:00",
+    "backup_type": "data-only",
+    "has_issues": true,
+    "summary": "Schema mismatches detected: 1 tables have column mismatches",
+    "details": {
+        "extra_tables": [],
+        "missing_tables": [],
+        "column_differences": {
+            "orders": {
+                "extra_columns": [],
+                "missing_columns": {
+                    "34": "created_at"
+                }
+            }
+        },
+        "summary": "Schema mismatches detected: 1 tables have column mismatches",
+        "has_issues": true,
+        "data_only_warning": "\u26a0\ufe0f WARNING: This data-only backup has schema mismatches. Restore may fail for tables with column differences."
+    },
+    "formatted_report": "\u26a0\ufe0f Schema mismatches detected: 1 tables have column mismatches\n\n\ud83d\udd27 Tables with column mismatches:\n   \ud83d\udcca orders:\n      - Missing columns: created_at\n\n\ud83d\udca1 Recommendation: Create migrations to add these extra tables\/columns, or remove them from the database."
+}

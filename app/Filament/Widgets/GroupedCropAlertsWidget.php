@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Models\Crop;
+use App\Services\RecipeVarietyService;
 use Filament\Widgets\Widget;
 use Illuminate\Support\Carbon;
 
@@ -47,19 +48,14 @@ class GroupedCropAlertsWidget extends Widget
 
         // Get all active crops (not harvested) with their relationships
         $crops = Crop::whereNotIn('current_stage', ['harvested'])
-            ->with(['recipe.seedCultivar', 'recipe'])
+            ->with(['recipe.masterSeedCatalog', 'recipe.masterCultivar.masterSeedCatalog', 'recipe'])
             ->get();
 
+        $varietyService = app(RecipeVarietyService::class);
+
         foreach ($crops as $crop) {
-            // Get the variety name, falling back to recipe name if variety is not available
-            $variety = 'Unknown';
-            if ($crop->recipe) {
-                if ($crop->recipe->seedCultivar) {
-                    $variety = $crop->recipe->seedCultivar->name;
-                } else if ($crop->recipe->name) {
-                    $variety = $crop->recipe->name;
-                }
-            }
+            // Get the full variety name (common name + cultivar) using the variety service
+            $variety = $varietyService->getFullVarietyName($crop->recipe);
             
             $trayName = $crop->tray_number ?? 'No Tray';
             

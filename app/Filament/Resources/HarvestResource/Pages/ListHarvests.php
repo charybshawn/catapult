@@ -33,11 +33,28 @@ class ListHarvests extends ListRecords
                             Forms\Components\Select::make('recipe_id')
                                 ->label('Recipe')
                                 ->options(function () {
-                                    return \App\Models\Recipe::with('masterCultivar.masterSeedCatalog')
+                                    return \App\Models\Recipe::with(['masterCultivar', 'masterSeedCatalog'])
                                         ->where('is_active', true)
                                         ->get()
                                         ->mapWithKeys(function ($recipe) {
-                                            return [$recipe->id => $recipe->name];
+                                            // Get common name from masterSeedCatalog relationship
+                                            $commonName = $recipe->masterSeedCatalog?->common_name ?: 'Unknown';
+                                            
+                                            // Get cultivar name from masterCultivar relationship
+                                            $cultivarName = $recipe->masterCultivar?->cultivar_name ?: '';
+                                            
+                                            // Build display in "Common Name (Cultivar Name)" format
+                                            $display = $commonName;
+                                            if ($cultivarName) {
+                                                $display .= ' (' . $cultivarName . ')';
+                                            }
+                                            
+                                            // Fallback to recipe name if display is still empty
+                                            if (empty(trim($display)) || $display === 'Unknown') {
+                                                $display = $recipe->name ?: "Recipe #{$recipe->id}";
+                                            }
+                                            
+                                            return [$recipe->id => $display];
                                         });
                                 })
                                 ->required()
@@ -74,9 +91,9 @@ class ListHarvests extends ListRecords
                                 ->reorderable()
                                 ->live()
                                 ->columnWidths([
-                                    'crop_id' => '50%',
-                                    'harvested_weight_grams' => '25%',
-                                    'percentage_harvested' => '25%',
+                                    'crop_id' => 'auto',
+                                    'harvested_weight_grams' => '120px',
+                                    'percentage_harvested' => '120px',
                                 ])
                                 ->extraAttributes([
                                     'style' => 'overflow: visible;',
@@ -99,12 +116,8 @@ class ListHarvests extends ListRecords
                                                 })
                                                 ->get()
                                                 ->mapWithKeys(function ($crop) {
-                                                    // Use the relationship directly to avoid the accessor
-                                                    $stage = $crop->getRelationValue('currentStage');
-                                                    $stageName = $stage ? $stage->name : 'Unknown';
-                                                    
                                                     $plantedDate = $crop->planting_at ? $crop->planting_at->format('M j') : 'Not planted';
-                                                    return [$crop->id => "Tray {$crop->tray_number} - {$stageName} - {$plantedDate}"];
+                                                    return [$crop->id => "Tray {$crop->tray_number} - {$plantedDate}"];
                                                 });
                                         })
                                         ->required()

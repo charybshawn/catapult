@@ -103,18 +103,23 @@ class CropTaskManagementService
      */
     public function advanceStage(Crop $crop, ?Carbon $timestamp = null): void
     {
-        // Ensure currentStage is loaded
+        // Ensure currentStage and recipe are loaded
         if (!$crop->relationLoaded('currentStage')) {
             $crop->load('currentStage');
         }
+        if (!$crop->relationLoaded('recipe')) {
+            $crop->load('recipe');
+        }
 
-        $nextStage = $crop->currentStage?->getNextStage();
+        // Get the next viable stage based on recipe (skipping stages with 0 days)
+        $currentStageObject = $crop->getRelationValue('currentStage');
+        $nextStage = $currentStageObject?->getNextViableStage($crop->recipe);
         
         if (!$nextStage) {
             Log::warning('Cannot advance crop beyond final stage', [
                 'crop_id' => $crop->id,
                 'current_stage_id' => $crop->current_stage_id,
-                'current_stage_code' => $crop->currentStage?->code
+                'current_stage_code' => $currentStageObject?->code
             ]);
             return;
         }
@@ -147,7 +152,7 @@ class CropTaskManagementService
             'batch_size' => $count,
             'recipe_id' => $crop->recipe_id,
             'planting_at' => $crop->planting_at,
-            'from_stage' => $crop->currentStage?->code,
+            'from_stage' => $currentStageObject?->code,
             'to_stage' => $nextStage->code
         ]);
     }

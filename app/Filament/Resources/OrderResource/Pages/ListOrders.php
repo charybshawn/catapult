@@ -13,6 +13,11 @@ class ListOrders extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Actions\Action::make('calendar')
+                ->label('Calendar View')
+                ->icon('heroicon-o-calendar-days')
+                ->url(OrderResource::getUrl('calendar'))
+                ->color('primary'),
             Actions\CreateAction::make(),
         ];
     }
