@@ -1,2 +1,49 @@
-# Created by venv; see https://docs.python.org/3/library/venv.html
-*
+# Laravel specific ignores
+/node_modules
+/public/build
+/public/hot
+/public/storage
+/storage/*.key
+/vendor
+.env
+.env.backup
+.env.production
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+auth.json
+npm-debug.log
+yarn-error.log
+/.fleet
+/.idea
+/.vscode
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Database
+*.sqlite
+*.sqlite3
+
+# Cache
+/bootstrap/cache/*.php
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/storage/logs/*
+
+# Compiled assets
+/public/css/app.css
+/public/js/app.js
+/public/mix-manifest.json
