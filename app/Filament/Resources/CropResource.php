@@ -26,6 +26,8 @@ use App\Filament\Forms\Components\Common as FormCommon;
 use App\Filament\Traits\CsvExportAction;
 use App\Filament\Traits\HasTimestamps;
 use App\Filament\Traits\HasStandardActions;
+use Filament\Infolists;
+use Filament\Infolists\Infolist;
 
 class CropResource extends BaseResource
 {
@@ -154,6 +156,196 @@ class CropResource extends BaseResource
             ]);
     }
 
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Infolists\Components\Section::make('Crop Details')
+                    ->schema([
+                        Infolists\Components\Group::make([
+                            Infolists\Components\TextEntry::make('variety')
+                                ->label('')
+                                ->weight('bold')
+                                ->size('xl')
+                                ->getStateUsing(function ($record) {
+                                    if ($record->recipe) {
+                                        $varietyService = app(\App\Services\RecipeVarietyService::class);
+                                        return $varietyService->getFullVarietyName($record->recipe);
+                                    }
+                                    return 'Unknown';
+                                }),
+                            Infolists\Components\TextEntry::make('recipe.name')
+                                ->label('')
+                                ->color('gray')
+                                ->getStateUsing(fn ($record) => $record->recipe?->name ?? 'Unknown Recipe'),
+                        ])->columns(1),
+                        
+                        Infolists\Components\Group::make([
+                            Infolists\Components\TextEntry::make('current_stage')
+                                ->label('Status')
+                                ->badge()
+                                ->getStateUsing(fn ($record) => $record->currentStage?->name ?? 'Unknown')
+                                ->color(fn ($record) => $record->currentStage?->color ?? 'gray'),
+                            Infolists\Components\TextEntry::make('tray_count')
+                                ->label('Tray Count')
+                                ->getStateUsing(function ($record) {
+                                    $batchCrops = \App\Models\Crop::where('recipe_id', $record->recipe_id)
+                                        ->where('planting_at', $record->planting_at)
+                                        ->where('current_stage_id', $record->current_stage_id)
+                                        ->count();
+                                    return $batchCrops;
+                                }),
+                        ])->columns(2),
+                        
+                        Infolists\Components\TextEntry::make('stage_age_display')
+                            ->label('Time in Stage')
+                            ->getStateUsing(function ($record) {
+                                // Get a real crop record and force refresh time calculations
+                                $realCrop = \App\Models\Crop::with(['currentStage', 'recipe'])
+                                    ->where('recipe_id', $record->recipe_id)
+                                    ->where('planting_at', $record->planting_at)
+                                    ->where('current_stage_id', $record->current_stage_id)
+                                    ->first();
+                                    
+                                if (!$realCrop) {
+                                    return 'N/A';
+                                }
+                                
+                                // Force refresh the time calculations
+                                $calculator = app(\App\Services\CropTimeCalculator::class);
+                                $calculator->updateTimeCalculations($realCrop);
+                                
+                                return $realCrop->stage_age_display ?? 'N/A';
+                            }),
+                            
+                        Infolists\Components\TextEntry::make('time_to_next_stage_display')
+                            ->label('Time to Next Stage')
+                            ->getStateUsing(function ($record) {
+                                // Get a real crop record and force refresh time calculations
+                                $realCrop = \App\Models\Crop::with(['currentStage', 'recipe'])
+                                    ->where('recipe_id', $record->recipe_id)
+                                    ->where('planting_at', $record->planting_at)
+                                    ->where('current_stage_id', $record->current_stage_id)
+                                    ->first();
+                                    
+                                if (!$realCrop) {
+                                    return 'N/A';
+                                }
+                                
+                                // Force refresh the time calculations
+                                $calculator = app(\App\Services\CropTimeCalculator::class);
+                                $calculator->updateTimeCalculations($realCrop);
+                                
+                                return $realCrop->time_to_next_stage_display ?? 'N/A';
+                            }),
+                            
+                        Infolists\Components\TextEntry::make('total_age_display')
+                            ->label('Total Age')
+                            ->getStateUsing(function ($record) {
+                                // Get a real crop record and force refresh time calculations
+                                $realCrop = \App\Models\Crop::with(['currentStage', 'recipe'])
+                                    ->where('recipe_id', $record->recipe_id)
+                                    ->where('planting_at', $record->planting_at)
+                                    ->where('current_stage_id', $record->current_stage_id)
+                                    ->first();
+                                    
+                                if (!$realCrop) {
+                                    return 'N/A';
+                                }
+                                
+                                // Force refresh the time calculations
+                                $calculator = app(\App\Services\CropTimeCalculator::class);
+                                $calculator->updateTimeCalculations($realCrop);
+                                
+                                return $realCrop->total_age_display ?? 'N/A';
+                            }),
+                            
+                        Infolists\Components\TextEntry::make('planting_at')
+                            ->label('Planted Date')
+                            ->getStateUsing(function ($record) {
+                                if ($record->planting_at) {
+                                    $date = is_string($record->planting_at) ? \Carbon\Carbon::parse($record->planting_at) : $record->planting_at;
+                                    return $date->format('M j, Y g:i A');
+                                }
+                                return 'Unknown';
+                            }),
+                            
+                        Infolists\Components\TextEntry::make('expected_harvest_at')
+                            ->label('Expected Harvest')
+                            ->getStateUsing(function ($record) {
+                                if ($record->expected_harvest_at) {
+                                    $date = is_string($record->expected_harvest_at) ? \Carbon\Carbon::parse($record->expected_harvest_at) : $record->expected_harvest_at;
+                                    return $date->format('M j, Y');
+                                }
+                                return 'Not calculated';
+                            }),
+                    ]),
+                    
+                Infolists\Components\Section::make('Stage Timeline')
+                    ->schema([
+                        Infolists\Components\TextEntry::make('stage_timeline')
+                            ->label('')
+                            ->html()
+                            ->getStateUsing(function ($record) {
+                                // Get a real crop record to get accurate stage timings
+                                $realCrop = \App\Models\Crop::where('recipe_id', $record->recipe_id)
+                                    ->where('planting_at', $record->planting_at)
+                                    ->where('current_stage_id', $record->current_stage_id)
+                                    ->first();
+                                    
+                                if (!$realCrop) {
+                                    return '<div class="text-gray-500">No crop data available</div>';
+                                }
+                                
+                                $dashboard = new \App\Filament\Pages\Dashboard();
+                                $reflection = new \ReflectionClass($dashboard);
+                                $method = $reflection->getMethod('getStageTimings');
+                                $method->setAccessible(true);
+                                $stageTimings = $method->invoke($dashboard, $realCrop);
+                                
+                                $html = '<div class="space-y-2">';
+                                foreach ($stageTimings as $stage => $timing) {
+                                    $badgeColor = $timing['status'] === 'current' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+                                    $currentLabel = $timing['status'] === 'current' ? '<span class="text-xs text-blue-600 dark:text-blue-400 font-medium ml-2">Current</span>' : '';
+                                    
+                                    $html .= '<div class="flex items-center justify-between py-1 px-2 rounded ' . ($timing['status'] === 'current' ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-gray-50 dark:bg-gray-800') . '">';
+                                    $html .= '<div class="flex items-center gap-2">';
+                                    $html .= '<span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ' . $badgeColor . '">' . ucfirst($stage) . '</span>';
+                                    $html .= $currentLabel;
+                                    $html .= '</div>';
+                                    $html .= '<div class="text-xs text-gray-600 dark:text-gray-400">' . $timing['duration'] . '</div>';
+                                    $html .= '</div>';
+                                }
+                                $html .= '</div>';
+                                
+                                return $html;
+                            }),
+                    ]),
+                    
+                Infolists\Components\Section::make('Tray Numbers')
+                    ->schema([
+                        Infolists\Components\TextEntry::make('tray_numbers')
+                            ->label('')
+                            ->html()
+                            ->getStateUsing(function ($record) {
+                                $batchCrops = \App\Models\Crop::where('recipe_id', $record->recipe_id)
+                                    ->where('planting_at', $record->planting_at)
+                                    ->where('current_stage_id', $record->current_stage_id)
+                                    ->get();
+                                $trayNumbers = $batchCrops->pluck('tray_number')->sort()->values()->toArray();
+                                
+                                $html = '<div class="flex flex-wrap gap-1">';
+                                foreach ($trayNumbers as $tray) {
+                                    $html .= '<span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-800 dark:bg-gray-800 dark:text-gray-200">' . htmlspecialchars($tray) . '</span>';
+                                }
+                                $html .= '</div>';
+                                
+                                return $html;
+                            }),
+                    ]),
+            ]);
+    }
+
     public static function table(Table $table): Table
     {
         return static::configureTableDefaults($table)
@@ -189,7 +381,7 @@ class CropResource extends BaseResource
                     ->from('crops')
                     ->groupBy(['crops.recipe_id', 'crops.planting_at', 'crops.current_stage_id']);
             })
-            ->recordAction(null)
+            ->recordAction('view')
             ->recordUrl(null)
             ->columns([
                 Tables\Columns\TextColumn::make('recipe_name')
@@ -245,21 +437,72 @@ class CropResource extends BaseResource
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('stage_age_display')
                     ->label('Time in Stage')
-                    ->getStateUsing(fn ($record): string => $record->stage_age_display ?? 'N/A')
+                    ->getStateUsing(function ($record): string {
+                        // Get a real crop record and force refresh time calculations
+                        $realCrop = \App\Models\Crop::with(['currentStage', 'recipe'])
+                            ->where('recipe_id', $record->recipe_id)
+                            ->where('planting_at', $record->planting_at)
+                            ->where('current_stage_id', $record->current_stage_id)
+                            ->first();
+                            
+                        if (!$realCrop) {
+                            return 'N/A';
+                        }
+                        
+                        // Force refresh the time calculations
+                        $calculator = app(\App\Services\CropTimeCalculator::class);
+                        $calculator->updateTimeCalculations($realCrop);
+                        
+                        return $realCrop->stage_age_display ?? 'N/A';
+                    })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('stage_age_minutes', $direction);
                     })
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('time_to_next_stage_display')
                     ->label('Time to Next Stage')
-                    ->getStateUsing(fn ($record): string => $record->time_to_next_stage_display ?? 'N/A')
+                    ->getStateUsing(function ($record): string {
+                        // Get a real crop record and force refresh time calculations
+                        $realCrop = \App\Models\Crop::with(['currentStage', 'recipe'])
+                            ->where('recipe_id', $record->recipe_id)
+                            ->where('planting_at', $record->planting_at)
+                            ->where('current_stage_id', $record->current_stage_id)
+                            ->first();
+                            
+                        if (!$realCrop) {
+                            return 'N/A';
+                        }
+                        
+                        // Force refresh the time calculations
+                        $calculator = app(\App\Services\CropTimeCalculator::class);
+                        $calculator->updateTimeCalculations($realCrop);
+                        
+                        return $realCrop->time_to_next_stage_display ?? 'N/A';
+                    })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('time_to_next_stage_minutes', $direction);
                     })
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('total_age_display')
                     ->label('Total Age')
-                    ->getStateUsing(fn ($record): string => $record->total_age_display ?? 'N/A')
+                    ->getStateUsing(function ($record): string {
+                        // Get a real crop record and force refresh time calculations
+                        $realCrop = \App\Models\Crop::with(['currentStage', 'recipe'])
+                            ->where('recipe_id', $record->recipe_id)
+                            ->where('planting_at', $record->planting_at)
+                            ->where('current_stage_id', $record->current_stage_id)
+                            ->first();
+                            
+                        if (!$realCrop) {
+                            return 'N/A';
+                        }
+                        
+                        // Force refresh the time calculations
+                        $calculator = app(\App\Services\CropTimeCalculator::class);
+                        $calculator->updateTimeCalculations($realCrop);
+                        
+                        return $realCrop->total_age_display ?? 'N/A';
+                    })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('total_age_minutes', $direction);
                     })
@@ -305,6 +548,151 @@ class CropResource extends BaseResource
                     ->default(true),
             ])
             ->actions([
+                Tables\Actions\ViewAction::make()
+                    ->tooltip('View crop details')
+                    ->modalHeading('Crop Details')
+                    ->modalWidth('sm')
+                    ->slideOver()
+                    ->modalIcon('heroicon-o-eye')
+                    ->extraModalFooterActions([
+                        Tables\Actions\Action::make('advance_stage')
+                            ->label('Advance Stage')
+                            ->icon('heroicon-o-chevron-double-right')
+                            ->color('success')
+                            ->visible(function ($record) {
+                                $stage = \App\Models\CropStage::find($record->current_stage_id);
+                                return $stage?->code !== 'harvested';
+                            })
+                            ->action(function ($record) {
+                                // Get the real crop record for stage logic
+                                $realCrop = \App\Models\Crop::where('recipe_id', $record->recipe_id)
+                                    ->where('planting_at', $record->planting_at)
+                                    ->where('current_stage_id', $record->current_stage_id)
+                                    ->first();
+                                    
+                                if (!$realCrop) {
+                                    \Filament\Notifications\Notification::make()
+                                        ->title('Error')
+                                        ->body('Could not find crop record')
+                                        ->danger()
+                                        ->send();
+                                    return;
+                                }
+                                
+                                $currentStage = \App\Models\CropStage::find($realCrop->current_stage_id);
+                                $nextStage = $currentStage ? \App\Models\CropStage::where('sort_order', '>', $currentStage->sort_order)
+                                    ->where('is_active', true)
+                                    ->orderBy('sort_order')
+                                    ->first() : null;
+                                
+                                if (!$nextStage) {
+                                    \Filament\Notifications\Notification::make()
+                                        ->title('Already Harvested')
+                                        ->body('This crop has already reached its final stage.')
+                                        ->warning()
+                                        ->send();
+                                    return;
+                                }
+
+                                // Find all crops in this batch
+                                $crops = \App\Models\Crop::with('recipe')
+                                    ->where('recipe_id', $realCrop->recipe_id)
+                                    ->where('planting_at', $realCrop->planting_at)
+                                    ->where('current_stage_id', $realCrop->current_stage_id)
+                                    ->get();
+                                
+                                $count = $crops->count();
+                                
+                                // Update all crops in this batch
+                                foreach ($crops as $crop) {
+                                    $timestampField = "{$nextStage->code}_at";
+                                    $crop->current_stage_id = $nextStage->id;
+                                    $crop->$timestampField = now();
+                                    $crop->save();
+                                }
+                                
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Batch Advanced')
+                                    ->body("Successfully advanced {$count} tray(s) to {$nextStage->name}.")
+                                    ->success()
+                                    ->send();
+                            }),
+                        Tables\Actions\Action::make('rollback_stage')
+                            ->label('Rollback Stage')
+                            ->icon('heroicon-o-arrow-uturn-left')
+                            ->color('warning')
+                            ->visible(function ($record) {
+                                $stage = \App\Models\CropStage::find($record->current_stage_id);
+                                return $stage?->code !== 'germination';
+                            })
+                            ->action(function ($record) {
+                                // Get the real crop record for stage logic
+                                $realCrop = \App\Models\Crop::where('recipe_id', $record->recipe_id)
+                                    ->where('planting_at', $record->planting_at)
+                                    ->where('current_stage_id', $record->current_stage_id)
+                                    ->first();
+                                    
+                                if (!$realCrop) {
+                                    \Filament\Notifications\Notification::make()
+                                        ->title('Error')
+                                        ->body('Could not find crop record')
+                                        ->danger()
+                                        ->send();
+                                    return;
+                                }
+                                
+                                $currentStage = \App\Models\CropStage::find($realCrop->current_stage_id);
+                                $previousStage = $currentStage ? \App\Models\CropStage::where('sort_order', '<', $currentStage->sort_order)
+                                    ->where('is_active', true)
+                                    ->orderBy('sort_order', 'desc')
+                                    ->first() : null;
+                                
+                                if (!$previousStage) {
+                                    \Filament\Notifications\Notification::make()
+                                        ->title('Cannot Rollback')
+                                        ->body('This crop is already at the first stage.')
+                                        ->warning()
+                                        ->send();
+                                    return;
+                                }
+
+                                // Find all crops in this batch
+                                $crops = \App\Models\Crop::with('recipe')
+                                    ->where('recipe_id', $realCrop->recipe_id)
+                                    ->where('planting_at', $realCrop->planting_at)
+                                    ->where('current_stage_id', $realCrop->current_stage_id)
+                                    ->get();
+                                
+                                $count = $crops->count();
+                                
+                                // Update all crops in this batch
+                                foreach ($crops as $crop) {
+                                    // Clear the timestamp for the current stage
+                                    $timestampField = "{$currentStage->code}_at";
+                                    $crop->$timestampField = null;
+                                    
+                                    // Set the previous stage
+                                    $crop->current_stage_id = $previousStage->id;
+                                    $crop->save();
+                                }
+                                
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Batch Rolled Back')
+                                    ->body("Successfully rolled back {$count} tray(s) to {$previousStage->name}.")
+                                    ->success()
+                                    ->send();
+                            }),
+                        Tables\Actions\Action::make('edit_crop')
+                            ->label('Edit Crop')
+                            ->icon('heroicon-o-pencil-square')
+                            ->color('primary')
+                            ->url(fn ($record) => static::getUrl('edit', ['record' => $record])),
+                        Tables\Actions\Action::make('view_all_crops')
+                            ->label('View All Crops')
+                            ->icon('heroicon-o-list-bullet')
+                            ->color('gray')
+                            ->url(fn ($record) => static::getUrl('index')),
+                    ]),
                 Tables\Actions\Action::make('debug')
                     ->label('')
                     ->icon('heroicon-o-code-bracket')
