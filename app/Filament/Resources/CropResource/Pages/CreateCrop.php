@@ -40,16 +40,27 @@ class CreateCrop extends BaseCreateRecord
             }
         }
         
-        // Ensure we have at least one tray
+        // Check if recipe requires soaking - if so, tray numbers are optional
+        $recipe = null;
+        if (isset($data['recipe_id'])) {
+            $recipe = Recipe::find($data['recipe_id']);
+        }
+        
+        // Ensure we have at least one tray (unless soaking stage)
         if (empty($trayNumbers)) {
-            Notification::make()
-                ->title('Error: No tray numbers provided')
-                ->body('At least one tray number is required for a grow batch.')
-                ->danger()
-                ->send();
-                
-            // Add a default tray number to prevent errors
-            $trayNumbers = ['1'];
+            if ($recipe && $recipe->requiresSoaking()) {
+                // For soaking crops, use placeholder tray numbers
+                $trayNumbers = ['SOAKING-1']; // Placeholder until actual trays are assigned
+            } else {
+                Notification::make()
+                    ->title('Error: No tray numbers provided')
+                    ->body('At least one tray number is required for a grow batch.')
+                    ->danger()
+                    ->send();
+                    
+                // Add a default tray number to prevent errors
+                $trayNumbers = ['1'];
+            }
         }
         
         // Log what we received for debugging

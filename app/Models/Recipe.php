@@ -254,6 +254,16 @@ class Recipe extends Model
     }
 
     /**
+     * Check if this recipe requires soaking before planting.
+     * 
+     * @return bool
+     */
+    public function requiresSoaking(): bool
+    {
+        return $this->seed_soak_hours > 0;
+    }
+
+    /**
      * The "booted" method of the model.
      */
     protected static function booted(): void

@@ -89,21 +89,51 @@ class CropValidationService
      */
     public function initializeNewCrop(Crop $crop): void
     {
+        // Auto-set requires_soaking based on recipe
+        if ($crop->recipe_id && !isset($crop->requires_soaking)) {
+            $recipe = \App\Models\Recipe::find($crop->recipe_id);
+            if ($recipe) {
+                $crop->requires_soaking = $recipe->requiresSoaking();
+            }
+        }
+        
         // Set planting_at if not provided
         if (!$crop->planting_at) {
             $crop->planting_at = now();
         }
         
-        // Set germination_at and current_stage to germination automatically
-        if ($crop->planting_at && !$crop->germination_at) {
-            $crop->germination_at = $crop->planting_at;
-        }
-        
-        // Always start at germination stage if not set
-        if (!$crop->current_stage_id) {
-            $germinationStage = \App\Models\CropStage::findByCode('germination');
-            if ($germinationStage) {
-                $crop->current_stage_id = $germinationStage->id;
+        // Set stage-specific timestamps and current_stage based on recipe requirements
+        if ($crop->requires_soaking && $crop->recipe_id) {
+            // Start at soaking stage if recipe requires it
+            if (!$crop->current_stage_id) {
+                $soakingStage = \App\Models\CropStage::findByCode('soaking');
+                if ($soakingStage) {
+                    $crop->current_stage_id = $soakingStage->id;
+                }
+            }
+            
+            // Set soaking_at if not provided
+            if (!$crop->soaking_at) {
+                $crop->soaking_at = now();
+            }
+            
+            // Calculate planting_at from soaking_at + duration
+            $recipe = \App\Models\Recipe::find($crop->recipe_id);
+            if ($recipe && $recipe->seed_soak_hours > 0) {
+                $crop->planting_at = $crop->soaking_at->copy()->addHours($recipe->seed_soak_hours);
+            }
+        } else {
+            // Set germination_at and current_stage to germination automatically
+            if ($crop->planting_at && !$crop->germination_at) {
+                $crop->germination_at = $crop->planting_at;
+            }
+            
+            // Always start at germination stage if not set
+            if (!$crop->current_stage_id) {
+                $germinationStage = \App\Models\CropStage::findByCode('germination');
+                if ($germinationStage) {
+                    $crop->current_stage_id = $germinationStage->id;
+                }
             }
         }
         
