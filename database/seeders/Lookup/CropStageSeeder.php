@@ -14,6 +14,17 @@ class CropStageSeeder extends Seeder
     {
         $stages = [
             [
+                'code' => 'soaking',
+                'name' => 'Soaking',
+                'description' => 'Seeds are soaking in water before planting',
+                'color' => 'info',
+                'is_active' => true,
+                'sort_order' => 0,
+                'typical_duration_days' => 1,
+                'requires_light' => false,
+                'requires_watering' => false,
+            ],
+            [
                 'code' => 'germination',
                 'name' => 'Germination',
                 'description' => 'Seeds are sprouting and developing initial roots and shoots',

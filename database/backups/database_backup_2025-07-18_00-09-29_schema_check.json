@@ -1,5 +1,5 @@
 {
-    "timestamp": "2025-07-14T09:33:36-07:00",
+    "timestamp": "2025-07-18T00:09:29-07:00",
     "backup_type": "full",
     "has_issues": false,
     "summary": "Database schema matches migrations perfectly",
@@ -10,6 +10,5 @@
         "summary": "Database schema matches migrations perfectly",
         "has_issues": false
     },
-    "formatted_report": "\u2705 Database schema matches migrations perfectly",
-    "checked_at": "2025-07-14T09:33:36-07:00"
+    "formatted_report": "\u2705 Database schema matches migrations perfectly"
 }

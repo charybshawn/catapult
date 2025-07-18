@@ -63,12 +63,12 @@ class SchemaComparisonService
         // Create a temporary database to run migrations
         $tempDb = 'catapult_schema_test_' . time();
         
+        // Save current database config before try block
+        $originalDb = config('database.connections.mysql.database');
+        
         try {
             // Create temporary database
             DB::statement("CREATE DATABASE IF NOT EXISTS `{$tempDb}`");
-            
-            // Save current database config
-            $originalDb = config('database.connections.mysql.database');
             
             // Switch to temporary database
             config(['database.connections.mysql.database' => $tempDb]);
@@ -250,7 +250,8 @@ class SchemaComparisonService
         $hasExtraColumns = false;
         $hasMissingColumns = false;
         
-        foreach ($differences['column_differences'] as $columnInfo) {
+        $columnDifferences = $differences['column_differences'] ?? [];
+        foreach ($columnDifferences as $columnInfo) {
             if (!empty($columnInfo['extra_columns'])) $hasExtraColumns = true;
             if (!empty($columnInfo['missing_columns'])) $hasMissingColumns = true;
         }

@@ -8,6 +8,8 @@ use App\Models\Recipe;
 use App\Models\Order;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
+use Filament\Forms\Set;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -63,6 +65,26 @@ class CropResource extends BaseResource
                             ->preload()
                             ->createOptionForm(RecipeResource::getFormSchema()),
 
+                        Forms\Components\Checkbox::make('requires_soaking')
+                            ->label('Requires Soaking')
+                            ->default(false)
+                            ->helperText('Check if seeds need to be soaked before planting')
+                            ->reactive()
+                            ->afterStateUpdated(function ($state, Set $set) {
+                                if ($state) {
+                                    $set('soaking_at', now());
+                                } else {
+                                    $set('soaking_at', null);
+                                }
+                            }),
+
+                        Forms\Components\DateTimePicker::make('soaking_at')
+                            ->label('Soaking Started At')
+                            ->seconds(false)
+                            ->default(now())
+                            ->visible(fn (Get $get) => $get('requires_soaking') === true)
+                            ->required(fn (Get $get) => $get('requires_soaking') === true),
+
                         Forms\Components\DateTimePicker::make('planting_at')
                             ->label('Planted At')
                             ->required()
@@ -72,7 +94,13 @@ class CropResource extends BaseResource
                             ->label('Current Stage')
                             ->relationship('currentStage', 'name')
                             ->required()
-                            ->default(function () {
+                            ->default(function (Get $get) {
+                                if ($get('requires_soaking')) {
+                                    $soakingStage = \App\Models\CropStage::findByCode('soaking');
+                                    if ($soakingStage) {
+                                        return $soakingStage->id;
+                                    }
+                                }
                                 return \App\Models\CropStage::findByCode('germination')->id;
                             })
                             ->visible(fn ($livewire) => !($livewire instanceof Pages\CreateCrop)),
@@ -127,6 +155,10 @@ class CropResource extends BaseResource
                     ->schema([
                         Forms\Components\Grid::make()
                             ->schema([
+                                Forms\Components\DateTimePicker::make('soaking_at')
+                                    ->label('Soaking')
+                                    ->helperText('When soaking stage began')
+                                    ->seconds(false),
                                 Forms\Components\DateTimePicker::make('planting_at')
                                     ->label('Planting')
                                     ->helperText('Changes to planting date will adjust all stage timestamps proportionally')
@@ -360,6 +392,7 @@ class CropResource extends BaseResource
                         DB::raw('MIN(crops.id) as id'),
                         DB::raw('MIN(crops.created_at) as created_at'),
                         DB::raw('MIN(crops.updated_at) as updated_at'),
+                        DB::raw('MIN(crops.soaking_at) as soaking_at'),
                         DB::raw('MIN(crops.germination_at) as germination_at'),
                         DB::raw('MIN(crops.blackout_at) as blackout_at'),
                         DB::raw('MIN(crops.light_at) as light_at'),
@@ -373,6 +406,7 @@ class CropResource extends BaseResource
                         DB::raw('MIN(crops.total_age_display) as total_age_display'),
                         DB::raw('MIN(crops.expected_harvest_at) as expected_harvest_at'),
                         DB::raw('MIN(crops.watering_suspended_at) as watering_suspended_at'),
+                        DB::raw('MIN(crops.requires_soaking) as requires_soaking'),
                         DB::raw('MIN(crops.notes) as notes'),
                         DB::raw('COUNT(crops.id) as tray_count'),
                         DB::raw('GROUP_CONCAT(DISTINCT crops.tray_number ORDER BY crops.tray_number SEPARATOR ", ") as tray_numbers'),

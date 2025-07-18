@@ -26,6 +26,12 @@ class GroupedCropAlertsWidget extends Widget
     public function getCropsNeedingAction(): array
     {
         $stages = [
+            'soaking' => [
+                'title' => 'Soaking Stage',
+                'icon' => 'beaker',
+                'color' => 'info',
+                'crops' => [],
+            ],
             'germination' => [
                 'title' => 'Germination Stage',
                 'icon' => 'sparkles',
@@ -82,6 +88,7 @@ class GroupedCropAlertsWidget extends Widget
             
             // Get recommended days based on current stage
             $recommendedDays = match($crop->current_stage) {
+                'soaking' => $crop->recipe && $crop->recipe->seed_soak_hours ? ceil($crop->recipe->seed_soak_hours / 24) : 1,
                 'germination' => $crop->recipe ? $crop->recipe->germination_days : 3,
                 'blackout' => $crop->recipe ? $crop->recipe->blackout_days : 3,
                 'light' => $crop->recipe ? $crop->recipe->light_days : 7,
@@ -135,6 +142,7 @@ class GroupedCropAlertsWidget extends Widget
     {
         return match($currentStage) {
             'planting' => 'Germination',
+            'soaking' => 'Germination',
             'germination' => 'Blackout',
             'blackout' => 'Light',
             'light' => 'Harvest',

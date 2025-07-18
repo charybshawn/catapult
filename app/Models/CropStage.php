@@ -69,6 +69,14 @@ class CropStage extends Model
     }
 
     /**
+     * Check if this is the soaking stage.
+     */
+    public function isSoaking(): bool
+    {
+        return $this->code === 'soaking';
+    }
+
+    /**
      * Check if this is the germination stage.
      */
     public function isGermination(): bool
@@ -113,7 +121,18 @@ class CropStage extends Model
      */
     public function isFirstStage(): bool
     {
-        return $this->isGermination();
+        // Check for soaking first, then fall back to germination for backward compatibility
+        if ($this->isSoaking()) {
+            return true;
+        }
+        
+        // If soaking stage doesn't exist, germination is the first stage
+        $soakingStage = static::findByCode('soaking');
+        if (!$soakingStage) {
+            return $this->isGermination();
+        }
+        
+        return false;
     }
 
     /**
@@ -142,6 +161,14 @@ class CropStage extends Model
     {
         $currentStage = $this;
         $nextStage = $this->getNextStage();
+        
+        // Handle soaking → germination transition
+        if ($this->isSoaking()) {
+            $germinationStage = static::findByCode('germination');
+            if ($germinationStage) {
+                return $germinationStage;
+            }
+        }
         
         while ($nextStage) {
             // Check if this stage should be skipped based on recipe

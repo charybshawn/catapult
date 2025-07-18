@@ -56,6 +56,12 @@
                              class="flex items-center space-x-2">
                             <span class="text-sm text-gray-600 dark:text-gray-400" x-text="`${selectedBackups.length} selected`"></span>
                             <button 
+                                @click="if(confirm('Are you sure you want to archive ' + selectedBackups.length + ' backup(s)? They will be moved to the archived folder.')) { $wire.massArchiveBackups(selectedBackups); selectedBackups = []; selectAll = false; }"
+                                class="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded text-sm font-medium"
+                            >
+                                Archive Selected
+                            </button>
+                            <button 
                                 @click="if(confirm('Are you sure you want to delete ' + selectedBackups.length + ' backup(s)? This action cannot be undone.')) { $wire.massDeleteBackups(selectedBackups); selectedBackups = []; selectAll = false; }"
                                 class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm font-medium"
                             >
@@ -167,32 +173,71 @@
                                                     </span>
                                                 @endif
                                             </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
-                                                <button 
-                                                    wire:click="recheckCompatibility('{{ $backup['name'] }}')"
-                                                    class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 inline-flex items-center"
-                                                    title="Run a quick compatibility check against current database"
-                                                >
-                                                    <x-filament::icon icon="heroicon-o-arrow-path" class="h-3 w-3 mr-1"/>
-                                                    Re-check
-                                                </button>
-                                                
-                                                <button 
-                                                    wire:click="downloadBackup('{{ $backup['name'] }}')"
-                                                    class="text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300 inline-flex items-center"
-                                                >
-                                                    <x-filament::icon icon="heroicon-o-arrow-down-tray" class="h-3 w-3 mr-1"/>
-                                                    Download
-                                                </button>
-                                                
-                                                <button 
-                                                    wire:click="deleteBackup('{{ $backup['name'] }}')"
-                                                    wire:confirm="Are you sure you want to delete this backup? This action cannot be undone."
-                                                    class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 inline-flex items-center"
-                                                >
-                                                    <x-filament::icon icon="heroicon-o-trash" class="h-3 w-3 mr-1"/>
-                                                    Delete
-                                                </button>
+                                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <div class="relative" x-data="{ open: false }">
+                                                    <button 
+                                                        @click="open = !open"
+                                                        @click.away="open = false"
+                                                        class="inline-flex items-center px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm leading-4 font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                                                    >
+                                                        Actions
+                                                        <x-filament::icon icon="heroicon-o-chevron-down" class="ml-2 h-4 w-4"/>
+                                                    </button>
+
+                                                    <div 
+                                                        x-show="open" 
+                                                        x-transition:enter="transition ease-out duration-100"
+                                                        x-transition:enter-start="transform opacity-0 scale-95"
+                                                        x-transition:enter-end="transform opacity-100 scale-100"
+                                                        x-transition:leave="transition ease-in duration-75"
+                                                        x-transition:leave-start="transform opacity-100 scale-100"
+                                                        x-transition:leave-end="transform opacity-0 scale-95"
+                                                        class="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
+                                                        style="display: none;"
+                                                    >
+                                                        <div class="py-1">
+                                                            <button 
+                                                                wire:click="recheckCompatibility('{{ $backup['name'] }}')"
+                                                                @click="open = false"
+                                                                class="group flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                                            >
+                                                                <x-filament::icon icon="heroicon-o-arrow-path" class="mr-3 h-4 w-4 text-blue-600 dark:text-blue-400"/>
+                                                                Re-check Compatibility
+                                                            </button>
+                                                            
+                                                            <button 
+                                                                wire:click="downloadBackup('{{ $backup['name'] }}')"
+                                                                @click="open = false"
+                                                                class="group flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                                            >
+                                                                <x-filament::icon icon="heroicon-o-arrow-down-tray" class="mr-3 h-4 w-4 text-primary-600 dark:text-primary-400"/>
+                                                                Download
+                                                            </button>
+                                                            
+                                                            <button 
+                                                                wire:click="archiveBackup('{{ $backup['name'] }}')"
+                                                                wire:confirm="Are you sure you want to archive this backup? It will be moved to the archived folder."
+                                                                @click="open = false"
+                                                                class="group flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                                            >
+                                                                <x-filament::icon icon="heroicon-o-archive-box" class="mr-3 h-4 w-4 text-orange-600 dark:text-orange-400"/>
+                                                                Archive
+                                                            </button>
+                                                            
+                                                            <div class="border-t border-gray-100 dark:border-gray-700"></div>
+                                                            
+                                                            <button 
+                                                                wire:click="deleteBackup('{{ $backup['name'] }}')"
+                                                                wire:confirm="Are you sure you want to delete this backup? This action cannot be undone."
+                                                                @click="open = false"
+                                                                class="group flex items-center w-full px-4 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                            >
+                                                                <x-filament::icon icon="heroicon-o-trash" class="mr-3 h-4 w-4 text-red-600 dark:text-red-400"/>
+                                                                Delete
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </td>
                                         </tr>
                                     @endforeach

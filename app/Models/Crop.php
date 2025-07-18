@@ -46,6 +46,8 @@ class Crop extends Model
         'harvested_at',
         'harvest_weight_grams',
         'watering_suspended_at',
+        'soaking_at',
+        'requires_soaking',
         'notes',
         'time_to_next_stage_minutes',
         'time_to_next_stage_display',
@@ -74,6 +76,8 @@ class Crop extends Model
         'light_at' => 'datetime',
         'harvested_at' => 'datetime',
         'watering_suspended_at' => 'datetime',
+        'soaking_at' => 'datetime',
+        'requires_soaking' => 'boolean',
         'harvest_weight_grams' => 'float',
         'tray_number' => 'string',
     ];
@@ -215,6 +219,48 @@ class Crop extends Model
         return $this->watering_suspended_at !== null;
     }
     
+    /**
+     * Check if the crop is currently in the soaking stage.
+     * 
+     * @return bool
+     */
+    public function isActivelySoaking(): bool
+    {
+        return $this->requires_soaking && $this->soaking_at !== null && $this->planting_at === null;
+    }
+    
+    /**
+     * Calculate the remaining soaking time based on recipe seed_soak_hours.
+     * 
+     * @return int|null Minutes remaining, or null if not soaking or no recipe
+     */
+    public function getSoakingTimeRemaining(): ?int
+    {
+        if (!$this->isActivelySoaking() || !$this->recipe || !$this->recipe->seed_soak_hours) {
+            return null;
+        }
+        
+        $soakingDurationMinutes = $this->recipe->seed_soak_hours * 60;
+        $elapsedMinutes = $this->soaking_at->diffInMinutes(Carbon::now());
+        $remainingMinutes = $soakingDurationMinutes - $elapsedMinutes;
+        
+        return max(0, $remainingMinutes);
+    }
+    
+    /**
+     * Get the total soaking duration from the recipe.
+     * 
+     * @return int|null Total soaking duration in minutes, or null if no recipe or no soaking required
+     */
+    public function getSoakingDuration(): ?int
+    {
+        if (!$this->recipe || !$this->recipe->seed_soak_hours) {
+            return null;
+        }
+        
+        return $this->recipe->seed_soak_hours * 60;
+    }
+    
     // Business logic methods removed - use CropLifecycleService directly
     
     /**
@@ -255,7 +301,9 @@ class Crop extends Model
             'light_at',
             'harvested_at',
             'harvest_weight_grams',
-            'watering_suspended_at'
+            'watering_suspended_at',
+            'soaking_at',
+            'requires_soaking'
         ];
     }
 

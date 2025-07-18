@@ -30,7 +30,10 @@ class SimpleBackupService
             return [
                 'has_issues' => true,
                 'summary' => 'Could not compare schemas: ' . $e->getMessage(),
-                'error' => true
+                'error' => true,
+                'extra_tables' => [],
+                'missing_tables' => [],
+                'column_differences' => []
             ];
         }
     }
@@ -1131,10 +1134,25 @@ class SimpleBackupService
     }
 
     /**
+     * Check if running inside a Docker container
+     */
+    private function isRunningInDocker(): bool
+    {
+        // Check common Docker indicators
+        return file_exists('/.dockerenv') || 
+               (getenv('DOCKER_CONTAINER') !== false) ||
+               (isset($_SERVER['DOCKER_CONTAINER']));
+    }
+
+    /**
      * Find mysqldump executable in known locations
      */
     private function findMysqldump(): ?string
     {
+        // Skip if running in Docker - mysqldump should be accessed via docker exec
+        if ($this->isRunningInDocker()) {
+            return null;
+        }
         $staticPaths = [
             '/usr/bin/mysqldump',
             '/usr/local/bin/mysqldump',
@@ -1195,6 +1213,146 @@ class SimpleBackupService
         }
         
         return $paths;
+    }
+
+    /**
+     * Archive a backup file by moving it to the archived subdirectory
+     */
+    public function archiveBackup(string $filename): bool
+    {
+        $sourcePath = base_path($this->backupPath . '/' . $filename);
+        $archivePath = base_path($this->backupPath . '/archived/' . $filename);
+        
+        if (!file_exists($sourcePath)) {
+            throw new \Exception("Backup file not found: {$filename}");
+        }
+        
+        // Ensure archived directory exists
+        $archiveDir = dirname($archivePath);
+        if (!is_dir($archiveDir)) {
+            mkdir($archiveDir, 0755, true);
+        }
+        
+        // Move the backup file
+        if (!rename($sourcePath, $archivePath)) {
+            throw new \Exception("Failed to archive backup file: {$filename}");
+        }
+        
+        // Also move any associated schema check files
+        $baseFilename = str_replace('.sql', '', $filename);
+        $schemaFiles = [
+            $baseFilename . '_schema_check.json',
+            $baseFilename . '_dynamic_check.json'
+        ];
+        
+        foreach ($schemaFiles as $schemaFile) {
+            $sourceSchemaPath = base_path($this->backupPath . '/' . $schemaFile);
+            $archiveSchemaPath = base_path($this->backupPath . '/archived/' . $schemaFile);
+            
+            if (file_exists($sourceSchemaPath)) {
+                rename($sourceSchemaPath, $archiveSchemaPath);
+            }
+        }
+        
+        return true;
+    }
+
+    /**
+     * Unarchive a backup file by moving it back to the main backup directory
+     */
+    public function unarchiveBackup(string $filename): bool
+    {
+        $archivePath = base_path($this->backupPath . '/archived/' . $filename);
+        $destinationPath = base_path($this->backupPath . '/' . $filename);
+        
+        if (!file_exists($archivePath)) {
+            throw new \Exception("Archived backup file not found: {$filename}");
+        }
+        
+        // Check if file already exists in main directory
+        if (file_exists($destinationPath)) {
+            throw new \Exception("A backup with this name already exists in the main directory: {$filename}");
+        }
+        
+        // Move the backup file back
+        if (!rename($archivePath, $destinationPath)) {
+            throw new \Exception("Failed to unarchive backup file: {$filename}");
+        }
+        
+        // Also move any associated schema check files
+        $baseFilename = str_replace('.sql', '', $filename);
+        $schemaFiles = [
+            $baseFilename . '_schema_check.json',
+            $baseFilename . '_dynamic_check.json'
+        ];
+        
+        foreach ($schemaFiles as $schemaFile) {
+            $archiveSchemaPath = base_path($this->backupPath . '/archived/' . $schemaFile);
+            $destinationSchemaPath = base_path($this->backupPath . '/' . $schemaFile);
+            
+            if (file_exists($archiveSchemaPath)) {
+                rename($archiveSchemaPath, $destinationSchemaPath);
+            }
+        }
+        
+        return true;
+    }
+
+    /**
+     * List all archived backups
+     */
+    public function listArchivedBackups(): Collection
+    {
+        $archiveDir = base_path($this->backupPath . '/archived');
+        
+        if (!is_dir($archiveDir)) {
+            return collect();
+        }
+
+        // Only get SQL files, not the JSON schema check files
+        $files = glob($archiveDir . '/*.sql');
+        
+        return collect($files)
+            ->map(function($file) {
+                $size = filesize($file);
+                $timestamp = filemtime($file);
+                $filename = basename($file);
+                
+                // Check if schema check file exists (static or dynamic)
+                $schemaCheckFile = str_replace('.sql', '_schema_check.json', $file);
+                $dynamicCheckFile = str_replace('.sql', '_dynamic_check.json', $file);
+                
+                // Prefer dynamic check over static check
+                $activeCheckFile = file_exists($dynamicCheckFile) ? $dynamicCheckFile : 
+                                  (file_exists($schemaCheckFile) ? $schemaCheckFile : null);
+                
+                $hasSchemaCheck = $activeCheckFile !== null;
+                $schemaHasIssues = false;
+                $schemaSummary = '';
+                
+                if ($hasSchemaCheck) {
+                    try {
+                        $schemaData = json_decode(file_get_contents($activeCheckFile), true);
+                        $schemaHasIssues = $schemaData['has_issues'] ?? false;
+                        $schemaSummary = $schemaData['summary'] ?? '';
+                    } catch (\Exception $e) {
+                        // Ignore JSON parse errors
+                    }
+                }
+                
+                return [
+                    'name' => $filename,
+                    'path' => $file,
+                    'size' => $this->formatBytes($size),
+                    'size_bytes' => $size,
+                    'created_at' => Carbon::createFromTimestamp($timestamp),
+                    'has_schema_check' => $hasSchemaCheck,
+                    'schema_has_issues' => $schemaHasIssues,
+                    'schema_summary' => $schemaSummary,
+                ];
+            })
+            ->sortByDesc('created_at')
+            ->values();
     }
 
     /**

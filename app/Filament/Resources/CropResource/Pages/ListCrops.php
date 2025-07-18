@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Filament\Tables\Table;
+use App\Models\Crop;
+use Carbon\Carbon;
 
 class ListCrops extends ListRecords
 {
@@ -88,6 +90,7 @@ class ListCrops extends ListRecords
     {
         return [
             Actions\CreateAction::make(),
+            $this->getActiveSoakingButton(),
             ...parent::getHeaderActions(),
         ];
     }
@@ -96,5 +99,53 @@ class ListCrops extends ListRecords
     {
         // Refresh the table every 5 minutes to update time values
         return '5m';
+    }
+    
+    /**
+     * Get the count of crops currently soaking
+     */
+    protected function getActiveSoakingCount(): int
+    {
+        return Crop::where('requires_soaking', true)
+            ->whereNotNull('soaking_at')
+            ->whereNull('planting_at') // Still soaking, not planted yet
+            ->count();
+    }
+    
+    /**
+     * Check if any soaking crops are overdue
+     */
+    protected function hasOverdueSoaking(): bool
+    {
+        $soakingCrops = Crop::with('recipe')
+            ->where('requires_soaking', true)
+            ->whereNotNull('soaking_at')
+            ->whereNull('planting_at')
+            ->get();
+            
+        foreach ($soakingCrops as $crop) {
+            $timeRemaining = $crop->getSoakingTimeRemaining();
+            if ($timeRemaining !== null && $timeRemaining <= 0) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Get the Active Soaking button for the header
+     */
+    protected function getActiveSoakingButton(): Actions\Action
+    {
+        $count = $this->getActiveSoakingCount();
+        $hasOverdue = $this->hasOverdueSoaking();
+        
+        return Actions\Action::make('activeSoaking')
+            ->label("Active Soaking ({$count})")
+            ->icon('heroicon-o-beaker')
+            ->color($hasOverdue ? 'danger' : 'success')
+            ->url('/admin/active-soaking')
+            ->visible($count > 0);
     }
 } 

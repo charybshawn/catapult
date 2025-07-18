@@ -34,8 +34,10 @@ class LightweightSchemaChecker
                 $schemaCheck = json_decode(file_get_contents($schemaCheckPath), true);
                 if (isset($schemaCheck['has_issues']) && $schemaCheck['has_issues']) {
                     $issues[] = "Previous schema check found issues - restore may fail";
-                    if (isset($schemaCheck['details']['column_differences'])) {
-                        foreach ($schemaCheck['details']['column_differences'] as $table => $diffs) {
+                    // Check for column differences in the details array
+                    $columnDifferences = $schemaCheck['details']['column_differences'] ?? [];
+                    if (!empty($columnDifferences)) {
+                        foreach ($columnDifferences as $table => $diffs) {
                             if (!empty($diffs['missing_columns'])) {
                                 $issues[] = "Table '{$table}' missing columns: " . implode(', ', $diffs['missing_columns']);
                             }

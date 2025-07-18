@@ -21,6 +21,7 @@ class CropTaskManagementService
      * The valid crop stages in order
      */
     private const STAGES = [
+        'soaking',
         'germination',
         'blackout',
         'light',
@@ -55,16 +56,23 @@ class CropTaskManagementService
         $currentStage = $crop->current_stage;
         
         // Get durations from recipe
+        $soakHours = $recipe->seed_soak_hours ?? 0;
         $germDays = $recipe->germination_days;
         $blackoutDays = $recipe->blackout_days;
         $lightDays = $recipe->light_days;
         
         // Calculate stage transition times
-        $blackoutTime = $plantedAt->copy()->addDays($germDays);
+        $germinationTime = $plantedAt->copy()->addHours($soakHours);
+        $blackoutTime = $germinationTime->copy()->addDays($germDays);
         $lightTime = $blackoutTime->copy()->addDays($blackoutDays);
         $harvestTime = $lightTime->copy()->addDays($lightDays);
         
         $now = Carbon::now();
+        
+        // Schedule soaking → germination transition if crop requires soaking
+        if ($currentStage === 'soaking' && $crop->requires_soaking && $soakHours > 0 && $germinationTime->gt($now)) {
+            $this->createBatchStageTransitionTask($crop, 'germination', $germinationTime);
+        }
         
         // Only schedule tasks for future stages
         if ($currentStage === 'germination' && $blackoutTime->gt($now)) {
@@ -82,7 +90,7 @@ class CropTaskManagementService
             $this->createBatchStageTransitionTask($crop, 'light', $lightTime);
         }
         
-        if (in_array($currentStage, ['germination', 'blackout', 'light']) && $harvestTime->gt($now)) {
+        if (in_array($currentStage, ['soaking', 'germination', 'blackout', 'light']) && $harvestTime->gt($now)) {
             $this->createBatchStageTransitionTask($crop, 'harvested', $harvestTime);
         }
 
@@ -136,6 +144,7 @@ class CropTaskManagementService
             
             // Set stage-specific timestamps
             match ($nextStage->code) {
+                'soaking' => $batchCrop->soaking_at = $advancementTime,
                 'germination' => $batchCrop->germination_at = $advancementTime,
                 'blackout' => $batchCrop->blackout_at = $advancementTime,
                 'light' => $batchCrop->light_at = $advancementTime,
@@ -465,7 +474,7 @@ class CropTaskManagementService
         
         // Check stage order
         $firstCrop = $crops->first();
-        $stageOrder = ['germination', 'blackout', 'light', 'harvested'];
+        $stageOrder = ['soaking', 'germination', 'blackout', 'light', 'harvested'];
         $currentStageIndex = array_search($firstCrop->current_stage, $stageOrder);
         $targetStageIndex = array_search($targetStage, $stageOrder);
         
@@ -546,7 +555,7 @@ class CropTaskManagementService
         }
         
         // Check stage order
-        $stageOrder = ['germination', 'blackout', 'light', 'harvested'];
+        $stageOrder = ['soaking', 'germination', 'blackout', 'light', 'harvested'];
         $currentStageIndex = array_search($crop->current_stage, $stageOrder);
         $targetStageIndex = array_search($targetStage, $stageOrder);
 
@@ -675,6 +684,7 @@ class CropTaskManagementService
     protected function getStageTimestampField(string $stage): string
     {
         return match ($stage) {
+            'soaking' => 'soaking_at',
             'germination' => 'germination_at',
             'blackout' => 'blackout_at',
             'light' => 'light_at',

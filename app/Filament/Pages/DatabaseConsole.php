@@ -820,6 +820,81 @@ class DatabaseConsole extends Page
         $this->dispatch('refresh-backups');
     }
 
+    public function archiveBackup(string $filename): void
+    {
+        try {
+            $backupService = new SimpleBackupService();
+            $backupService->archiveBackup($filename);
+            
+            Notification::make()
+                ->success()
+                ->title('Backup Archived')
+                ->body("Backup '{$filename}' has been moved to the archive.")
+                ->send();
+            
+            $this->dispatch('refresh-backups');
+        } catch (\Exception $e) {
+            Notification::make()
+                ->danger()
+                ->title('Archive Failed')
+                ->body($e->getMessage())
+                ->send();
+        }
+    }
+
+    public function massArchiveBackups(array $filenames): void
+    {
+        if (empty($filenames)) {
+            Notification::make()
+                ->warning()
+                ->title('No Backups Selected')
+                ->body('Please select at least one backup to archive.')
+                ->send();
+            return;
+        }
+
+        $successCount = 0;
+        $failCount = 0;
+        $errors = [];
+
+        foreach ($filenames as $filename) {
+            try {
+                $backupService = new SimpleBackupService();
+                $backupService->archiveBackup($filename);
+                $successCount++;
+            } catch (\Exception $e) {
+                $failCount++;
+                $errors[] = $filename . ': ' . $e->getMessage();
+            }
+        }
+
+        // Send appropriate notification based on results
+        if ($successCount > 0 && $failCount === 0) {
+            Notification::make()
+                ->success()
+                ->title('Mass Archive Completed')
+                ->body("{$successCount} backup(s) archived successfully.")
+                ->duration(5000)
+                ->send();
+        } elseif ($successCount > 0 && $failCount > 0) {
+            Notification::make()
+                ->warning()
+                ->title('Partial Success')
+                ->body("{$successCount} archived, {$failCount} failed. First error: " . ($errors[0] ?? 'Unknown error'))
+                ->duration(8000)
+                ->send();
+        } else {
+            Notification::make()
+                ->danger()
+                ->title('Mass Archive Failed')
+                ->body("Failed to archive all {$failCount} backup(s). First error: " . ($errors[0] ?? 'Unknown error'))
+                ->duration(8000)
+                ->send();
+        }
+
+        $this->dispatch('refresh-backups');
+    }
+
     public function downloadBackup(string $filename): mixed
     {
         try {
