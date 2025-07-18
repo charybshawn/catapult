@@ -72,7 +72,7 @@ class CropResource extends BaseResource
                                     if ($recipe && $recipe->requiresSoaking()) {
                                         $set('soaking_duration_display', $recipe->seed_soak_hours . ' hours');
                                         $set('soaking_at', now());
-                                        $this->updatePlantingDate($set, $get);
+                                        static::updatePlantingDate($set, $get);
                                     }
                                 }
                             }),
@@ -81,26 +81,26 @@ class CropResource extends BaseResource
                             ->schema([
                                 Forms\Components\Placeholder::make('soaking_required_info')
                                     ->label('')
-                                    ->content(fn (Get $get) => $this->getSoakingRequiredInfo($get))
-                                    ->visible(fn (Get $get) => $this->recipeRequiresSoaking($get)),
+                                    ->content(fn (Get $get) => static::getSoakingRequiredInfo($get))
+                                    ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get)),
                                 Forms\Components\TextInput::make('soaking_duration_display')
                                     ->label('Soaking Duration')
                                     ->disabled()
-                                    ->visible(fn (Get $get) => $this->recipeRequiresSoaking($get))
+                                    ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
                                     ->dehydrated(false),
                             ])
-                            ->visible(fn (Get $get) => $this->recipeRequiresSoaking($get))
+                            ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
                             ->compact(),
 
                         Forms\Components\DateTimePicker::make('soaking_at')
                             ->label('Soaking Started At')
                             ->seconds(false)
                             ->default(now())
-                            ->visible(fn (Get $get) => $this->recipeRequiresSoaking($get))
-                            ->required(fn (Get $get) => $this->recipeRequiresSoaking($get))
+                            ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
+                            ->required(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
                             ->reactive()
                             ->afterStateUpdated(function ($state, Set $set, Get $get) {
-                                $this->updatePlantingDate($set, $get);
+                                static::updatePlantingDate($set, $get);
                             }),
 
                         Forms\Components\DateTimePicker::make('planting_at')
@@ -108,7 +108,7 @@ class CropResource extends BaseResource
                             ->required()
                             ->default(now())
                             ->seconds(false)
-                            ->helperText(fn (Get $get) => $this->recipeRequiresSoaking($get)
+                            ->helperText(fn (Get $get) => static::checkRecipeRequiresSoaking($get)
                                 ? 'Auto-calculated from soaking start time + duration. You can override if needed.'
                                 : 'When the crop will be planted'),
                         Forms\Components\Select::make('current_stage_id')
@@ -116,10 +116,14 @@ class CropResource extends BaseResource
                             ->relationship('currentStage', 'name')
                             ->required()
                             ->default(function (Get $get) {
-                                if ($this->recipeRequiresSoaking($get)) {
-                                    $soakingStage = \App\Models\CropStage::findByCode('soaking');
-                                    if ($soakingStage) {
-                                        return $soakingStage->id;
+                                $recipeId = $get('recipe_id');
+                                if ($recipeId) {
+                                    $recipe = \App\Models\Recipe::find($recipeId);
+                                    if ($recipe && $recipe->requiresSoaking()) {
+                                        $soakingStage = \App\Models\CropStage::findByCode('soaking');
+                                        if ($soakingStage) {
+                                            return $soakingStage->id;
+                                        }
                                     }
                                 }
                                 return \App\Models\CropStage::findByCode('germination')->id;
@@ -151,10 +155,10 @@ class CropResource extends BaseResource
                             ->label('Tray Numbers')
                             ->placeholder('Add tray numbers')
                             ->separator(',')
-                            ->helperText(fn (Get $get) => $this->recipeRequiresSoaking($get) 
+                            ->helperText(fn (Get $get) => static::checkRecipeRequiresSoaking($get) 
                                 ? 'Optional for soaking crops - tray numbers can be assigned later'
                                 : 'Enter tray numbers or IDs for this grow batch (alphanumeric supported)')
-                            ->rules(fn (Get $get) => $this->recipeRequiresSoaking($get) 
+                            ->rules(fn (Get $get) => static::checkRecipeRequiresSoaking($get) 
                                 ? ['array'] 
                                 : ['array', 'min:1'])
                             ->nestedRecursiveRules(['string', 'max:20'])
@@ -1580,7 +1584,7 @@ class CropResource extends BaseResource
     /**
      * Update planting date based on soaking start time and duration
      */
-    protected function updatePlantingDate(Set $set, Get $get): void
+    protected static function updatePlantingDate(Set $set, Get $get): void
     {
         $soakingAt = $get('soaking_at');
         $recipeId = $get('recipe_id');
@@ -1597,6 +1601,11 @@ class CropResource extends BaseResource
 
     protected function recipeRequiresSoaking(Get $get): bool
     {
+        return static::checkRecipeRequiresSoaking($get);
+    }
+
+    public static function checkRecipeRequiresSoaking(Get $get): bool
+    {
         $recipeId = $get('recipe_id');
         if (!$recipeId) {
             return false;
@@ -1606,7 +1615,7 @@ class CropResource extends BaseResource
         return $recipe?->requiresSoaking() ?? false;
     }
 
-    protected function getSoakingRequiredInfo(Get $get): string
+    public static function getSoakingRequiredInfo(Get $get): string
     {
         $recipeId = $get('recipe_id');
         if (!$recipeId) {
