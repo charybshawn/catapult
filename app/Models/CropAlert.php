@@ -53,6 +53,10 @@ class CropAlert extends TaskSchedule
             return 'Suspend Watering';
         }
         
+        if ($this->task_name === 'soaking_completion_warning') {
+            return 'Soaking Completes Today';
+        }
+        
         return ucfirst(str_replace('_', ' ', $this->task_name));
     }
     

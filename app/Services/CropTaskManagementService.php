@@ -33,6 +33,15 @@ class CropTaskManagementService
      */
     public function scheduleAllStageTasks(Crop $crop): void
     {
+        Log::info('Starting task scheduling for crop', [
+            'crop_id' => $crop->id,
+            'tray_number' => $crop->tray_number,
+            'has_recipe' => !!$crop->recipe,
+            'recipe_id' => $crop->recipe_id,
+            'current_stage_id' => $crop->current_stage_id,
+            'requires_soaking' => $crop->requires_soaking
+        ]);
+        
         // Prevent memory issues during bulk operations
         $memoryLimitMb = config('tasks.memory_limit_mb', 100);
         if (memory_get_usage(true) > $memoryLimitMb * 1024 * 1024) {
@@ -48,12 +57,61 @@ class CropTaskManagementService
         
         // Only schedule tasks if the crop has a recipe
         if (!$crop->recipe) {
+            Log::warning('Crop has no recipe, skipping task scheduling', [
+                'crop_id' => $crop->id
+            ]);
             return;
         }
         
         $recipe = $crop->recipe;
         $plantedAt = $crop->planting_at;
-        $currentStage = $crop->current_stage;
+        
+        // Debug current stage loading and fallback to direct lookup if relationship fails
+        $currentStageObject = $crop->currentStage;
+        $currentStage = $currentStageObject?->code ?? null;
+        
+        if (!$currentStage && $crop->current_stage_id) {
+            Log::warning('Stage relationship failed to load, attempting direct lookup', [
+                'crop_id' => $crop->id,
+                'current_stage_id' => $crop->current_stage_id,
+                'currentStage_relationship_loaded' => $crop->relationLoaded('currentStage'),
+                'currentStage_object' => $currentStageObject ? 'object found' : 'null'
+            ]);
+            
+            // Fallback: Direct lookup of the stage
+            $stageFromDirect = CropStage::find($crop->current_stage_id);
+            if ($stageFromDirect) {
+                $currentStage = $stageFromDirect->code;
+                Log::info('Successfully found stage via direct lookup', [
+                    'crop_id' => $crop->id,
+                    'stage_code' => $currentStage,
+                    'stage_name' => $stageFromDirect->name
+                ]);
+            } else {
+                Log::error('Stage ID not found in database', [
+                    'crop_id' => $crop->id,
+                    'current_stage_id' => $crop->current_stage_id
+                ]);
+            }
+        }
+        
+        Log::info('Current stage and recipe details', [
+            'crop_id' => $crop->id,
+            'current_stage' => $currentStage,
+            'current_stage_id' => $crop->current_stage_id,
+            'recipe_name' => $recipe->name ?? 'unknown',
+            'seed_soak_hours' => $recipe->seed_soak_hours ?? 0,
+            'planting_at' => $plantedAt ? $plantedAt->format('Y-m-d H:i:s') : 'null',
+            'soaking_at' => $crop->soaking_at ? $crop->soaking_at->format('Y-m-d H:i:s') : 'null'
+        ]);
+        
+        // Skip if no current stage is set
+        if (!$currentStage) {
+            Log::warning('No current stage set, skipping task scheduling', [
+                'crop_id' => $crop->id
+            ]);
+            return;
+        }
         
         // Get durations from recipe
         $soakHours = $recipe->seed_soak_hours ?? 0;
@@ -61,17 +119,58 @@ class CropTaskManagementService
         $blackoutDays = $recipe->blackout_days;
         $lightDays = $recipe->light_days;
         
-        // Calculate stage transition times
-        $germinationTime = $plantedAt->copy()->addHours($soakHours);
-        $blackoutTime = $germinationTime->copy()->addDays($germDays);
-        $lightTime = $blackoutTime->copy()->addDays($blackoutDays);
-        $harvestTime = $lightTime->copy()->addDays($lightDays);
+        // Calculate stage transition times based on whether crop is soaking
+        if ($crop->requires_soaking && $crop->soaking_at) {
+            // For soaking crops, base calculations on soaking_at
+            $soakingStart = $crop->soaking_at;
+            $germinationTime = $soakingStart->copy()->addHours($soakHours);
+            $blackoutTime = $germinationTime->copy()->addDays($germDays);
+            $lightTime = $blackoutTime->copy()->addDays($blackoutDays);
+            $harvestTime = $lightTime->copy()->addDays($lightDays);
+        } else {
+            // For non-soaking crops, use planting_at as base
+            $germinationTime = $plantedAt->copy()->addHours($soakHours);
+            $blackoutTime = $germinationTime->copy()->addDays($germDays);
+            $lightTime = $blackoutTime->copy()->addDays($blackoutDays);
+            $harvestTime = $lightTime->copy()->addDays($lightDays);
+        }
         
         $now = Carbon::now();
         
         // Schedule soaking → germination transition if crop requires soaking
         if ($currentStage === 'soaking' && $crop->requires_soaking && $soakHours > 0 && $germinationTime->gt($now)) {
+            Log::info('Creating soaking tasks', [
+                'crop_id' => $crop->id,
+                'germination_time' => $germinationTime->format('Y-m-d H:i:s'),
+                'is_today' => $germinationTime->isToday()
+            ]);
+            
             $this->createBatchStageTransitionTask($crop, 'germination', $germinationTime);
+            
+            // Schedule soaking completion notice for the day it completes
+            if ($germinationTime->isToday()) {
+                // Create alert for early morning of completion day
+                $warningTime = $germinationTime->copy()->startOfDay()->addHours(6); // 6 AM on completion day
+                if ($warningTime->isPast()) {
+                    $warningTime = $now; // If it's already past 6 AM, schedule immediately
+                }
+                $this->createSoakingWarningTask($crop, $warningTime);
+            }
+        } else {
+            Log::info('Skipping soaking task creation', [
+                'crop_id' => $crop->id,
+                'current_stage' => $currentStage,
+                'requires_soaking' => $crop->requires_soaking,
+                'soak_hours' => $soakHours,
+                'germination_time' => $germinationTime ? $germinationTime->format('Y-m-d H:i:s') : 'null',
+                'is_future' => $germinationTime ? $germinationTime->gt($now) : false,
+                'condition_results' => [
+                    'is_soaking_stage' => $currentStage === 'soaking',
+                    'requires_soaking' => $crop->requires_soaking,
+                    'has_soak_hours' => $soakHours > 0,
+                    'germination_in_future' => $germinationTime ? $germinationTime->gt($now) : false
+                ]
+            ]);
         }
         
         // Only schedule tasks for future stages
@@ -103,6 +202,10 @@ class CropTaskManagementService
                 Log::warning("Suspend watering time ({$suspendTime->toDateTimeString()}) is before planting time ({$plantedAt->toDateTimeString()}) or in the past for Crop ID {$crop->id}. Task not generated.");
             }
         }
+        
+        Log::info('Completed task scheduling for crop', [
+            'crop_id' => $crop->id
+        ]);
     }
 
     /**
@@ -176,6 +279,12 @@ class CropTaskManagementService
         $targetStage = $conditions['target_stage'] ?? null;
         $batchIdentifier = $conditions['batch_identifier'] ?? null;
         $trayNumbers = $conditions['tray_numbers'] ?? null;
+        $warningType = $conditions['warning_type'] ?? null;
+        
+        // Handle soaking completion warning
+        if ($task->task_name === 'soaking_completion_warning' && $warningType === 'soaking_completion') {
+            return $this->processSoakingWarningTask($task, $batchIdentifier, $trayNumbers);
+        }
         
         if (!$targetStage) {
             return [
@@ -362,8 +471,9 @@ class CropTaskManagementService
      */
     public function deleteTasksForCrop(Crop $crop): int
     {
-        // Create a batch identifier
-        $batchIdentifier = "{$crop->recipe_id}_{$crop->planting_at->format('Y-m-d')}_{$crop->current_stage}";
+        // Create a batch identifier - handle case where currentStage might be null
+        $stageCode = $crop->currentStage?->code ?? 'unknown';
+        $batchIdentifier = "{$crop->recipe_id}_{$crop->planting_at->format('Y-m-d')}_{$stageCode}";
         
         // Find and delete all tasks related to this batch
         return TaskSchedule::where('resource_type', 'crops')
@@ -388,10 +498,13 @@ class CropTaskManagementService
         $batchTraysList = implode(', ', $batchTrays);
         $batchSize = count($batchTrays);
         
+        // Get current stage for batch identifier
+        $currentStageCode = $crop->currentStage?->code ?? ($crop->current_stage_id ? CropStage::find($crop->current_stage_id)?->code : 'unknown');
+        
         // Create conditions for the task
         $conditions = [
             'crop_id' => (int) $crop->id,
-            'batch_identifier' => "{$crop->recipe_id}_{$crop->planting_at->format('Y-m-d')}_{$crop->current_stage}",
+            'batch_identifier' => "{$crop->recipe_id}_{$crop->planting_at->format('Y-m-d')}_{$currentStageCode}",
             'target_stage' => $targetStage,
             'tray_numbers' => $batchTrays,
             'tray_count' => $batchSize,
@@ -411,6 +524,48 @@ class CropTaskManagementService
         $task->conditions = $conditions;
         $task->is_active = true;
         $task->next_run_at = $transitionTime;
+        $task->save();
+        
+        return $task;
+    }
+
+    /**
+     * Create a soaking completion warning task
+     */
+    protected function createSoakingWarningTask(Crop $crop, Carbon $warningTime): TaskSchedule
+    {
+        $varietyName = $this->getVarietyName($crop);
+        
+        // Find other crops in the same batch
+        $batchCrops = $this->findBatchCrops($crop);
+        $batchTrays = $batchCrops->pluck('tray_number')->toArray();
+        $batchTraysList = implode(', ', $batchTrays);
+        $batchSize = count($batchTrays);
+        
+        // Get current stage for batch identifier
+        $currentStageCode = $crop->currentStage?->code ?? ($crop->current_stage_id ? CropStage::find($crop->current_stage_id)?->code : 'unknown');
+        
+        $conditions = [
+            'crop_id' => (int) $crop->id,
+            'batch_identifier' => "{$crop->recipe_id}_{$crop->planting_at->format('Y-m-d')}_{$currentStageCode}",
+            'target_stage' => 'germination', // Soaking leads to germination
+            'tray_numbers' => $batchTrays,
+            'tray_count' => $batchSize,
+            'tray_list' => $batchTraysList,
+            'variety' => $varietyName,
+            'warning_type' => 'soaking_completion',
+            'minutes_until_completion' => 30
+        ];
+
+        $task = new TaskSchedule();
+        $task->name = "Soaking completes today - {$varietyName}";
+        $task->resource_type = 'crops';
+        $task->task_name = 'soaking_completion_warning';
+        $task->frequency = 'once';
+        $task->schedule_config = [];
+        $task->conditions = $conditions;
+        $task->is_active = true;
+        $task->next_run_at = $warningTime;
         $task->save();
         
         return $task;
@@ -461,7 +616,9 @@ class CropTaskManagementService
         
         $crops = Crop::where('recipe_id', $recipeId)
             ->where('planting_at', $plantedAtDate)
-            ->where('current_stage', $currentStage)
+            ->whereHas('currentStage', function($query) use ($currentStage) {
+                $query->where('code', $currentStage);
+            })
             ->whereIn('tray_number', $trayNumbers)
             ->get();
         
@@ -475,7 +632,7 @@ class CropTaskManagementService
         // Check stage order
         $firstCrop = $crops->first();
         $stageOrder = ['soaking', 'germination', 'blackout', 'light', 'harvested'];
-        $currentStageIndex = array_search($firstCrop->current_stage, $stageOrder);
+        $currentStageIndex = array_search($firstCrop->currentStage->code, $stageOrder);
         $targetStageIndex = array_search($targetStage, $stageOrder);
         
         if ($currentStageIndex === false || $targetStageIndex === false) {
@@ -513,7 +670,10 @@ class CropTaskManagementService
                         // Manually update intermediate stages
                         $stageField = "{$nextStage}_at";
                         $crop->$stageField = now();
-                        $crop->current_stage = $nextStage;
+                        $nextStageObject = CropStage::findByCode($nextStage);
+                        if ($nextStageObject) {
+                            $crop->current_stage_id = $nextStageObject->id;
+                        }
                         $crop->saveQuietly();
                     }
                 }
@@ -542,6 +702,50 @@ class CropTaskManagementService
     }
 
     /**
+     * Process soaking completion warning task
+     */
+    protected function processSoakingWarningTask(TaskSchedule $task, string $batchIdentifier, array $trayNumbers): array
+    {
+        // Find the crop
+        $conditions = $task->conditions;
+        $cropId = $conditions['crop_id'] ?? null;
+        $crop = Crop::find($cropId);
+        
+        if (!$crop) {
+            return [
+                'success' => false,
+                'message' => "Crop with ID {$cropId} not found",
+            ];
+        }
+        
+        // Check if crop is still in soaking stage
+        if ($crop->currentStage->code !== 'soaking') {
+            // Deactivate task if no longer soaking
+            $task->is_active = false;
+            $task->last_run_at = now();
+            $task->save();
+            
+            return [
+                'success' => true,
+                'message' => "Crop batch {$batchIdentifier} is no longer in soaking stage. Warning task deactivated.",
+            ];
+        }
+        
+        // Send soaking completion warning notification
+        $this->sendSoakingWarningNotification($crop, $conditions);
+        
+        // Mark the task as processed
+        $task->is_active = false;
+        $task->last_run_at = now();
+        $task->save();
+        
+        return [
+            'success' => true,
+            'message' => "Soaking completion warning sent for batch {$batchIdentifier} ({$conditions['tray_count']} trays).",
+        ];
+    }
+
+    /**
      * Process single crop stage transition
      */
     protected function processSingleCropStageTransition(TaskSchedule $task, int $cropId, string $targetStage): array
@@ -556,7 +760,7 @@ class CropTaskManagementService
         
         // Check stage order
         $stageOrder = ['soaking', 'germination', 'blackout', 'light', 'harvested'];
-        $currentStageIndex = array_search($crop->current_stage, $stageOrder);
+        $currentStageIndex = array_search($crop->currentStage->code, $stageOrder);
         $targetStageIndex = array_search($targetStage, $stageOrder);
 
         if ($currentStageIndex === false || $targetStageIndex === false) {
@@ -589,7 +793,10 @@ class CropTaskManagementService
                 } else {
                     $stageField = "{$nextStage}_at";
                     $crop->$stageField = now();
-                    $crop->current_stage = $nextStage;
+                    $nextStageObject = CropStage::findByCode($nextStage);
+                    if ($nextStageObject) {
+                        $crop->current_stage_id = $nextStageObject->id;
+                    }
                     $crop->saveQuietly();
                 }
             }
@@ -613,6 +820,48 @@ class CropTaskManagementService
             'success' => true,
             'message' => "Crop ID {$cropId} not yet ready for {$targetStage}. Notification not sent."
         ];
+    }
+
+    /**
+     * Send a notification for soaking completion warning
+     */
+    protected function sendSoakingWarningNotification(Crop $crop, array $conditions): void
+    {
+        $setting = NotificationSetting::findByTypeAndEvent('crops', 'stage_transition');
+        
+        if (!$setting || !$setting->shouldSendEmail()) {
+            return;
+        }
+        
+        $recipients = collect($setting->recipients);
+        
+        if ($recipients->isEmpty()) {
+            return;
+        }
+        
+        $minutesUntil = $conditions['minutes_until_completion'] ?? 30;
+        $trayCount = $conditions['tray_count'] ?? 1;
+        $trayList = $conditions['tray_list'] ?? $crop->tray_number;
+        $variety = $conditions['variety'] ?? $this->getVarietyName($crop);
+        
+        $data = [
+            'crop_id' => $crop->id,
+            'variety' => $variety,
+            'tray_count' => $trayCount,
+            'tray_list' => $trayList,
+            'minutes_until_completion' => $minutesUntil,
+        ];
+        
+        $subject = "Soaking Completes Today - {$variety}";
+        $body = "The soaking stage for {$variety} (Tray" . ($trayCount > 1 ? "s" : "") . " {$trayList}) will complete today. Please monitor for the transition to germination stage.";
+        
+        Notification::route('mail', $recipients->toArray())
+            ->notify(new ResourceActionRequired(
+                $subject,
+                $body,
+                route('filament.admin.resources.crops.edit', ['record' => $crop->id]),
+                'View Crop'
+            ));
     }
 
     /**

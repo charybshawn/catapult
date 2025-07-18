@@ -31,18 +31,34 @@ class ListCropAlerts extends ListRecords
                 ->label('Rebuild All Alerts')
                 ->icon('heroicon-o-arrow-path')
                 ->action(function () {
+                    \Illuminate\Support\Facades\Log::info('Starting alert refresh process');
+                    
                     DB::transaction(function () {
                         // Clear all existing crop alerts
-                        TaskSchedule::where('resource_type', 'crops')->delete();
+                        $deletedCount = TaskSchedule::where('resource_type', 'crops')->delete();
+                        \Illuminate\Support\Facades\Log::info("Deleted {$deletedCount} existing crop alerts");
                         
                         // Regenerate alerts for all active crops
-                        $crops = Crop::whereNotIn('current_stage', ['harvested'])->get();
+                        $crops = Crop::with(['recipe', 'currentStage'])
+                            ->whereHas('currentStage', function($query) {
+                                $query->where('code', '!=', 'harvested');
+                            })->get();
+                        
+                        \Illuminate\Support\Facades\Log::info("Found {$crops->count()} active crops to process");
+                        
                         $cropTaskService = app(CropTaskManagementService::class);
                         
                         foreach ($crops as $crop) {
+                            \Illuminate\Support\Facades\Log::info("Processing crop {$crop->id}");
                             $cropTaskService->scheduleAllStageTasks($crop);
                         }
                     });
+                    
+                    \Illuminate\Support\Facades\Log::info('Alert refresh process completed');
+                    
+                    // Debug: Check what tasks were actually created
+                    $allTasks = \App\Models\TaskSchedule::where('resource_type', 'crops')->get();
+                    \Illuminate\Support\Facades\Log::info("Created {$allTasks->count()} total crop tasks:", $allTasks->pluck('task_name', 'id')->toArray());
                     
                     Notification::make()
                         ->title('All crop alerts refreshed')
