@@ -40,6 +40,11 @@ class CreateCrop extends BaseCreateRecord
             }
         }
         
+        // Filter out empty values and flatten if needed
+        $trayNumbers = array_filter($trayNumbers, function($value) {
+            return !empty(trim($value)) && !is_array($value);
+        });
+        
         // Check if recipe requires soaking - if so, tray numbers are optional
         $recipe = null;
         if (isset($data['recipe_id'])) {
@@ -68,7 +73,10 @@ class CreateCrop extends BaseCreateRecord
             'original_data' => $data['tray_numbers'] ?? 'none',
             'processed_array' => $trayNumbers,
             'recipe_id' => $data['recipe_id'] ?? 'none',
-            'planting_at' => $data['planting_at'] ?? 'none'
+            'planting_at' => $data['planting_at'] ?? 'none',
+            'recipe_requires_soaking' => $recipe ? $recipe->requiresSoaking() : 'no recipe',
+            'tray_numbers_count' => count($trayNumbers),
+            'tray_numbers_empty' => empty($trayNumbers)
         ]);
         
         // Remove the tray_numbers field from the data
