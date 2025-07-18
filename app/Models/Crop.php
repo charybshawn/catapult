@@ -226,7 +226,18 @@ class Crop extends Model
      */
     public function isActivelySoaking(): bool
     {
-        return $this->requires_soaking && $this->soaking_at !== null && $this->planting_at === null;
+        // Must require soaking and have started soaking
+        if (!$this->requires_soaking || $this->soaking_at === null) {
+            return false;
+        }
+        
+        // If no planting date set, still soaking
+        if ($this->planting_at === null) {
+            return true;
+        }
+        
+        // If planting date is in the future, still soaking
+        return $this->planting_at->isFuture();
     }
     
     /**

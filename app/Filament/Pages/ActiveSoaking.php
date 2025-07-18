@@ -36,7 +36,10 @@ class ActiveSoaking extends Page
             ->where('current_stage_id', $soakingStage->id)
             ->where('requires_soaking', true)
             ->whereNotNull('soaking_at')
-            ->whereNull('planting_at') // Still soaking, not planted yet
+            ->where(function ($query) {
+                $query->whereNull('planting_at')
+                      ->orWhere('planting_at', '>', now());
+            })
             ->orderBy('soaking_at')
             ->get()
             ->map(function ($crop) {

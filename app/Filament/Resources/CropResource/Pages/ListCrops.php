@@ -108,7 +108,10 @@ class ListCrops extends ListRecords
     {
         return Crop::where('requires_soaking', true)
             ->whereNotNull('soaking_at')
-            ->whereNull('planting_at') // Still soaking, not planted yet
+            ->where(function ($query) {
+                $query->whereNull('planting_at')
+                      ->orWhere('planting_at', '>', now());
+            })
             ->count();
     }
     
@@ -120,7 +123,10 @@ class ListCrops extends ListRecords
         $soakingCrops = Crop::with('recipe')
             ->where('requires_soaking', true)
             ->whereNotNull('soaking_at')
-            ->whereNull('planting_at')
+            ->where(function ($query) {
+                $query->whereNull('planting_at')
+                      ->orWhere('planting_at', '>', now());
+            })
             ->get();
             
         foreach ($soakingCrops as $crop) {
@@ -142,10 +148,11 @@ class ListCrops extends ListRecords
         $hasOverdue = $this->hasOverdueSoaking();
         
         return Actions\Action::make('activeSoaking')
-            ->label("Active Soaking ({$count})")
+            ->label($count > 0 ? "Active Soaking ({$count})" : "Active Soaking")
             ->icon('heroicon-o-beaker')
-            ->color($hasOverdue ? 'danger' : 'success')
+            ->color($count > 0 ? ($hasOverdue ? 'danger' : 'success') : 'gray')
             ->url('/admin/active-soaking')
-            ->visible($count > 0);
+            ->disabled($count === 0)
+            ->tooltip($count === 0 ? 'No crops are currently soaking' : null);
     }
 } 

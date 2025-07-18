@@ -63,18 +63,40 @@ class CropResource extends BaseResource
                             ->required()
                             ->searchable()
                             ->preload()
-                            ->createOptionForm(RecipeResource::getFormSchema()),
+                            ->reactive()
+                            ->createOptionForm(RecipeResource::getFormSchema())
+                            ->afterStateUpdated(function ($state, Set $set, Get $get) {
+                                // Update soaking duration display when recipe changes
+                                if ($state && $get('requires_soaking')) {
+                                    $recipe = \App\Models\Recipe::find($state);
+                                    if ($recipe && $recipe->seed_soak_hours) {
+                                        $set('soaking_duration_display', $recipe->seed_soak_hours . ' hours');
+                                        $this->updatePlantingDate($set, $get);
+                                    }
+                                }
+                            }),
 
                         Forms\Components\Checkbox::make('requires_soaking')
                             ->label('Requires Soaking')
                             ->default(false)
                             ->helperText('Check if seeds need to be soaked before planting')
                             ->reactive()
-                            ->afterStateUpdated(function ($state, Set $set) {
+                            ->afterStateUpdated(function ($state, Set $set, Get $get) {
                                 if ($state) {
                                     $set('soaking_at', now());
+                                    // Set soaking duration from recipe
+                                    $recipeId = $get('recipe_id');
+                                    if ($recipeId) {
+                                        $recipe = \App\Models\Recipe::find($recipeId);
+                                        if ($recipe && $recipe->seed_soak_hours) {
+                                            $set('soaking_duration_display', $recipe->seed_soak_hours . ' hours');
+                                        }
+                                    }
+                                    $this->updatePlantingDate($set, $get);
                                 } else {
                                     $set('soaking_at', null);
+                                    $set('soaking_duration_display', null);
+                                    $set('planting_at', now());
                                 }
                             }),
 
@@ -83,13 +105,27 @@ class CropResource extends BaseResource
                             ->seconds(false)
                             ->default(now())
                             ->visible(fn (Get $get) => $get('requires_soaking') === true)
-                            ->required(fn (Get $get) => $get('requires_soaking') === true),
+                            ->required(fn (Get $get) => $get('requires_soaking') === true)
+                            ->reactive()
+                            ->afterStateUpdated(function ($state, Set $set, Get $get) {
+                                $this->updatePlantingDate($set, $get);
+                            }),
+
+                        Forms\Components\TextInput::make('soaking_duration_display')
+                            ->label('Soaking Duration (from recipe)')
+                            ->disabled()
+                            ->visible(fn (Get $get) => $get('requires_soaking') === true)
+                            ->helperText('Seeds will soak for this duration before planting')
+                            ->dehydrated(false), // Don't save this field
 
                         Forms\Components\DateTimePicker::make('planting_at')
-                            ->label('Planted At')
+                            ->label('Planting Date')
                             ->required()
                             ->default(now())
-                            ->seconds(false),
+                            ->seconds(false)
+                            ->helperText(fn (Get $get) => $get('requires_soaking') 
+                                ? 'Auto-calculated from soaking start time + duration. You can override if needed.'
+                                : 'When the crop will be planted'),
                         Forms\Components\Select::make('current_stage_id')
                             ->label('Current Stage')
                             ->relationship('currentStage', 'name')
@@ -1550,5 +1586,23 @@ class CropResource extends BaseResource
     protected static function getCsvExportRelationships(): array
     {
         return ['recipe', 'recipe.masterSeedCatalog', 'recipe.masterCultivar', 'order'];
+    }
+
+    /**
+     * Update planting date based on soaking start time and duration
+     */
+    protected function updatePlantingDate(Set $set, Get $get): void
+    {
+        $soakingAt = $get('soaking_at');
+        $recipeId = $get('recipe_id');
+        
+        if ($soakingAt && $recipeId) {
+            $recipe = \App\Models\Recipe::find($recipeId);
+            if ($recipe && $recipe->seed_soak_hours > 0) {
+                $soakingStart = \Carbon\Carbon::parse($soakingAt);
+                $plantingDate = $soakingStart->copy()->addHours($recipe->seed_soak_hours);
+                $set('planting_at', $plantingDate);
+            }
+        }
     }
 } 
