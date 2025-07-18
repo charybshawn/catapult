@@ -110,7 +110,7 @@ class CropResource extends BaseResource
 
                         Forms\Components\DateTimePicker::make('planting_at')
                             ->label('Planting Date')
-                            ->required()
+                            ->required(fn (Get $get) => !static::checkRecipeRequiresSoaking($get))
                             ->default(now())
                             ->seconds(false)
                             ->helperText(fn (Get $get) => static::checkRecipeRequiresSoaking($get)
