@@ -71,7 +71,12 @@ class CropResource extends BaseResource
                                     $recipe = \App\Models\Recipe::find($state);
                                     if ($recipe && $recipe->requiresSoaking()) {
                                         $set('soaking_duration_display', $recipe->seed_soak_hours . ' hours');
-                                        $set('soaking_at', now());
+                                        
+                                        // Only set soaking_at if it's not already set by the user
+                                        if (!$get('soaking_at')) {
+                                            $set('soaking_at', now());
+                                        }
+                                        
                                         static::updatePlantingDate($set, $get);
                                     }
                                 }
