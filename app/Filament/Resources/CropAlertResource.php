@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\DB;
 use Filament\Tables\Actions\Action;
 use App\Services\RecipeVarietyService;
 
-class CropAlertResource extends Resource
+class CropAlertResource extends BaseResource
 {
     protected RecipeVarietyService $varietyService;
 
@@ -266,144 +266,151 @@ class CropAlertResource extends Resource
                     }),
             ])
             ->actions([
-                Tables\Actions\Action::make('debug')
-                    ->label('')
-                    ->icon('heroicon-o-code-bracket')
-                    ->tooltip('Debug Info')
-                    ->action(function (CropAlert $record) {
-                        $crop = Crop::find($record->conditions['crop_id'] ?? null);
-                        
-                        $alertData = [
-                            'ID' => $record->id,
-                            'Alert Type' => $record->alert_type,
-                            'Resource Type' => $record->resource_type,
-                            'Frequency' => $record->frequency,
-                            'Is Active' => $record->is_active ? 'Yes' : 'No',
-                            'Scheduled For' => $record->next_run_at->format('Y-m-d H:i'),
-                            'Last Executed' => $record->last_run_at ? $record->last_run_at->format('Y-m-d H:i') : 'Never',
-                            'Conditions' => json_encode($record->conditions, JSON_PRETTY_PRINT),
-                        ];
-                        
-                        $cropData = [];
-                        
-                        if ($crop) {
-                            $cropData = [
-                                'ID' => $crop->id,
-                                'Tray Number' => $crop->tray_number,
-                                'Current Stage' => $crop->current_stage,
-                                'Planted At' => $crop->planting_at->format('Y-m-d H:i'),
-                                'Germination At' => $crop->germination_at ? $crop->germination_at->format('Y-m-d H:i') : 'N/A',
-                                'Blackout At' => $crop->blackout_at ? $crop->blackout_at->format('Y-m-d H:i') : 'N/A',
-                                'Light At' => $crop->light_at ? $crop->light_at->format('Y-m-d H:i') : 'N/A',
-                                'Harvested At' => $crop->harvested_at ? $crop->harvested_at->format('Y-m-d H:i') : 'N/A',
-                                'Recipe ID' => $crop->recipe_id,
-                                'Recipe Name' => $crop->recipe?->name ?? 'N/A',
-                                'Seed Entry ID' => $crop->recipe?->seed_entry_id ?? 'N/A',
-                                'Seed Cultivar Name' => $crop->recipe?->seedEntry 
-                                    ? $crop->recipe->seedEntry->common_name . ' - ' . $crop->recipe->seedEntry->cultivar_name 
-                                    : 'N/A',
-                                'Germination Days' => $crop->recipe?->germination_days ?? 'N/A',
-                                'Blackout Days' => $crop->recipe?->blackout_days ?? 'N/A',
-                                'Light Days' => $crop->recipe?->light_days ?? 'N/A',
-                            ];
-                        }
-                        
-                        // Format the debug data for display in a modal
-                        $alertDataHtml = '<div class="mb-4">';
-                        $alertDataHtml .= '<h3 class="text-lg font-medium mb-2">Alert Data</h3>';
-                        $alertDataHtml .= '<div class="overflow-auto max-h-48 space-y-1">';
-                        
-                        foreach ($alertData as $key => $value) {
-                            $alertDataHtml .= '<div class="flex">';
-                            $alertDataHtml .= '<span class="font-medium w-32">' . $key . ':</span>';
-                            $alertDataHtml .= '<span class="text-gray-600">' . $value . '</span>';
-                            $alertDataHtml .= '</div>';
-                        }
-                        
-                        $alertDataHtml .= '</div></div>';
-                        
-                        // Format crop data if available
-                        $cropDataHtml = '';
-                        if (!empty($cropData)) {
-                            $cropDataHtml = '<div>';
-                            $cropDataHtml .= '<h3 class="text-lg font-medium mb-2">Crop Data</h3>';
-                            $cropDataHtml .= '<div class="overflow-auto max-h-48 space-y-1">';
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make()
+                        ->tooltip('View record'),
+                    Tables\Actions\EditAction::make()
+                        ->tooltip('Edit record'),
+                    Tables\Actions\Action::make('debug')
+                        ->label('Debug Info')
+                        ->icon('heroicon-o-code-bracket')
+                        ->tooltip('Debug Info')
+                        ->action(function (CropAlert $record) {
+                            $crop = Crop::find($record->conditions['crop_id'] ?? null);
                             
-                            foreach ($cropData as $key => $value) {
-                                $cropDataHtml .= '<div class="flex">';
-                                $cropDataHtml .= '<span class="font-medium w-32">' . $key . ':</span>';
-                                $cropDataHtml .= '<span class="text-gray-600">' . $value . '</span>';
-                                $cropDataHtml .= '</div>';
+                            $alertData = [
+                                'ID' => $record->id,
+                                'Alert Type' => $record->alert_type,
+                                'Resource Type' => $record->resource_type,
+                                'Frequency' => $record->frequency,
+                                'Is Active' => $record->is_active ? 'Yes' : 'No',
+                                'Scheduled For' => $record->next_run_at->format('Y-m-d H:i'),
+                                'Last Executed' => $record->last_run_at ? $record->last_run_at->format('Y-m-d H:i') : 'Never',
+                                'Conditions' => json_encode($record->conditions, JSON_PRETTY_PRINT),
+                            ];
+                            
+                            $cropData = [];
+                            
+                            if ($crop) {
+                                $cropData = [
+                                    'ID' => $crop->id,
+                                    'Tray Number' => $crop->tray_number,
+                                    'Current Stage' => $crop->current_stage,
+                                    'Planted At' => $crop->planting_at->format('Y-m-d H:i'),
+                                    'Germination At' => $crop->germination_at ? $crop->germination_at->format('Y-m-d H:i') : 'N/A',
+                                    'Blackout At' => $crop->blackout_at ? $crop->blackout_at->format('Y-m-d H:i') : 'N/A',
+                                    'Light At' => $crop->light_at ? $crop->light_at->format('Y-m-d H:i') : 'N/A',
+                                    'Harvested At' => $crop->harvested_at ? $crop->harvested_at->format('Y-m-d H:i') : 'N/A',
+                                    'Recipe ID' => $crop->recipe_id,
+                                    'Recipe Name' => $crop->recipe?->name ?? 'N/A',
+                                    'Seed Entry ID' => $crop->recipe?->seed_entry_id ?? 'N/A',
+                                    'Seed Cultivar Name' => $crop->recipe?->seedEntry 
+                                        ? $crop->recipe->seedEntry->common_name . ' - ' . $crop->recipe->seedEntry->cultivar_name 
+                                        : 'N/A',
+                                    'Germination Days' => $crop->recipe?->germination_days ?? 'N/A',
+                                    'Blackout Days' => $crop->recipe?->blackout_days ?? 'N/A',
+                                    'Light Days' => $crop->recipe?->light_days ?? 'N/A',
+                                ];
                             }
                             
-                            $cropDataHtml .= '</div></div>';
-                        } else {
-                            $cropDataHtml = '<div class="text-gray-500">Crop not found</div>';
-                        }
-                        
-                        Notification::make()
-                            ->title('Debug Information')
-                            ->body($alertDataHtml . $cropDataHtml)
-                            ->persistent()
-                            ->actions([
-                                \Filament\Notifications\Actions\Action::make('close')
-                                    ->label('Close')
-                                    ->color('gray')
-                            ])
-                            ->send();
-                    }),
-                
-                Tables\Actions\Action::make('execute_now')
-                    ->label('Execute Now')
-                    ->icon('heroicon-o-bolt')
-                    ->action(function (CropAlert $record) {
-                        $cropTaskService = app(CropTaskManagementService::class);
-                        $result = $cropTaskService->processCropStageTask($record);
-                        
-                        if ($result['success']) {
+                            // Format the debug data for display in a modal
+                            $alertDataHtml = '<div class="mb-4">';
+                            $alertDataHtml .= '<h3 class="text-lg font-medium mb-2">Alert Data</h3>';
+                            $alertDataHtml .= '<div class="overflow-auto max-h-48 space-y-1">';
+                            
+                            foreach ($alertData as $key => $value) {
+                                $alertDataHtml .= '<div class="flex">';
+                                $alertDataHtml .= '<span class="font-medium w-32">' . $key . ':</span>';
+                                $alertDataHtml .= '<span class="text-gray-600">' . $value . '</span>';
+                                $alertDataHtml .= '</div>';
+                            }
+                            
+                            $alertDataHtml .= '</div></div>';
+                            
+                            // Format crop data if available
+                            $cropDataHtml = '';
+                            if (!empty($cropData)) {
+                                $cropDataHtml = '<div>';
+                                $cropDataHtml .= '<h3 class="text-lg font-medium mb-2">Crop Data</h3>';
+                                $cropDataHtml .= '<div class="overflow-auto max-h-48 space-y-1">';
+                                
+                                foreach ($cropData as $key => $value) {
+                                    $cropDataHtml .= '<div class="flex">';
+                                    $cropDataHtml .= '<span class="font-medium w-32">' . $key . ':</span>';
+                                    $cropDataHtml .= '<span class="text-gray-600">' . $value . '</span>';
+                                    $cropDataHtml .= '</div>';
+                                }
+                                
+                                $cropDataHtml .= '</div></div>';
+                            } else {
+                                $cropDataHtml = '<div class="text-gray-500">Crop not found</div>';
+                            }
+                            
                             Notification::make()
-                                ->title('Alert executed successfully')
-                                ->body($result['message'])
+                                ->title('Debug Information')
+                                ->body($alertDataHtml . $cropDataHtml)
+                                ->persistent()
+                                ->actions([
+                                    \Filament\Notifications\Actions\Action::make('close')
+                                        ->label('Close')
+                                        ->color('gray')
+                                ])
+                                ->send();
+                        }),
+                    Tables\Actions\Action::make('execute_now')
+                        ->label('Execute Now')
+                        ->icon('heroicon-o-bolt')
+                        ->action(function (CropAlert $record) {
+                            $cropTaskService = app(CropTaskManagementService::class);
+                            $result = $cropTaskService->processCropStageTask($record);
+                            
+                            if ($result['success']) {
+                                Notification::make()
+                                    ->title('Alert executed successfully')
+                                    ->body($result['message'])
+                                    ->success()
+                                    ->send();
+                            } else {
+                                Notification::make()
+                                    ->title('Failed to execute alert')
+                                    ->body($result['message'])
+                                    ->danger()
+                                    ->send();
+                            }
+                        })
+                        ->requiresConfirmation()
+                        ->modalHeading('Execute Alert Now')
+                        ->modalDescription('Are you sure you want to execute this alert now? This will advance the crop to the next stage immediately.'),
+                    Tables\Actions\Action::make('reschedule')
+                        ->label('Reschedule')
+                        ->icon('heroicon-o-calendar-days')
+                        ->form([
+                            Forms\Components\DateTimePicker::make('new_time')
+                                ->label('New time')
+                                ->required()
+                                ->default(function (CropAlert $record) {
+                                    return $record->next_run_at;
+                                }),
+                        ])
+                        ->action(function (CropAlert $record, array $data) {
+                            $record->next_run_at = $data['new_time'];
+                            $record->save();
+                            
+                            Notification::make()
+                                ->title('Alert rescheduled')
                                 ->success()
                                 ->send();
-                        } else {
-                            Notification::make()
-                                ->title('Failed to execute alert')
-                                ->body($result['message'])
-                                ->danger()
-                                ->send();
-                        }
-                    })
-                    ->requiresConfirmation()
-                    ->modalHeading('Execute Alert Now')
-                    ->modalDescription('Are you sure you want to execute this alert now? This will advance the crop to the next stage immediately.'),
-                
-                Tables\Actions\Action::make('reschedule')
-                    ->label('Reschedule')
-                    ->icon('heroicon-o-calendar-days')
-                    ->form([
-                        Forms\Components\DateTimePicker::make('new_time')
-                            ->label('New time')
-                            ->required()
-                            ->default(function (CropAlert $record) {
-                                return $record->next_run_at;
-                            }),
-                    ])
-                    ->action(function (CropAlert $record, array $data) {
-                        $record->next_run_at = $data['new_time'];
-                        $record->save();
-                        
-                        Notification::make()
-                            ->title('Alert rescheduled')
-                            ->success()
-                            ->send();
-                    })
-                    ->modalHeading('Reschedule Alert'),
-                
-                Tables\Actions\EditAction::make(),
-                
-                Tables\Actions\DeleteAction::make()
-                    ->modalDescription('Are you sure you want to delete this alert? This will stop the automatic stage transition alerts for this crop.'),
+                        })
+                        ->modalHeading('Reschedule Alert'),
+                    Tables\Actions\DeleteAction::make()
+                        ->tooltip('Delete record')
+                        ->modalDescription('Are you sure you want to delete this alert? This will stop the automatic stage transition alerts for this crop.'),
+                ])
+                ->label('Actions')
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->size('sm')
+                ->color('gray')
+                ->button(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

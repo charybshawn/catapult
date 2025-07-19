@@ -64,11 +64,15 @@ class RecipeUpdates extends Page
                                     return 'Please select a recipe';
                                 }
                                 
+                                $harvestedStage = \App\Models\CropStage::findByCode('harvested');
                                 $query = Crop::where('recipe_id', $recipeId)
-                                    ->where('current_stage', '!=', 'harvested');
+                                    ->where('current_stage_id', '!=', $harvestedStage?->id);
                                 
                                 if ($stage !== 'all') {
-                                    $query->where('current_stage', $stage);
+                                    $stageRecord = \App\Models\CropStage::findByCode($stage);
+                                    if ($stageRecord) {
+                                        $query->where('current_stage_id', $stageRecord->id);
+                                    }
                                 }
                                 
                                 $recipe = Recipe::find($recipeId);
@@ -145,11 +149,15 @@ class RecipeUpdates extends Page
         }
         
         // Build the query for crops to update
+        $harvestedStage = \App\Models\CropStage::findByCode('harvested');
         $query = Crop::where('recipe_id', $recipe->id)
-            ->where('current_stage', '!=', 'harvested');
+            ->where('current_stage_id', '!=', $harvestedStage?->id);
         
         if ($data['current_stage'] !== 'all') {
-            $query->where('current_stage', $data['current_stage']);
+            $stageRecord = \App\Models\CropStage::findByCode($data['current_stage']);
+            if ($stageRecord) {
+                $query->where('current_stage_id', $stageRecord->id);
+            }
         }
         
         // Get the crops to update

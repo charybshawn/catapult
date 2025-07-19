@@ -120,7 +120,7 @@ class CsvExportService
         
         // Handle zero values - keep zeros for numeric fields that should show zero
         if ($value === 0) {
-            $numericFields = ['id', 'tray_number', 'tray_count', 'total_weight_grams', 'harvest_weight_grams', 'quantity', 'price'];
+            $numericFields = ['id', 'tray_number', 'tray_count', 'total_weight_grams', 'quantity', 'price'];
             if (in_array($column, $numericFields)) {
                 return $value;
             }

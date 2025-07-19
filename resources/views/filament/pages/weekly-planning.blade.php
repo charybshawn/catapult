@@ -217,7 +217,13 @@
                                             {{ ucfirst($crop->current_stage) }}
                                         </x-filament::badge>
                                     </td>
-                                    <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">{{ $crop->planted_at->format('M d, Y') }}</td>
+                                    <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
+                                        @if($crop->planting_at)
+                                            {{ $crop->planting_at->format('M d, Y') }}
+                                        @else
+                                            <span class="text-gray-400 dark:text-gray-500">Not planted</span>
+                                        @endif
+                                    </td>
                                     <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
                                         @if($crop->expectedHarvestDate())
                                             {{ $crop->expectedHarvestDate()->format('M d, Y') }}
@@ -226,7 +232,7 @@
                                         @endif
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
-                                        {{ $crop->daysInCurrentStage() }}
+                                        {{ $crop->stage_age_display ?? 'Unknown' }}
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
                                         {{ $crop->order?->user?->name ?? 'N/A' }}

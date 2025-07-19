@@ -44,7 +44,6 @@ class Crop extends Model
         'blackout_at',
         'light_at',
         'harvested_at',
-        'harvest_weight_grams',
         'watering_suspended_at',
         'soaking_at',
         'requires_soaking',
@@ -78,7 +77,6 @@ class Crop extends Model
         'watering_suspended_at' => 'datetime',
         'soaking_at' => 'datetime',
         'requires_soaking' => 'boolean',
-        'harvest_weight_grams' => 'float',
         'tray_number' => 'string',
     ];
     
@@ -311,8 +309,7 @@ class Crop extends Model
             'blackout_at',
             'light_at',
             'harvested_at',
-            'harvest_weight_grams',
-            'watering_suspended_at',
+                'watering_suspended_at',
             'soaking_at',
             'requires_soaking'
         ];

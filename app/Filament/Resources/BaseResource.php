@@ -247,12 +247,19 @@ abstract class BaseResource extends Resource
     protected static function getStandardTableActions(): array
     {
         return [
-            Tables\Actions\ViewAction::make()
-                ->tooltip('View record'),
-            Tables\Actions\EditAction::make()
-                ->tooltip('Edit record'),
-            Tables\Actions\DeleteAction::make()
-                ->tooltip('Delete record'),
+            Tables\Actions\ActionGroup::make([
+                Tables\Actions\ViewAction::make()
+                    ->tooltip('View record'),
+                Tables\Actions\EditAction::make()
+                    ->tooltip('Edit record'),
+                Tables\Actions\DeleteAction::make()
+                    ->tooltip('Delete record'),
+            ])
+            ->label('Actions')
+            ->icon('heroicon-m-ellipsis-vertical')
+            ->size('sm')
+            ->color('gray')
+            ->button(),
         ];
     }
     
@@ -538,7 +545,7 @@ abstract class BaseResource extends Resource
         return Tables\Columns\TextColumn::make($field)
             ->label($label)
             ->limit($length)
-            ->tooltip(function (TextColumn $column): ?string {
+            ->tooltip(function (TextColumn $column) use ($length): ?string {
                 $state = $column->getState();
                 
                 if (strlen($state) <= $length) {

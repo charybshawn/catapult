@@ -6,7 +6,7 @@ use App\Filament\Resources\ActivityResource\Pages;
 use App\Models\Activity;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use App\Filament\Resources\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Carbon\Carbon;
 
-class ActivityResource extends Resource
+class ActivityResource extends BaseResource
 {
     protected static ?string $model = Activity::class;
 
@@ -250,8 +250,15 @@ class ActivityResource extends Resource
             ], layout: Tables\Enums\FiltersLayout::AboveContent)
             ->filtersFormColumns(4)
             ->actions([
-                Tables\Actions\ViewAction::make()
-                    ->tooltip('View activity details'),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make()
+                        ->tooltip('View activity details'),
+                ])
+                ->label('Actions')
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->size('sm')
+                ->color('gray')
+                ->button(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

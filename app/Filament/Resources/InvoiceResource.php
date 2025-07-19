@@ -7,14 +7,14 @@ use App\Filament\Resources\InvoiceResource\RelationManagers;
 use App\Models\Invoice;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use App\Filament\Resources\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Database\Eloquent\Collection;
 
-class InvoiceResource extends Resource
+class InvoiceResource extends BaseResource
 {
     protected static ?string $model = Invoice::class;
 
@@ -117,7 +117,7 @@ class InvoiceResource extends Resource
 
     public static function table(Table $table): Table
     {
-        return $table
+        return static::configureTableDefaults($table)
             ->modifyQueryUsing(fn (Builder $query) => $query->with([
                 'user',
                 'order.user',
@@ -221,43 +221,50 @@ class InvoiceResource extends Resource
                     }),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make()
-                    ->tooltip('View invoice'),
-                Tables\Actions\EditAction::make()
-                    ->tooltip('Edit invoice'),
-                Tables\Actions\DeleteAction::make()
-                    ->tooltip('Delete invoice'),
-                Tables\Actions\Action::make('Mark as Sent')
-                    ->tooltip('Mark invoice as sent')
-                    ->action(fn (Invoice $record) => $record->markAsSent())
-                    ->requiresConfirmation()
-                    ->color('primary')
-                    ->icon('heroicon-o-paper-airplane')
-                    ->visible(fn (Invoice $record) => $record->status === 'draft'),
-                Tables\Actions\Action::make('Mark as Paid')
-                    ->action(fn (Invoice $record) => $record->markAsPaid())
-                    ->requiresConfirmation()
-                    ->color('success')
-                    ->icon('heroicon-o-check-circle')
-                    ->visible(fn (Invoice $record) => in_array($record->status, ['sent', 'overdue'])),
-                Tables\Actions\Action::make('Mark as Overdue')
-                    ->action(fn (Invoice $record) => $record->markAsOverdue())
-                    ->requiresConfirmation()
-                    ->color('danger')
-                    ->icon('heroicon-o-x-circle')
-                    ->visible(fn (Invoice $record) => $record->status === 'sent' && $record->due_date < now()),
-                Tables\Actions\Action::make('Cancel Invoice')
-                    ->action(fn (Invoice $record) => $record->markAsCancelled())
-                    ->requiresConfirmation()
-                    ->color('gray')
-                    ->icon('heroicon-o-x-mark')
-                    ->visible(fn (Invoice $record) => in_array($record->status, ['draft', 'sent', 'overdue'])),
-                Tables\Actions\Action::make('Download PDF')
-                    ->url(fn (Invoice $record): string => route('invoices.download', $record))
-                    ->openUrlInNewTab()
-                    ->color('info')
-                    ->icon('heroicon-o-document-arrow-down')
-                    ->visible(fn (Invoice $record) => in_array($record->status, ['sent', 'paid', 'overdue', 'pending'])),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make()
+                        ->tooltip('View invoice'),
+                    Tables\Actions\EditAction::make()
+                        ->tooltip('Edit invoice'),
+                    Tables\Actions\DeleteAction::make()
+                        ->tooltip('Delete invoice'),
+                    Tables\Actions\Action::make('Mark as Sent')
+                        ->tooltip('Mark invoice as sent')
+                        ->action(fn (Invoice $record) => $record->markAsSent())
+                        ->requiresConfirmation()
+                        ->color('primary')
+                        ->icon('heroicon-o-paper-airplane')
+                        ->visible(fn (Invoice $record) => $record->status === 'draft'),
+                    Tables\Actions\Action::make('Mark as Paid')
+                        ->action(fn (Invoice $record) => $record->markAsPaid())
+                        ->requiresConfirmation()
+                        ->color('success')
+                        ->icon('heroicon-o-check-circle')
+                        ->visible(fn (Invoice $record) => in_array($record->status, ['sent', 'overdue'])),
+                    Tables\Actions\Action::make('Mark as Overdue')
+                        ->action(fn (Invoice $record) => $record->markAsOverdue())
+                        ->requiresConfirmation()
+                        ->color('danger')
+                        ->icon('heroicon-o-x-circle')
+                        ->visible(fn (Invoice $record) => $record->status === 'sent' && $record->due_date < now()),
+                    Tables\Actions\Action::make('Cancel Invoice')
+                        ->action(fn (Invoice $record) => $record->markAsCancelled())
+                        ->requiresConfirmation()
+                        ->color('gray')
+                        ->icon('heroicon-o-x-mark')
+                        ->visible(fn (Invoice $record) => in_array($record->status, ['draft', 'sent', 'overdue'])),
+                    Tables\Actions\Action::make('Download PDF')
+                        ->url(fn (Invoice $record): string => route('invoices.download', $record))
+                        ->openUrlInNewTab()
+                        ->color('info')
+                        ->icon('heroicon-o-document-arrow-down')
+                        ->visible(fn (Invoice $record) => in_array($record->status, ['sent', 'paid', 'overdue', 'pending'])),
+                ])
+                ->label('Actions')
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->size('sm')
+                ->color('gray')
+                ->button(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

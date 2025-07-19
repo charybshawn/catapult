@@ -98,8 +98,9 @@ class WeeklyPlanning extends Page
         }
         
         // Get active crops (not harvested)
-        $activeCrops = Crop::whereNotIn('current_stage', ['harvested'])
-            ->with(['recipe', 'order.user'])
+        $harvestedStage = \App\Models\CropStage::findByCode('harvested');
+        $activeCrops = Crop::where('current_stage_id', '!=', $harvestedStage?->id)
+            ->with(['recipe', 'order.user', 'currentStage'])
             ->orderBy('planting_at', 'desc')
             ->get();
         
@@ -161,8 +162,9 @@ class WeeklyPlanning extends Page
             $productQuantities[$recipeId]['trays_needed'] = $traysNeeded;
             
             // Check existing crops for this recipe that will be ready by harvest date
+            $harvestedStage = \App\Models\CropStage::findByCode('harvested');
             $existingTrays = Crop::where('recipe_id', $recipeId)
-                ->whereNotIn('current_stage', ['harvested'])
+                ->where('current_stage_id', '!=', $harvestedStage?->id)
                 ->get()
                 ->filter(function ($crop) use ($harvestDate) {
                     $expectedHarvest = $crop->expectedHarvestDate();

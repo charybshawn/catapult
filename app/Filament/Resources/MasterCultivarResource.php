@@ -8,13 +8,13 @@ use App\Models\MasterCultivar;
 use App\Models\MasterSeedCatalog;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use App\Filament\Resources\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
-class MasterCultivarResource extends Resource
+class MasterCultivarResource extends BaseResource
 {
     protected static ?string $model = MasterCultivar::class;
 
@@ -47,7 +47,7 @@ class MasterCultivarResource extends Resource
 
     public static function table(Table $table): Table
     {
-        return $table
+        return static::configureTableDefaults($table)
             ->columns([
                 Tables\Columns\TextColumn::make('masterSeedCatalog.common_name')
                     ->label('Seed Type')
@@ -74,7 +74,16 @@ class MasterCultivarResource extends Resource
                 Tables\Filters\TernaryFilter::make('is_active'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make()->tooltip('View record'),
+                    Tables\Actions\EditAction::make()->tooltip('Edit record'),
+                    Tables\Actions\DeleteAction::make()->tooltip('Delete record'),
+                ])
+                ->label('Actions')
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->size('sm')
+                ->color('gray')
+                ->button(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

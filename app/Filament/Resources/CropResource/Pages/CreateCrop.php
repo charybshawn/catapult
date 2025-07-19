@@ -51,12 +51,21 @@ class CreateCrop extends BaseCreateRecord
             $recipe = Recipe::find($data['recipe_id']);
         }
         
-        // Ensure we have at least one tray (unless soaking stage)
-        if (empty($trayNumbers)) {
-            if ($recipe && $recipe->requiresSoaking()) {
-                // For soaking crops, use placeholder tray numbers
-                $trayNumbers = ['SOAKING-1']; // Placeholder until actual trays are assigned
-            } else {
+        // Handle soaking crops differently
+        if ($recipe && $recipe->requiresSoaking()) {
+            // For soaking crops, check if we have soaking_tray_count
+            $soakingTrayCount = isset($data['soaking_tray_count']) ? (int) $data['soaking_tray_count'] : 1;
+            
+            if (empty($trayNumbers)) {
+                // Generate placeholder tray numbers based on soaking_tray_count
+                $trayNumbers = [];
+                for ($i = 1; $i <= $soakingTrayCount; $i++) {
+                    $trayNumbers[] = "SOAKING-{$i}";
+                }
+            }
+        } else {
+            // For non-soaking crops, require tray numbers
+            if (empty($trayNumbers)) {
                 Notification::make()
                     ->title('Error: No tray numbers provided')
                     ->body('At least one tray number is required for a grow batch.')
@@ -75,12 +84,17 @@ class CreateCrop extends BaseCreateRecord
             'recipe_id' => $data['recipe_id'] ?? 'none',
             'planting_at' => $data['planting_at'] ?? 'none',
             'recipe_requires_soaking' => $recipe ? $recipe->requiresSoaking() : 'no recipe',
+            'soaking_tray_count' => $data['soaking_tray_count'] ?? 'none',
             'tray_numbers_count' => count($trayNumbers),
             'tray_numbers_empty' => empty($trayNumbers)
         ]);
         
-        // Remove the tray_numbers field from the data
+        // Remove form-specific fields from the data
         unset($data['tray_numbers']);
+        unset($data['soaking_tray_count']);
+        unset($data['soaking_duration_display']);
+        unset($data['seed_quantity_display']);
+        unset($data['calculated_seed_quantity']);
         
         // Get the recipe name and seed variety for display
         $recipeName = 'Unknown Recipe';
@@ -276,9 +290,17 @@ class CreateCrop extends BaseCreateRecord
             
             // Show a notification with the number of trays created
             $trayCount = count($createdRecords);
+            $notificationBody = "Successfully created grow batch with {$trayCount} trays of {$varietyName} ({$recipeName}). Crop tasks scheduled.";
+            
+            // Add seed quantity information for soaking crops
+            if ($recipe && $recipe->requiresSoaking() && $recipe->seed_density_grams_per_tray) {
+                $totalSeedUsed = $recipe->seed_density_grams_per_tray * $trayCount;
+                $notificationBody .= " Seed used: {$totalSeedUsed}g total.";
+            }
+            
             Notification::make()
                 ->title('Grow Batch Created')
-                ->body("Successfully created grow batch with {$trayCount} trays of {$varietyName} ({$recipeName}). Crop tasks scheduled.")
+                ->body($notificationBody)
                 ->success()
                 ->send();
             

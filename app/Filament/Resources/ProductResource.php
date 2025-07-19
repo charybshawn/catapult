@@ -141,11 +141,12 @@ class ProductResource extends BaseResource
                     ->label('Visible in Store'),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make()
-                    ->tooltip('View record'),
-                Tables\Actions\EditAction::make()
-                    ->tooltip('Edit record'),
-                Tables\Actions\Action::make('clone')
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make()
+                        ->tooltip('View record'),
+                    Tables\Actions\EditAction::make()
+                        ->tooltip('Edit record'),
+                    Tables\Actions\Action::make('clone')
                     ->label('Clone')
                     ->icon('heroicon-o-document-duplicate')
                     ->tooltip('Clone this product')
@@ -190,6 +191,12 @@ class ProductResource extends BaseResource
                             return false;
                         }
                     }),
+                ])
+                ->label('Actions')
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->size('sm')
+                ->color('gray')
+                ->button(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

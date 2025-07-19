@@ -150,7 +150,7 @@ class HarvestResource extends BaseResource
 
     public static function table(Table $table): Table
     {
-        return $table
+        return static::configureTableDefaults($table)
             ->modifyQueryUsing(fn (Builder $query) => $query->with([
                 'masterCultivar.masterSeedCatalog'
             ]))
@@ -285,8 +285,16 @@ class HarvestResource extends BaseResource
                     }),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make()->tooltip('View record'),
+                    Tables\Actions\EditAction::make()->tooltip('Edit record'),
+                    Tables\Actions\DeleteAction::make()->tooltip('Delete record'),
+                ])
+                ->label('Actions')
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->size('sm')
+                ->color('gray')
+                ->button(),
             ])
             ->headerActions([
                 static::getCsvExportAction(),

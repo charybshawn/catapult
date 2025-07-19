@@ -7,7 +7,7 @@ use App\Filament\Resources\SeedEntryResource\RelationManagers;
 use App\Models\SeedEntry;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use App\Filament\Resources\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -16,7 +16,7 @@ use Filament\Forms\Components\Repeater;
 use App\Forms\Components\SeedVariations;
 use Filament\Notifications\Notification;
 
-class SeedEntryResource extends Resource
+class SeedEntryResource extends BaseResource
 {
     protected static ?string $model = SeedEntry::class;
 
@@ -228,7 +228,7 @@ class SeedEntryResource extends Resource
 
     public static function table(Table $table): Table
     {
-        return $table
+        return static::configureTableDefaults($table)
             ->persistFiltersInSession()
             ->persistSortInSession()
             ->persistColumnSearchesInSession()
@@ -472,68 +472,77 @@ class SeedEntryResource extends Resource
                     }),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make()
-                    ->requiresConfirmation()
-                    ->modalHeading('Delete Seed Entry')
-                    ->modalDescription('Are you sure you want to delete this seed entry?')
-                    ->before(function (Tables\Actions\DeleteAction $action, SeedEntry $record) {
-                        // Check for active relationships that would prevent deletion
-                        $issues = self::checkSeedEntryDeletionSafety($record);
-                        
-                        if (!empty($issues)) {
-                            // Cancel the action and show the issues
-                            $action->cancel();
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make()->tooltip('View record'),
+                    Tables\Actions\EditAction::make()->tooltip('Edit record'),
+                    Tables\Actions\DeleteAction::make()
+                        ->tooltip('Delete record')
+                        ->requiresConfirmation()
+                        ->modalHeading('Delete Seed Entry')
+                        ->modalDescription('Are you sure you want to delete this seed entry?')
+                        ->before(function (Tables\Actions\DeleteAction $action, SeedEntry $record) {
+                            // Check for active relationships that would prevent deletion
+                            $issues = self::checkSeedEntryDeletionSafety($record);
+                            
+                            if (!empty($issues)) {
+                                // Cancel the action and show the issues
+                                $action->cancel();
+                                
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Cannot Delete Seed Entry')
+                                    ->body(
+                                        'This seed entry cannot be deleted because it is actively being used:' . 
+                                        '<br><br><strong>' . implode('</strong><br><strong>', $issues) . '</strong>' .
+                                        '<br><br>Please remove these dependencies first, or consider deactivating the seed entry instead.'
+                                    )
+                                    ->danger()
+                                    ->persistent()
+                                    ->send();
+                            }
+                        }),
+                    Tables\Actions\Action::make('deactivate')
+                        ->label('Deactivate')
+                        ->icon('heroicon-o-eye-slash')
+                        ->color('warning')
+                        ->requiresConfirmation()
+                        ->modalHeading('Deactivate Seed Entry')
+                        ->modalDescription('This will deactivate the seed entry, making it unavailable for new uses while preserving existing data.')
+                        ->action(function (SeedEntry $record) {
+                            $record->update(['is_active' => false]);
                             
                             \Filament\Notifications\Notification::make()
-                                ->title('Cannot Delete Seed Entry')
-                                ->body(
-                                    'This seed entry cannot be deleted because it is actively being used:' . 
-                                    '<br><br><strong>' . implode('</strong><br><strong>', $issues) . '</strong>' .
-                                    '<br><br>Please remove these dependencies first, or consider deactivating the seed entry instead.'
-                                )
-                                ->danger()
-                                ->persistent()
+                                ->title('Seed Entry Deactivated')
+                                ->body("'{$record->common_name} - {$record->cultivar_name}' has been deactivated.")
+                                ->success()
                                 ->send();
-                        }
-                    }),
-                Tables\Actions\Action::make('deactivate')
-                    ->label('Deactivate')
-                    ->icon('heroicon-o-eye-slash')
-                    ->color('warning')
-                    ->requiresConfirmation()
-                    ->modalHeading('Deactivate Seed Entry')
-                    ->modalDescription('This will deactivate the seed entry, making it unavailable for new uses while preserving existing data.')
-                    ->action(function (SeedEntry $record) {
-                        $record->update(['is_active' => false]);
-                        
-                        \Filament\Notifications\Notification::make()
-                            ->title('Seed Entry Deactivated')
-                            ->body("'{$record->common_name} - {$record->cultivar_name}' has been deactivated.")
-                            ->success()
-                            ->send();
-                    })
-                    ->visible(fn (SeedEntry $record) => $record->is_active ?? true),
-                Tables\Actions\Action::make('activate')
-                    ->label('Activate')
-                    ->icon('heroicon-o-eye')
-                    ->color('success')
-                    ->action(function (SeedEntry $record) {
-                        $record->update(['is_active' => true]);
-                        
-                        \Filament\Notifications\Notification::make()
-                            ->title('Seed Entry Activated')
-                            ->body("'{$record->common_name} - {$record->cultivar_name}' has been activated.")
-                            ->success()
-                            ->send();
-                    })
-                    ->visible(fn (SeedEntry $record) => !($record->is_active ?? true)),
-                Tables\Actions\Action::make('visit_url')
-                    ->label('Visit URL')
-                    ->icon('heroicon-o-arrow-top-right-on-square')
-                    ->url(fn (SeedEntry $record) => $record->url)
-                    ->openUrlInNewTab()
-                    ->visible(fn (SeedEntry $record) => !empty($record->url)),
+                        })
+                        ->visible(fn (SeedEntry $record) => $record->is_active ?? true),
+                    Tables\Actions\Action::make('activate')
+                        ->label('Activate')
+                        ->icon('heroicon-o-eye')
+                        ->color('success')
+                        ->action(function (SeedEntry $record) {
+                            $record->update(['is_active' => true]);
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('Seed Entry Activated')
+                                ->body("'{$record->common_name} - {$record->cultivar_name}' has been activated.")
+                                ->success()
+                                ->send();
+                        })
+                        ->visible(fn (SeedEntry $record) => !($record->is_active ?? true)),
+                    Tables\Actions\Action::make('visit_url')
+                        ->label('Visit URL')
+                        ->icon('heroicon-o-arrow-top-right-on-square')
+                        ->url(fn (SeedEntry $record) => $record->url)
+                        ->openUrlInNewTab()
+                        ->visible(fn (SeedEntry $record) => !empty($record->url)),
+                ])
+                ->label('Actions')
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->size('sm')
+                ->color('gray')
+                ->button(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -691,9 +700,10 @@ class SeedEntryResource extends Resource
         $recipesCount = \App\Models\Recipe::where('seed_entry_id', $seedEntry->id)->count();
         if ($recipesCount > 0) {
             // Check if any of these recipes have active crops
+            $harvestedStage = \App\Models\CropStage::findByCode('harvested');
             $activeCropsCount = \App\Models\Crop::whereHas('recipe', function($query) use ($seedEntry) {
                 $query->where('seed_entry_id', $seedEntry->id);
-            })->where('current_stage', '!=', 'harvested')->count();
+            })->where('current_stage_id', '!=', $harvestedStage?->id)->count();
             
             if ($activeCropsCount > 0) {
                 $issues[] = "{$activeCropsCount} active crops are using recipes with this seed entry";

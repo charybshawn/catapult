@@ -10,14 +10,14 @@ use App\Models\Product;
 use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use App\Filament\Resources\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 
-class RecurringOrderResource extends Resource
+class RecurringOrderResource extends BaseResource
 {
     protected static ?string $model = Order::class;
 
@@ -387,51 +387,59 @@ class RecurringOrderResource extends Resource
                     ]),
             ])
             ->actions([
-                Tables\Actions\EditAction::make()
-                    ->tooltip('Edit recurring order template'),
-                    
-                Tables\Actions\Action::make('generate_next')
-                    ->label('Generate Orders')
-                    ->icon('heroicon-o-plus-circle')
-                    ->color('primary')
-                    ->action(function (?Order $record): void {
-                        if (!$record) return;
-                        $generatedOrders = $record->generateRecurringOrdersCatchUp();
-                        if (!empty($generatedOrders)) {
-                            $count = count($generatedOrders);
-                            $latestOrder = end($generatedOrders);
-                            Notification::make()
-                                ->title("Generated {$count} order(s) successfully")
-                                ->body("Latest order #{$latestOrder->id} for {$latestOrder->delivery_date->format('M d, Y')}")
-                                ->success()
-                                ->send();
-                        } else {
-                            Notification::make()
-                                ->title('Unable to generate orders')
-                                ->body('Check template settings and end date')
-                                ->warning()
-                                ->send();
-                        }
-                    })
-                    ->visible(fn (?Order $record): bool => $record?->is_recurring_active ?? false),
-                    
-                Tables\Actions\Action::make('pause')
-                    ->label('Pause')
-                    ->icon('heroicon-o-pause')
-                    ->color('warning')
-                    ->action(fn (?Order $record) => $record?->update(['is_recurring_active' => false]))
-                    ->requiresConfirmation()
-                    ->visible(fn (?Order $record): bool => $record?->is_recurring_active ?? false),
-                    
-                Tables\Actions\Action::make('resume')
-                    ->label('Resume')
-                    ->icon('heroicon-o-play')
-                    ->color('success')
-                    ->action(fn (?Order $record) => $record?->update(['is_recurring_active' => true]))
-                    ->visible(fn (?Order $record): bool => !($record?->is_recurring_active ?? true)),
-                    
-                Tables\Actions\DeleteAction::make()
-                    ->tooltip('Delete recurring order template'),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make()
+                        ->tooltip('View recurring order template'),
+                    Tables\Actions\EditAction::make()
+                        ->tooltip('Edit recurring order template'),
+                    Tables\Actions\Action::make('generate_next')
+                        ->label('Generate Orders')
+                        ->icon('heroicon-o-plus-circle')
+                        ->color('primary')
+                        ->action(function (?Order $record): void {
+                            if (!$record) return;
+                            $generatedOrders = $record->generateRecurringOrdersCatchUp();
+                            if (!empty($generatedOrders)) {
+                                $count = count($generatedOrders);
+                                $latestOrder = end($generatedOrders);
+                                Notification::make()
+                                    ->title("Generated {$count} order(s) successfully")
+                                    ->body("Latest order #{$latestOrder->id} for {$latestOrder->delivery_date->format('M d, Y')}")
+                                    ->success()
+                                    ->send();
+                            } else {
+                                Notification::make()
+                                    ->title('Unable to generate orders')
+                                    ->body('Check template settings and end date')
+                                    ->warning()
+                                    ->send();
+                            }
+                        })
+                        ->visible(fn (?Order $record): bool => $record?->is_recurring_active ?? false),
+                        
+                    Tables\Actions\Action::make('pause')
+                        ->label('Pause')
+                        ->icon('heroicon-o-pause')
+                        ->color('warning')
+                        ->action(fn (?Order $record) => $record?->update(['is_recurring_active' => false]))
+                        ->requiresConfirmation()
+                        ->visible(fn (?Order $record): bool => $record?->is_recurring_active ?? false),
+                        
+                    Tables\Actions\Action::make('resume')
+                        ->label('Resume')
+                        ->icon('heroicon-o-play')
+                        ->color('success')
+                        ->action(fn (?Order $record) => $record?->update(['is_recurring_active' => true]))
+                        ->visible(fn (?Order $record): bool => !($record?->is_recurring_active ?? true)),
+                        
+                    Tables\Actions\DeleteAction::make()
+                        ->tooltip('Delete recurring order template'),
+                ])
+                ->label('Actions')
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->size('sm')
+                ->color('gray')
+                ->button(),
             ])
             ->headerActions([
                 Tables\Actions\Action::make('generate_all_due')

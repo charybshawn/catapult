@@ -78,6 +78,7 @@ class CropResource extends BaseResource
                                         }
                                         
                                         static::updatePlantingDate($set, $get);
+                                        static::updateSeedQuantityCalculation($set, $get);
                                     }
                                 }
                             }),
@@ -93,6 +94,23 @@ class CropResource extends BaseResource
                                     ->disabled()
                                     ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
                                     ->dehydrated(false),
+                                Forms\Components\TextInput::make('soaking_tray_count')
+                                    ->label('Number of Trays to Soak')
+                                    ->numeric()
+                                    ->required(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
+                                    ->default(1)
+                                    ->minValue(1)
+                                    ->maxValue(50)
+                                    ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
+                                    ->reactive()
+                                    ->helperText('How many trays worth of seed will be soaked?')
+                                    ->afterStateUpdated(function ($state, Set $set, Get $get) {
+                                        static::updateSeedQuantityCalculation($set, $get);
+                                    }),
+                                Forms\Components\Placeholder::make('seed_quantity_display')
+                                    ->label('Seed Quantity Required')
+                                    ->content(fn (Get $get) => static::getSeedQuantityDisplay($get))
+                                    ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get)),
                             ])
                             ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
                             ->compact(),
@@ -132,19 +150,6 @@ class CropResource extends BaseResource
                                     }
                                 }
                                 return \App\Models\CropStage::findByCode('germination')->id;
-                            })
-                            ->visible(fn ($livewire) => !($livewire instanceof Pages\CreateCrop)),
-                        Forms\Components\TextInput::make('harvest_weight_grams')
-                            ->label('Harvest Weight Per Tray (grams)')
-                            ->numeric()
-                            ->minValue(0)
-                            ->maxValue(10000)
-                            ->helperText('Can be added at any stage, but required when harvested')
-                            ->required(function (Forms\Get $get) {
-                                $stageId = $get('current_stage_id');
-                                if (!$stageId) return false;
-                                $stage = \App\Models\CropStage::find($stageId);
-                                return $stage?->code === 'harvested';
                             })
                             ->visible(fn ($livewire) => !($livewire instanceof Pages\CreateCrop)),
                         Forms\Components\Textarea::make('notes')
@@ -431,7 +436,6 @@ class CropResource extends BaseResource
                         DB::raw('MIN(crops.blackout_at) as blackout_at'),
                         DB::raw('MIN(crops.light_at) as light_at'),
                         DB::raw('MIN(crops.harvested_at) as harvested_at'),
-                        DB::raw('AVG(crops.harvest_weight_grams) as harvest_weight_grams'),
                         DB::raw('MIN(crops.time_to_next_stage_minutes) as time_to_next_stage_minutes'),
                         DB::raw('MIN(crops.time_to_next_stage_display) as time_to_next_stage_display'),
                         DB::raw('MIN(crops.stage_age_minutes) as stage_age_minutes'),
@@ -580,15 +584,6 @@ class CropResource extends BaseResource
                     ->date()
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('harvest_weight_grams')
-                    ->label('Harvest Weight')
-                    ->formatStateUsing(fn ($state, $record) => 
-                        $state && isset($record->tray_count) 
-                            ? ($state * $record->tray_count) . "g total / " . $state . "g per tray" 
-                            : ($state ? $state . "g" : '-')
-                    )
-                    ->sortable()
-                    ->toggleable(),
             ])
             ->groups([
                 Tables\Grouping\Group::make('recipe_name')
@@ -616,7 +611,8 @@ class CropResource extends BaseResource
                     ->default(true),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make()
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make()
                     ->tooltip('View crop details')
                     ->modalHeading('Crop Details')
                     ->modalWidth('sm')
@@ -1043,12 +1039,6 @@ class CropResource extends BaseResource
                     ->modalHeading('Harvest Crop?')
                     ->modalDescription('This will mark all crops in this batch as harvested.')
                     ->form([
-                        Forms\Components\TextInput::make('harvest_weight_grams')
-                            ->label('Harvest Weight Per Tray (grams)')
-                            ->numeric()
-                            ->required()
-                            ->minValue(0)
-                            ->maxValue(10000),
                         Forms\Components\DateTimePicker::make('harvest_timestamp')
                             ->label('When was this harvested?')
                             ->default(now())
@@ -1078,7 +1068,6 @@ class CropResource extends BaseResource
                             foreach ($crops as $crop) {
                                 $crop->current_stage_id = $harvestedStage->id;
                                 $crop->harvested_at = $harvestTime;
-                                $crop->harvest_weight_grams = $data['harvest_weight_grams'];
                                 $crop->save();
                                 
                                 // Deactivate any active task schedules for this crop
@@ -1093,12 +1082,9 @@ class CropResource extends BaseResource
                             
                             DB::commit();
                             
-                            // Calculate total harvest weight
-                            $totalWeight = $data['harvest_weight_grams'] * $count;
-                            
                             \Filament\Notifications\Notification::make()
                                 ->title('Batch Harvested')
-                                ->body("Successfully harvested {$count} tray(s) with a total weight of {$totalWeight}g.")
+                                ->body("Successfully harvested {$count} tray(s).")
                                 ->success()
                                 ->send();
                         } catch (\Exception $e) {
@@ -1311,6 +1297,12 @@ class CropResource extends BaseResource
                                 ->send();
                         }
                     }),
+                ])
+                ->label('Actions')
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->size('sm')
+                ->color('gray')
+                ->button(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -1565,7 +1557,6 @@ class CropResource extends BaseResource
             'blackout_at' => 'Blackout Date',
             'light_at' => 'Light Date',
             'harvested_at' => 'Harvested Date',
-            'harvest_weight_grams' => 'Harvest Weight (g)',
             'notes' => 'Notes',
             'created_at' => 'Created At',
             'updated_at' => 'Updated At',
@@ -1633,5 +1624,49 @@ class CropResource extends BaseResource
         }
         
         return "⚠️ This recipe requires soaking for {$recipe->seed_soak_hours} hours before planting.";
+    }
+
+    /**
+     * Calculate and update seed quantity based on recipe and tray count
+     */
+    protected static function updateSeedQuantityCalculation(Set $set, Get $get): void
+    {
+        $recipeId = $get('recipe_id');
+        $trayCount = $get('soaking_tray_count');
+        
+        if ($recipeId && $trayCount) {
+            $recipe = \App\Models\Recipe::find($recipeId);
+            if ($recipe && $recipe->seed_density_grams_per_tray) {
+                $totalSeed = $recipe->seed_density_grams_per_tray * $trayCount;
+                $set('calculated_seed_quantity', $totalSeed);
+            }
+        }
+    }
+
+    /**
+     * Get formatted seed quantity display
+     */
+    public static function getSeedQuantityDisplay(Get $get): string
+    {
+        $recipeId = $get('recipe_id');
+        $trayCount = $get('soaking_tray_count');
+        
+        if (!$recipeId || !$trayCount) {
+            return 'Select recipe and enter tray count to calculate seed quantity';
+        }
+        
+        $recipe = \App\Models\Recipe::find($recipeId);
+        if (!$recipe) {
+            return 'Recipe not found';
+        }
+        
+        if (!$recipe->seed_density_grams_per_tray) {
+            return 'Recipe does not specify seed density per tray';
+        }
+        
+        $totalSeed = $recipe->seed_density_grams_per_tray * $trayCount;
+        $perTray = $recipe->seed_density_grams_per_tray;
+        
+        return "**{$totalSeed}g total** ({$perTray}g per tray × {$trayCount} trays)";
     }
 } 

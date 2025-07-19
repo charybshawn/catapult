@@ -457,7 +457,18 @@ class ConsumableResource extends BaseResource
                 static::getCommonFilters()
             ))
             ->groups(static::getCommonGroups())
-            ->actions(static::getStandardTableActions())
+            ->actions([
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make()->tooltip('View record'),
+                    Tables\Actions\EditAction::make()->tooltip('Edit record'),
+                    Tables\Actions\DeleteAction::make()->tooltip('Delete record'),
+                ])
+                ->label('Actions')
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->size('sm')
+                ->color('gray')
+                ->button(),
+            ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     ...static::getStandardBulkActions(),

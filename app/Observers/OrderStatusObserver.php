@@ -212,10 +212,13 @@ class OrderStatusObserver
     {
         // Update crop stages if moving to harvesting
         if ($newStatus->code === OrderStatus::STATUS_HARVESTING) {
-            $order->crops()->where('current_stage', '!=', 'harvested')->each(function ($crop) {
+            $harvestedStage = \App\Models\CropStage::findByCode('harvested');
+            $harvestingStage = \App\Models\CropStage::findByCode('harvesting');
+            
+            $order->crops()->where('current_stage_id', '!=', $harvestedStage?->id)->each(function ($crop) use ($harvestingStage) {
                 // Only update if crop is ready to harvest
-                if ($crop->isReadyToHarvest()) {
-                    $crop->update(['current_stage' => 'harvesting']);
+                if ($crop->isReadyToHarvest() && $harvestingStage) {
+                    $crop->update(['current_stage_id' => $harvestingStage->id]);
                 }
             });
         }
@@ -233,7 +236,8 @@ class OrderStatusObserver
         // Handle cancellation cleanup
         if ($newStatus->code === OrderStatus::STATUS_CANCELLED) {
             // Cancel any pending crops
-            $order->crops()->where('current_stage', '!=', 'harvested')->update([
+            $harvestedStage = \App\Models\CropStage::findByCode('harvested');
+            $order->crops()->where('current_stage_id', '!=', $harvestedStage?->id)->update([
                 'cancelled_at' => now(),
                 'cancellation_reason' => 'Order cancelled'
             ]);

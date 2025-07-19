@@ -21,8 +21,9 @@ use Filament\Support\Enums\FontWeight;
 use Filament\Tables\Actions\Action;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Log;
+use App\Filament\Resources\BaseResource;
 
-class ProductInventoryResource extends Resource
+class ProductInventoryResource extends BaseResource
 {
     protected static ?string $model = ProductInventory::class;
 
@@ -159,10 +160,7 @@ class ProductInventoryResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->persistFiltersInSession()
-            ->persistSortInSession()
-            ->persistColumnSearchesInSession()
-            ->persistSearchInSession()            ->columns([
+            ->columns([
                 Tables\Columns\TextColumn::make('product.name')
                     ->label('Product')
                     ->searchable()
@@ -199,20 +197,9 @@ class ProductInventoryResource extends Resource
                     ->copyable()
                     ->copyMessage('SKU copied')
                     ->toggleable(),
-                Tables\Columns\TextInputColumn::make('quantity')
+                Tables\Columns\TextColumn::make('quantity')
                     ->label('Total Qty')
-                    ->type('number')
-                    ->step(function ($record) {
-                        $packagingType = $record->priceVariation?->packagingType;
-                        return $packagingType && $packagingType->allowsDecimalQuantity() ? 0.01 : 1;
-                    })
-                    ->rules(function ($record) {
-                        $packagingType = $record->priceVariation?->packagingType;
-                        if ($packagingType && $packagingType->allowsDecimalQuantity()) {
-                            return ['numeric', 'min:0'];
-                        }
-                        return ['integer', 'min:0'];
-                    })
+                    ->numeric(2)
                     ->sortable()
                     ->alignEnd(),
                 Tables\Columns\TextColumn::make('reserved_quantity')
@@ -246,7 +233,7 @@ class ProductInventoryResource extends Resource
                     ->toggleable(),
                 Tables\Columns\BadgeColumn::make('productInventoryStatus.name')
                     ->label('Status')
-                    ->colors(fn ($state) => match($state) {
+                    ->color(fn ($state) => match($state) {
                         'Active' => 'success',
                         'Depleted' => 'danger',
                         'Expired' => 'warning',
@@ -264,131 +251,24 @@ class ProductInventoryResource extends Resource
             ->defaultSort('created_at', 'desc')
             ->filters([
                 SelectFilter::make('product')
-                    ->relationship('product', 'name')
-                    ->searchable()
-                    ->preload(),
-                SelectFilter::make('product_inventory_status_id')
-                    ->label('Status')
+                    ->relationship('product', 'name'),
+                SelectFilter::make('status')
                     ->relationship('productInventoryStatus', 'name'),
-                SelectFilter::make('packaging_type')
-                    ->label('Packaging Type')
-                    ->relationship('priceVariation.packagingType', 'name', function ($query) {
-                        return $query->where('is_active', true);
-                    })
-                    ->getOptionLabelFromRecordUsing(fn ($record) => $record->display_name)
-                    ->searchable()
-                    ->preload(),
-                SelectFilter::make('price_variation')
-                    ->label('Price Variation')
-                    ->relationship('priceVariation', 'name')
-                    ->searchable()
-                    ->preload(),
-                Filter::make('low_stock')
-                    ->query(fn (Builder $query): Builder => $query->where('available_quantity', '>', 0)->where('available_quantity', '<=', 10))
-                    ->label('Low Stock'),
-                Filter::make('expiring_soon')
-                    ->query(fn (Builder $query): Builder => $query->expiringSoon(30))
-                    ->label('Expiring Soon (30 days)'),
             ])
             ->actions([
-                Action::make('quick_add')
-                    ->label(function (ProductInventory $record) {
-                        $packagingType = $record->priceVariation?->packagingType;
-                        if ($packagingType && $packagingType->allowsDecimalQuantity()) {
-                            return '+100g';
-                        }
-                        return '+10';
-                    })
-                    ->icon('heroicon-o-plus')
-                    ->color('success')
-                    ->size('sm')
-                    ->action(function (ProductInventory $record) {
-                        $packagingType = $record->priceVariation?->packagingType;
-                        $increment = ($packagingType && $packagingType->allowsDecimalQuantity()) ? 100 : 10;
-                        $unit = ($packagingType && $packagingType->allowsDecimalQuantity()) ? 'grams' : 'units';
-                        
-                        $record->update(['quantity' => $record->quantity + $increment]);
-                        Notification::make()
-                            ->title('Stock Added')
-                            ->body("Added {$increment} {$unit} to inventory")
-                            ->success()
-                            ->send();
-                    }),
-                Action::make('quick_subtract')
-                    ->label(function (ProductInventory $record) {
-                        $packagingType = $record->priceVariation?->packagingType;
-                        if ($packagingType && $packagingType->allowsDecimalQuantity()) {
-                            return '-100g';
-                        }
-                        return '-10';
-                    })
-                    ->icon('heroicon-o-minus')
-                    ->color('warning')
-                    ->size('sm')
-                    ->action(function (ProductInventory $record) {
-                        $packagingType = $record->priceVariation?->packagingType;
-                        $decrement = ($packagingType && $packagingType->allowsDecimalQuantity()) ? 100 : 10;
-                        $unit = ($packagingType && $packagingType->allowsDecimalQuantity()) ? 'grams' : 'units';
-                        
-                        $newQuantity = max(0, $record->quantity - $decrement);
-                        $record->update(['quantity' => $newQuantity]);
-                        Notification::make()
-                            ->title('Stock Removed')
-                            ->body("Removed {$decrement} {$unit} from inventory")
-                            ->success()
-                            ->send();
-                    }),
-                Action::make('adjust')
-                    ->label('Adjust')
-                    ->icon('heroicon-o-adjustments-horizontal')
-                    ->color('gray')
-                    ->size('sm')
-                    ->form([
-                        Forms\Components\TextInput::make('new_quantity')
-                            ->label('Set Quantity To')
-                            ->numeric()
-                            ->required()
-                            ->minValue(0)
-                            ->step(function (ProductInventory $record) {
-                                $packagingType = $record->priceVariation?->packagingType;
-                                return $packagingType && $packagingType->allowsDecimalQuantity() ? 0.01 : 1;
-                            })
-                            ->suffix(function (ProductInventory $record) {
-                                $packagingType = $record->priceVariation?->packagingType;
-                                return $packagingType ? $packagingType->getQuantityUnit() : 'units';
-                            })
-                            ->default(fn (ProductInventory $record) => $record->quantity),
-                        Forms\Components\Textarea::make('reason')
-                            ->label('Reason (Optional)')
-                            ->rows(2),
-                    ])
-                    ->action(function (ProductInventory $record, array $data) {
-                        $oldQuantity = $record->quantity;
-                        $record->update(['quantity' => $data['new_quantity']]);
-                        
-                        $change = $data['new_quantity'] - $oldQuantity;
-                        $changeText = $change > 0 ? "Added " . abs($change) : "Removed " . abs($change);
-                        
-                        Notification::make()
-                            ->title('Quantity Updated')
-                            ->body("{$changeText} units in inventory")
-                            ->success()
-                            ->send();
-                    }),
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make(),
+                    Tables\Actions\EditAction::make(),
+                ])
+                ->label('Actions')
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->size('sm')
+                ->color('gray')
+                ->button(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\BulkAction::make('mark_as_damaged')
-                        ->label('Mark as Damaged')
-                        ->icon('heroicon-o-exclamation-triangle')
-                        ->color('danger')
-                        ->requiresConfirmation()
-                        ->action(function ($records) {
-                            $damagedStatus = \App\Models\ProductInventoryStatus::where('code', 'damaged')->first();
-                            $records->each->update(['product_inventory_status_id' => $damagedStatus?->id]);
-                        }),
+                    Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])
             ->emptyStateHeading('No inventory batches')
@@ -417,7 +297,10 @@ class ProductInventoryResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->with(['product', 'priceVariation']);
+            ->with([
+                'product',
+                'priceVariation.packagingType.unitType'
+            ]);
     }
 
     public static function getGloballySearchableAttributes(): array

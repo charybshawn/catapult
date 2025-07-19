@@ -22,7 +22,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
-class OrderResource extends Resource
+class OrderResource extends BaseResource
 {
     protected static ?string $model = Order::class;
 
@@ -647,7 +647,12 @@ class OrderResource extends Resource
                     }),
             ])
             ->actions([
-                Tables\Actions\Action::make('generate_next_recurring')
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make()
+                        ->tooltip('View order details'),
+                    Tables\Actions\EditAction::make()
+                        ->tooltip('Edit order'),
+                    Tables\Actions\Action::make('generate_next_recurring')
                     ->label('Generate Next Order')
                     ->icon('heroicon-o-plus-circle')
                     ->color('success')
@@ -958,12 +963,14 @@ class OrderResource extends Resource
                         }
                     }),
                 
-                Tables\Actions\ViewAction::make()
-                    ->tooltip('View order details'),
-                Tables\Actions\EditAction::make()
-                    ->tooltip('Edit order'),
-                Tables\Actions\DeleteAction::make()
-                    ->tooltip('Delete order'),
+                    Tables\Actions\DeleteAction::make()
+                        ->tooltip('Delete order'),
+                ])
+                ->label('Actions')
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->size('sm')
+                ->color('gray')
+                ->button(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

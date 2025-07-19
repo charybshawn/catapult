@@ -19,6 +19,18 @@ class TimeTrackingMiddleware
         // Automatic time tracking has been disabled
         // Users now manually clock in/out using the time clock widget
         
-        return $next($request);
+        try {
+            return $next($request);
+        } catch (\Throwable $e) {
+            // Log the error to help debug the foreach() issue
+            \Illuminate\Support\Facades\Log::error('TimeTrackingMiddleware error: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            // Re-throw the exception to let Laravel handle it normally
+            throw $e;
+        }
     }
 }

@@ -106,12 +106,15 @@ class ListCrops extends ListRecords
      */
     protected function getActiveSoakingCount(): int
     {
-        return Crop::where('requires_soaking', true)
+        $soakingStage = \App\Models\CropStage::findByCode('soaking');
+        
+        if (!$soakingStage) {
+            return 0;
+        }
+
+        return Crop::where('current_stage_id', $soakingStage->id)
+            ->where('requires_soaking', true)
             ->whereNotNull('soaking_at')
-            ->where(function ($query) {
-                $query->whereNull('planting_at')
-                      ->orWhere('planting_at', '>', now());
-            })
             ->count();
     }
     
@@ -120,13 +123,16 @@ class ListCrops extends ListRecords
      */
     protected function hasOverdueSoaking(): bool
     {
+        $soakingStage = \App\Models\CropStage::findByCode('soaking');
+        
+        if (!$soakingStage) {
+            return false;
+        }
+
         $soakingCrops = Crop::with('recipe')
+            ->where('current_stage_id', $soakingStage->id)
             ->where('requires_soaking', true)
             ->whereNotNull('soaking_at')
-            ->where(function ($query) {
-                $query->whereNull('planting_at')
-                      ->orWhere('planting_at', '>', now());
-            })
             ->get();
             
         foreach ($soakingCrops as $crop) {

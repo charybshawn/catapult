@@ -22,9 +22,9 @@ class ActiveSoaking extends Page
     public $refreshInterval = 300;
 
     /**
-     * Get all crops currently in the soaking stage
+     * Get all soaking batches (crops grouped by batch)
      */
-    public function getActiveSoakingCrops(): Collection
+    public function getActiveSoakingBatches(): Collection
     {
         $soakingStage = CropStage::findByCode('soaking');
         
@@ -32,58 +32,123 @@ class ActiveSoaking extends Page
             return collect();
         }
 
-        return Crop::with(['recipe', 'currentStage'])
+        $crops = Crop::with(['recipe', 'currentStage'])
             ->where('current_stage_id', $soakingStage->id)
             ->where('requires_soaking', true)
             ->whereNotNull('soaking_at')
-            ->where(function ($query) {
-                $query->whereNull('planting_at')
-                      ->orWhere('planting_at', '>', now());
-            })
             ->orderBy('soaking_at')
-            ->get()
-            ->map(function ($crop) {
-                return $this->enrichCropData($crop);
-            });
+            ->get();
+
+        // Group crops by batch (recipe_id + soaking_at date + current_stage_id)
+        $batches = $crops->groupBy(function ($crop) {
+            return $crop->recipe_id . '_' . $crop->soaking_at->format('Y-m-d_H:i') . '_' . $crop->current_stage_id;
+        });
+
+        return $batches->map(function ($batchCrops, $batchKey) {
+            return $this->enrichBatchData($batchCrops);
+        })->values();
     }
 
     /**
-     * Enrich crop data with calculated soaking information
+     * Get all crops currently in the soaking stage (kept for backward compatibility)
      */
-    private function enrichCropData(Crop $crop): object
+    public function getActiveSoakingCrops(): Collection
     {
-        $soakingDuration = $crop->getSoakingDuration(); // in minutes
-        $timeRemaining = $crop->getSoakingTimeRemaining(); // in minutes
-        $elapsedMinutes = $crop->soaking_at->diffInMinutes(Carbon::now());
+        return $this->getActiveSoakingBatches();
+    }
+
+    /**
+     * Enrich batch data with calculated soaking information
+     */
+    private function enrichBatchData(Collection $batchCrops): object
+    {
+        $firstCrop = $batchCrops->first();
+        $recipe = $firstCrop->recipe;
         
-        $isOverdue = $timeRemaining !== null && $timeRemaining <= 0;
+        // Calculate soaking duration and timing directly to avoid filtering logic issues
+        $soakingDurationMinutes = $recipe && $recipe->seed_soak_hours ? $recipe->seed_soak_hours * 60 : null;
+        $elapsedMinutes = $firstCrop->soaking_at->diffInMinutes(Carbon::now());
+        
+        // Calculate time remaining directly
+        $timeRemaining = null;
+        if ($soakingDurationMinutes !== null) {
+            $timeRemaining = $soakingDurationMinutes - $elapsedMinutes;
+        }
+        
+        $isOverdue = $timeRemaining !== null && $timeRemaining < 0;
         $status = $isOverdue ? 'overdue' : 'on-time';
         
+        $trayCount = $batchCrops->count();
+        $trayNumbers = $batchCrops->pluck('tray_number')->sort()->values()->toArray();
+        
+        // Calculate total seed quantity
+        $seedPerTray = $recipe->seed_density_grams_per_tray ?? 0;
+        $totalSeedQuantity = $seedPerTray * $trayCount;
+        
         return (object) [
-            'id' => $crop->id,
-            'recipe_name' => $crop->recipe->name ?? 'Unknown Recipe',
-            'variety_name' => $crop->variety_name ?? 'Unknown Variety',
-            'tray_number' => $crop->tray_number,
-            'tray_count' => $crop->tray_count ?? 1,
-            'soaking_started_at' => $crop->soaking_at,
-            'soaking_duration_minutes' => $soakingDuration,
+            'batch_id' => $firstCrop->recipe_id . '_' . $firstCrop->soaking_at->format('Y-m-d_H:i'),
+            'recipe_id' => $firstCrop->recipe_id,
+            'recipe_name' => $recipe->name ?? 'Unknown Recipe',
+            'variety_name' => $this->getVarietyName($recipe),
+            'tray_count' => $trayCount,
+            'tray_numbers' => $trayNumbers,
+            'tray_numbers_formatted' => $this->formatTrayNumbers($trayNumbers),
+            'seed_quantity_per_tray' => $seedPerTray,
+            'total_seed_quantity' => $totalSeedQuantity,
+            'soaking_started_at' => $firstCrop->soaking_at,
+            'soaking_duration_minutes' => $soakingDurationMinutes,
             'time_remaining_minutes' => $timeRemaining,
             'elapsed_minutes' => $elapsedMinutes,
             'status' => $status,
             'is_overdue' => $isOverdue,
-            'formatted_start_time' => $crop->soaking_at->format('M j, Y g:i A'),
+            'formatted_start_time' => $firstCrop->soaking_at->format('M j, Y g:i A'),
             'formatted_elapsed_time' => $this->formatMinutesToHoursMinutes($elapsedMinutes),
             'formatted_remaining_time' => $timeRemaining !== null ? $this->formatMinutesToHoursMinutes($timeRemaining) : 'Unknown',
-            'formatted_total_duration' => $soakingDuration ? $this->formatMinutesToHoursMinutes($soakingDuration) : 'Unknown',
-            'progress_percentage' => $soakingDuration > 0 ? min(100, ($elapsedMinutes / $soakingDuration) * 100) : 0,
+            'formatted_total_duration' => $soakingDurationMinutes ? $this->formatMinutesToHoursMinutes($soakingDurationMinutes) : 'Unknown',
+            'progress_percentage' => $soakingDurationMinutes > 0 ? min(100, ($elapsedMinutes / $soakingDurationMinutes) * 100) : 0,
+            'crop_ids' => $batchCrops->pluck('id')->toArray(),
         ];
+    }
+
+    /**
+     * Get variety name from recipe
+     */
+    private function getVarietyName($recipe): string
+    {
+        if (!$recipe) {
+            return 'Unknown Variety';
+        }
+        
+        // Try to build variety name from recipe relationships
+        $varietyService = app(\App\Services\RecipeVarietyService::class);
+        return $varietyService->getFullVarietyName($recipe);
+    }
+
+    /**
+     * Format tray numbers for display
+     */
+    private function formatTrayNumbers(array $trayNumbers): string
+    {
+        if (empty($trayNumbers)) {
+            return 'No trays';
+        }
+        
+        if (count($trayNumbers) <= 3) {
+            return implode(', ', $trayNumbers);
+        }
+        
+        return implode(', ', array_slice($trayNumbers, 0, 2)) . ', ... +' . (count($trayNumbers) - 2) . ' more';
     }
 
     /**
      * Format minutes to human-readable hours and minutes
      */
-    private function formatMinutesToHoursMinutes(int $minutes): string
+    private function formatMinutesToHoursMinutes(?int $minutes): string
     {
+        if ($minutes === null) {
+            return 'Unknown';
+        }
+        
         if ($minutes < 0) {
             $minutes = abs($minutes);
             $prefix = 'Overdue by ';
@@ -110,13 +175,24 @@ class ActiveSoaking extends Page
      */
     public function getViewData(): array
     {
-        $crops = $this->getActiveSoakingCrops();
+        $batches = $this->getActiveSoakingBatches();
+        
+        // Separate overdue and on-time batches
+        $overdueBatches = $batches->where('is_overdue', true);
+        $onTimeBatches = $batches->where('is_overdue', false);
+        
+        // Calculate totals across all batches
+        $totalTrays = $batches->sum('tray_count');
         
         return [
-            'crops' => $crops,
-            'total_crops' => $crops->count(),
-            'overdue_crops' => $crops->where('is_overdue', true)->count(),
-            'on_time_crops' => $crops->where('is_overdue', false)->count(),
+            'crops' => $batches, // Keep same name for template compatibility
+            'batches' => $batches,
+            'overdue_batches' => $overdueBatches,
+            'on_time_batches' => $onTimeBatches,
+            'total_batches' => $batches->count(),
+            'total_crops' => $totalTrays, // Total trays across all batches
+            'overdue_crops' => $overdueBatches->count(),
+            'on_time_crops' => $onTimeBatches->count(),
             'last_updated' => Carbon::now()->format('M j, Y g:i A'),
         ];
     }
@@ -143,5 +219,43 @@ class ActiveSoaking extends Page
                     $this->redirect(request()->header('Referer'));
                 }),
         ];
+    }
+
+    /**
+     * Get the navigation badge for the soaking page
+     */
+    public static function getNavigationBadge(): ?string
+    {
+        $batches = (new static())->getActiveSoakingBatches();
+        $count = $batches->count();
+        
+        return $count > 0 ? (string) $count : null;
+    }
+
+    /**
+     * Get the navigation badge color
+     */
+    public static function getNavigationBadgeColor(): ?string
+    {
+        $batches = (new static())->getActiveSoakingBatches();
+        $overdueBatches = $batches->where('is_overdue', true)->count();
+        
+        if ($overdueBatches > 0) {
+            return 'danger'; // Red for overdue batches
+        }
+        
+        if ($batches->count() > 0) {
+            return 'primary'; // Blue for active batches
+        }
+        
+        return null;
+    }
+
+    /**
+     * Determine if this page should be registered in navigation
+     */
+    public static function shouldRegisterNavigation(): bool
+    {
+        return true; // Always show in navigation
     }
 }

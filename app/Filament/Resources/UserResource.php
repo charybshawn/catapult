@@ -18,7 +18,7 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
 
-class UserResource extends Resource
+class UserResource extends BaseResource
 {
     use HasConsistentSlideOvers, CsvExportAction;
 
@@ -131,9 +131,20 @@ class UserResource extends Resource
                     ->preload(),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make()
-                    ->visible(fn (User $record) => auth()->user()->hasRole('admin') && $record->id !== auth()->id()),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make()
+                        ->tooltip('View record'),
+                    Tables\Actions\EditAction::make()
+                        ->tooltip('Edit record'),
+                    Tables\Actions\DeleteAction::make()
+                        ->tooltip('Delete record')
+                        ->visible(fn (User $record) => auth()->user()->hasRole('admin') && $record->id !== auth()->id()),
+                ])
+                ->label('Actions')
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->size('sm')
+                ->color('gray')
+                ->button(),
             ])
             ->headerActions([
                 static::getCsvExportAction(),

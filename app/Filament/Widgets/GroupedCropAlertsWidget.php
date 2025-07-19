@@ -53,8 +53,9 @@ class GroupedCropAlertsWidget extends Widget
         ];
 
         // Get all active crops (not harvested) with their relationships
-        $crops = Crop::whereNotIn('current_stage', ['harvested'])
-            ->with(['recipe.masterSeedCatalog', 'recipe.masterCultivar.masterSeedCatalog', 'recipe'])
+        $harvestedStage = \App\Models\CropStage::findByCode('harvested');
+        $crops = Crop::where('current_stage_id', '!=', $harvestedStage?->id)
+            ->with(['recipe.masterSeedCatalog', 'recipe.masterCultivar.masterSeedCatalog', 'recipe', 'currentStage'])
             ->get();
 
         $varietyService = app(RecipeVarietyService::class);

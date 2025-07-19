@@ -211,10 +211,6 @@ class CropValidationService
             $errors[] = 'Tray count must be greater than zero';
         }
 
-        // Validate harvest weight
-        if ($crop->harvest_weight_grams !== null && $crop->harvest_weight_grams < 0) {
-            $errors[] = 'Harvest weight cannot be negative';
-        }
 
         // Validate recipe exists if recipe_id is set
         if ($crop->recipe_id && !$crop->recipe) {

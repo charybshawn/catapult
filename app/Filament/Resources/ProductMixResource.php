@@ -7,13 +7,13 @@ use App\Models\ProductMix;
 use App\Forms\Components\CompactRepeater;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use App\Filament\Resources\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use App\Services\RecipeVarietyService;
 
-class ProductMixResource extends Resource
+class ProductMixResource extends BaseResource
 {
     protected static ?string $model = ProductMix::class;
 
@@ -239,7 +239,7 @@ class ProductMixResource extends Resource
 
     public static function table(Table $table): Table
     {
-        return $table
+        return static::configureTableDefaults($table)
             ->persistFiltersInSession()
             ->persistSortInSession()
             ->persistColumnSearchesInSession()
@@ -328,36 +328,44 @@ class ProductMixResource extends Resource
                     ->query(fn (Builder $query) => $query->whereDoesntHave('masterSeedCatalogs')),
             ])
             ->actions([
-                Tables\Actions\EditAction::make()
-                    ->tooltip('Edit mix'),
-                Tables\Actions\Action::make('duplicate')
-                    ->label('Duplicate')
-                    ->icon('heroicon-o-document-duplicate')
-                    ->color('gray')
-                    ->tooltip('Create a copy of this mix')
-                    ->action(function (ProductMix $record) {
-                        $newMix = $record->replicate();
-                        $newMix->name = $record->name . ' (Copy)';
-                        $newMix->save();
-                        
-                        // Copy the seed varieties
-                        foreach ($record->masterSeedCatalogs as $catalog) {
-                            $newMix->masterSeedCatalogs()->attach($catalog->id, [
-                                'percentage' => $catalog->pivot->percentage,
-                                'cultivar' => $catalog->pivot->cultivar,
-                                'recipe_id' => $catalog->pivot->recipe_id,
-                            ]);
-                        }
-                        
-                        redirect(static::getUrl('edit', ['record' => $newMix]));
-                    }),
-                Tables\Actions\DeleteAction::make()
-                    ->tooltip('Delete mix')
-                    ->before(function (ProductMix $record) {
-                        if ($record->products()->count() > 0) {
-                            throw new \Exception('Cannot delete mix that is used by products.');
-                        }
-                    }),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make()->tooltip('View record'),
+                    Tables\Actions\EditAction::make()
+                        ->tooltip('Edit mix'),
+                    Tables\Actions\Action::make('duplicate')
+                        ->label('Duplicate')
+                        ->icon('heroicon-o-document-duplicate')
+                        ->color('gray')
+                        ->tooltip('Create a copy of this mix')
+                        ->action(function (ProductMix $record) {
+                            $newMix = $record->replicate();
+                            $newMix->name = $record->name . ' (Copy)';
+                            $newMix->save();
+                            
+                            // Copy the seed varieties
+                            foreach ($record->masterSeedCatalogs as $catalog) {
+                                $newMix->masterSeedCatalogs()->attach($catalog->id, [
+                                    'percentage' => $catalog->pivot->percentage,
+                                    'cultivar' => $catalog->pivot->cultivar,
+                                    'recipe_id' => $catalog->pivot->recipe_id,
+                                ]);
+                            }
+                            
+                            redirect(static::getUrl('edit', ['record' => $newMix]));
+                        }),
+                    Tables\Actions\DeleteAction::make()
+                        ->tooltip('Delete mix')
+                        ->before(function (ProductMix $record) {
+                            if ($record->products()->count() > 0) {
+                                throw new \Exception('Cannot delete mix that is used by products.');
+                            }
+                        }),
+                ])
+                ->label('Actions')
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->size('sm')
+                ->color('gray')
+                ->button(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

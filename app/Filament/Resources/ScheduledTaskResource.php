@@ -4,11 +4,11 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ScheduledTaskResource\Pages;
 use App\Models\ScheduledTask;
-use Filament\Resources\Resource;
+use App\Filament\Resources\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
 
-class ScheduledTaskResource extends Resource
+class ScheduledTaskResource extends BaseResource
 {
     protected static ?string $model = ScheduledTask::class;
 
@@ -36,7 +36,7 @@ class ScheduledTaskResource extends Resource
 
     public static function table(Table $table): Table
     {
-        return $table
+        return static::configureTableDefaults($table)
             ->persistFiltersInSession()
             ->persistSortInSession()
             ->persistColumnSearchesInSession()
@@ -107,9 +107,17 @@ class ScheduledTaskResource extends Resource
                     ->label('Task Type')
             ])
             ->actions([
-                Tables\Actions\ViewAction::make()
-                    ->label('View Details')
-                    ->icon('heroicon-o-eye'),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make()
+                        ->label('View Details')
+                        ->tooltip('View record')
+                        ->icon('heroicon-o-eye'),
+                ])
+                ->label('Actions')
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->size('sm')
+                ->color('gray')
+                ->button(),
             ])
             ->bulkActions([
                 // No bulk actions needed

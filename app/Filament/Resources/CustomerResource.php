@@ -9,7 +9,7 @@ use App\Models\CustomerType;
 use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use App\Filament\Resources\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Hash;
 use Filament\Forms\Get;
 
-class CustomerResource extends Resource
+class CustomerResource extends BaseResource
 {
     protected static ?string $model = Customer::class;
 
@@ -222,7 +222,7 @@ class CustomerResource extends Resource
 
     public static function table(Table $table): Table
     {
-        return $table
+        return static::configureTableDefaults($table)
             ->columns([
                 Tables\Columns\TextColumn::make('display_name')
                     ->label('Customer')
@@ -287,45 +287,54 @@ class CustomerResource extends Resource
                     ),
             ])
             ->actions([
-                Tables\Actions\Action::make('create_login')
-                    ->label('Create Login')
-                    ->icon('heroicon-o-key')
-                    ->color('success')
-                    ->visible(fn (Customer $record) => !$record->hasUserAccount())
-                    ->form([
-                        Forms\Components\TextInput::make('password')
-                            ->password()
-                            ->required()
-                            ->minLength(8)
-                            ->helperText('Minimum 8 characters'),
-                        Forms\Components\Toggle::make('send_credentials')
-                            ->label('Email credentials to customer')
-                            ->default(true),
-                    ])
-                    ->action(function (Customer $record, array $data): void {
-                        // Create user account for customer
-                        $user = User::create([
-                            'name' => $record->contact_name,
-                            'email' => $record->email,
-                            'password' => Hash::make($data['password']),
-                            'email_verified_at' => now(),
-                        ]);
-                        
-                        // Assign customer role
-                        $user->assignRole('customer');
-                        
-                        // Link to customer
-                        $record->update(['user_id' => $user->id]);
-                        
-                        // TODO: Send email if requested
-                        if ($data['send_credentials']) {
-                            // Implement email sending
-                        }
-                    })
-                    ->successNotificationTitle('Login created successfully'),
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make()
-                    ->visible(fn (Customer $record) => $record->orders()->count() === 0),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make()->tooltip('View record'),
+                    Tables\Actions\EditAction::make()->tooltip('Edit record'),
+                    Tables\Actions\Action::make('create_login')
+                        ->label('Create Login')
+                        ->icon('heroicon-o-key')
+                        ->color('success')
+                        ->visible(fn (Customer $record) => !$record->hasUserAccount())
+                        ->form([
+                            Forms\Components\TextInput::make('password')
+                                ->password()
+                                ->required()
+                                ->minLength(8)
+                                ->helperText('Minimum 8 characters'),
+                            Forms\Components\Toggle::make('send_credentials')
+                                ->label('Email credentials to customer')
+                                ->default(true),
+                        ])
+                        ->action(function (Customer $record, array $data): void {
+                            // Create user account for customer
+                            $user = User::create([
+                                'name' => $record->contact_name,
+                                'email' => $record->email,
+                                'password' => Hash::make($data['password']),
+                                'email_verified_at' => now(),
+                            ]);
+                            
+                            // Assign customer role
+                            $user->assignRole('customer');
+                            
+                            // Link to customer
+                            $record->update(['user_id' => $user->id]);
+                            
+                            // TODO: Send email if requested
+                            if ($data['send_credentials']) {
+                                // Implement email sending
+                            }
+                        })
+                        ->successNotificationTitle('Login created successfully'),
+                    Tables\Actions\DeleteAction::make()
+                        ->tooltip('Delete record')
+                        ->visible(fn (Customer $record) => $record->orders()->count() === 0),
+                ])
+                ->label('Actions')
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->size('sm')
+                ->color('gray')
+                ->button(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

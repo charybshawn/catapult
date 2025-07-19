@@ -86,11 +86,15 @@ class SettingsResource extends Resource
                                                     return 'Please select a recipe';
                                                 }
                                                 
+                                                $harvestedStage = \App\Models\CropStage::findByCode('harvested');
                                                 $query = Crop::where('recipe_id', $recipeId)
-                                                    ->where('current_stage', '!=', 'harvested');
+                                                    ->where('current_stage_id', '!=', $harvestedStage?->id);
                                                 
                                                 if ($stage !== 'all') {
-                                                    $query->where('current_stage', $stage);
+                                                    $stageRecord = \App\Models\CropStage::findByCode($stage);
+                                                    if ($stageRecord) {
+                                                        $query->where('current_stage_id', $stageRecord->id);
+                                                    }
                                                 }
                                                 
                                                 $count = $query->count();
