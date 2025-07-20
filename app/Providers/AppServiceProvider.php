@@ -89,6 +89,12 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(\App\Services\RecipeVarietyService::class, function ($app) {
             return new \App\Services\RecipeVarietyService();
         });
+        
+        // Register CropStageTransitionService as a singleton
+        $this->app->singleton(\App\Services\CropStageTransitionService::class);
+        
+        // Register CropStageValidationService as a singleton
+        $this->app->singleton(\App\Services\CropStageValidationService::class);
     }
 
     /**
