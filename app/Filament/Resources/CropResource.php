@@ -13,7 +13,6 @@ use Filament\Forms\Set;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Filament\Tables\Actions\Action;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -30,6 +29,7 @@ use App\Filament\Traits\HasTimestamps;
 use App\Filament\Traits\HasStandardActions;
 use Filament\Infolists;
 use Filament\Infolists\Infolist;
+use App\Filament\Resources\CropResource\Actions\StageTransitionActions;
 
 class CropResource extends BaseResource
 {
@@ -631,71 +631,6 @@ class CropResource extends BaseResource
                                 // Close the view modal and trigger the main advance stage action
                                 $livewire->mountTableAction('advanceStage', $record->id);
                             }),
-                        Tables\Actions\Action::make('rollback_stage')
-                            ->label('Rollback Stage')
-                            ->icon('heroicon-o-arrow-uturn-left')
-                            ->color('warning')
-                            ->visible(function ($record) {
-                                $stage = \App\Models\CropStage::find($record->current_stage_id);
-                                return $stage?->code !== 'germination';
-                            })
-                            ->action(function ($record) {
-                                // Get the real crop record for stage logic
-                                $realCrop = \App\Models\Crop::where('recipe_id', $record->recipe_id)
-                                    ->where('planting_at', $record->planting_at)
-                                    ->where('current_stage_id', $record->current_stage_id)
-                                    ->first();
-                                    
-                                if (!$realCrop) {
-                                    \Filament\Notifications\Notification::make()
-                                        ->title('Error')
-                                        ->body('Could not find crop record')
-                                        ->danger()
-                                        ->send();
-                                    return;
-                                }
-                                
-                                $currentStage = \App\Models\CropStage::find($realCrop->current_stage_id);
-                                $previousStage = $currentStage ? \App\Models\CropStage::where('sort_order', '<', $currentStage->sort_order)
-                                    ->where('is_active', true)
-                                    ->orderBy('sort_order', 'desc')
-                                    ->first() : null;
-                                
-                                if (!$previousStage) {
-                                    \Filament\Notifications\Notification::make()
-                                        ->title('Cannot Rollback')
-                                        ->body('This crop is already at the first stage.')
-                                        ->warning()
-                                        ->send();
-                                    return;
-                                }
-
-                                // Find all crops in this batch
-                                $crops = \App\Models\Crop::with('recipe')
-                                    ->where('recipe_id', $realCrop->recipe_id)
-                                    ->where('planting_at', $realCrop->planting_at)
-                                    ->where('current_stage_id', $realCrop->current_stage_id)
-                                    ->get();
-                                
-                                $count = $crops->count();
-                                
-                                // Update all crops in this batch
-                                foreach ($crops as $crop) {
-                                    // Clear the timestamp for the current stage
-                                    $timestampField = "{$currentStage->code}_at";
-                                    $crop->$timestampField = null;
-                                    
-                                    // Set the previous stage
-                                    $crop->current_stage_id = $previousStage->id;
-                                    $crop->save();
-                                }
-                                
-                                \Filament\Notifications\Notification::make()
-                                    ->title('Batch Rolled Back')
-                                    ->body("Successfully rolled back {$count} tray(s) to {$previousStage->name}.")
-                                    ->success()
-                                    ->send();
-                            }),
                         Tables\Actions\Action::make('edit_crop')
                             ->label('Edit Crop')
                             ->icon('heroicon-o-pencil-square')
@@ -873,343 +808,9 @@ class CropResource extends BaseResource
                             ->send();
                     }),
                 
-                Action::make('advanceStage')
-                    ->label(function ($record): string {
-                        $currentStage = \App\Models\CropStage::find($record->current_stage_id);
-                        $nextStage = $currentStage ? \App\Models\CropStage::where('sort_order', '>', $currentStage->sort_order)
-                            ->where('is_active', true)
-                            ->orderBy('sort_order')
-                            ->first() : null;
-                        return $nextStage ? 'Advance to ' . ucfirst($nextStage->name) : 'Harvested';
-                    })
-                    ->icon('heroicon-o-chevron-double-right')
-                    ->color('success')
-                    ->visible(function ($record): bool {
-                        $stage = \App\Models\CropStage::find($record->current_stage_id);
-                        return $stage?->code !== 'harvested';
-                    })
-                    ->requiresConfirmation()
-                    ->modalHeading(function ($record): string {
-                        $currentStage = \App\Models\CropStage::find($record->current_stage_id);
-                        $nextStage = $currentStage ? \App\Models\CropStage::where('sort_order', '>', $currentStage->sort_order)
-                            ->where('is_active', true)
-                            ->orderBy('sort_order')
-                            ->first() : null;
-                        return 'Advance to ' . ucfirst($nextStage?->name ?? 'Unknown') . '?';
-                    })
-                    ->modalDescription(function ($record): string {
-                        $currentStage = \App\Models\CropStage::find($record->current_stage_id);
-                        if ($currentStage?->code === 'soaking') {
-                            // Find all crops in this batch
-                            $crops = Crop::where('recipe_id', $record->recipe_id)
-                                ->where('planting_at', $record->planting_at)
-                                ->where('current_stage_id', $record->current_stage_id)
-                                ->get();
-                            
-                            $count = $crops->count();
-                            return "This will advance {$count} soaking tray(s) to germination. You'll need to assign real tray numbers to replace the temporary SOAKING-X identifiers.";
-                        }
-                        return 'This will update the current stage of all crops in this batch.';
-                    })
-                    ->form(function ($record): array {
-                        $currentStage = \App\Models\CropStage::find($record->current_stage_id);
-                        $isSoaking = $currentStage?->code === 'soaking';
-                        
-                        $formElements = [
-                            Forms\Components\DateTimePicker::make('advancement_timestamp')
-                                ->label('When did this advancement occur?')
-                                ->default(now())
-                                ->seconds(false)
-                                ->required()
-                                ->maxDate(now())
-                                ->helperText('Specify the actual time when the stage advancement happened'),
-                        ];
-                        
-                        // If advancing from soaking to germination, add tray number fields
-                        if ($isSoaking) {
-                            // Find all crops in this batch
-                            $crops = Crop::where('recipe_id', $record->recipe_id)
-                                ->where('planting_at', $record->planting_at)
-                                ->where('current_stage_id', $record->current_stage_id)
-                                ->orderBy('tray_number')
-                                ->get();
-                            
-                            if ($crops->count() > 0) {
-                                $formElements[] = Forms\Components\Section::make('Assign Real Tray Numbers')
-                                    ->description('Replace the temporary SOAKING-X identifiers with actual tray numbers. Each tray in the batch needs a unique identifier.')
-                                    ->schema(function() use ($crops) {
-                                        $fields = [];
-                                        foreach ($crops as $index => $crop) {
-                                            $fields[] = Forms\Components\TextInput::make("tray_numbers.{$crop->id}")
-                                                ->label("Tray currently labeled as: {$crop->tray_number}")
-                                                ->placeholder('Enter real tray number')
-                                                ->required()
-                                                ->maxLength(20)
-                                                ->helperText('Enter the actual tray number/identifier')
-                                                ->rules([
-                                                    'required', 
-                                                    'string', 
-                                                    'max:20',
-                                                    function () {
-                                                        return function (string $attribute, $value, $fail) {
-                                                            // Check if this tray number already exists in active crops
-                                                            $exists = Crop::whereHas('currentStage', function($query) {
-                                                                $query->where('code', '!=', 'harvested');
-                                                            })
-                                                            ->where('tray_number', $value)
-                                                            ->exists();
-                                                            
-                                                            if ($exists) {
-                                                                $fail("Tray number {$value} is already in use by another active crop.");
-                                                            }
-                                                        };
-                                                    }
-                                                ]);
-                                        }
-                                        return $fields;
-                                    })
-                                    ->columns(1);
-                            }
-                        }
-                        
-                        return $formElements;
-                    })
-                    ->action(function ($record, array $data) {
-                        $currentStage = \App\Models\CropStage::find($record->current_stage_id);
-                        $nextStage = $currentStage ? \App\Models\CropStage::where('sort_order', '>', $currentStage->sort_order)
-                            ->where('is_active', true)
-                            ->orderBy('sort_order')
-                            ->first() : null;
-                        
-                        if (!$nextStage) {
-                            \Filament\Notifications\Notification::make()
-                                ->title('Already Harvested')
-                                ->body('This crop has already reached its final stage.')
-                                ->warning()
-                                ->send();
-                            return;
-                        }
-
-                        // Begin transaction for safety
-                        DB::beginTransaction();
-                        
-                        try {
-                            // Find all crops in this batch with eager loading to avoid lazy loading violations
-                            $crops = Crop::with('recipe')
-                                ->where('recipe_id', $record->recipe_id)
-                                ->where('planting_at', $record->planting_at)
-                                ->where('current_stage_id', $record->current_stage_id)
-                                ->get();
-                            
-                            $count = $crops->count();
-                            $isSoakingToGermination = $currentStage->code === 'soaking' && $nextStage->code === 'germination';
-                            
-                            // Update all crops in this batch
-                            $advancementTime = $data['advancement_timestamp'];
-                            foreach ($crops as $crop) {
-                                // If advancing from soaking to germination, update tray numbers
-                                if ($isSoakingToGermination && isset($data['tray_numbers'][$crop->id])) {
-                                    $crop->tray_number = $data['tray_numbers'][$crop->id];
-                                }
-                                
-                                $timestampField = "{$nextStage->code}_at";
-                                $crop->current_stage_id = $nextStage->id;
-                                $crop->$timestampField = $advancementTime;
-                                $crop->save();
-                                
-                                // Deactivate the corresponding TaskSchedule
-                                $task = \App\Models\TaskSchedule::where('resource_type', 'crops')
-                                    ->where('conditions->crop_id', $crop->id)
-                                    ->where('conditions->target_stage', $nextStage)
-                                    ->where('is_active', true)
-                                    ->first();
-                                    
-                                if ($task) {
-                                    $task->update([
-                                        'is_active' => false,
-                                        'last_run_at' => now(),
-                                    ]);
-                                }
-                            }
-                            
-                            DB::commit();
-                            
-                            $message = "Successfully advanced {$count} tray(s) to {$nextStage->name}";
-                            if ($isSoakingToGermination) {
-                                $message .= " and assigned real tray numbers";
-                            }
-                            $message .= ".";
-                            
-                            \Filament\Notifications\Notification::make()
-                                ->title('Batch Advanced')
-                                ->body($message)
-                                ->success()
-                                ->send();
-                        } catch (\Exception $e) {
-                            DB::rollBack();
-                            
-                            \Filament\Notifications\Notification::make()
-                                ->title('Error')
-                                ->body('Failed to advance stage: ' . $e->getMessage())
-                                ->danger()
-                                ->send();
-                        }
-                    }),
-                Action::make('harvest')
-                    ->label('Harvest')
-                    ->icon('heroicon-o-scissors')
-                    ->color('success')
-                    ->visible(function ($record): bool {
-                        $stage = \App\Models\CropStage::find($record->current_stage_id);
-                        return $stage?->code === 'light';
-                    })
-                    ->requiresConfirmation()
-                    ->modalHeading('Harvest Crop?')
-                    ->modalDescription('This will mark all crops in this batch as harvested.')
-                    ->form([
-                        Forms\Components\DateTimePicker::make('harvest_timestamp')
-                            ->label('When was this harvested?')
-                            ->default(now())
-                            ->seconds(false)
-                            ->required()
-                            ->maxDate(now())
-                            ->helperText('Specify the actual time when the harvest occurred'),
-                    ])
-                    ->action(function (Crop $record, array $data) {
-                        // Begin transaction for safety
-                        DB::beginTransaction();
-                        
-                        try {
-                            // Find all crops in this batch with eager loading to avoid lazy loading violations
-                            $crops = Crop::with('recipe')
-                                ->where('recipe_id', $record->recipe_id)
-                                ->where('planting_at', $record->planting_at)
-                                ->where('current_stage_id', $record->current_stage_id)
-                                ->get();
-                            
-                            $count = $crops->count();
-                            $trayNumbers = $crops->pluck('tray_number')->toArray();
-                            
-                            // Update all crops in this batch
-                            $harvestTime = $data['harvest_timestamp'];
-                            $harvestedStage = \App\Models\CropStage::findByCode('harvested');
-                            foreach ($crops as $crop) {
-                                $crop->current_stage_id = $harvestedStage->id;
-                                $crop->harvested_at = $harvestTime;
-                                $crop->save();
-                                
-                                // Deactivate any active task schedules for this crop
-                                \App\Models\TaskSchedule::where('resource_type', 'crops')
-                                    ->where('conditions->crop_id', $crop->id)
-                                    ->where('is_active', true)
-                                    ->update([
-                                        'is_active' => false,
-                                        'last_run_at' => now(),
-                                    ]);
-                            }
-                            
-                            DB::commit();
-                            
-                            \Filament\Notifications\Notification::make()
-                                ->title('Batch Harvested')
-                                ->body("Successfully harvested {$count} tray(s).")
-                                ->success()
-                                ->send();
-                        } catch (\Exception $e) {
-                            DB::rollBack();
-                            
-                            \Filament\Notifications\Notification::make()
-                                ->title('Error')
-                                ->body('Failed to harvest batch: ' . $e->getMessage())
-                                ->danger()
-                                ->send();
-                        }
-                    }),
-                Action::make('rollbackStage')
-                    ->label(function ($record): string {
-                        $currentStage = \App\Models\CropStage::find($record->current_stage_id);
-                        $previousStage = $currentStage ? \App\Models\CropStage::where('sort_order', '<', $currentStage->sort_order)
-                            ->where('is_active', true)
-                            ->orderBy('sort_order', 'desc')
-                            ->first() : null;
-                        return $previousStage ? 'Rollback to ' . ucfirst($previousStage->name) : 'Cannot Rollback';
-                    })
-                    ->icon('heroicon-o-arrow-uturn-left')
-                    ->color('warning')
-                    ->visible(function ($record): bool {
-                        $stage = \App\Models\CropStage::find($record->current_stage_id);
-                        return $stage?->code !== 'germination';
-                    })
-                    ->requiresConfirmation()
-                    ->modalHeading(function ($record): string {
-                        $currentStage = \App\Models\CropStage::find($record->current_stage_id);
-                        $previousStage = $currentStage ? \App\Models\CropStage::where('sort_order', '<', $currentStage->sort_order)
-                            ->where('is_active', true)
-                            ->orderBy('sort_order', 'desc')
-                            ->first() : null;
-                        return 'Rollback to ' . ucfirst($previousStage?->name ?? 'Unknown') . '?';
-                    })
-                    ->modalDescription('This will revert all crops in this batch to the previous stage by removing the current stage timestamp.')
-                    ->action(function ($record) {
-                        $currentStage = \App\Models\CropStage::find($record->current_stage_id);
-                        $previousStage = $currentStage ? \App\Models\CropStage::where('sort_order', '<', $currentStage->sort_order)
-                            ->where('is_active', true)
-                            ->orderBy('sort_order', 'desc')
-                            ->first() : null;
-                        
-                        if (!$previousStage) {
-                            \Filament\Notifications\Notification::make()
-                                ->title('Cannot Rollback')
-                                ->body('This crop is already at the first stage.')
-                                ->warning()
-                                ->send();
-                            return;
-                        }
-
-                        // Begin transaction for safety
-                        DB::beginTransaction();
-                        
-                        try {
-                            // Find all crops in this batch with eager loading to avoid lazy loading violations
-                            $crops = Crop::with('recipe')
-                                ->where('recipe_id', $record->recipe_id)
-                                ->where('planting_at', $record->planting_at)
-                                ->where('current_stage_id', $record->current_stage_id)
-                                ->get();
-                            
-                            $count = $crops->count();
-                            $trayNumbers = $crops->pluck('tray_number')->toArray();
-                            
-                            // Update all crops in this batch
-                            foreach ($crops as $crop) {
-                                // Clear the timestamp for the current stage
-                                $stage = \App\Models\CropStage::find($record->current_stage_id);
-                                $currentTimestampField = "{$stage->code}_at";
-                                $crop->$currentTimestampField = null;
-                                
-                                // Set the previous stage
-                                $crop->current_stage_id = $previousStage->id;
-                                
-                                $crop->save();
-                            }
-                            
-                            DB::commit();
-                            
-                            \Filament\Notifications\Notification::make()
-                                ->title('Batch Rolled Back')
-                                ->body("Successfully rolled back {$count} tray(s) to {$previousStage}.")
-                                ->success()
-                                ->send();
-                        } catch (\Exception $e) {
-                            DB::rollBack();
-                            
-                            \Filament\Notifications\Notification::make()
-                                ->title('Error')
-                                ->body('Failed to rollback stage: ' . $e->getMessage())
-                                ->danger()
-                                ->send();
-                        }
-                    }),
+                StageTransitionActions::advanceStage(),
+                StageTransitionActions::harvest(),
+                StageTransitionActions::rollbackStage(),
                 Action::make('suspendWatering')
                     ->label('Suspend Watering')
                     ->icon('heroicon-o-no-symbol')
@@ -1363,68 +964,64 @@ class CropResource extends BaseResource
                                 ->helperText('Specify the actual time when the stage advancement happened'),
                         ])
                         ->action(function ($records, array $data) {
+                            $transitionService = app(\App\Services\CropStageTransitionService::class);
                             $totalCount = 0;
                             $batchCount = 0;
+                            $successfulBatches = 0;
+                            $failedBatches = 0;
+                            $warnings = [];
                             
-                            DB::beginTransaction();
-                            try {
-                                foreach ($records as $record) {
-                                    $stage = \App\Models\CropStage::find($record->current_stage_id);
-                                    if ($stage?->code !== 'harvested') {
-                                        // Find ALL crops in this batch
-                                        $crops = Crop::with('recipe')
-                                            ->where('recipe_id', $record->recipe_id)
-                                            ->where('planting_at', $record->planting_at)
-                                            ->where('current_stage_id', $record->current_stage_id)
-                                            ->get();
-                                        
-                                        $currentStage = \App\Models\CropStage::find($record->current_stage_id);
-                                        $nextStage = $currentStage ? \App\Models\CropStage::where('sort_order', '>', $currentStage->sort_order)
-                                            ->where('is_active', true)
-                                            ->orderBy('sort_order')
-                                            ->first() : null;
-                                        if ($nextStage) {
-                                            $advancementTime = $data['advancement_timestamp'];
-                                            foreach ($crops as $crop) {
-                                                $timestampField = "{$nextStage->code}_at";
-                                                $crop->current_stage_id = $nextStage->id;
-                                                $crop->$timestampField = $advancementTime;
-                                                $crop->save();
-                                                
-                                                // Deactivate the corresponding TaskSchedule
-                                                $task = \App\Models\TaskSchedule::where('resource_type', 'crops')
-                                                    ->where('conditions->crop_id', $crop->id)
-                                                    ->where('conditions->target_stage', $nextStage)
-                                                    ->where('is_active', true)
-                                                    ->first();
-                                                    
-                                                if ($task) {
-                                                    $task->update([
-                                                        'is_active' => false,
-                                                        'last_run_at' => now(),
-                                                    ]);
-                                                }
-                                            }
-                                            $totalCount += $crops->count();
-                                            $batchCount++;
-                                        }
+                            $transitionTime = \Carbon\Carbon::parse($data['advancement_timestamp']);
+                            
+                            foreach ($records as $record) {
+                                try {
+                                    // Use the first crop from the batch as the transition target
+                                    // The service will automatically find all crops in the batch
+                                    $result = $transitionService->advanceStage($record, $transitionTime);
+                                    
+                                    $totalCount += $result['affected_count'];
+                                    $batchCount++;
+                                    $successfulBatches++;
+                                    
+                                    if (!empty($result['warnings'])) {
+                                        $warnings = array_merge($warnings, $result['warnings']);
                                     }
+                                } catch (\Illuminate\Validation\ValidationException $e) {
+                                    $failedBatches++;
+                                    $warnings[] = "Batch {$record->batch_number}: " . implode(', ', $e->errors()['stage'] ?? $e->errors()['target'] ?? ['Unknown error']);
+                                } catch (\Exception $e) {
+                                    $failedBatches++;
+                                    $warnings[] = "Batch {$record->batch_number}: " . $e->getMessage();
                                 }
-                                
-                                DB::commit();
-                                
+                            }
+                            
+                            // Build notification message
+                            $message = "Successfully advanced {$successfulBatches} batch(es) containing {$totalCount} tray(s).";
+                            if ($failedBatches > 0) {
+                                $message .= " Failed to advance {$failedBatches} batch(es).";
+                            }
+                            
+                            if ($successfulBatches > 0) {
                                 \Filament\Notifications\Notification::make()
                                     ->title('Batches Advanced')
-                                    ->body("Successfully advanced {$batchCount} batch(es) containing {$totalCount} tray(s) to the next stage.")
+                                    ->body($message)
                                     ->success()
                                     ->send();
-                            } catch (\Exception $e) {
-                                DB::rollBack();
-                                
+                            } else {
                                 \Filament\Notifications\Notification::make()
-                                    ->title('Error')
-                                    ->body('Failed to advance batches: ' . $e->getMessage())
+                                    ->title('No Batches Advanced')
+                                    ->body($message)
                                     ->danger()
+                                    ->send();
+                            }
+                            
+                            // Show warnings if any
+                            if (!empty($warnings)) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Warnings')
+                                    ->body(implode("\n", array_slice($warnings, 0, 5)) . (count($warnings) > 5 ? "\n...and " . (count($warnings) - 5) . " more" : ''))
+                                    ->warning()
+                                    ->persistent()
                                     ->send();
                             }
                         })
@@ -1435,66 +1032,86 @@ class CropResource extends BaseResource
                         ->label('Rollback Stage')
                         ->icon('heroicon-o-arrow-uturn-left')
                         ->color('warning')
-                        ->action(function ($records) {
+                        ->form([
+                            Forms\Components\Textarea::make('reason')
+                                ->label('Reason for rollback (optional)')
+                                ->rows(3)
+                                ->helperText('Provide a reason for rolling back these batches'),
+                        ])
+                        ->action(function ($records, array $data) {
+                            $transitionService = app(\App\Services\CropStageTransitionService::class);
                             $totalCount = 0;
                             $batchCount = 0;
+                            $successfulBatches = 0;
+                            $failedBatches = 0;
                             $skippedCount = 0;
+                            $warnings = [];
                             
-                            DB::beginTransaction();
-                            try {
-                                foreach ($records as $record) {
-                                    $currentStage = \App\Models\CropStage::find($record->current_stage_id);
-                                    $previousStage = $currentStage ? \App\Models\CropStage::where('sort_order', '<', $currentStage->sort_order)
-                                        ->where('is_active', true)
-                                        ->orderBy('sort_order', 'desc')
-                                        ->first() : null;
-                                    if (!$previousStage) {
+                            $reason = $data['reason'] ?? null;
+                            
+                            foreach ($records as $record) {
+                                try {
+                                    // Use the first crop from the batch as the transition target
+                                    // The service will automatically find all crops in the batch
+                                    $result = $transitionService->revertStage($record, $reason);
+                                    
+                                    $totalCount += $result['affected_count'];
+                                    $batchCount++;
+                                    $successfulBatches++;
+                                    
+                                    if (!empty($result['warnings'])) {
+                                        $warnings = array_merge($warnings, $result['warnings']);
+                                    }
+                                } catch (\Illuminate\Validation\ValidationException $e) {
+                                    $errors = $e->errors();
+                                    if (isset($errors['stage']) && str_contains($errors['stage'][0], 'already at first stage')) {
                                         $skippedCount++;
-                                        continue;
+                                    } else {
+                                        $failedBatches++;
+                                        $warnings[] = "Batch {$record->batch_number}: " . implode(', ', $errors['stage'] ?? $errors['target'] ?? ['Unknown error']);
                                     }
-                                    
-                                    // Find ALL crops in this batch
-                                    $crops = Crop::with('recipe')
-                                        ->where('recipe_id', $record->recipe_id)
-                                        ->where('planting_at', $record->planting_at)
-                                        ->where('current_stage_id', $record->current_stage_id)
-                                        ->get();
-                                    
-                                    if ($crops->isNotEmpty()) {
-                                        foreach ($crops as $crop) {
-                                            // Clear the timestamp for the current stage
-                                            $currentTimestampField = "{$crop->currentStage?->code}_at";
-                                            $crop->$currentTimestampField = null;
-                                            
-                                            // Set the previous stage
-                                            $crop->current_stage_id = $previousStage->id;
-                                            
-                                            $crop->save();
-                                        }
-                                        $totalCount += $crops->count();
-                                        $batchCount++;
-                                    }
+                                } catch (\Exception $e) {
+                                    $failedBatches++;
+                                    $warnings[] = "Batch {$record->batch_number}: " . $e->getMessage();
                                 }
-                                
-                                DB::commit();
-                                
-                                $message = "Successfully rolled back {$batchCount} batch(es) containing {$totalCount} tray(s).";
-                                if ($skippedCount > 0) {
-                                    $message .= " Skipped {$skippedCount} batch(es) already at first stage.";
-                                }
-                                
+                            }
+                            
+                            // Build notification message
+                            $message = "Successfully rolled back {$successfulBatches} batch(es) containing {$totalCount} tray(s).";
+                            if ($skippedCount > 0) {
+                                $message .= " Skipped {$skippedCount} batch(es) already at first stage.";
+                            }
+                            if ($failedBatches > 0) {
+                                $message .= " Failed to rollback {$failedBatches} batch(es).";
+                            }
+                            
+                            if ($successfulBatches > 0) {
                                 \Filament\Notifications\Notification::make()
                                     ->title('Batches Rolled Back')
                                     ->body($message)
                                     ->success()
                                     ->send();
-                            } catch (\Exception $e) {
-                                DB::rollBack();
-                                
+                            } else if ($skippedCount > 0) {
                                 \Filament\Notifications\Notification::make()
-                                    ->title('Error')
-                                    ->body('Failed to rollback batches: ' . $e->getMessage())
+                                    ->title('No Changes Made')
+                                    ->body($message)
+                                    ->warning()
+                                    ->send();
+                            } else {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Rollback Failed')
+                                    ->body($message)
                                     ->danger()
+                                    ->send();
+                            }
+                            
+                            // Show warnings if any
+                            if (!empty($warnings)) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Warnings')
+                                    ->body(implode("\n", array_slice($warnings, 0, 5)) . (count($warnings) > 5 ? "\n...and " . (count($warnings) - 5) . " more" : ''))
+                                    ->warning()
+                                    ->persistent()
                                     ->send();
                             }
                         })

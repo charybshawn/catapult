@@ -443,4 +443,17 @@ class Crop extends Model
         return $taskManagementService->calculateExpectedHarvestDate($this);
     }
 
+    /**
+     * Advance this crop to the next stage
+     * Delegates to CropStageTransitionService to maintain consistency
+     * 
+     * @param \Carbon\Carbon|null $timestamp When the transition occurred (defaults to now)
+     * @return void
+     */
+    public function advanceStage(?\Carbon\Carbon $timestamp = null): void
+    {
+        $transitionService = app(\App\Services\CropStageTransitionService::class);
+        $transitionService->advanceStage($this, $timestamp ?? \Carbon\Carbon::now());
+    }
+
 }

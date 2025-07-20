@@ -6,6 +6,7 @@ use App\Models\Crop;
 use App\Models\CropStage;
 use App\Models\NotificationSetting;
 use App\Models\TaskSchedule;
+use App\Services\CropStageTransitionService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
@@ -211,62 +212,32 @@ class CropTaskManagementService
     /**
      * Advance a crop to the next stage in its lifecycle
      * IMPORTANT: This advances ALL crops in the batch to maintain batch integrity
+     * 
+     * This method now delegates to CropStageTransitionService for consistency
+     * while maintaining backward compatibility for existing callers
      */
     public function advanceStage(Crop $crop, ?Carbon $timestamp = null): void
     {
-        // Ensure currentStage and recipe are loaded
-        if (!$crop->relationLoaded('currentStage')) {
-            $crop->load('currentStage');
-        }
-        if (!$crop->relationLoaded('recipe')) {
-            $crop->load('recipe');
-        }
-
-        // Get the next viable stage based on recipe (skipping stages with 0 days)
-        $currentStageObject = $crop->getRelationValue('currentStage');
-        $nextStage = $currentStageObject?->getNextViableStage($crop->recipe);
-        
-        if (!$nextStage) {
-            Log::warning('Cannot advance crop beyond final stage', [
-                'crop_id' => $crop->id,
-                'current_stage_id' => $crop->current_stage_id,
-                'current_stage_code' => $currentStageObject?->code
-            ]);
-            return;
-        }
-
-        // Find ALL crops in this batch to maintain batch integrity
-        $batchCrops = $this->findBatchCrops($crop);
-
-        $advancementTime = $timestamp ?? Carbon::now();
-        $count = 0;
-        
-        // Advance all crops in the batch together
-        foreach ($batchCrops as $batchCrop) {
-            $batchCrop->current_stage_id = $nextStage->id;
+        try {
+            $transitionService = app(CropStageTransitionService::class);
+            $result = $transitionService->advanceStage($crop, $timestamp ?? Carbon::now());
             
-            // Set stage-specific timestamps
-            match ($nextStage->code) {
-                'soaking' => $batchCrop->soaking_at = $advancementTime,
-                'germination' => $batchCrop->germination_at = $advancementTime,
-                'blackout' => $batchCrop->blackout_at = $advancementTime,
-                'light' => $batchCrop->light_at = $advancementTime,
-                'harvested' => $batchCrop->harvested_at = $advancementTime,
-                default => null
-            };
-
-            $batchCrop->save();
-            $count++;
+            // Log for backward compatibility
+            Log::info('Crop batch stage advanced', [
+                'initiating_crop_id' => $crop->id,
+                'batch_size' => $result['affected_count'] ?? 0,
+                'recipe_id' => $crop->recipe_id,
+                'planting_at' => $crop->planting_at,
+                'from_stage' => $result['from_stage'] ?? null,
+                'to_stage' => $result['to_stage'] ?? null
+            ]);
+        } catch (\Exception $e) {
+            // Log the error but don't throw to maintain backward compatibility
+            Log::warning('Failed to advance crop stage', [
+                'crop_id' => $crop->id,
+                'error' => $e->getMessage()
+            ]);
         }
-
-        Log::info('Crop batch stage advanced', [
-            'initiating_crop_id' => $crop->id,
-            'batch_size' => $count,
-            'recipe_id' => $crop->recipe_id,
-            'planting_at' => $crop->planting_at,
-            'from_stage' => $currentStageObject?->code,
-            'to_stage' => $nextStage->code
-        ]);
     }
 
     /**
