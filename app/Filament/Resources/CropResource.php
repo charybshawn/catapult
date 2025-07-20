@@ -627,59 +627,9 @@ class CropResource extends BaseResource
                                 $stage = \App\Models\CropStage::find($record->current_stage_id);
                                 return $stage?->code !== 'harvested';
                             })
-                            ->action(function ($record) {
-                                // Get the real crop record for stage logic
-                                $realCrop = \App\Models\Crop::where('recipe_id', $record->recipe_id)
-                                    ->where('planting_at', $record->planting_at)
-                                    ->where('current_stage_id', $record->current_stage_id)
-                                    ->first();
-                                    
-                                if (!$realCrop) {
-                                    \Filament\Notifications\Notification::make()
-                                        ->title('Error')
-                                        ->body('Could not find crop record')
-                                        ->danger()
-                                        ->send();
-                                    return;
-                                }
-                                
-                                $currentStage = \App\Models\CropStage::find($realCrop->current_stage_id);
-                                $nextStage = $currentStage ? \App\Models\CropStage::where('sort_order', '>', $currentStage->sort_order)
-                                    ->where('is_active', true)
-                                    ->orderBy('sort_order')
-                                    ->first() : null;
-                                
-                                if (!$nextStage) {
-                                    \Filament\Notifications\Notification::make()
-                                        ->title('Already Harvested')
-                                        ->body('This crop has already reached its final stage.')
-                                        ->warning()
-                                        ->send();
-                                    return;
-                                }
-
-                                // Find all crops in this batch
-                                $crops = \App\Models\Crop::with('recipe')
-                                    ->where('recipe_id', $realCrop->recipe_id)
-                                    ->where('planting_at', $realCrop->planting_at)
-                                    ->where('current_stage_id', $realCrop->current_stage_id)
-                                    ->get();
-                                
-                                $count = $crops->count();
-                                
-                                // Update all crops in this batch
-                                foreach ($crops as $crop) {
-                                    $timestampField = "{$nextStage->code}_at";
-                                    $crop->current_stage_id = $nextStage->id;
-                                    $crop->$timestampField = now();
-                                    $crop->save();
-                                }
-                                
-                                \Filament\Notifications\Notification::make()
-                                    ->title('Batch Advanced')
-                                    ->body("Successfully advanced {$count} tray(s) to {$nextStage->name}.")
-                                    ->success()
-                                    ->send();
+                            ->action(function ($record, $livewire) {
+                                // Close the view modal and trigger the main advance stage action
+                                $livewire->mountTableAction('advanceStage', $record->id);
                             }),
                         Tables\Actions\Action::make('rollback_stage')
                             ->label('Rollback Stage')
@@ -947,16 +897,83 @@ class CropResource extends BaseResource
                             ->first() : null;
                         return 'Advance to ' . ucfirst($nextStage?->name ?? 'Unknown') . '?';
                     })
-                    ->modalDescription('This will update the current stage of all crops in this batch.')
-                    ->form([
-                        Forms\Components\DateTimePicker::make('advancement_timestamp')
-                            ->label('When did this advancement occur?')
-                            ->default(now())
-                            ->seconds(false)
-                            ->required()
-                            ->maxDate(now())
-                            ->helperText('Specify the actual time when the stage advancement happened'),
-                    ])
+                    ->modalDescription(function ($record): string {
+                        $currentStage = \App\Models\CropStage::find($record->current_stage_id);
+                        if ($currentStage?->code === 'soaking') {
+                            // Find all crops in this batch
+                            $crops = Crop::where('recipe_id', $record->recipe_id)
+                                ->where('planting_at', $record->planting_at)
+                                ->where('current_stage_id', $record->current_stage_id)
+                                ->get();
+                            
+                            $count = $crops->count();
+                            return "This will advance {$count} soaking tray(s) to germination. You'll need to assign real tray numbers to replace the temporary SOAKING-X identifiers.";
+                        }
+                        return 'This will update the current stage of all crops in this batch.';
+                    })
+                    ->form(function ($record): array {
+                        $currentStage = \App\Models\CropStage::find($record->current_stage_id);
+                        $isSoaking = $currentStage?->code === 'soaking';
+                        
+                        $formElements = [
+                            Forms\Components\DateTimePicker::make('advancement_timestamp')
+                                ->label('When did this advancement occur?')
+                                ->default(now())
+                                ->seconds(false)
+                                ->required()
+                                ->maxDate(now())
+                                ->helperText('Specify the actual time when the stage advancement happened'),
+                        ];
+                        
+                        // If advancing from soaking to germination, add tray number fields
+                        if ($isSoaking) {
+                            // Find all crops in this batch
+                            $crops = Crop::where('recipe_id', $record->recipe_id)
+                                ->where('planting_at', $record->planting_at)
+                                ->where('current_stage_id', $record->current_stage_id)
+                                ->orderBy('tray_number')
+                                ->get();
+                            
+                            if ($crops->count() > 0) {
+                                $formElements[] = Forms\Components\Section::make('Assign Real Tray Numbers')
+                                    ->description('Replace the temporary SOAKING-X identifiers with actual tray numbers. Each tray in the batch needs a unique identifier.')
+                                    ->schema(function() use ($crops) {
+                                        $fields = [];
+                                        foreach ($crops as $index => $crop) {
+                                            $fields[] = Forms\Components\TextInput::make("tray_numbers.{$crop->id}")
+                                                ->label("Tray currently labeled as: {$crop->tray_number}")
+                                                ->placeholder('Enter real tray number')
+                                                ->required()
+                                                ->maxLength(20)
+                                                ->helperText('Enter the actual tray number/identifier')
+                                                ->rules([
+                                                    'required', 
+                                                    'string', 
+                                                    'max:20',
+                                                    function () {
+                                                        return function (string $attribute, $value, $fail) {
+                                                            // Check if this tray number already exists in active crops
+                                                            $exists = Crop::whereHas('currentStage', function($query) {
+                                                                $query->where('code', '!=', 'harvested');
+                                                            })
+                                                            ->where('tray_number', $value)
+                                                            ->exists();
+                                                            
+                                                            if ($exists) {
+                                                                $fail("Tray number {$value} is already in use by another active crop.");
+                                                            }
+                                                        };
+                                                    }
+                                                ]);
+                                        }
+                                        return $fields;
+                                    })
+                                    ->columns(1);
+                            }
+                        }
+                        
+                        return $formElements;
+                    })
                     ->action(function ($record, array $data) {
                         $currentStage = \App\Models\CropStage::find($record->current_stage_id);
                         $nextStage = $currentStage ? \App\Models\CropStage::where('sort_order', '>', $currentStage->sort_order)
@@ -985,11 +1002,16 @@ class CropResource extends BaseResource
                                 ->get();
                             
                             $count = $crops->count();
-                            $trayNumbers = $crops->pluck('tray_number')->toArray();
+                            $isSoakingToGermination = $currentStage->code === 'soaking' && $nextStage->code === 'germination';
                             
                             // Update all crops in this batch
                             $advancementTime = $data['advancement_timestamp'];
                             foreach ($crops as $crop) {
+                                // If advancing from soaking to germination, update tray numbers
+                                if ($isSoakingToGermination && isset($data['tray_numbers'][$crop->id])) {
+                                    $crop->tray_number = $data['tray_numbers'][$crop->id];
+                                }
+                                
                                 $timestampField = "{$nextStage->code}_at";
                                 $crop->current_stage_id = $nextStage->id;
                                 $crop->$timestampField = $advancementTime;
@@ -1012,9 +1034,15 @@ class CropResource extends BaseResource
                             
                             DB::commit();
                             
+                            $message = "Successfully advanced {$count} tray(s) to {$nextStage->name}";
+                            if ($isSoakingToGermination) {
+                                $message .= " and assigned real tray numbers";
+                            }
+                            $message .= ".";
+                            
                             \Filament\Notifications\Notification::make()
                                 ->title('Batch Advanced')
-                                ->body("Successfully advanced {$count} tray(s) to {$nextStage}.")
+                                ->body($message)
                                 ->success()
                                 ->send();
                         } catch (\Exception $e) {
@@ -1310,6 +1338,21 @@ class CropResource extends BaseResource
                     Tables\Actions\BulkAction::make('advance_stage_bulk')
                         ->label('Advance Stage')
                         ->icon('heroicon-o-arrow-right')
+                        ->before(function ($records, $action) {
+                            // Check if any of the selected batches are in soaking stage
+                            foreach ($records as $record) {
+                                $stage = \App\Models\CropStage::find($record->current_stage_id);
+                                if ($stage?->code === 'soaking') {
+                                    \Filament\Notifications\Notification::make()
+                                        ->title('Cannot Bulk Advance Soaking Crops')
+                                        ->body('Crops in the soaking stage require individual tray number assignment. Please use the individual "Advance Stage" action for each soaking batch.')
+                                        ->warning()
+                                        ->send();
+                                    $action->cancel();
+                                    return;
+                                }
+                            }
+                        })
                         ->form([
                             Forms\Components\DateTimePicker::make('advancement_timestamp')
                                 ->label('When did this advancement occur?')

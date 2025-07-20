@@ -33,6 +33,7 @@ class Crop extends Model
      * @var array<int, string>
      */
     protected $fillable = [
+        'batch_id',
         'recipe_id',
         'order_id',
         'crop_plan_id',

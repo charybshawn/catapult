@@ -32,7 +32,7 @@ class ActiveSoaking extends Page
             return collect();
         }
 
-        $crops = Crop::with(['recipe', 'currentStage'])
+        $crops = Crop::with(['recipe.masterCultivar.masterSeedCatalog', 'recipe.masterSeedCatalog', 'currentStage'])
             ->where('current_stage_id', $soakingStage->id)
             ->where('requires_soaking', true)
             ->whereNotNull('soaking_at')

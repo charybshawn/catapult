@@ -86,7 +86,8 @@ class CreateCrop extends BaseCreateRecord
             'recipe_requires_soaking' => $recipe ? $recipe->requiresSoaking() : 'no recipe',
             'soaking_tray_count' => $data['soaking_tray_count'] ?? 'none',
             'tray_numbers_count' => count($trayNumbers),
-            'tray_numbers_empty' => empty($trayNumbers)
+            'tray_numbers_empty' => empty($trayNumbers),
+            'will_generate_batch_id' => $recipe && $recipe->requiresSoaking()
         ]);
         
         // Remove form-specific fields from the data
@@ -130,6 +131,22 @@ class CreateCrop extends BaseCreateRecord
             $createdRecords = [];
             $plantedAt = Carbon::parse($data['planting_at']);
             
+            // Generate batch_id for soaking crops to link them together
+            // This ensures all crops created in the same soaking session share the same batch_id
+            $batchId = null;
+            if ($recipe && $recipe->requiresSoaking()) {
+                // Generate unique batch_id using recipe_id and timestamp
+                // Format: BATCH-{recipe_id}-{timestamp}
+                $timestamp = now()->format('YmdHis');
+                $batchId = "BATCH-{$recipe->id}-{$timestamp}";
+                
+                Log::debug("Generated batch_id for soaking crops", [
+                    'batch_id' => $batchId,
+                    'recipe_id' => $recipe->id,
+                    'tray_count' => count($trayNumbers)
+                ]);
+            }
+            
             // Enable bulk operation mode to prevent memory issues from model events
             Crop::enableBulkOperation();
             
@@ -151,10 +168,16 @@ class CreateCrop extends BaseCreateRecord
                     'total_age_minutes' => 0,
                     'total_age_status' => '0m',
                 ]);
+                
+                // Add batch_id if this is a soaking crop
+                if ($batchId) {
+                    $cropData['batch_id'] = $batchId;
+                }
                 $crop = Crop::create($cropData);
                 $createdRecords[] = [
                     'id' => $crop->id,
-                    'tray_number' => $crop->tray_number
+                    'tray_number' => $crop->tray_number,
+                    'batch_id' => $crop->batch_id ?? null
                 ];
                 
                 if (!$firstCrop) {
@@ -296,6 +319,11 @@ class CreateCrop extends BaseCreateRecord
             if ($recipe && $recipe->requiresSoaking() && $recipe->seed_density_grams_per_tray) {
                 $totalSeedUsed = $recipe->seed_density_grams_per_tray * $trayCount;
                 $notificationBody .= " Seed used: {$totalSeedUsed}g total.";
+                
+                // Add batch_id to notification for soaking crops
+                if ($batchId) {
+                    $notificationBody .= " Batch ID: {$batchId}";
+                }
             }
             
             Notification::make()
