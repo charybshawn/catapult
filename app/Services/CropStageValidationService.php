@@ -56,7 +56,15 @@ class CropStageValidationService
      */
     public function canAdvanceToStage(Crop $crop, CropStage $targetStage, Carbon $transitionTime): array
     {
-        $currentStage = $crop->currentStage;
+        $currentStage = CropStage::find($crop->current_stage_id);
+        if (!$currentStage) {
+            return [
+                'valid' => false,
+                'errors' => ['Current stage not found'],
+                'warnings' => []
+            ];
+        }
+        
         $errors = [];
 
         // Check if transition is allowed
@@ -104,7 +112,15 @@ class CropStageValidationService
      */
     public function canRevertToStage(Crop $crop, CropStage $targetStage): array
     {
-        $currentStage = $crop->currentStage;
+        $currentStage = CropStage::find($crop->current_stage_id);
+        if (!$currentStage) {
+            return [
+                'valid' => false,
+                'errors' => ['Current stage not found'],
+                'warnings' => []
+            ];
+        }
+        
         $errors = [];
 
         // Check if reversion is allowed
