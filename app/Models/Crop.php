@@ -33,7 +33,7 @@ class Crop extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'batch_id',
+        'crop_batch_id',
         'recipe_id',
         'order_id',
         'crop_plan_id',
@@ -111,6 +111,14 @@ class Crop extends Model
     public function currentStage(): BelongsTo
     {
         return $this->belongsTo(CropStage::class, 'current_stage_id');
+    }
+    
+    /**
+     * Get the batch this crop belongs to.
+     */
+    public function batch(): BelongsTo
+    {
+        return $this->belongsTo(CropBatch::class, 'crop_batch_id');
     }
     
     /**

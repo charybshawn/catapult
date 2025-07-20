@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Filament\Notifications\Notification;
 use Carbon\Carbon;
+use App\Models\CropBatch;
 
 class CreateCrop extends BaseCreateRecord
 {
@@ -87,7 +88,7 @@ class CreateCrop extends BaseCreateRecord
             'soaking_tray_count' => $data['soaking_tray_count'] ?? 'none',
             'tray_numbers_count' => count($trayNumbers),
             'tray_numbers_empty' => empty($trayNumbers),
-            'will_generate_batch_id' => $recipe && $recipe->requiresSoaking()
+            'will_generate_crop_batch_id' => $recipe && $recipe->requiresSoaking()
         ]);
         
         // Remove form-specific fields from the data
@@ -131,17 +132,19 @@ class CreateCrop extends BaseCreateRecord
             $createdRecords = [];
             $plantedAt = Carbon::parse($data['planting_at']);
             
-            // Generate batch_id for soaking crops to link them together
-            // This ensures all crops created in the same soaking session share the same batch_id
-            $batchId = null;
+            // Create a batch record for soaking crops to link them together
+            // This ensures all crops created in the same soaking session share the same crop_batch_id
+            $cropBatchId = null;
             if ($recipe && $recipe->requiresSoaking()) {
-                // Generate unique batch_id using recipe_id and timestamp
-                // Format: BATCH-{recipe_id}-{timestamp}
-                $timestamp = now()->format('YmdHis');
-                $batchId = "BATCH-{$recipe->id}-{$timestamp}";
+                // Create a new batch record and get the auto-increment ID
+                $batch = CropBatch::create([
+                    'recipe_id' => $recipe->id,
+                ]);
                 
-                Log::debug("Generated batch_id for soaking crops", [
-                    'batch_id' => $batchId,
+                $cropBatchId = $batch->id;
+                
+                Log::debug("Created batch for soaking crops", [
+                    'crop_batch_id' => $cropBatchId,
                     'recipe_id' => $recipe->id,
                     'tray_count' => count($trayNumbers)
                 ]);
@@ -169,15 +172,15 @@ class CreateCrop extends BaseCreateRecord
                     'total_age_status' => '0m',
                 ]);
                 
-                // Add batch_id if this is a soaking crop
-                if ($batchId) {
-                    $cropData['batch_id'] = $batchId;
+                // Add crop_batch_id if this is a soaking crop
+                if ($cropBatchId) {
+                    $cropData['crop_batch_id'] = $cropBatchId;
                 }
                 $crop = Crop::create($cropData);
                 $createdRecords[] = [
                     'id' => $crop->id,
                     'tray_number' => $crop->tray_number,
-                    'batch_id' => $crop->batch_id ?? null
+                    'crop_batch_id' => $crop->crop_batch_id ?? null
                 ];
                 
                 if (!$firstCrop) {
@@ -320,9 +323,9 @@ class CreateCrop extends BaseCreateRecord
                 $totalSeedUsed = $recipe->seed_density_grams_per_tray * $trayCount;
                 $notificationBody .= " Seed used: {$totalSeedUsed}g total.";
                 
-                // Add batch_id to notification for soaking crops
-                if ($batchId) {
-                    $notificationBody .= " Batch ID: {$batchId}";
+                // Add crop_batch_id to notification for soaking crops
+                if ($cropBatchId) {
+                    $notificationBody .= " Batch ID: {$cropBatchId}";
                 }
             }
             
