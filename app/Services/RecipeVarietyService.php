@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
-use App\Models\Recipe;
 use App\Models\Crop;
 use App\Models\CropPlan;
+use App\Models\Recipe;
 
 /**
  * Service to handle recipe variety information consistently
@@ -18,144 +18,133 @@ class RecipeVarietyService
      */
     public function getFullVarietyName(?Recipe $recipe): string
     {
-        if (!$recipe) {
+        if (! $recipe) {
             return 'Unknown';
         }
-        
-<<<<<<< Updated upstream
+
         // Load relationships if not already loaded
-        if (!$recipe->relationLoaded('masterCultivar')) {
+        if (! $recipe->relationLoaded('masterCultivar')) {
             $recipe->load('masterCultivar');
         }
-        if (!$recipe->relationLoaded('masterSeedCatalog')) {
+        if (! $recipe->relationLoaded('masterSeedCatalog')) {
             $recipe->load('masterSeedCatalog');
         }
-        
+
         // Try to get from relationships first
         if ($recipe->masterCultivar && $recipe->masterSeedCatalog) {
-=======
-        // Try to get from relationships first (only if loaded to avoid lazy loading)
-        if ($recipe->relationLoaded('masterCultivar') && $recipe->relationLoaded('masterSeedCatalog') && 
-            $recipe->masterCultivar && $recipe->masterSeedCatalog) {
->>>>>>> Stashed changes
             $commonName = $recipe->masterSeedCatalog->common_name;
             $cultivarName = $recipe->masterCultivar->cultivar_name;
-            return $commonName . ' (' . $cultivarName . ')';
+
+            return $commonName.' ('.$cultivarName.')';
         }
-        
+
         // If masterCultivar exists but no masterSeedCatalog, check if masterCultivar has its own masterSeedCatalog
         if ($recipe->relationLoaded('masterCultivar') && $recipe->masterCultivar) {
             $cultivarName = $recipe->masterCultivar->cultivar_name;
-            
+
             // Load the masterSeedCatalog relationship on cultivar if needed
-            if (!$recipe->masterCultivar->relationLoaded('masterSeedCatalog')) {
+            if (! $recipe->masterCultivar->relationLoaded('masterSeedCatalog')) {
                 $recipe->masterCultivar->load('masterSeedCatalog');
             }
-            
+
             if ($recipe->masterCultivar->masterSeedCatalog) {
                 $commonName = $recipe->masterCultivar->masterSeedCatalog->common_name;
-                return $commonName . ' (' . $cultivarName . ')';
+
+                return $commonName.' ('.$cultivarName.')';
             }
-            
+
             // Fallback to just cultivar name if no seed catalog available
             return $cultivarName;
         }
-        
+
         // If only masterSeedCatalog is available
         if ($recipe->relationLoaded('masterSeedCatalog') && $recipe->masterSeedCatalog) {
             return $recipe->masterSeedCatalog->common_name;
         }
-        
+
         // Fallback to direct fields if relationships not loaded
         if ($recipe->cultivar_name) {
             $commonName = $recipe->common_name ?? 'Unknown';
-            return $commonName . ' (' . $recipe->cultivar_name . ')';
+
+            return $commonName.' ('.$recipe->cultivar_name.')';
         }
-        
+
         return $recipe->common_name ?? 'Unknown';
     }
-    
+
     /**
      * Get just the common name for a recipe
      */
     public function getCommonName(?Recipe $recipe): string
     {
-        if (!$recipe) {
+        if (! $recipe) {
             return 'Unknown';
         }
-        
-<<<<<<< Updated upstream
+
         // Load relationship if not already loaded
-        if (!$recipe->relationLoaded('masterSeedCatalog')) {
+        if (! $recipe->relationLoaded('masterSeedCatalog')) {
             $recipe->load('masterSeedCatalog');
         }
-        
+
         if ($recipe->masterSeedCatalog) {
-=======
-        if ($recipe->relationLoaded('masterSeedCatalog') && $recipe->masterSeedCatalog) {
->>>>>>> Stashed changes
             return $recipe->masterSeedCatalog->common_name;
         }
-        
+
         return $recipe->common_name ?? 'Unknown';
     }
-    
+
     /**
      * Get just the cultivar name for a recipe
      */
     public function getCultivarName(?Recipe $recipe): ?string
     {
-        if (!$recipe) {
+        if (! $recipe) {
             return null;
         }
-        
-<<<<<<< Updated upstream
+
         // Load relationship if not already loaded
-        if (!$recipe->relationLoaded('masterCultivar')) {
+        if (! $recipe->relationLoaded('masterCultivar')) {
             $recipe->load('masterCultivar');
         }
-        
+
         if ($recipe->masterCultivar) {
-=======
-        if ($recipe->relationLoaded('masterCultivar') && $recipe->masterCultivar) {
->>>>>>> Stashed changes
             return $recipe->masterCultivar->cultivar_name;
         }
-        
+
         return $recipe->cultivar_name;
     }
-    
+
     /**
      * Get variety name for a crop
      */
     public function getCropVarietyName(Crop $crop): string
     {
         // Load recipe relationship if not already loaded
-        if (!$crop->relationLoaded('recipe')) {
+        if (! $crop->relationLoaded('recipe')) {
             $crop->load('recipe');
         }
-        
-        if (!$crop->recipe) {
+
+        if (! $crop->recipe) {
             return 'Unknown';
         }
-        
+
         return $this->getFullVarietyName($crop->recipe);
     }
-    
+
     /**
      * Get variety name for a crop plan
      */
     public function getCropPlanVarietyName(CropPlan $cropPlan): string
     {
         // Load recipe relationship if not already loaded
-        if (!$cropPlan->relationLoaded('recipe')) {
+        if (! $cropPlan->relationLoaded('recipe')) {
             $cropPlan->load('recipe');
         }
-        
-        if (!$cropPlan->recipe) {
+
+        if (! $cropPlan->recipe) {
             return 'Unknown';
         }
-        
+
         return $this->getFullVarietyName($cropPlan->recipe);
     }
 }
