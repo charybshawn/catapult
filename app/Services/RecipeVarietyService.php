@@ -22,6 +22,7 @@ class RecipeVarietyService
             return 'Unknown';
         }
         
+<<<<<<< Updated upstream
         // Load relationships if not already loaded
         if (!$recipe->relationLoaded('masterCultivar')) {
             $recipe->load('masterCultivar');
@@ -32,13 +33,18 @@ class RecipeVarietyService
         
         // Try to get from relationships first
         if ($recipe->masterCultivar && $recipe->masterSeedCatalog) {
+=======
+        // Try to get from relationships first (only if loaded to avoid lazy loading)
+        if ($recipe->relationLoaded('masterCultivar') && $recipe->relationLoaded('masterSeedCatalog') && 
+            $recipe->masterCultivar && $recipe->masterSeedCatalog) {
+>>>>>>> Stashed changes
             $commonName = $recipe->masterSeedCatalog->common_name;
             $cultivarName = $recipe->masterCultivar->cultivar_name;
             return $commonName . ' (' . $cultivarName . ')';
         }
         
         // If masterCultivar exists but no masterSeedCatalog, check if masterCultivar has its own masterSeedCatalog
-        if ($recipe->masterCultivar) {
+        if ($recipe->relationLoaded('masterCultivar') && $recipe->masterCultivar) {
             $cultivarName = $recipe->masterCultivar->cultivar_name;
             
             // Load the masterSeedCatalog relationship on cultivar if needed
@@ -56,7 +62,7 @@ class RecipeVarietyService
         }
         
         // If only masterSeedCatalog is available
-        if ($recipe->masterSeedCatalog) {
+        if ($recipe->relationLoaded('masterSeedCatalog') && $recipe->masterSeedCatalog) {
             return $recipe->masterSeedCatalog->common_name;
         }
         
@@ -78,12 +84,16 @@ class RecipeVarietyService
             return 'Unknown';
         }
         
+<<<<<<< Updated upstream
         // Load relationship if not already loaded
         if (!$recipe->relationLoaded('masterSeedCatalog')) {
             $recipe->load('masterSeedCatalog');
         }
         
         if ($recipe->masterSeedCatalog) {
+=======
+        if ($recipe->relationLoaded('masterSeedCatalog') && $recipe->masterSeedCatalog) {
+>>>>>>> Stashed changes
             return $recipe->masterSeedCatalog->common_name;
         }
         
@@ -99,12 +109,16 @@ class RecipeVarietyService
             return null;
         }
         
+<<<<<<< Updated upstream
         // Load relationship if not already loaded
         if (!$recipe->relationLoaded('masterCultivar')) {
             $recipe->load('masterCultivar');
         }
         
         if ($recipe->masterCultivar) {
+=======
+        if ($recipe->relationLoaded('masterCultivar') && $recipe->masterCultivar) {
+>>>>>>> Stashed changes
             return $recipe->masterCultivar->cultivar_name;
         }
         
