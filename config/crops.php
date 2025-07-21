@@ -24,7 +24,7 @@ return [
         /**
          * Blackout stage duration in days.
          */
-        'blackout' => (int) env('CROP_BLACKOUT_DAYS', 3),
+        'blackout' => (int) env('CROP_BLACKOUT_DAYS', 0),
 
         /**
          * Light stage duration in days.

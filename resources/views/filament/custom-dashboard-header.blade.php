@@ -531,7 +531,7 @@
                                         
                                         <div>
                                             <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Planted Date</div>
-                                            <div class="text-gray-900 dark:text-white">{{ $alert->planting_at ? \Carbon\Carbon::parse($alert->planting_at)->format('M j, Y') : 'Unknown' }}</div>
+                                            <div class="text-gray-900 dark:text-white">{{ $alert->germinating_at ? \Carbon\Carbon::parse($alert->germinating_at)->format('M j, Y') : 'Unknown' }}</div>
                                         </div>
                                         
                                         <div>
