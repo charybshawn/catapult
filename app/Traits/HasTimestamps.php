@@ -113,9 +113,9 @@ trait HasTimestamps
      *
      * @return int
      */
-    public function getAgeInDaysAttribute(): int
+    public function getAgeInDaysAttribute(): ?int
     {
-        return $this->created_at->diffInDays(Carbon::now());
+        return $this->created_at ? $this->created_at->diffInDays(Carbon::now()) : null;
     }
 
     /**
@@ -123,9 +123,9 @@ trait HasTimestamps
      *
      * @return string
      */
-    public function getTimeSinceUpdateAttribute(): string
+    public function getTimeSinceUpdateAttribute(): ?string
     {
-        return $this->updated_at->diffForHumans();
+        return $this->updated_at ? $this->updated_at->diffForHumans() : null;
     }
 
     /**
@@ -133,9 +133,9 @@ trait HasTimestamps
      *
      * @return string
      */
-    public function getTimeSinceCreationAttribute(): string
+    public function getTimeSinceCreationAttribute(): ?string
     {
-        return $this->created_at->diffForHumans();
+        return $this->created_at ? $this->created_at->diffForHumans() : null;
     }
 
     /**
@@ -145,7 +145,7 @@ trait HasTimestamps
      */
     public function wasCreatedToday(): bool
     {
-        return $this->created_at->isToday();
+        return $this->created_at ? $this->created_at->isToday() : false;
     }
 
     /**
@@ -155,7 +155,7 @@ trait HasTimestamps
      */
     public function wasUpdatedToday(): bool
     {
-        return $this->updated_at->isToday();
+        return $this->updated_at ? $this->updated_at->isToday() : false;
     }
 
     /**
@@ -166,7 +166,7 @@ trait HasTimestamps
      */
     public function wasCreatedWithinDays(int $days): bool
     {
-        return $this->created_at->diffInDays(Carbon::now()) <= $days;
+        return $this->created_at ? $this->created_at->diffInDays(Carbon::now()) <= $days : false;
     }
 
     /**
@@ -177,7 +177,7 @@ trait HasTimestamps
      */
     public function wasUpdatedWithinDays(int $days): bool
     {
-        return $this->updated_at->diffInDays(Carbon::now()) <= $days;
+        return $this->updated_at ? $this->updated_at->diffInDays(Carbon::now()) <= $days : false;
     }
 
     /**
@@ -186,9 +186,9 @@ trait HasTimestamps
      * @param string $format
      * @return string
      */
-    public function getFormattedCreatedDate(string $format = 'Y-m-d H:i:s'): string
+    public function getFormattedCreatedDate(string $format = 'Y-m-d H:i:s'): ?string
     {
-        return $this->created_at->format($format);
+        return $this->created_at ? $this->created_at->format($format) : null;
     }
 
     /**
@@ -197,9 +197,9 @@ trait HasTimestamps
      * @param string $format
      * @return string
      */
-    public function getFormattedUpdatedDate(string $format = 'Y-m-d H:i:s'): string
+    public function getFormattedUpdatedDate(string $format = 'Y-m-d H:i:s'): ?string
     {
-        return $this->updated_at->format($format);
+        return $this->updated_at ? $this->updated_at->format($format) : null;
     }
 
     /**

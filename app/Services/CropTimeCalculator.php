@@ -84,16 +84,21 @@ class CropTimeCalculator
     }
 
     /**
-     * Calculate the total age of the crop since planting (in minutes)
+     * Calculate the total age of the crop (in minutes)
      */
     public function calculateTotalAge(Crop $crop): ?int
     {
-        if (!$crop->planting_at) {
-            return null;
+        // For soaking crops, calculate from soaking_at
+        if ($crop->requires_soaking && $crop->soaking_at) {
+            return (int) Carbon::parse($crop->soaking_at)->diffInMinutes(Carbon::now());
         }
-
-        // Calculate minutes FROM planted time TO now (positive value)
-        return (int) Carbon::parse($crop->planting_at)->diffInMinutes(Carbon::now());
+        
+        // For regular crops, calculate from germination_at
+        if ($crop->germination_at) {
+            return (int) Carbon::parse($crop->germination_at)->diffInMinutes(Carbon::now());
+        }
+        
+        return null;
     }
 
     /**
@@ -208,10 +213,11 @@ class CropTimeCalculator
     private function getCurrentStageStartTime(Crop $crop): ?Carbon
     {
         $timestamp = match ($crop->current_stage) {
-            'germination' => $crop->planting_at,
-            'blackout' => $crop->germination_at,
-            'light' => $crop->blackout_at,
-            'harvested' => $crop->light_at,
+            'soaking' => $crop->soaking_at,
+            'germination' => $crop->germination_at,
+            'blackout' => $crop->blackout_at,
+            'light' => $crop->light_at,
+            'harvested' => $crop->harvested_at,
             default => null
         };
 
@@ -221,7 +227,7 @@ class CropTimeCalculator
     /**
      * Get the expected duration for the current stage in days
      */
-    private function getExpectedStageDuration(Crop $crop): ?int
+    private function getExpectedStageDuration(Crop $crop): ?float
     {
         // Ensure recipe is loaded to avoid lazy loading violations
         if (!$crop->relationLoaded('recipe')) {
@@ -233,8 +239,9 @@ class CropTimeCalculator
         }
 
         return match ($crop->current_stage) {
+            'soaking' => $crop->recipe->seed_soak_hours ? ($crop->recipe->seed_soak_hours / 24) : null,
             'germination' => $crop->recipe->germination_days,
-            'blackout' => $crop->recipe->blackout_days,
+            'blackout' => $crop->recipe->blackout_days,  
             'light' => $crop->recipe->light_days,
             'harvested' => null, // No duration for final stage
             default => null
