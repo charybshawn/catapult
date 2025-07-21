@@ -64,7 +64,7 @@ class CropTaskManagementService
         }
         
         $recipe = $crop->recipe;
-        $plantedAt = $crop->planting_at;
+        $plantedAt = $crop->germination_at;
         
         // Debug current stage loading and fallback to direct lookup if relationship fails
         $currentStageObject = $crop->currentStage;
@@ -101,7 +101,7 @@ class CropTaskManagementService
             'current_stage_id' => $crop->current_stage_id,
             'recipe_name' => $recipe->name ?? 'unknown',
             'seed_soak_hours' => $recipe->seed_soak_hours ?? 0,
-            'planting_at' => $plantedAt ? $plantedAt->format('Y-m-d H:i:s') : 'null',
+            'germination_at' => $plantedAt ? $plantedAt->format('Y-m-d H:i:s') : 'null',
             'soaking_at' => $crop->soaking_at ? $crop->soaking_at->format('Y-m-d H:i:s') : 'null'
         ]);
         
@@ -128,7 +128,7 @@ class CropTaskManagementService
             $lightTime = $blackoutTime->copy()->addDays($blackoutDays);
             $harvestTime = $lightTime->copy()->addDays($lightDays);
         } else {
-            // For non-soaking crops, use planting_at as base
+            // For non-soaking crops, use germination_at as base
             $germinationTime = $plantedAt->copy()->addHours($soakHours);
             $blackoutTime = $germinationTime->copy()->addDays($germDays);
             $lightTime = $blackoutTime->copy()->addDays($blackoutDays);
@@ -263,7 +263,7 @@ class CropTaskManagementService
             'initiating_crop_id' => $crop->id,
             'batch_size' => $count,
             'recipe_id' => $crop->recipe_id,
-            'planting_at' => $crop->planting_at,
+            'germination_at' => $crop->germination_at,
             'from_stage' => $currentStageObject?->code,
             'to_stage' => $nextStage->code
         ]);
@@ -412,11 +412,11 @@ class CropTaskManagementService
      */
     public function calculateExpectedHarvestDate(Crop $crop): ?Carbon
     {
-        if (!$crop->recipe || !$crop->planting_at) {
+        if (!$crop->recipe || !$crop->germination_at) {
             return null;
         }
 
-        $plantedAt = Carbon::parse($crop->planting_at);
+        $plantedAt = Carbon::parse($crop->germination_at);
         $daysToMaturity = $crop->recipe->totalDays();
 
         if ($daysToMaturity <= 0) {
@@ -473,7 +473,7 @@ class CropTaskManagementService
     {
         // Create a batch identifier - handle case where currentStage might be null
         $stageCode = $crop->currentStage?->code ?? 'unknown';
-        $batchIdentifier = "{$crop->recipe_id}_{$crop->planting_at->format('Y-m-d')}_{$stageCode}";
+        $batchIdentifier = "{$crop->recipe_id}_{$crop->germination_at->format('Y-m-d')}_{$stageCode}";
         
         // Find and delete all tasks related to this batch
         return TaskSchedule::where('resource_type', 'crops')
@@ -504,7 +504,7 @@ class CropTaskManagementService
         // Create conditions for the task
         $conditions = [
             'crop_id' => (int) $crop->id,
-            'batch_identifier' => "{$crop->recipe_id}_{$crop->planting_at->format('Y-m-d')}_{$currentStageCode}",
+            'batch_identifier' => "{$crop->recipe_id}_{$crop->germination_at->format('Y-m-d')}_{$currentStageCode}",
             'target_stage' => $targetStage,
             'tray_numbers' => $batchTrays,
             'tray_count' => $batchSize,
@@ -547,7 +547,7 @@ class CropTaskManagementService
         
         $conditions = [
             'crop_id' => (int) $crop->id,
-            'batch_identifier' => "{$crop->recipe_id}_{$crop->planting_at->format('Y-m-d')}_{$currentStageCode}",
+            'batch_identifier' => "{$crop->recipe_id}_{$crop->germination_at->format('Y-m-d')}_{$currentStageCode}",
             'target_stage' => 'germination', // Soaking leads to germination
             'tray_numbers' => $batchTrays,
             'tray_count' => $batchSize,
@@ -615,7 +615,7 @@ class CropTaskManagementService
         list($recipeId, $plantedAtDate, $currentStage) = $batchParts;
         
         $crops = Crop::where('recipe_id', $recipeId)
-            ->where('planting_at', $plantedAtDate)
+            ->where('germination_at', $plantedAtDate)
             ->whereHas('currentStage', function($query) use ($currentStage) {
                 $query->where('code', $currentStage);
             })
@@ -907,7 +907,7 @@ class CropTaskManagementService
     protected function findBatchCrops(Crop $crop)
     {
         return Crop::where('recipe_id', $crop->recipe_id)
-            ->where('planting_at', $crop->planting_at)
+            ->where('germination_at', $crop->germination_at)
             ->where('current_stage_id', $crop->current_stage_id)
             ->get();
     }

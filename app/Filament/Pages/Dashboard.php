@@ -169,7 +169,7 @@ class Dashboard extends BaseDashboard
         return Crop::whereHas('currentStage', function($query) {
                 $query->where('code', 'planting');
             })
-            ->orderBy('planting_at', 'desc')
+            ->orderBy('germination_at', 'desc')
             ->with(['recipe.masterSeedCatalog', 'recipe.masterCultivar'])
             ->take(5)
             ->get();
@@ -328,7 +328,7 @@ class Dashboard extends BaseDashboard
             
             if ($crop) {
                 $batchCount = Crop::where('recipe_id', $crop->recipe_id)
-                    ->where('planting_at', $crop->planting_at)
+                    ->where('germination_at', $crop->germination_at)
                     ->where('current_stage_id', $crop->current_stage_id)
                     ->count();
                     
@@ -340,7 +340,7 @@ class Dashboard extends BaseDashboard
     }
     
     /**
-     * Group alerts by batch (variety + planting_at + current_stage + target_stage)
+     * Group alerts by batch (variety + germination_at + current_stage + target_stage)
      */
     protected function groupAlertsByBatch($alerts, $isOverdue = false)
     {
@@ -352,7 +352,7 @@ class Dashboard extends BaseDashboard
         
         // Pre-load all batch crops to avoid N+1 queries
         $allCrops = Crop::with(['recipe.masterSeedCatalog', 'recipe.masterCultivar', 'currentStage'])->get()->groupBy(function($crop) {
-            $plantedAt = $crop->planting_at ? $crop->planting_at->format('Y-m-d') : 'unknown';
+            $plantedAt = $crop->germination_at ? $crop->germination_at->format('Y-m-d') : 'unknown';
             $stageCode = 'unknown';
             
             // Safely get the stage code
@@ -380,7 +380,7 @@ class Dashboard extends BaseDashboard
                 ?: ($alert->conditions['variety'] 
                 ?? $crop->recipe?->name 
                 ?? 'Unknown');
-            $plantedAt = $crop->planting_at ? $crop->planting_at->format('Y-m-d') : 'unknown';
+            $plantedAt = $crop->germination_at ? $crop->germination_at->format('Y-m-d') : 'unknown';
             // Safely get current stage
             $currentStage = 'unknown';
             if ($crop->relationLoaded('currentStage') && $crop->currentStage && is_object($crop->currentStage)) {
@@ -419,7 +419,7 @@ class Dashboard extends BaseDashboard
                     'variety' => $variety,
                     'target_stage' => $targetStage,
                     'current_stage' => $currentStage,
-                    'planting_at' => $crop->planting_at,
+                    'germination_at' => $crop->germination_at,
                     'recipe_name' => $crop->recipe->name ?? 'Unknown Recipe',
                     'tray_count' => count($trayNumbers),
                     'tray_numbers' => $trayNumbers,
@@ -1243,7 +1243,7 @@ class Dashboard extends BaseDashboard
         // Define stage progression with proper fallback logic for skipped stages
         $stageData = [
             'germination' => [
-                'start_field' => 'planting_at',
+                'start_field' => 'germination_at',
                 'end_field' => 'germination_at',
                 'next_stage_start' => 'germination_at'
             ],
@@ -1265,8 +1265,8 @@ class Dashboard extends BaseDashboard
         ];
         
         // Handle germination stage
-        if ($crop->planting_at) {
-            $startTime = \Carbon\Carbon::parse($crop->planting_at);
+        if ($crop->germination_at) {
+            $startTime = \Carbon\Carbon::parse($crop->germination_at);
             
             if ($currentStageCode === 'germination') {
                 // Currently in germination stage - show time since planting

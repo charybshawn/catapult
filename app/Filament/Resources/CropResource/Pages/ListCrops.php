@@ -22,7 +22,7 @@ class ListCrops extends ListRecords
     // Set default sort for the page
     protected function getDefaultTableSortColumn(): ?string
     {
-        return 'planting_at';
+        return 'germination_at';
     }
 
     protected function getDefaultTableSortDirection(): ?string
@@ -64,7 +64,7 @@ class ListCrops extends ListRecords
         
         // Override default ordering to prevent ONLY_FULL_GROUP_BY errors
         // Force ordering by a column that's part of the GROUP BY
-        $query->reorder('crops.planting_at', 'desc');
+        $query->reorder('crops.germination_at', 'desc');
         
         return $query->with(['recipe.masterSeedCatalog', 'recipe.masterCultivar']);
     }
