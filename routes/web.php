@@ -8,6 +8,22 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+// Test route for Debugbar
+Route::get('/debugbar-test', function () {
+    \Debugbar::info('Debugbar is working!');
+    \Debugbar::error('This is an error message');
+    \Debugbar::warning('This is a warning');
+    \Debugbar::addMessage('Custom message', 'custom');
+    
+    // Test database queries
+    $crops = \App\Models\Crop::with('recipe')->take(5)->get();
+    
+    return view('welcome', [
+        'message' => 'Laravel Debugbar is installed and working!',
+        'crops' => $crops
+    ]);
+});
+
 Route::get('/dashboard', function () {
     return view('dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
