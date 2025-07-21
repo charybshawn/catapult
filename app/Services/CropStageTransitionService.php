@@ -26,6 +26,97 @@ class CropStageTransitionService
     ];
 
     /**
+     * Initialize a newly created crop's stage timestamps
+     *
+     * @param Crop $crop The crop to initialize
+     * @param Carbon $startTime When the crop was planted/started
+     * @return void
+     */
+    public function initializeCropStage(Crop $crop, Carbon $startTime): void
+    {
+        // Ensure the currentStage relationship is loaded
+        if (!$crop->relationLoaded('currentStage')) {
+            $crop->load('currentStage');
+        }
+        
+        if (!$crop->currentStage) {
+            Log::warning('Cannot initialize crop stage - no current stage set', [
+                'crop_id' => $crop->id,
+                'current_stage_id' => $crop->current_stage_id
+            ]);
+            return;
+        }
+        
+        $stageCode = $crop->currentStage->code;
+        
+        Log::info('Initializing crop stage', [
+            'crop_id' => $crop->id,
+            'stage_code' => $stageCode,
+            'current_stage_id' => $crop->current_stage_id,
+            'start_time' => $startTime->format('Y-m-d H:i:s')
+        ]);
+        
+        // Map stage codes to their appropriate timestamp field
+        if (isset(self::STAGE_TIMESTAMP_MAP[$stageCode])) {
+            $timestampField = self::STAGE_TIMESTAMP_MAP[$stageCode];
+            $crop->update([$timestampField => $startTime]);
+            
+            Log::info('Successfully initialized crop stage timestamp', [
+                'crop_id' => $crop->id,
+                'stage' => $stageCode,
+                'field' => $timestampField,
+                'time' => $startTime->format('Y-m-d H:i:s')
+            ]);
+        } else {
+            Log::warning('No timestamp mapping found for stage', [
+                'crop_id' => $crop->id,
+                'stage_code' => $stageCode,
+                'available_mappings' => array_keys(self::STAGE_TIMESTAMP_MAP)
+            ]);
+        }
+    }
+
+    /**
+     * Fix missing stage timestamps for existing crops
+     * 
+     * @param Crop $crop The crop to fix
+     * @return bool Whether any fixes were applied
+     */
+    public function fixMissingStageTimestamps(Crop $crop): bool
+    {
+        if (!$crop->relationLoaded('currentStage')) {
+            $crop->load('currentStage');
+        }
+        
+        if (!$crop->currentStage) {
+            return false;
+        }
+        
+        $stageCode = $crop->currentStage->code;
+        $fixed = false;
+        
+        // Check if current stage timestamp is missing
+        if (isset(self::STAGE_TIMESTAMP_MAP[$stageCode])) {
+            $timestampField = self::STAGE_TIMESTAMP_MAP[$stageCode];
+            
+            if (!$crop->$timestampField && $crop->planting_at) {
+                // Use planting_at as fallback timestamp
+                $crop->update([$timestampField => $crop->planting_at]);
+                $fixed = true;
+                
+                Log::info('Fixed missing stage timestamp', [
+                    'crop_id' => $crop->id,
+                    'stage' => $stageCode,
+                    'field' => $timestampField,
+                    'time' => $crop->planting_at->format('Y-m-d H:i:s')
+                ]);
+            }
+        }
+        
+        return $fixed;
+    }
+
+    /**
      * Advance a single crop or batch to the next stage
      *
      * @param Crop|CropBatch $target The crop or batch to advance

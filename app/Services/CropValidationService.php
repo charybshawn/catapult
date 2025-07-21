@@ -123,10 +123,8 @@ class CropValidationService
                 $crop->planting_at = $crop->soaking_at->copy()->addHours($recipe->seed_soak_hours);
             }
         } else {
-            // Set germination_at and current_stage to germination automatically
-            if ($crop->planting_at && !$crop->germination_at) {
-                $crop->germination_at = $crop->planting_at;
-            }
+            // Don't automatically set germination_at - let the stage transition service handle this
+            // when the crop actually transitions to germination stage
             
             // Always start at germination stage if not set
             if (!$crop->current_stage_id) {

@@ -5,6 +5,20 @@ namespace App\Services;
 use App\Models\Crop;
 use Carbon\Carbon;
 
+/**
+ * Service class for calculating crop time-related fields
+ * 
+ * Stage Flow:
+ * 1. Soaking (optional - only if recipe requires it)
+ * 2. Germination (always required)
+ * 3. Blackout (optional - some recipes skip this)
+ * 4. Light (always required)
+ * 5. Harvested (final stage)
+ * 
+ * Recipes define which stages are used via:
+ * - seed_soak_hours > 0 = soaking required
+ * - blackout_days > 0 = blackout stage required
+ */
 class CropTimeCalculator
 {
     /**
@@ -25,7 +39,7 @@ class CropTimeCalculator
         $stageAge = $this->calculateStageAge($crop);
         $totalAge = $this->calculateTotalAge($crop);
         
-        // Update the crop attributes
+        // Update the crop attributes (let the calling code handle saving)
         $crop->time_to_next_stage_minutes = $timeToNextStage;
         $crop->time_to_next_stage_display = $this->formatTimeDisplay($timeToNextStage);
         
@@ -35,11 +49,8 @@ class CropTimeCalculator
         $crop->total_age_minutes = $totalAge;
         $crop->total_age_display = $this->formatTimeDisplay($totalAge);
         
-        // For new models being created, don't save (let the creation process handle it)
-        // For existing models, save quietly to prevent recursive calls
-        if ($crop->exists && $crop->isDirty()) {
-            $crop->saveQuietly();
-        }
+        // Note: We don't save the model here - let the calling code (Observer, Controller, etc.) handle saving
+        // This prevents recursive save loops and gives the caller control over when to persist changes
     }
 
     /**
@@ -203,15 +214,20 @@ class CropTimeCalculator
     }
 
     /**
-     * Get when the current stage started
+     * Get when the current stage started.
+     * 
+     * Note: Recipes can skip stages that aren't relevant (e.g., soaking, blackout).
+     * This method handles these normal variations by finding the most recent
+     * timestamp before the current stage.
      */
     private function getCurrentStageStartTime(Crop $crop): ?Carbon
     {
         $timestamp = match ($crop->current_stage) {
-            'germination' => $crop->planting_at,
+            'soaking' => $crop->soaking_at,
+            'germination' => $crop->soaking_at ?? $crop->planting_at, // Germination starts after soaking (if required) or at planting
             'blackout' => $crop->germination_at,
-            'light' => $crop->blackout_at,
-            'harvested' => $crop->light_at,
+            'light' => $crop->blackout_at ?? $crop->germination_at ?? $crop->planting_at, // Some recipes skip blackout
+            'harvested' => $crop->light_at ?? $crop->blackout_at ?? $crop->germination_at ?? $crop->planting_at,
             default => null
         };
 
@@ -233,6 +249,7 @@ class CropTimeCalculator
         }
 
         return match ($crop->current_stage) {
+            'soaking' => $crop->recipe->seed_soak_hours ? ($crop->recipe->seed_soak_hours / 24) : null,
             'germination' => $crop->recipe->germination_days,
             'blackout' => $crop->recipe->blackout_days,
             'light' => $crop->recipe->light_days,

@@ -12,108 +12,61 @@ use Illuminate\Support\Facades\Log;
 class CropObserver
 {
     /**
-     * Handle the Crop "saving" event.
+     * Handle the Crop "saving" event with smart time calculations.
      */
     public function saving(Crop $crop): void
     {
-        $this->updateCalculatedColumns($crop);
+        // Skip during bulk operations to prevent performance issues
+        if (Crop::isInBulkOperation()) {
+            return;
+        }
+        
+        // Only recalculate time values when relevant fields change
+        $timeRelevantFields = ['current_stage_id', 'planting_at', 'germination_at', 'blackout_at', 'light_at', 'harvested_at'];
+        if (!$crop->exists || $crop->isDirty($timeRelevantFields)) {
+            $this->updateTimeCalculations($crop);
+        }
+        
+        // Always update tray-related fields
+        $this->updateTrayCalculations($crop);
     }
 
     /**
-     * Update all calculated columns for the crop.
+     * Update time calculations using the sophisticated CropTimeCalculator service.
      */
-    protected function updateCalculatedColumns(Crop $crop): void
+    protected function updateTimeCalculations(Crop $crop): void
     {
-        // Ensure recipe is loaded to avoid lazy loading violations
-        if (!$crop->relationLoaded('recipe')) {
-            $crop->load('recipe');
-        }
-
-        // Always use the current time for calculations
-        $now = now();
-
-        // Update stage age
-        $stageField = "{$crop->current_stage}_at";
-        if ($crop->$stageField) {
-            $stageStart = Carbon::parse($crop->$stageField);
-            // Calculate stage age using the current timestamp, not updated_at
-            $crop->stage_age_minutes = abs($now->diffInMinutes($stageStart));
-            $crop->stage_age_display = $this->formatDuration($now->diff($stageStart));
+        try {
+            // Use the sophisticated CropTimeCalculator service for all time calculations
+            $timeCalculator = app(\App\Services\CropTimeCalculator::class);
+            $timeCalculator->updateTimeCalculations($crop);
+        } catch (\Exception $e) {
+            Log::warning('CropObserver: Failed to update time calculations', [
+                'crop_id' => $crop->id,
+                'error' => $e->getMessage()
+            ]);
             
-            // Debug logging only in debug mode to prevent memory issues
-            if (config('app.debug') && config('logging.default') !== 'production') {
-                Log::debug('CropObserver: Updated stage age', [
-                    'crop_id' => $crop->id,
-                    'current_stage' => $crop->current_stage,
-                    'diff_minutes' => $crop->stage_age_minutes,
-                ]);
-            }
+            // Set safe fallback values to prevent null database constraints
+            $crop->stage_age_minutes = $crop->stage_age_minutes ?? 0;
+            $crop->stage_age_display = $crop->stage_age_display ?? '0m';
+            $crop->time_to_next_stage_minutes = $crop->time_to_next_stage_minutes ?? 0;
+            $crop->time_to_next_stage_display = $crop->time_to_next_stage_display ?? 'Unknown';
+            $crop->total_age_minutes = $crop->total_age_minutes ?? 0;
+            $crop->total_age_display = $crop->total_age_display ?? '0m';
         }
+    }
 
-        // Update time to next stage
-        if ($crop->recipe) {
-            $stageDuration = match ($crop->current_stage) {
-                'germination' => $crop->recipe->germination_days ?? 0,
-                'blackout' => $crop->recipe->blackout_days ?? 0,
-                'light' => $crop->recipe->light_days ?? 0,
-                default => 0,
-            };
-
-            if ($stageDuration > 0) {
-                $stageStart = Carbon::parse($crop->$stageField);
-                $stageEnd = $stageStart->copy()->addDays($stageDuration);
-                
-                if ($now->gt($stageEnd)) {
-                    $crop->time_to_next_stage_minutes = 0;
-                    $crop->time_to_next_stage_display = 'Ready to advance';
-                } else {
-                    $crop->time_to_next_stage_minutes = abs($now->diffInMinutes($stageEnd));
-                    $crop->time_to_next_stage_display = $this->formatDuration($now->diff($stageEnd));
-                }
-            }
-        }
-
-        // Update total age
-        if ($crop->planting_at) {
-            $plantedAt = Carbon::parse($crop->planting_at);
-            $crop->total_age_minutes = abs($now->diffInMinutes($plantedAt));
-            $crop->total_age_display = $this->formatDuration($now->diff($plantedAt));
-        }
-
-        // Update expected harvest date
-        if ($crop->recipe && $crop->planting_at) {
-            $plantedAt = Carbon::parse($crop->planting_at);
-            $daysToMaturity = $crop->recipe->days_to_maturity ?? 0;
-            if ($daysToMaturity > 0) {
-                $crop->expected_harvest_at = $plantedAt->copy()->addDays($daysToMaturity);
-            }
-        }
-
+    /**
+     * Update tray-related calculations.
+     */
+    protected function updateTrayCalculations(Crop $crop): void
+    {
         // Update tray count and tray numbers
-        if ($crop->tray_number) {
-            $crop->tray_count = 1;
+        if ($crop->tray_number && !$crop->isDirty('tray_count')) {
+            // Only set tray_count to 1 if it's not being explicitly changed
+            $crop->tray_count = $crop->tray_count ?: 1;
             $crop->tray_numbers = (string)$crop->tray_number;
         }
-    }
-
-    /**
-     * Format a DateInterval into a human-readable duration.
-     */
-    public function formatDuration(\DateInterval $interval): string
-    {
-        $parts = [];
-        
-        if ($interval->d > 0) {
-            $parts[] = $interval->d . 'd';
-        }
-        if ($interval->h > 0) {
-            $parts[] = $interval->h . 'h';
-        }
-        if ($interval->i > 0 && empty($parts)) {
-            $parts[] = $interval->i . 'm';
-        }
-        
-        return implode(' ', $parts) ?: '0m';
     }
     
     /**

@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::create('crops', function (Blueprint $table) {
             $table->id();
+            $table->string('crop_batch_id', 36)->nullable();
             $table->unsignedBigInteger('recipe_id');
             $table->unsignedBigInteger('order_id')->nullable();
             $table->unsignedBigInteger('crop_plan_id')->nullable();

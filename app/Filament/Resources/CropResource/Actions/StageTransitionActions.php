@@ -6,6 +6,7 @@ use App\Models\Crop;
 use App\Models\CropStage;
 use App\Services\CropStageTransitionService;
 use App\Services\CropStageValidationService;
+use App\Services\CropStageCache;
 use Filament\Forms;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
@@ -20,30 +21,24 @@ class StageTransitionActions
     {
         return Action::make('advanceStage')
             ->label(function ($record): string {
-                $currentStage = CropStage::find($record->current_stage_id);
-                $nextStage = $currentStage ? CropStage::where('sort_order', '>', $currentStage->sort_order)
-                    ->where('is_active', true)
-                    ->orderBy('sort_order')
-                    ->first() : null;
+                $currentStage = CropStageCache::find($record->current_stage_id);
+                $nextStage = $currentStage ? CropStageCache::getNextStage($currentStage) : null;
                 return $nextStage ? 'Advance to ' . ucfirst($nextStage->name) : 'Harvested';
             })
             ->icon('heroicon-o-chevron-double-right')
             ->color('success')
             ->visible(function ($record): bool {
-                $stage = CropStage::find($record->current_stage_id);
+                $stage = CropStageCache::find($record->current_stage_id);
                 return $stage?->code !== 'harvested';
             })
             ->requiresConfirmation()
             ->modalHeading(function ($record): string {
-                $currentStage = CropStage::find($record->current_stage_id);
-                $nextStage = $currentStage ? CropStage::where('sort_order', '>', $currentStage->sort_order)
-                    ->where('is_active', true)
-                    ->orderBy('sort_order')
-                    ->first() : null;
+                $currentStage = CropStageCache::find($record->current_stage_id);
+                $nextStage = $currentStage ? CropStageCache::getNextStage($currentStage) : null;
                 return 'Advance to ' . ucfirst($nextStage?->name ?? 'Unknown') . '?';
             })
             ->modalDescription(function ($record): string {
-                $currentStage = CropStage::find($record->current_stage_id);
+                $currentStage = CropStageCache::find($record->current_stage_id);
                 if ($currentStage?->code === 'soaking') {
                     // Find all crops in this batch using new service
                     $crops = self::getCropsForRecord($record);
@@ -53,7 +48,7 @@ class StageTransitionActions
                 return 'This will update the current stage of all crops in this batch.';
             })
             ->form(function ($record): array {
-                $currentStage = CropStage::find($record->current_stage_id);
+                $currentStage = CropStageCache::find($record->current_stage_id);
                 $isSoaking = $currentStage?->code === 'soaking';
                 
                 $formElements = [
@@ -187,27 +182,21 @@ class StageTransitionActions
     {
         return Action::make('rollbackStage')
             ->label(function ($record): string {
-                $currentStage = CropStage::find($record->current_stage_id);
-                $previousStage = $currentStage ? CropStage::where('sort_order', '<', $currentStage->sort_order)
-                    ->where('is_active', true)
-                    ->orderBy('sort_order', 'desc')
-                    ->first() : null;
+                $currentStage = CropStageCache::find($record->current_stage_id);
+                $previousStage = $currentStage ? CropStageCache::getPreviousStage($currentStage) : null;
                 return $previousStage ? 'Rollback to ' . ucfirst($previousStage->name) : 'Cannot Rollback';
             })
             ->icon('heroicon-o-arrow-uturn-left')
             ->color('warning')
             ->visible(function ($record): bool {
-                $stage = CropStage::find($record->current_stage_id);
+                $stage = CropStageCache::find($record->current_stage_id);
                 // Don't allow rollback from first stage
                 return $stage && $stage->sort_order > 1;
             })
             ->requiresConfirmation()
             ->modalHeading(function ($record): string {
-                $currentStage = CropStage::find($record->current_stage_id);
-                $previousStage = $currentStage ? CropStage::where('sort_order', '<', $currentStage->sort_order)
-                    ->where('is_active', true)
-                    ->orderBy('sort_order', 'desc')
-                    ->first() : null;
+                $currentStage = CropStageCache::find($record->current_stage_id);
+                $previousStage = $currentStage ? CropStageCache::getPreviousStage($currentStage) : null;
                 return 'Rollback to ' . ucfirst($previousStage?->name ?? 'Unknown') . '?';
             })
             ->modalDescription('This will revert all crops in this batch to the previous stage. Current stage timestamps will be cleared.')
@@ -227,11 +216,8 @@ class StageTransitionActions
                     $targetCrop = self::getFirstCropForRecord($record);
                     
                     // Perform pre-validation
-                    $currentStage = CropStage::find($targetCrop->current_stage_id);
-                    $previousStage = CropStage::where('sort_order', '<', $currentStage->sort_order)
-                        ->where('is_active', true)
-                        ->orderBy('sort_order', 'desc')
-                        ->first();
+                    $currentStage = CropStageCache::find($targetCrop->current_stage_id);
+                    $previousStage = CropStageCache::getPreviousStage($currentStage);
                     
                     if (!$previousStage) {
                         Notification::make()
@@ -311,7 +297,7 @@ class StageTransitionActions
             ->icon('heroicon-o-scissors')
             ->color('success')
             ->visible(function ($record): bool {
-                $stage = CropStage::find($record->current_stage_id);
+                $stage = CropStageCache::find($record->current_stage_id);
                 return $stage?->code === 'light';
             })
             ->requiresConfirmation()

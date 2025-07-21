@@ -109,6 +109,33 @@ Before marking any task complete:
 6. **Prefer code based solutions to altering database schema**
 7. **Don't change the names of existing database schema columns**
 
+## 🐳 Docker Development Environment
+
+**IMPORTANT: All Laravel commands must be run inside the Docker container!**
+
+### Required Command Pattern:
+```bash
+# DON'T DO THIS (will fail - no database connection):
+php artisan test
+
+# DO THIS (runs inside container with database access):
+docker exec -it php php artisan test
+docker exec -it php php artisan optimize:clear
+docker exec -it php php artisan migrate
+```
+
+### Common Docker Commands:
+- **Run tests**: `docker exec -it php php artisan test`
+- **Clear cache**: `docker exec -it php php artisan optimize:clear`
+- **Run migrations**: `docker exec -it php php artisan migrate`
+- **Tinker**: `docker exec -it php php artisan tinker`
+- **Check logs**: `docker exec -it php tail -f storage/logs/laravel.log`
+
+### Why This Matters:
+- Database connections only work inside the container
+- File permissions and paths are different
+- Environment variables are container-specific
+- **Always use `docker exec` for any artisan commands!**
 
 ---
 

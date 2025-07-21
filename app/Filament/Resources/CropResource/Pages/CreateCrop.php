@@ -98,16 +98,24 @@ class CreateCrop extends BaseCreateRecord
         unset($data['seed_quantity_display']);
         unset($data['calculated_seed_quantity']);
         
-        // Get the recipe name and seed variety for display
+        // Get the recipe name and seed variety for display using optimized view
         $recipeName = 'Unknown Recipe';
         $varietyName = 'Unknown Variety';
         
         if (isset($data['recipe_id'])) {
             $recipe = Recipe::find($data['recipe_id']);
+            $recipeOptimized = \App\Models\RecipeOptimizedView::find($data['recipe_id']);
+            
             if ($recipe) {
                 $recipeName = $recipe->name;
-                if ($recipe->seedEntry) {
-                    $varietyName = $recipe->seedEntry->common_name . ' - ' . $recipe->seedEntry->cultivar_name;
+                
+                // Use optimized view for variety name if available
+                if ($recipeOptimized) {
+                    if ($recipeOptimized->common_name && $recipeOptimized->cultivar_name) {
+                        $varietyName = $recipeOptimized->common_name . ' - ' . $recipeOptimized->cultivar_name;
+                    } elseif ($recipeOptimized->common_name) {
+                        $varietyName = $recipeOptimized->common_name;
+                    }
                 }
             } else {
                 // Handle case where recipe not found, maybe throw error or default
@@ -132,20 +140,36 @@ class CreateCrop extends BaseCreateRecord
             $createdRecords = [];
             $plantedAt = Carbon::parse($data['planting_at']);
             
-            // Create a batch record for soaking crops to link them together
-            // This ensures all crops created in the same soaking session share the same crop_batch_id
+            // Create a batch record for ALL crops to link them together
+            // This ensures all crops created in the same session share the same crop_batch_id
             $cropBatchId = null;
-            if ($recipe && $recipe->requiresSoaking()) {
-                // Create a new batch record and get the auto-increment ID
+            
+            // Check if there's an existing batch for this recipe + planting date + stage combination
+            $currentStageId = $data['current_stage_id'] ?? 1; // Default to stage 1 if not set
+            $existingBatch = CropBatch::whereHas('crops', function($query) use ($data, $plantedAt, $currentStageId) {
+                $query->where('recipe_id', $data['recipe_id'])
+                      ->where('planting_at', $plantedAt->format('Y-m-d H:i:s'))
+                      ->where('current_stage_id', $currentStageId);
+            })->first();
+            
+            if ($existingBatch) {
+                $cropBatchId = $existingBatch->id;
+                Log::debug("Using existing batch", [
+                    'crop_batch_id' => $cropBatchId,
+                    'recipe_id' => $data['recipe_id'],
+                    'planting_at' => $plantedAt->format('Y-m-d H:i:s')
+                ]);
+            } else {
+                // Create a new batch record
                 $batch = CropBatch::create([
-                    'recipe_id' => $recipe->id,
+                    'recipe_id' => $data['recipe_id'],
                 ]);
                 
                 $cropBatchId = $batch->id;
                 
-                Log::debug("Created batch for soaking crops", [
+                Log::debug("Created new batch", [
                     'crop_batch_id' => $cropBatchId,
-                    'recipe_id' => $recipe->id,
+                    'recipe_id' => $data['recipe_id'],
                     'tray_count' => count($trayNumbers)
                 ]);
             }
@@ -172,7 +196,7 @@ class CreateCrop extends BaseCreateRecord
                     'total_age_status' => '0m',
                 ]);
                 
-                // Add crop_batch_id if this is a soaking crop
+                // Add crop_batch_id for all crops
                 if ($cropBatchId) {
                     $cropData['crop_batch_id'] = $cropBatchId;
                 }
@@ -286,6 +310,21 @@ class CreateCrop extends BaseCreateRecord
                 }
             }
             
+            // Initialize stage timestamps for all created crops
+            foreach ($createdRecords as $record) {
+                $crop = Crop::find($record['id']);
+                if ($crop) {
+                    try {
+                        app(\App\Services\CropStageTransitionService::class)->initializeCropStage($crop, $plantedAt);
+                    } catch (\Exception $e) {
+                        Log::warning('Error initializing crop stage timestamps', [
+                            'error' => $e->getMessage(),
+                            'crop_id' => $crop->id
+                        ]);
+                    }
+                }
+            }
+            
             // Now manually schedule tasks for the first crop (representing the batch)
             if ($firstCrop) {
                 try {
@@ -318,15 +357,15 @@ class CreateCrop extends BaseCreateRecord
             $trayCount = count($createdRecords);
             $notificationBody = "Successfully created grow batch with {$trayCount} trays of {$varietyName} ({$recipeName}). Crop tasks scheduled.";
             
-            // Add seed quantity information for soaking crops
-            if ($recipe && $recipe->requiresSoaking() && $recipe->seed_density_grams_per_tray) {
+            // Add seed quantity information
+            if ($recipe && $recipe->seed_density_grams_per_tray) {
                 $totalSeedUsed = $recipe->seed_density_grams_per_tray * $trayCount;
                 $notificationBody .= " Seed used: {$totalSeedUsed}g total.";
-                
-                // Add crop_batch_id to notification for soaking crops
-                if ($cropBatchId) {
-                    $notificationBody .= " Batch ID: {$cropBatchId}";
-                }
+            }
+            
+            // Add crop_batch_id to notification for all crops
+            if ($cropBatchId) {
+                $notificationBody .= " Batch ID: {$cropBatchId}";
             }
             
             Notification::make()

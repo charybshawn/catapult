@@ -13,6 +13,7 @@ use Illuminate\Contracts\Pagination\CursorPaginator;
 use Filament\Tables\Table;
 use App\Models\Crop;
 use Carbon\Carbon;
+use App\Services\CropStageCache;
 
 class ListCrops extends ListRecords
 {
@@ -22,7 +23,7 @@ class ListCrops extends ListRecords
     // Set default sort for the page
     protected function getDefaultTableSortColumn(): ?string
     {
-        return 'planting_at';
+        return 'id';
     }
 
     protected function getDefaultTableSortDirection(): ?string
@@ -33,6 +34,11 @@ class ListCrops extends ListRecords
     public function mount(): void
     {
         parent::mount();
+        
+        // Clear any cached sort state that might reference the old crops.planting_at column
+        if ($this->getTableSortColumn() === 'planting_at' || str_contains($this->getTableSortColumn() ?? '', 'crops.')) {
+            $this->resetTableSorting();
+        }
         
         // Clear previous query log
         DB::flushQueryLog();
@@ -50,23 +56,10 @@ class ListCrops extends ListRecords
     {
         $query = parent::getTableQuery();
         
-        // Add additional logging for debugging
-        Log::info('Recipe and Seed Entry Data:', [
-            'recipes' => \App\Models\Recipe::with('masterSeedCatalog', 'masterCultivar')->get()->map(function($recipe) {
-                return [
-                    'id' => $recipe->id,
-                    'name' => $recipe->name,
-                    'common_name' => $recipe->common_name,
-                    'cultivar_name' => $recipe->cultivar_name,
-                ];
-            })
-        ]);
+        // Remove any old ordering that might reference crops table columns
+        $query->reorder();
         
-        // Override default ordering to prevent ONLY_FULL_GROUP_BY errors
-        // Force ordering by a column that's part of the GROUP BY
-        $query->reorder('crops.planting_at', 'desc');
-        
-        return $query->with(['recipe.masterSeedCatalog', 'recipe.masterCultivar']);
+        return $query;
     }
     
     public function getTableRecords(): Collection|Paginator|CursorPaginator
@@ -76,10 +69,11 @@ class ListCrops extends ListRecords
         // Log the queries for debugging
         $queries = DB::getQueryLog();
         if (!empty($queries)) {
-            Log::info('Grows List Query:', [
-                'queries' => $queries,
-                'sort' => $this->getTableSortColumn(),
-                'direction' => $this->getTableSortDirection(),
+            Log::info('Grows List Query Count (Using View):', [
+                'total_queries' => count($queries),
+                'queries' => array_map(function($q) { 
+                    return substr($q['query'], 0, 100) . '...'; 
+                }, array_slice($queries, -10)), // Last 10 queries
             ]);
         }
         
@@ -106,7 +100,7 @@ class ListCrops extends ListRecords
      */
     protected function getActiveSoakingCount(): int
     {
-        $soakingStage = \App\Models\CropStage::findByCode('soaking');
+        $soakingStage = CropStageCache::findByCode('soaking');
         
         if (!$soakingStage) {
             return 0;
@@ -123,7 +117,7 @@ class ListCrops extends ListRecords
      */
     protected function hasOverdueSoaking(): bool
     {
-        $soakingStage = \App\Models\CropStage::findByCode('soaking');
+        $soakingStage = CropStageCache::findByCode('soaking');
         
         if (!$soakingStage) {
             return false;

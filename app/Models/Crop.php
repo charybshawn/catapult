@@ -62,7 +62,7 @@ class Crop extends Model
      *
      * @var array
      */
-    protected $appends = ['variety_name', 'current_stage'];
+    protected $appends = ['variety_name'];
     
     /**
      * The attributes that should be cast.
@@ -172,7 +172,7 @@ class Crop extends Model
      * Get the current_stage attribute for backward compatibility.
      * Maps the current_stage_id to the stage code.
      */
-    public function getCurrentStageAttribute(): string
+    public function getCurrentStageCodeAttribute(): string
     {
         // If we have a current_stage_id, try to get from the relationship
         if ($this->current_stage_id && $this->relationLoaded('currentStage')) {
@@ -358,15 +358,8 @@ class Crop extends Model
             $validationService->initializeNewCrop($crop);
         });
         
-        // Add event listeners to recalculate time_to_next_stage values
-        static::saving(function (Crop $crop) {
-            // Calculate and update the time_to_next_stage values whenever the model is saved
-            if (!$crop->exists || $crop->isDirty(['current_stage_id', 'planting_at', 'germination_at', 'blackout_at', 'light_at', 'harvested_at'])) {
-                /** @var CropTimeCalculator $timeCalculator */
-                $timeCalculator = app(CropTimeCalculator::class);
-                $timeCalculator->updateTimeCalculations($crop);
-            }
-        });
+        // Note: Time calculations are now handled by CropObserver for consistency
+        // This prevents duplicate calculation systems from conflicting
         
         static::created(function ($crop) {
             /** @var CropValidationService $validationService */
