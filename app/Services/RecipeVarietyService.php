@@ -22,6 +22,14 @@ class RecipeVarietyService
             return 'Unknown';
         }
         
+        // Load relationships if not already loaded
+        if (!$recipe->relationLoaded('masterCultivar')) {
+            $recipe->load('masterCultivar');
+        }
+        if (!$recipe->relationLoaded('masterSeedCatalog')) {
+            $recipe->load('masterSeedCatalog');
+        }
+        
         // Try to get from relationships first
         if ($recipe->masterCultivar && $recipe->masterSeedCatalog) {
             $commonName = $recipe->masterSeedCatalog->common_name;
@@ -33,8 +41,12 @@ class RecipeVarietyService
         if ($recipe->masterCultivar) {
             $cultivarName = $recipe->masterCultivar->cultivar_name;
             
-            // Check if the cultivar has the masterSeedCatalog relationship loaded
-            if ($recipe->masterCultivar->relationLoaded('masterSeedCatalog') && $recipe->masterCultivar->masterSeedCatalog) {
+            // Load the masterSeedCatalog relationship on cultivar if needed
+            if (!$recipe->masterCultivar->relationLoaded('masterSeedCatalog')) {
+                $recipe->masterCultivar->load('masterSeedCatalog');
+            }
+            
+            if ($recipe->masterCultivar->masterSeedCatalog) {
                 $commonName = $recipe->masterCultivar->masterSeedCatalog->common_name;
                 return $commonName . ' (' . $cultivarName . ')';
             }
@@ -66,6 +78,11 @@ class RecipeVarietyService
             return 'Unknown';
         }
         
+        // Load relationship if not already loaded
+        if (!$recipe->relationLoaded('masterSeedCatalog')) {
+            $recipe->load('masterSeedCatalog');
+        }
+        
         if ($recipe->masterSeedCatalog) {
             return $recipe->masterSeedCatalog->common_name;
         }
@@ -82,6 +99,11 @@ class RecipeVarietyService
             return null;
         }
         
+        // Load relationship if not already loaded
+        if (!$recipe->relationLoaded('masterCultivar')) {
+            $recipe->load('masterCultivar');
+        }
+        
         if ($recipe->masterCultivar) {
             return $recipe->masterCultivar->cultivar_name;
         }
@@ -94,6 +116,11 @@ class RecipeVarietyService
      */
     public function getCropVarietyName(Crop $crop): string
     {
+        // Load recipe relationship if not already loaded
+        if (!$crop->relationLoaded('recipe')) {
+            $crop->load('recipe');
+        }
+        
         if (!$crop->recipe) {
             return 'Unknown';
         }
@@ -106,6 +133,11 @@ class RecipeVarietyService
      */
     public function getCropPlanVarietyName(CropPlan $cropPlan): string
     {
+        // Load recipe relationship if not already loaded
+        if (!$cropPlan->relationLoaded('recipe')) {
+            $cropPlan->load('recipe');
+        }
+        
         if (!$cropPlan->recipe) {
             return 'Unknown';
         }

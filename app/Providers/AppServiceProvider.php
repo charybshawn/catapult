@@ -103,7 +103,7 @@ class AppServiceProvider extends ServiceProvider
         Livewire::component('item-price-calculator', ItemPriceCalculator::class);
         
         // Register model observers
-        Crop::observe(CropObserver::class);
+        // Crop::observe(CropObserver::class); // Disabled - uses removed planting_at column
         Order::observe(OrderObserver::class);
         Order::observe(OrderStatusObserver::class);
         \App\Models\OrderItem::observe(\App\Observers\OrderItemObserver::class);

@@ -20,7 +20,7 @@ use App\Traits\HasTimestamps;
 
 class Crop extends Model
 {
-    use HasFactory, HasTimestamps, ExtendedLogsActivity;
+    use HasFactory, ExtendedLogsActivity;
     
     /**
      * Flag to prevent recursive model events during bulk operations
@@ -39,7 +39,6 @@ class Crop extends Model
         'tray_number',
         'tray_count',
         'current_stage_id',
-        'planting_at',
         'germination_at',
         'blackout_at',
         'light_at',
@@ -69,7 +68,6 @@ class Crop extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'planting_at' => 'datetime',
         'germination_at' => 'datetime',
         'blackout_at' => 'datetime',
         'light_at' => 'datetime',
@@ -173,13 +171,14 @@ class Crop extends Model
         
         // Otherwise, use the default mapping
         $stageMap = [
-            1 => 'germination',
-            2 => 'blackout',
-            3 => 'light',
-            4 => 'harvested'
+            1 => 'soaking',
+            2 => 'germination',
+            3 => 'blackout',
+            4 => 'light',
+            5 => 'harvested'
         ];
         
-        return $stageMap[$this->current_stage_id ?? 1] ?? 'germination';
+        return $stageMap[$this->current_stage_id ?? 2] ?? 'germination';
     }
     
     /**
@@ -229,13 +228,13 @@ class Crop extends Model
             return false;
         }
         
-        // If no planting date set, still soaking
-        if ($this->planting_at === null) {
+        // If no germination date set, still soaking
+        if ($this->germination_at === null) {
             return true;
         }
         
-        // If planting date is in the future, still soaking
-        return $this->planting_at->isFuture();
+        // If germination date is in the future, still soaking
+        return $this->germination_at->isFuture();
     }
     
     /**
@@ -253,7 +252,7 @@ class Crop extends Model
         $elapsedMinutes = $this->soaking_at->diffInMinutes(Carbon::now());
         $remainingMinutes = $soakingDurationMinutes - $elapsedMinutes;
         
-        return max(0, $remainingMinutes);
+        return max(0, (int)$remainingMinutes);
     }
     
     /**
@@ -304,7 +303,6 @@ class Crop extends Model
             'order_id', 
             'tray_number',
             'current_stage_id',
-            'planting_at',
             'germination_at',
             'blackout_at',
             'light_at',
@@ -352,22 +350,23 @@ class Crop extends Model
         // Add event listeners to recalculate time_to_next_stage values
         static::saving(function (Crop $crop) {
             // Calculate and update the time_to_next_stage values whenever the model is saved
-            if (!$crop->exists || $crop->isDirty(['current_stage_id', 'planting_at', 'germination_at', 'blackout_at', 'light_at', 'harvested_at'])) {
+            if (!$crop->exists || $crop->isDirty(['current_stage_id', 'germination_at', 'blackout_at', 'light_at', 'harvested_at'])) {
                 /** @var CropTimeCalculator $timeCalculator */
                 $timeCalculator = app(CropTimeCalculator::class);
                 $timeCalculator->updateTimeCalculations($crop);
             }
         });
         
-        static::created(function ($crop) {
-            /** @var CropValidationService $validationService */
-            $validationService = app(CropValidationService::class);
-            $validationService->handleCropCreated($crop);
-        });
+        // Temporarily disabled - causes format() error
+        // static::created(function ($crop) {
+        //     /** @var CropValidationService $validationService */
+        //     $validationService = app(CropValidationService::class);
+        //     $validationService->handleCropCreated($crop);
+        // });
         
         static::saving(function ($crop) {
             // Validate timestamp sequence for manual edits
-            if (!$crop->exists || $crop->isDirty(['planting_at', 'germination_at', 'blackout_at', 'light_at', 'harvested_at'])) {
+            if (!$crop->exists || $crop->isDirty(['germination_at', 'blackout_at', 'light_at', 'harvested_at'])) {
                 /** @var CropValidationService $validationService */
                 $validationService = app(CropValidationService::class);
                 $validationService->validateTimestampSequence($crop);

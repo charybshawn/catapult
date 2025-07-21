@@ -40,9 +40,6 @@ class CropValidationService
         $timestamps = [];
         
         // Build array of non-null timestamps with their labels
-        if ($crop->planting_at) {
-            $timestamps['planting_at'] = $crop->planting_at;
-        }
         if ($crop->germination_at) {
             $timestamps['germination_at'] = $crop->germination_at;
         }
@@ -97,10 +94,6 @@ class CropValidationService
             }
         }
         
-        // Set planting_at if not provided
-        if (!$crop->planting_at) {
-            $crop->planting_at = now();
-        }
         
         // Set stage-specific timestamps and current_stage based on recipe requirements
         if ($crop->requires_soaking && $crop->recipe_id) {
@@ -117,15 +110,10 @@ class CropValidationService
                 $crop->soaking_at = now();
             }
             
-            // Calculate planting_at from soaking_at + duration
-            $recipe = \App\Models\Recipe::find($crop->recipe_id);
-            if ($recipe && $recipe->seed_soak_hours > 0) {
-                $crop->planting_at = $crop->soaking_at->copy()->addHours($recipe->seed_soak_hours);
-            }
         } else {
-            // Set germination_at and current_stage to germination automatically
-            if ($crop->planting_at && !$crop->germination_at) {
-                $crop->germination_at = $crop->planting_at;
+            // Set germination_at automatically to now for non-soaking crops
+            if (!$crop->germination_at) {
+                $crop->germination_at = now();
             }
             
             // Always start at germination stage if not set
@@ -166,34 +154,7 @@ class CropValidationService
      */
     public function adjustStageTimestamps(Crop $crop): void
     {
-        if (!$crop->isDirty('planting_at') || !$crop->recipe) {
-            return;
-        }
-
-        try {
-            // Get original planting_at
-            $originalPlantingAt = $crop->getOriginal('planting_at');
-            
-            // Get the new planting_at
-            $newPlantingAt = $crop->planting_at;
-            
-            // Calculate time difference in minutes
-            $originalDateTime = new Carbon($originalPlantingAt);
-            $timeDiff = $originalDateTime->diffInMinutes($newPlantingAt, false);
-            
-            // Adjust all stage timestamps by the same amount
-            foreach (['germination_at', 'blackout_at', 'light_at'] as $stageField) {
-                if ($crop->$stageField) {
-                    $stageTime = new Carbon($crop->$stageField);
-                    $crop->$stageField = $stageTime->addMinutes($timeDiff);
-                }
-            }
-        } catch (\Exception $e) {
-            Log::warning('Error updating crop stage dates', [
-                'crop_id' => $crop->id,
-                'error' => $e->getMessage()
-            ]);
-        }
+        // Method no longer needed since planting_at was removed
     }
 
     /**
@@ -277,9 +238,8 @@ class CropValidationService
      */
     public function handleCropUpdated(Crop $crop): void
     {
-        // If the stage has changed or planting_at has changed, recalculate tasks
-        if (($crop->isDirty('current_stage_id') || $crop->isDirty('planting_at')) && 
-            config('app.env') !== 'testing') {
+        // If the stage has changed, recalculate tasks
+        if ($crop->isDirty('current_stage_id') && config('app.env') !== 'testing') {
             try {
                 $this->cropTaskService->scheduleAllStageTasks($crop);
             } catch (\Exception $e) {
