@@ -115,7 +115,7 @@
                                         <div>
                                             <p class="font-medium text-gray-900 dark:text-white">{{ $crop->recipe->seedCultivar->name }}</p>
                                             <p class="text-sm text-gray-500 dark:text-gray-400">
-                                                Tray #{{ $crop->tray_number }} • Planted: {{ $crop->planted_at->format('M d') }} • Days: {{ $crop->planted_at->diffInDays(now()) }}
+                                                Tray #{{ $crop->tray_number }} • Planted: {{ $crop->germinated_at->format('M d') }} • Days: {{ $crop->germinated_at->diffInDays(now()) }}
                                             </p>
                                         </div>
                                         <div class="flex gap-2">
@@ -150,7 +150,7 @@
                                         <div>
                                             <p class="font-medium text-gray-900 dark:text-white">{{ $crop->recipe->seedCultivar->name }}</p>
                                             <p class="text-sm text-gray-500 dark:text-gray-400">
-                                                Tray #{{ $crop->tray_number }} • Planted: {{ $crop->planted_at->format('M d') }} • Stage: {{ ucfirst($crop->current_stage) }}
+                                                Tray #{{ $crop->tray_number }} • Planted: {{ $crop->germinated_at->format('M d') }} • Stage: {{ ucfirst($crop->current_stage) }}
                                             </p>
                                         </div>
                                         <x-filament::icon-button
