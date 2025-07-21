@@ -473,7 +473,7 @@
                             <!-- Right Side: Timing & Planted Date -->
                             <div class="text-right space-y-1">
                                 <div class="text-red-600 dark:text-red-400 font-semibold text-lg">{{ $alert->time_until }}</div>
-                                <div class="text-xs text-gray-500 dark:text-gray-400">Planted: {{ $alert->planting_at ? \Carbon\Carbon::parse($alert->planting_at)->format('M j') : 'Unknown' }}</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">Planted: {{ $alert->germination_at ? \Carbon\Carbon::parse($alert->germination_at)->format('M j') : 'Unknown' }}</div>
                             </div>
                         </div>
                         
