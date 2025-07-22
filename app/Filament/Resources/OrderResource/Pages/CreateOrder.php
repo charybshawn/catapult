@@ -45,6 +45,9 @@ class CreateOrder extends BaseCreateRecord
             }
         }
         
+        // Handle order creation business logic using Filament patterns
+        app(\App\Actions\Order\HandleOrderCreationAction::class)->execute($order, $this);
+        
         return $order;
     }
 } 

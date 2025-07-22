@@ -50,6 +50,9 @@ class EditOrder extends BaseEditRecord
     
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
+        // Check if status is changing
+        $oldStatus = $record->status_id ? \App\Models\OrderStatus::find($record->status_id) : null;
+        
         // Update the order record
         $order = parent::handleRecordUpdate($record, $data);
         
@@ -71,6 +74,20 @@ class EditOrder extends BaseEditRecord
                     'quantity' => $item['quantity'],
                     'price' => $item['price'],
                 ]);
+            }
+        }
+        
+        // Handle order item changes (crop plan updates)
+        if (isset($this->orderItems)) {
+            app(\App\Actions\Order\HandleOrderItemUpdatesAction::class)->execute($order, $this);
+        }
+        
+        // Handle status transition if status changed
+        if ($order->wasChanged('status_id')) {
+            $newStatus = \App\Models\OrderStatus::find($order->status_id);
+            if ($newStatus) {
+                app(\App\Actions\Order\HandleOrderStatusTransitionAction::class)
+                    ->execute($order, $oldStatus, $newStatus, $this);
             }
         }
         

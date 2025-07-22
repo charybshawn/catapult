@@ -6,12 +6,7 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Foundation\AliasLoader;
 use App\Http\Livewire\ItemPriceCalculator;
 use Livewire\Livewire;
-use App\Models\Crop;
-use App\Models\Order;
 use App\Models\Payment;
-use App\Observers\CropObserver;
-use App\Observers\OrderObserver;
-use App\Observers\OrderStatusObserver;
 use App\Observers\PaymentObserver;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Model;
@@ -103,10 +98,8 @@ class AppServiceProvider extends ServiceProvider
         Livewire::component('item-price-calculator', ItemPriceCalculator::class);
         
         // Register model observers
-        // Crop::observe(CropObserver::class); // Disabled - uses removed planting_at column
-        Order::observe(OrderObserver::class);
-        Order::observe(OrderStatusObserver::class);
-        \App\Models\OrderItem::observe(\App\Observers\OrderItemObserver::class);
+        // Note: Order-related observers moved to Filament Page hooks + Action classes
+        // following the Filament Resource Architecture Guide patterns
         Payment::observe(PaymentObserver::class);
 
         
