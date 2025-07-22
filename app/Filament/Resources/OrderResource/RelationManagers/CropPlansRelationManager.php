@@ -48,7 +48,7 @@ class CropPlansRelationManager extends RelationManager
     /**
      * Get table header actions with business logic delegation
      */
-    private function getTableHeaderActions(): array
+    protected function getTableHeaderActions(): array
     {
         $baseActions = CropPlansTable::headerActions($this->getOwnerRecord());
         
@@ -74,7 +74,7 @@ class CropPlansRelationManager extends RelationManager
     /**
      * Get table row actions with business logic delegation
      */
-    private function getTableActions(): array
+    protected function getTableActions(): array
     {
         $baseActions = CropPlansTable::actions();
         
@@ -100,7 +100,7 @@ class CropPlansRelationManager extends RelationManager
     /**
      * Get table bulk actions with business logic delegation
      */
-    private function getTableBulkActions(): array
+    protected function getTableBulkActions(): array
     {
         $baseActions = CropPlansTable::bulkActions();
         
