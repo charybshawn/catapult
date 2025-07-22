@@ -1005,28 +1005,7 @@ class Product extends Model
      */
     public function canBeDeleted(): array
     {
-        $errors = [];
-        
-        $totalInventory = $this->inventories()
-            ->where('quantity', '>', 0)
-            ->sum('quantity');
-            
-        if ($totalInventory > 0) {
-            $errors[] = "Product has {$totalInventory} units in inventory. Please reduce inventory to zero first.";
-        }
-        
-        $reservedInventory = $this->inventories()
-            ->where('reserved_quantity', '>', 0)
-            ->sum('reserved_quantity');
-            
-        if ($reservedInventory > 0) {
-            $errors[] = "Product has {$reservedInventory} reserved units. Please clear reservations first.";
-        }
-        
-        return [
-            'canDelete' => empty($errors),
-            'errors' => $errors
-        ];
+        return app(\App\Actions\Product\ValidateProductDeletionAction::class)->execute($this);
     }
 
     /**
@@ -1071,71 +1050,7 @@ class Product extends Model
      */
     public function cloneProduct(): Product
     {
-        DB::beginTransaction();
-        
-        try {
-            // Clone the main product
-            $newProduct = $this->replicate([
-                'created_at',
-                'updated_at',
-                'deleted_at',
-                'total_stock',
-                'reserved_stock',
-                'stock_status_id',
-            ]);
-            
-            // Add " (Copy)" to the name to make it unique
-            $baseName = $this->name . ' (Copy)';
-            $counter = 1;
-            $newName = $baseName;
-            
-            // Ensure unique name
-            while (Product::where('name', $newName)->whereNull('deleted_at')->exists()) {
-                $counter++;
-                $newName = $baseName . ' ' . $counter;
-            }
-            
-            $newProduct->name = $newName;
-            
-            // Also update SKU if it exists
-            if ($this->sku) {
-                $newProduct->sku = $this->sku . '-copy-' . time();
-            }
-            
-            // Save the new product
-            $newProduct->save();
-            
-            // Clone price variations
-            foreach ($this->priceVariations as $variation) {
-                $newVariation = $variation->replicate([
-                    'created_at',
-                    'updated_at',
-                ]);
-                $newVariation->product_id = $newProduct->id;
-                $newVariation->save();
-            }
-            
-            // Clone product photos
-            foreach ($this->photos as $photo) {
-                $newPhoto = $photo->replicate([
-                    'created_at',
-                    'updated_at',
-                ]);
-                $newPhoto->product_id = $newProduct->id;
-                $newPhoto->save();
-            }
-            
-            // Do NOT clone inventory entries - new product starts with zero inventory
-            // Do NOT clone inventory transactions or reservations
-            
-            DB::commit();
-            
-            return $newProduct;
-            
-        } catch (\Exception $e) {
-            DB::rollBack();
-            throw $e;
-        }
+        return app(\App\Actions\Product\CloneProductAction::class)->execute($this);
     }
 
     /**

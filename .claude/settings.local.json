@@ -32,7 +32,8 @@
       "Bash(git pull:*)",
       "Bash(cat:*)",
       "Bash(herd restart:*)",
-      "Bash(docker exec:*)"
+      "Bash(docker exec:*)",
+      "Bash(echo:*)"
     ],
     "deny": []
   }
