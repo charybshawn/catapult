@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\HarvestResource\Pages;
 
+use App\Actions\Harvest\CreateHarvestAction;
 use App\Filament\Resources\HarvestResource;
 use Filament\Actions;
 use App\Filament\Pages\Base\BaseEditRecord;
@@ -18,6 +19,9 @@ class EditHarvest extends BaseEditRecord
         ];
     }
 
+    /**
+     * Load existing crop relationships for form display
+     */
     protected function mutateFormDataBeforeFill(array $data): array
     {
         // Load existing crop relationships
@@ -33,45 +37,19 @@ class EditHarvest extends BaseEditRecord
         return $data;
     }
 
-    protected function mutateFormDataBeforeSave(array $data): array
-    {
-        // Calculate total weight and tray count from selected crops
-        $totalWeight = 0;
-        $totalTrays = 0;
-        
-        if (isset($data['crops']) && is_array($data['crops'])) {
-            foreach ($data['crops'] as $crop) {
-                $totalWeight += $crop['harvested_weight_grams'] ?? 0;
-                $totalTrays += ($crop['percentage_harvested'] ?? 100) / 100;
-            }
-        }
-        
-        $data['total_weight_grams'] = $totalWeight;
-        $data['tray_count'] = round($totalTrays, 2);
-        
-        return $data;
-    }
-
+    /**
+     * Use the CreateHarvestAction for record updates
+     */
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
-        $crops = $data['crops'] ?? [];
-        unset($data['crops']);
-        
-        // Update the harvest record
-        $record->update($data);
-        
-        // Sync crops with pivot data
-        $syncData = [];
-        foreach ($crops as $crop) {
-            $syncData[$crop['crop_id']] = [
-                'harvested_weight_grams' => $crop['harvested_weight_grams'],
-                'percentage_harvested' => $crop['percentage_harvested'] ?? 100,
-                'notes' => $crop['notes'] ?? null,
-            ];
-        }
-        
-        $record->crops()->sync($syncData);
-        
-        return $record;
+        return app(CreateHarvestAction::class)->update($record, $data);
+    }
+
+    /**
+     * Custom success notification message
+     */
+    protected function getSavedNotificationTitle(): ?string
+    {
+        return 'Harvest updated successfully';
     }
 }

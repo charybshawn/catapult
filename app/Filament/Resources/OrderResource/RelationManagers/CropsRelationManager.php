@@ -2,6 +2,9 @@
 
 namespace App\Filament\Resources\OrderResource\RelationManagers;
 
+use App\Actions\Order\AdvanceStageAction;
+use App\Actions\Order\ToggleWateringAction;
+use App\Actions\Order\ValidateCropDataAction;
 use App\Models\Recipe;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -19,14 +22,12 @@ class CropsRelationManager extends RelationManager
 
     public function form(Form $form): Form
     {
-        $order = $this->getOwnerRecord();
-        
         return $form
             ->schema([
                 Forms\Components\Select::make('recipe_id')
                     ->label('Recipe')
                     ->relationship('recipe', 'name')
-                    ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->seedEntry->cultivar_name} ({$record->name})")
+                    ->getOptionLabelFromRecordUsing(fn ($record) => app(ValidateCropDataAction::class)->getRecipeOptionLabel($record))
                     ->required()
                     ->searchable()
                     ->preload(),
@@ -40,12 +41,7 @@ class CropsRelationManager extends RelationManager
                     ->default(now()),
                 Forms\Components\Select::make('current_stage')
                     ->label('Current Stage')
-                    ->options([
-                        'germination' => 'Germination',
-                        'blackout' => 'Blackout',
-                        'light' => 'Light',
-                        'harvested' => 'Harvested',
-                    ])
+                    ->options(app(ValidateCropDataAction::class)->getStageOptions())
                     ->required()
                     ->default('germination'),
                 Forms\Components\DateTimePicker::make('stage_updated_at')
@@ -76,13 +72,7 @@ class CropsRelationManager extends RelationManager
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('current_stage')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'germination' => 'info',
-                        'blackout' => 'warning',
-                        'light' => 'success',
-                        'harvested' => 'gray',
-                        default => 'gray',
-                    }),
+                    ->color(fn (string $state): string => app(ValidateCropDataAction::class)->getStageBadgeColor($state)),
                 Tables\Columns\TextColumn::make('planting_at')
                     ->dateTime()
                     ->sortable(),
@@ -100,12 +90,7 @@ class CropsRelationManager extends RelationManager
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('current_stage')
-                    ->options([
-                        'germination' => 'Germination',
-                        'blackout' => 'Blackout',
-                        'light' => 'Light',
-                        'harvested' => 'Harvested',
-                    ]),
+                    ->options(app(ValidateCropDataAction::class)->getStageOptions()),
                 Tables\Filters\Filter::make('watering_suspended')
                     ->label('Watering Suspended')
                     ->query(fn (Builder $query) => $query->whereNotNull('watering_suspended_at')),
@@ -113,42 +98,27 @@ class CropsRelationManager extends RelationManager
             ->headerActions([
                 Tables\Actions\CreateAction::make()
                     ->mutateFormDataUsing(function (array $data): array {
-                        $watering_suspended = $data['watering_suspended'] ?? false;
-                        unset($data['watering_suspended']);
-                        
-                        $data['watering_suspended_at'] = $watering_suspended ? now() : null;
-                        $data['order_id'] = $this->getOwnerRecord()->id;
-                        
-                        return $data;
+                        return app(ValidateCropDataAction::class)->transformForCreate($data, $this->getOwnerRecord()->id);
                     }),
             ])
             ->actions([
                 Tables\Actions\EditAction::make()
                     ->mutateFormDataUsing(function (array $data): array {
-                        $watering_suspended = $data['watering_suspended'] ?? false;
-                        unset($data['watering_suspended']);
-                        
-                        $data['watering_suspended_at'] = $watering_suspended ? now() : null;
-                        
-                        return $data;
+                        return app(ValidateCropDataAction::class)->transformForUpdate($data);
                     }),
                 Tables\Actions\DeleteAction::make(),
                 Tables\Actions\Action::make('advance_stage')
                     ->label('Advance Stage')
                     ->icon('heroicon-o-arrow-right')
                     ->action(function ($record): void {
-                        $record->advanceStage();
+                        app(AdvanceStageAction::class)->execute($record);
                     })
-                    ->visible(fn ($record): bool => $record->current_stage !== 'harvested'),
+                    ->visible(fn ($record): bool => app(AdvanceStageAction::class)->canAdvance($record)),
                 Tables\Actions\Action::make('toggle_watering')
-                    ->label(fn ($record): string => $record->watering_suspended_at ? 'Resume Watering' : 'Suspend Watering')
-                    ->icon(fn ($record): string => $record->watering_suspended_at ? 'heroicon-o-play' : 'heroicon-o-pause')
+                    ->label(fn ($record): string => app(ToggleWateringAction::class)->getToggleLabel($record))
+                    ->icon(fn ($record): string => app(ToggleWateringAction::class)->getToggleIcon($record))
                     ->action(function ($record): void {
-                        if ($record->watering_suspended_at) {
-                            $record->resumeWatering();
-                        } else {
-                            $record->suspendWatering();
-                        }
+                        app(ToggleWateringAction::class)->execute($record);
                     }),
             ])
             ->bulkActions([
@@ -158,27 +128,19 @@ class CropsRelationManager extends RelationManager
                         ->label('Advance Stage')
                         ->icon('heroicon-o-arrow-right')
                         ->action(function ($records) {
-                            foreach ($records as $record) {
-                                if ($record->current_stage !== 'harvested') {
-                                    $record->advanceStage();
-                                }
-                            }
+                            app(AdvanceStageAction::class)->executeBulk($records);
                         }),
                     Tables\Actions\BulkAction::make('suspend_watering_bulk')
                         ->label('Suspend Watering')
                         ->icon('heroicon-o-pause')
                         ->action(function ($records) {
-                            foreach ($records as $record) {
-                                $record->suspendWatering();
-                            }
+                            app(ToggleWateringAction::class)->suspendBulk($records);
                         }),
                     Tables\Actions\BulkAction::make('resume_watering_bulk')
                         ->label('Resume Watering')
                         ->icon('heroicon-o-play')
                         ->action(function ($records) {
-                            foreach ($records as $record) {
-                                $record->resumeWatering();
-                            }
+                            app(ToggleWateringAction::class)->resumeBulk($records);
                         }),
                 ]),
             ]);
