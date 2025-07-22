@@ -35,7 +35,9 @@
       "Bash(docker exec:*)",
       "Bash(echo:*)",
       "Bash(git merge:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(../dev.sh artisan:*)",
+      "Bash(../dev.sh:*)"
     ],
     "deny": []
   }
