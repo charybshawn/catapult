@@ -51,8 +51,7 @@ class OrderResource extends BaseResource
 
     public static function form(Form $form): Form
     {
-        return $form
-            ->schema([
+        return $form->schema(OrderResource\Forms\OrderForm::schema());
                 Forms\Components\Section::make('Order Type')
                     ->schema([
                         Forms\Components\Toggle::make('is_recurring')
