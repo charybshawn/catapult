@@ -100,8 +100,41 @@ Before marking any task complete:
 5. **Document your changes** - Update this file when you modify the system
 6. **Ask Questions** - Whenever you need to prompt the user for clarification
 
+## 🏗️ Filament Resource Architecture
+
+**MANDATORY READING:** `docs/FILAMENT_RESOURCE_ARCHITECTURE_GUIDE.md`
+
+### 🎯 Core Rule: Work WITH Filament, Not Against It
+
+When working with Filament resources, forms, tables, or pages:
+
+1. **NEVER create custom observers, services, or blade templates** - Use Filament's built-in patterns
+2. **ALWAYS extend Filament classes** - Don't create parallel systems
+3. **ORGANIZE Filament components** - Don't reinvent them
+4. **DELEGATE to specialized classes** - Keep main resource files under 150 lines
+
+### 📁 Required File Structure for Resources:
+```
+app/Filament/Resources/
+├── XxxResource.php                    # Main coordinator (MAX 150 lines)
+├── XxxResource/
+│   ├── Forms/XxxForm.php             # Returns Filament form schema
+│   ├── Tables/XxxTable.php           # Returns Filament table components  
+│   └── Pages/                        # Extend Filament page classes
+```
+
+### ⚠️ Architectural Violations:
+- Creating Laravel observers for Filament-managed operations
+- Building custom services that duplicate Filament functionality
+- Creating custom blade templates for forms/tables
+- Business logic in UI components
+- Main resource files over 150 lines
+
+**If you're unsure about Filament architecture, READ THE GUIDE FIRST.**
+
 ## 🔄 Future Development Guidelines
 
+1. **Follow the Filament Resource Architecture Guide** - ALL new resources must use this pattern
 2. **Extend functionality, don't replace it**
 3. **Test with real data and real workflows**
 4. **Keep the UI simple and intuitive**
