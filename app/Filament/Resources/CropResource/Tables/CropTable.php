@@ -9,6 +9,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Filament\Support\Colors\Color;
+use Illuminate\Support\Facades\Log;
 
 class CropTable
 {
@@ -97,7 +98,7 @@ class CropTable
                 ->label('Advance to Germination')
                 ->icon('heroicon-o-arrow-right')
                 ->color('success')
-                ->visible(fn (Crop $record) => $record->currentStage->code === 'soaking')
+                ->visible(fn (Crop $record) => $record->getRelation('currentStage')?->code === 'soaking')
                 ->requiresConfirmation()
                 ->form([
                     \Filament\Forms\Components\TextInput::make('tray_number')
@@ -157,7 +158,7 @@ class CropTable
                     
                     foreach ($records as $record) {
                         // Skip non-soaking crops
-                        if ($record->currentStage->code !== 'soaking') {
+                        if ($record->getRelation('currentStage')?->code !== 'soaking') {
                             continue;
                         }
                         
@@ -210,11 +211,16 @@ class CropTable
     
     protected static function getTimeToNextStageDisplay(Crop $record): string
     {
-        if ($record->currentStage->code === 'harvested') {
+        $currentStage = $record->getRelation('currentStage');
+        if (!$currentStage) {
+            return 'Unknown';
+        }
+        
+        if ($currentStage->code === 'harvested') {
             return 'Complete';
         }
         
-        if ($record->currentStage->code === 'soaking' && $record->isActivelySoaking()) {
+        if ($record->getRelation('currentStage')?->code === 'soaking' && $record->isActivelySoaking()) {
             $remaining = $record->getSoakingTimeRemaining();
             if ($remaining !== null) {
                 $hours = intval($remaining / 60);
