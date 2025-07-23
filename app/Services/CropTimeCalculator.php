@@ -9,37 +9,40 @@ class CropTimeCalculator
 {
     /**
      * Update all time-related calculated fields for a crop
+     * @deprecated Use getTimeToNextStageDisplay() or access via CropBatchListView
      */
     public function updateTimeCalculations(Crop $crop): void
     {
-        // Ensure relationships are loaded for calculations
-        if (!$crop->relationLoaded('currentStage')) {
-            $crop->load('currentStage');
-        }
-        if (!$crop->relationLoaded('recipe')) {
-            $crop->load('recipe');
-        }
-        
-        // Calculate the time values
-        $timeToNextStage = $this->calculateTimeToNextStage($crop);
-        $stageAge = $this->calculateStageAge($crop);
-        $totalAge = $this->calculateTotalAge($crop);
-        
-        // Update the crop attributes
-        $crop->time_to_next_stage_minutes = $timeToNextStage;
-        $crop->time_to_next_stage_display = $this->formatTimeDisplay($timeToNextStage);
-        
-        $crop->stage_age_minutes = $stageAge;
-        $crop->stage_age_display = $this->formatTimeDisplay($stageAge);
-        
-        $crop->total_age_minutes = $totalAge;
-        $crop->total_age_display = $this->formatTimeDisplay($totalAge);
-        
-        // For new models being created, don't save (let the creation process handle it)
-        // For existing models, save quietly to prevent recursive calls
-        if ($crop->exists && $crop->isDirty()) {
-            $crop->saveQuietly();
-        }
+        // This method is deprecated as these fields are now in crop_batches_list_view
+        // Keeping it empty to avoid breaking existing code
+    }
+    
+    /**
+     * Get the time to next stage display value
+     * This can be used when the value is needed but not available in the view
+     */
+    public function getTimeToNextStageDisplay(Crop $crop): string
+    {
+        $minutes = $this->calculateTimeToNextStage($crop);
+        return $this->formatTimeDisplay($minutes);
+    }
+    
+    /**
+     * Get the stage age display value
+     */
+    public function getStageAgeDisplay(Crop $crop): string
+    {
+        $minutes = $this->calculateStageAge($crop);
+        return $this->formatTimeDisplay($minutes);
+    }
+    
+    /**
+     * Get the total age display value
+     */
+    public function getTotalAgeDisplay(Crop $crop): string
+    {
+        $minutes = $this->calculateTotalAge($crop);
+        return $this->formatTimeDisplay($minutes);
     }
 
     /**

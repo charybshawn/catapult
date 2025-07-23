@@ -2,7 +2,8 @@
 
 namespace App\Filament\Resources\CropResource\Infolists;
 
-use App\Models\RecipeOptimizedView;
+use App\Models\Recipe;
+use App\Models\CropStageHistory;
 use Filament\Infolists\Components;
 use Carbon\Carbon;
 
@@ -84,6 +85,17 @@ class CropBatchInfolist
                             return static::generateTrayNumberBadges($record);
                         }),
                 ]),
+                
+            Components\Section::make('Stage History')
+                ->schema([
+                    Components\TextEntry::make('stage_history')
+                        ->label('')
+                        ->html()
+                        ->getStateUsing(function ($record) {
+                            return static::generateStageHistory($record);
+                        }),
+                ])
+                ->collapsed(),
         ];
     }
 
@@ -93,7 +105,7 @@ class CropBatchInfolist
     protected static function getVarietyName($record): string
     {
         if ($record->recipe_id) {
-            $recipe = RecipeOptimizedView::find($record->recipe_id);
+            $recipe = Recipe::find($record->recipe_id);
             if ($recipe) {
                 // Extract just the variety part (before the lot number)
                 $parts = explode(' - ', $recipe->name);
@@ -233,6 +245,75 @@ class CropBatchInfolist
         foreach ($trayNumbers as $tray) {
             $html .= '<span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-800 dark:bg-gray-800 dark:text-gray-200">' . htmlspecialchars($tray) . '</span>';
         }
+        $html .= '</div>';
+        
+        return $html;
+    }
+
+    /**
+     * Generate stage history HTML
+     */
+    protected static function generateStageHistory($record): string
+    {
+        $stageHistory = CropStageHistory::where('crop_batch_id', $record->id)
+            ->with(['stage', 'createdBy'])
+            ->orderBy('entered_at', 'asc')
+            ->get();
+            
+        if ($stageHistory->isEmpty()) {
+            return '<div class="text-gray-500 dark:text-gray-400">No stage history available</div>';
+        }
+        
+        $html = '<div class="space-y-3">';
+        
+        foreach ($stageHistory as $index => $history) {
+            $isActive = $history->is_active;
+            $bgColor = $isActive ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-gray-50 dark:bg-gray-800/50';
+            
+            $html .= '<div class="p-3 rounded-lg ' . $bgColor . '">';
+            $html .= '<div class="flex items-start justify-between">';
+            
+            // Stage name and timing
+            $html .= '<div>';
+            $html .= '<div class="font-medium text-gray-900 dark:text-gray-100">';
+            $html .= htmlspecialchars($history->stage->name);
+            if ($isActive) {
+                $html .= ' <span class="text-sm text-blue-600 dark:text-blue-400">(Current)</span>';
+            }
+            $html .= '</div>';
+            
+            $html .= '<div class="text-sm text-gray-600 dark:text-gray-400 mt-1">';
+            $html .= 'Entered: ' . $history->entered_at->format('M j, Y g:i A');
+            if ($history->exited_at) {
+                $html .= '<br>Exited: ' . $history->exited_at->format('M j, Y g:i A');
+            }
+            $html .= '</div>';
+            
+            if ($history->createdBy) {
+                $html .= '<div class="text-xs text-gray-500 dark:text-gray-500 mt-1">';
+                $html .= 'By: ' . htmlspecialchars($history->createdBy->name);
+                $html .= '</div>';
+            }
+            $html .= '</div>';
+            
+            // Duration
+            $html .= '<div class="text-right">';
+            $html .= '<span class="text-sm font-medium text-gray-700 dark:text-gray-300">';
+            $html .= $history->duration_display ?? 'In Progress';
+            $html .= '</span>';
+            $html .= '</div>';
+            
+            $html .= '</div>';
+            
+            if ($history->notes) {
+                $html .= '<div class="text-sm text-gray-500 dark:text-gray-400 mt-2">';
+                $html .= htmlspecialchars($history->notes);
+                $html .= '</div>';
+            }
+            
+            $html .= '</div>';
+        }
+        
         $html .= '</div>';
         
         return $html;

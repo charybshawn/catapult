@@ -9,7 +9,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Collections\CropBatchCollection;
 
 class CropBatch extends Model
 {
@@ -39,16 +38,6 @@ class CropBatch extends Model
         return $this->computedAttributesCache[$key] ?? $default;
     }
     
-    /**
-     * Create a new Eloquent Collection instance.
-     *
-     * @param  array  $models
-     * @return \Illuminate\Database\Eloquent\Collection
-     */
-    public function newCollection(array $models = [])
-    {
-        return new CropBatchCollection($models);
-    }
 
     /**
      * The attributes that are mass assignable.
@@ -154,9 +143,9 @@ class CropBatch extends Model
             'tray_count' => $this->crops_count ?? $this->crops->count(),
             'current_stage_id' => $firstCrop->current_stage_id,
             'current_stage_name' => $stage ? $stage->name : null,
-            'stage_age_display' => $calculator->formatTimeDisplay($calculator->calculateStageAge($firstCrop)),
-            'time_to_next_stage_display' => $calculator->formatTimeDisplay($calculator->calculateTimeToNextStage($firstCrop)),
-            'total_age_display' => $calculator->formatTimeDisplay($calculator->calculateTotalAge($firstCrop)),
+            'stage_age_display' => $calculator->getStageAgeDisplay($firstCrop),
+            'time_to_next_stage_display' => $calculator->getTimeToNextStageDisplay($firstCrop),
+            'total_age_display' => $calculator->getTotalAgeDisplay($firstCrop),
             'expected_harvest_at' => $firstCrop->recipe && $firstCrop->recipe->days_to_maturity 
                 ? Carbon::parse($firstCrop->planting_at)->addDays($firstCrop->recipe->days_to_maturity)
                 : null,
@@ -303,7 +292,7 @@ class CropBatch extends Model
     public function isInSoaking(): bool
     {
         $firstCrop = $this->crops()->with('currentStage')->first();
-        return $firstCrop?->currentStage?->code === 'soaking';
+        return $firstCrop?->getRelation('currentStage')?->code === 'soaking';
     }
 
     /**

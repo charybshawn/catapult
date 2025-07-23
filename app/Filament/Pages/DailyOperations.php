@@ -7,6 +7,7 @@ use App\Models\Crop;
 use App\Models\Order;
 use App\Models\Consumable;
 use App\Models\CropAlert;
+use App\Models\CropBatchListView;
 use Carbon\Carbon;
 
 class DailyOperations extends Page
@@ -31,10 +32,9 @@ class DailyOperations extends Page
         $today = Carbon::today();
         
         return [
-            'crops_to_advance' => Crop::join('crop_stages', 'crops.current_stage_id', '=', 'crop_stages.id')
-                ->where('crop_stages.code', '!=', 'harvested')
+            'crops_to_advance' => CropBatchListView::where('current_stage_code', '!=', 'harvested')
                 ->whereRaw("time_to_next_stage_minutes <= 0")
-                ->count(),
+                ->sum('crop_count'),
             'todays_alerts' => CropAlert::whereDate('next_run_at', $today)
                 ->where('is_active', true)
                 ->count(),
@@ -43,10 +43,9 @@ class DailyOperations extends Page
             'pending_orders' => Order::join('order_statuses', 'orders.status_id', '=', 'order_statuses.id')
                 ->where('order_statuses.code', '=', 'pending')
                 ->count(),
-            'crops_ready_to_harvest' => Crop::join('crop_stages', 'crops.current_stage_id', '=', 'crop_stages.id')
-                ->where('crop_stages.code', '=', 'light')
+            'crops_ready_to_harvest' => CropBatchListView::where('current_stage_code', '=', 'light')
                 ->whereRaw("time_to_next_stage_minutes <= 0")
-                ->count(),
+                ->sum('crop_count'),
         ];
     }
     

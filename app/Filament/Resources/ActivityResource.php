@@ -30,18 +30,6 @@ class ActivityResource extends BaseResource
     protected static ?string $pluralModelLabel = 'Activity Logs';
     
     protected static ?string $modelLabel = 'Activity Log';
-    
-    public static function getNavigationBadge(): ?string
-    {
-        return cache()->remember('activity_log_count', 60, function () {
-            return number_format(static::getModel()::count());
-        });
-    }
-    
-    public static function getNavigationBadgeColor(): ?string
-    {
-        return 'gray';
-    }
 
     public static function form(Form $form): Form
     {

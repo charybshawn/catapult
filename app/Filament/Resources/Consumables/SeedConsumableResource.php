@@ -117,7 +117,9 @@ class SeedConsumableResource extends ConsumableResource
                         // Hidden field for name (set automatically)
                         Forms\Components\Hidden::make('name'),
                         
-                        static::getActiveStatusField()
+                        Forms\Components\Toggle::make('is_active')
+                            ->label('Active')
+                            ->default(true)
                             ->columnSpanFull(),
                     ])
                     ->columns(2),

@@ -3,7 +3,10 @@
 namespace App\Filament\Resources\RecipeResource\Tables;
 
 use App\Models\Recipe;
-use App\Services\InventoryManagementService;
+use App\Models\RecipeOptimizedView;
+use App\Models\Consumable;
+use App\Filament\Resources\Consumables\SeedConsumableResource;
+use Filament\Forms;
 use Filament\Tables;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
@@ -20,18 +23,18 @@ class RecipeTable
             Tables\Columns\TextColumn::make('name')
                 ->searchable()->sortable()->toggleable(isToggledHiddenByDefault: false),
                 
-            Tables\Columns\TextColumn::make('lot_number')
-                ->label('Seed Lot')->searchable()->sortable()->toggleable()
-                ->formatStateUsing(fn ($state, $record) => static::formatSeedLotDisplay($state, $record)),
+            Tables\Columns\TextColumn::make('seed_lot_display')
+                ->label('Seed Lot')->searchable(['lot_number', 'seed_consumable_name'])->sortable(query: function (Builder $query, string $direction): Builder {
+                    return $query->orderBy('lot_number', $direction);
+                })->toggleable(),
                 
-            Tables\Columns\TextColumn::make('soilConsumable.name')
+            Tables\Columns\TextColumn::make('soil_consumable_name')
                 ->label('Soil')->searchable()->sortable()->toggleable(),
                 
-            Tables\Columns\TextColumn::make('totalDays')
+            Tables\Columns\TextColumn::make('total_days')
                 ->label('Total Days')->toggleable()
-                ->getStateUsing(fn (Recipe $record): float => $record->totalDays())
-                ->sortable(query: fn (Builder $query, string $direction) => 
-                    $query->orderByRaw('(germination_days + blackout_days + light_days) ' . $direction)),
+                ->numeric(1)
+                ->sortable(),
                 
             Tables\Columns\TextColumn::make('days_to_maturity')
                 ->label('DTM')->numeric(1)->sortable()->toggleable(),
@@ -72,10 +75,19 @@ class RecipeTable
                 ->label('Status')
                 ->options(['1' => 'Active', 'unit' => 'Inactive']),
                 
-            Tables\Filters\SelectFilter::make('lot_number')
-                ->label('Seed Lot')
-                ->options(fn () => static::getSeedLotFilterOptions())
-                ->searchable()->preload(),
+            Tables\Filters\Filter::make('lot_number')
+                ->form([
+                    Forms\Components\TextInput::make('lot_number')
+                        ->label('Seed Lot')
+                        ->placeholder('Enter lot number'),
+                ])
+                ->query(function (Builder $query, array $data): Builder {
+                    return $query
+                        ->when(
+                            $data['lot_number'],
+                            fn (Builder $query, $value): Builder => $query->where('lot_number', 'like', "%{$value}%"),
+                        );
+                }),
         ];
     }
     
@@ -90,6 +102,7 @@ class RecipeTable
                 Tables\Actions\EditAction::make()->tooltip('Edit recipe'),
                 static::getCloneAction(),
                 static::getUpdateGrowsAction(),
+                static::getViewSeedLotAction(),
                 static::getDeleteAction(),
                 static::getDeactivateAction(),
                 static::getActivateAction(),
@@ -116,7 +129,8 @@ class RecipeTable
      */
     public static function modifyQuery(Builder $query): Builder
     {
-        return $query->with(['seedConsumable', 'soilConsumable']);
+        // No need to eager load when using the view
+        return $query;
     }
     
     /**
@@ -129,45 +143,11 @@ class RecipeTable
     
     // ===== HELPER METHODS =====
     
-    protected static function formatSeedLotDisplay($state, $record): string
-    {
-        if (!$state) {
-            if ($record->seedConsumable) {
-                $available = max(0, $record->seedConsumable->total_quantity - $record->seedConsumable->consumed_quantity);
-                $unit = $record->seedConsumable->quantity_unit ?? 'g';
-                return $record->seedConsumable->name . " ({$available} {$unit} available)";
-            }
-            return '-';
-        }
-        
-        // TODO: Extract to App\Services\Recipe\SeedLotDisplayService
-        $lotInventoryService = app(InventoryManagementService::class);
-        $summary = $lotInventoryService->getLotSummary($state);
-        return $summary['available'] <= 0 ? "{$state} (Depleted)" : "{$state} ({$summary['available']}g)";
-    }
-    
-    protected static function getSeedLotFilterOptions(): array
-    {
-        // TODO: Extract to App\Services\Recipe\SeedLotFilterService
-        $lotInventoryService = app(InventoryManagementService::class);
-        $lotNumbers = $lotInventoryService->getAllLotNumbers();
-        $options = [];
-        
-        foreach ($lotNumbers as $lotNumber) {
-            $summary = $lotInventoryService->getLotSummary($lotNumber);
-            $status = $summary['available'] > 0 ? "(Available)" : "(Depleted)";
-            $options[$lotNumber] = "{$lotNumber} {$status}";
-        }
-        
-        return $options;
-    }
-    
     protected static function validateBulkDeletion($action, Collection $records): void
     {
         // TODO: Extract to App\Actions\Recipe\ValidateBulkRecipeDeletionAction
-        $harvestedStage = \App\Models\CropStage::findByCode('harvested');
-        $recipesWithActiveCrops = $records->filter(function ($record) use ($harvestedStage) {
-            return $record->crops()->where('current_stage_id', '!=', $harvestedStage?->id)->count() > 0;
+        $recipesWithActiveCrops = $records->filter(function ($record) {
+            return $record->active_crops_count > 0;
         });
         
         if ($recipesWithActiveCrops->isNotEmpty()) {
@@ -185,20 +165,23 @@ class RecipeTable
     {
         return Tables\Actions\Action::make('clone')
             ->icon('heroicon-o-document-duplicate')->tooltip('Clone recipe')
-            ->action(function (Recipe $record) {
+            ->action(function ($record) {
+                // Need to get the actual Recipe model to clone
+                $recipe = Recipe::find($record->id);
+                
                 // TODO: Extract to App\Actions\Recipe\CloneRecipeAction
-                $clone = $record->replicate();
-                $clone->name = $record->name . ' (Clone)';
+                $clone = $recipe->replicate();
+                $clone->name = $recipe->name . ' (Clone)';
                 $clone->save();
                 
                 // Clone related records
-                foreach ($record->stages as $stage) {
+                foreach ($recipe->stages as $stage) {
                     $stageClone = $stage->replicate();
                     $stageClone->recipe_id = $clone->id;
                     $stageClone->save();
                 }
                 
-                foreach ($record->wateringSchedule as $schedule) {
+                foreach ($recipe->wateringSchedule as $schedule) {
                     $scheduleClone = $schedule->replicate();
                     $scheduleClone->recipe_id = $clone->id;
                     $scheduleClone->save();
@@ -214,7 +197,7 @@ class RecipeTable
         return Tables\Actions\Action::make('updateGrows')
             ->icon('heroicon-o-arrow-path')->label('Apply to Grows')
             ->tooltip('Apply recipe parameters to existing grows')->color('warning')
-            ->action(function (Recipe $record) {
+            ->action(function ($record) {
                 // TODO: Extract to App\Actions\Recipe\UpdateGrowsFromRecipeAction
                 // Complex business logic (~150 lines) should be moved to dedicated Action class
                 Notification::make()
@@ -228,11 +211,10 @@ class RecipeTable
     {
         return Tables\Actions\DeleteAction::make()
             ->tooltip('Delete recipe')->requiresConfirmation()
-            ->before(function (Tables\Actions\DeleteAction $action, Recipe $record) {
+            ->before(function (Tables\Actions\DeleteAction $action, $record) {
                 // TODO: Extract to App\Actions\Recipe\ValidateRecipeDeletionAction
-                $harvestedStage = \App\Models\CropStage::findByCode('harvested');
-                $activeCropsCount = $record->crops()->where('current_stage_id', '!=', $harvestedStage?->id)->count();
-                $totalCropsCount = $record->crops()->count();
+                $activeCropsCount = $record->active_crops_count;
+                $totalCropsCount = $record->total_crops_count;
                 
                 if ($activeCropsCount > 0 || $totalCropsCount > 0) {
                     $action->cancel();
@@ -252,25 +234,44 @@ class RecipeTable
     {
         return Tables\Actions\Action::make('deactivate')
             ->label('Deactivate')->icon('heroicon-o-eye-slash')->color('warning')->requiresConfirmation()
-            ->action(function (Recipe $record) {
+            ->action(function ($record) {
                 // TODO: Extract to App\Actions\Recipe\DeactivateRecipeAction
-                $record->update(['is_active' => false]);
+                Recipe::where('id', $record->id)->update(['is_active' => false]);
                 Notification::make()->title('Recipe Deactivated')
                     ->body("'{$record->name}' has been deactivated.")->success()->send();
             })
-            ->visible(fn (Recipe $record) => $record->is_active ?? true);
+            ->visible(fn ($record) => $record->is_active ?? true);
     }
     
     protected static function getActivateAction(): Tables\Actions\Action
     {
         return Tables\Actions\Action::make('activate')
             ->label('Activate')->icon('heroicon-o-eye')->color('success')
-            ->action(function (Recipe $record) {
+            ->action(function ($record) {
                 // TODO: Extract to App\Actions\Recipe\ActivateRecipeAction
-                $record->update(['is_active' => true]);
+                Recipe::where('id', $record->id)->update(['is_active' => true]);
                 Notification::make()->title('Recipe Activated')
                     ->body("'{$record->name}' has been activated.")->success()->send();
             })
-            ->visible(fn (Recipe $record) => !($record->is_active ?? true));
+            ->visible(fn ($record) => !($record->is_active ?? true));
+    }
+    
+    protected static function getViewSeedLotAction(): Tables\Actions\Action
+    {
+        return Tables\Actions\Action::make('view_seed_lot')
+            ->label('View Seed Lot')
+            ->icon('heroicon-o-eye')
+            ->color('info')
+            ->tooltip('View the seed lot/consumable details')
+            ->url(function ($record) {
+                if ($record->seed_consumable_id) {
+                    return SeedConsumableResource::getUrl('edit', ['record' => $record->seed_consumable_id]);
+                }
+                
+                return null;
+            })
+            ->visible(function ($record) {
+                return $record->seed_consumable_id;
+            });
     }
 }

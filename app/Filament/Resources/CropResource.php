@@ -13,15 +13,21 @@ use Filament\Tables\Table;
 
 class CropResource extends BaseResource
 {
-    protected static ?string $model = Crop::class;
+    protected static ?string $model = \App\Models\Crop::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-fire';
 
-    protected static ?string $navigationLabel = 'Grows';
+    protected static ?string $navigationLabel = 'Individual Crops';
 
     protected static ?string $navigationGroup = 'Production';
 
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 99;
+    
+    // Hide from navigation - access through batch view
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
 
     protected static ?string $recordTitleAttribute = 'id';
 
@@ -33,11 +39,13 @@ class CropResource extends BaseResource
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn ($query) => CropTable::modifyQuery($query))
             ->columns(CropTable::columns())
             ->filters(CropTable::filters())
             ->actions(CropTable::actions())
             ->bulkActions(CropTable::bulkActions())
-            ->defaultSort('created_at', 'desc');
+            ->groups(CropTable::groups())
+            ->defaultSort('id', 'desc');
     }
 
     public static function infolist(Infolist $infolist): Infolist

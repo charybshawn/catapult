@@ -16,9 +16,14 @@ class ConsumableForm
      */
     public static function schema(): array
     {
-        // Determine if we're in edit mode
+        // Determine if we're in edit mode - use a safer approach
         $isEditMode = function ($livewire) {
-            return $livewire->getOperation() === 'edit';
+            // Check if livewire has the method first, then check for record existence
+            if (method_exists($livewire, 'getOperation')) {
+                return $livewire->getOperation() === 'edit';
+            }
+            // Fallback: check if record exists (edit mode has a record)
+            return isset($livewire->record) && $livewire->record !== null;
         };
         
         return [

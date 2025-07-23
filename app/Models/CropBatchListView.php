@@ -79,11 +79,20 @@ class CropBatchListView extends Model
     }
     
     /**
-     * Get the crops relationship
-     * Since this is a view, we need to query the actual crops table
+     * Get the crops for this batch
+     * Since this is a view, we return a collection instead of a relationship
+     */
+    public function getCropsAttribute()
+    {
+        return \App\Models\Crop::where('crop_batch_id', $this->id)->get();
+    }
+    
+    /**
+     * For compatibility with code expecting a relationship
+     * Returns a hasMany relationship that won't work perfectly but prevents errors
      */
     public function crops()
     {
-        return \App\Models\Crop::where('crop_batch_id', $this->id);
+        return $this->hasMany(\App\Models\Crop::class, 'crop_batch_id', 'id');
     }
 }

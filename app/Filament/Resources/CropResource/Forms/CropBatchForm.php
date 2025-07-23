@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\CropResource\Forms;
 
 use App\Filament\Resources\RecipeResource;
-use App\Models\RecipeOptimizedView;
+use App\Models\Recipe;
 use App\Services\CropStageCache;
 use Filament\Forms;
 use Filament\Forms\Get;
@@ -25,16 +25,16 @@ class CropBatchForm
                 ->schema([
                     Forms\Components\Select::make('recipe_id')
                         ->label('Recipe')
-                        ->options(RecipeOptimizedView::getOptions())
+                        ->options(Recipe::pluck('name', 'id'))
                         ->required()
                         ->searchable()
                         ->preload()
                         ->reactive()
-                        ->createOptionForm(RecipeResource::getFormSchema())
+                        ->createOptionForm(\App\Filament\Resources\RecipeResource\Forms\RecipeForm::schema())
                         ->afterStateUpdated(function ($state, Set $set, Get $get) {
                             // Update soaking information when recipe changes
                             if ($state) {
-                                $recipe = RecipeOptimizedView::find($state);
+                                $recipe = Recipe::find($state);
                                 if ($recipe && $recipe->requiresSoaking()) {
                                     $set('soaking_duration_display', $recipe->seed_soak_hours . ' hours');
                                     
@@ -107,7 +107,7 @@ class CropBatchForm
                         ->default(function (Get $get) {
                             $recipeId = $get('recipe_id');
                             if ($recipeId) {
-                                $recipe = RecipeOptimizedView::find($recipeId);
+                                $recipe = Recipe::find($recipeId);
                                 if ($recipe && $recipe->requiresSoaking()) {
                                     $soakingStage = CropStageCache::findByCode('soaking');
                                     if ($soakingStage) {
@@ -203,7 +203,7 @@ class CropBatchForm
         $recipeId = $get('recipe_id');
         
         if ($soakingAt && $recipeId) {
-            $recipe = RecipeOptimizedView::find($recipeId);
+            $recipe = Recipe::find($recipeId);
             if ($recipe && $recipe->seed_soak_hours > 0) {
                 $soakingStart = \Carbon\Carbon::parse($soakingAt);
                 $plantingDate = $soakingStart->copy()->addHours($recipe->seed_soak_hours);
@@ -222,7 +222,7 @@ class CropBatchForm
             return false;
         }
         
-        $recipe = RecipeOptimizedView::find($recipeId);
+        $recipe = Recipe::find($recipeId);
         return $recipe?->requiresSoaking() ?? false;
     }
 
@@ -236,7 +236,7 @@ class CropBatchForm
             return '';
         }
         
-        $recipe = RecipeOptimizedView::find($recipeId);
+        $recipe = Recipe::find($recipeId);
         if (!$recipe || !$recipe->requiresSoaking()) {
             return '';
         }
@@ -253,7 +253,7 @@ class CropBatchForm
         $trayCount = $get('soaking_tray_count');
         
         if ($recipeId && $trayCount) {
-            $recipe = RecipeOptimizedView::find($recipeId);
+            $recipe = Recipe::find($recipeId);
             if ($recipe && $recipe->seed_density_grams_per_tray) {
                 $totalSeed = $recipe->seed_density_grams_per_tray * $trayCount;
                 $set('calculated_seed_quantity', $totalSeed);
@@ -273,7 +273,7 @@ class CropBatchForm
             return 'Select recipe and enter tray count to calculate seed quantity';
         }
         
-        $recipe = RecipeOptimizedView::find($recipeId);
+        $recipe = Recipe::find($recipeId);
         if (!$recipe) {
             return 'Recipe not found';
         }

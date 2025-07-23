@@ -72,7 +72,7 @@
         "badge": "alerts"
       },
       {
-        "resource": "CropResource"
+        "resource": "CropBatchResource"
       },
       {
         "resource": "HarvestResource"

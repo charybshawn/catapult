@@ -1,0 +1,37 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        // Only add columns if they don't exist (in case table was created with them)
+        if (!Schema::hasColumn('crop_batches', 'order_id')) {
+            Schema::table('crop_batches', function (Blueprint $table) {
+                $table->unsignedBigInteger('order_id')->nullable()->after('recipe_id');
+                $table->unsignedBigInteger('crop_plan_id')->nullable()->after('order_id');
+                
+                $table->foreign('order_id')->references('id')->on('orders')->nullOnDelete();
+                $table->foreign('crop_plan_id')->references('id')->on('crop_plans')->nullOnDelete();
+            });
+        }
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::table('crop_batches', function (Blueprint $table) {
+            $table->dropForeign(['order_id']);
+            $table->dropForeign(['crop_plan_id']);
+            $table->dropColumn(['order_id', 'crop_plan_id']);
+        });
+    }
+};

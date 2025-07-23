@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources;
 
-use App\Actions\ProductInventory\GetNavigationBadgeAction;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\ProductInventoryResource\Forms\ProductInventoryForm;
 use App\Filament\Resources\ProductInventoryResource\Pages;
@@ -77,15 +76,5 @@ class ProductInventoryResource extends BaseResource
     public static function getGloballySearchableAttributes(): array
     {
         return ['lot_number', 'product.name'];
-    }
-
-    public static function getNavigationBadge(): ?string
-    {
-        return app(GetNavigationBadgeAction::class)->getBadgeCount();
-    }
-
-    public static function getNavigationBadgeColor(): ?string
-    {
-        return app(GetNavigationBadgeAction::class)->getBadgeColor();
     }
 }

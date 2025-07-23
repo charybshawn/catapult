@@ -32,7 +32,6 @@ class CropFactory extends Factory
             'recipe_id' => Recipe::factory(), // Associate with a recipe
             'tray_number' => 'T-' . $this->faker->unique()->numberBetween(100, 999),
             'tray_count' => $this->faker->numberBetween(1, 10), // Add tray count for tests
-            'planting_at' => $plantedAt, // Set planting timestamp
             // Set current_stage_id to germination by default
             'current_stage_id' => function() {
                 $germinationStage = \App\Models\CropStage::where('code', 'germination')->first();
@@ -45,13 +44,6 @@ class CropFactory extends Factory
             'harvest_weight_grams' => null,
             'watering_suspended_at' => null,
             'notes' => $this->faker->optional()->paragraph,
-            // Default time/display fields (only use fields that exist)
-            'time_to_next_stage_minutes' => 0,
-            'time_to_next_stage_display' => 'Unknown',
-            'stage_age_minutes' => 0,
-            'stage_age_display' => '0m',
-            'total_age_minutes' => 0,
-            'total_age_display' => '0m',
         ];
     }
     

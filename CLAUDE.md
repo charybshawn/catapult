@@ -119,15 +119,47 @@ app/Filament/Resources/
 ├── XxxResource.php                    # Main coordinator (MAX 150 lines)
 ├── XxxResource/
 │   ├── Forms/XxxForm.php             # Returns Filament form schema
-│   ├── Tables/XxxTable.php           # Returns Filament table components  
+│   ├── Tables/XxxTable.php           # Returns Filament table components
+│   ├── Actions/XxxAction.php         # Custom actions with minimal logic
 │   └── Pages/                        # Extend Filament page classes
+```
+
+### 🎨 HTML and Display Separation:
+**ALWAYS use Blade views for complex HTML output:**
+
+1. **Actions should delegate to views** - Don't build HTML strings in action classes
+2. **Create dedicated view files** - Store in `resources/views/filament/actions/` or similar
+3. **Pass data to views** - Let Blade handle the presentation logic
+4. **Keep actions lightweight** - Actions should orchestrate, not generate HTML
+
+**Example Pattern:**
+```php
+// ✅ GOOD: Action delegates to view
+return Action::make('debug')
+    ->action(function ($record) {
+        $html = view('filament.actions.crop-batch-debug', [
+            'record' => $record,
+            'firstCrop' => Crop::where('crop_batch_id', $record->id)->first(),
+        ])->render();
+        
+        Notification::make()->body($html)->send();
+    });
+
+// ❌ BAD: HTML built in action
+return Action::make('debug')
+    ->action(function ($record) {
+        $html = '<div class="mb-4">';
+        $html .= '<h3>' . $title . '</h3>';
+        // ... more HTML building
+    });
 ```
 
 ### ⚠️ Architectural Violations:
 - Creating Laravel observers for Filament-managed operations
 - Building custom services that duplicate Filament functionality
-- Creating custom blade templates for forms/tables
+- Creating custom blade templates for forms/tables (use Filament components)
 - Business logic in UI components
+- **Building HTML strings in PHP classes** - Use Blade views instead
 - Main resource files over 150 lines
 
 **If you're unsure about Filament architecture, READ THE GUIDE FIRST.**

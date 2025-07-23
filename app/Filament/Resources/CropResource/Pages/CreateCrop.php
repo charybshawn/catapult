@@ -14,12 +14,9 @@ class CreateCrop extends BaseCreateRecord
 {
     protected static string $resource = CropResource::class;
     
-    protected CreateCropAction $createCropAction;
-    
-    public function __construct()
+    protected function getRedirectUrl(): string
     {
-        parent::__construct();
-        $this->createCropAction = app(CreateCropAction::class);
+        return '/admin/crop-batches';
     }
     
     protected function handleRecordCreation(array $data): Model
@@ -31,12 +28,13 @@ class CreateCrop extends BaseCreateRecord
                 'order_id' => $data['order_id'] ?? null,
                 'crop_plan_id' => $data['crop_plan_id'] ?? null,
                 'tray_count' => $data['tray_count'] ?? 1,
-                'tray_number' => $data['tray_number'] ?? null,
+                'tray_numbers' => $data['tray_numbers'] ?? null, // Fixed: use plural form
                 'notes' => $data['notes'] ?? null,
             ];
             
-            // Execute the action
-            $crop = $this->createCropAction->execute($actionData);
+            // Execute the action using dependency injection
+            $createCropAction = app(CreateCropAction::class);
+            $crop = $createCropAction->execute($actionData);
             
             // Get recipe info for notification
             $recipe = Recipe::find($data['recipe_id']);

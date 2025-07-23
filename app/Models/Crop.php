@@ -33,6 +33,7 @@ class Crop extends Model
      * @var array<int, string>
      */
     protected $fillable = [
+        'crop_batch_id',
         'recipe_id',
         'order_id',
         'crop_plan_id',
@@ -47,12 +48,6 @@ class Crop extends Model
         'soaking_at',
         'requires_soaking',
         'notes',
-        'time_to_next_stage_minutes',
-        'time_to_next_stage_display',
-        'stage_age_minutes',
-        'stage_age_display',
-        'total_age_minutes',
-        'total_age_display',
     ];
     
     /**
@@ -77,6 +72,14 @@ class Crop extends Model
         'requires_soaking' => 'boolean',
         'tray_number' => 'string',
     ];
+    
+    /**
+     * Get the crop batch for this crop.
+     */
+    public function cropBatch(): BelongsTo
+    {
+        return $this->belongsTo(CropBatch::class);
+    }
     
     /**
      * Get the recipe for this crop.
@@ -238,6 +241,41 @@ class Crop extends Model
     }
     
     /**
+     * Alias for isActivelySoaking() to maintain compatibility with table actions.
+     * 
+     * @return bool
+     */
+    public function isInSoaking(): bool
+    {
+        return $this->isActivelySoaking();
+    }
+    
+    /**
+     * Get the current stage name for display purposes.
+     * 
+     * @return string
+     */
+    public function getCurrentStageNameAttribute(): string
+    {
+        // Load the currentStage relationship if not already loaded
+        if (!$this->relationLoaded('currentStage')) {
+            $this->load('currentStage');
+        }
+        
+        return $this->currentStage?->name ?? 'Unknown';
+    }
+    
+    /**
+     * Get the expected harvest date for display purposes.
+     * 
+     * @return \Carbon\Carbon|null
+     */
+    public function getExpectedHarvestAtAttribute(): ?\Carbon\Carbon
+    {
+        return $this->expectedHarvestDate();
+    }
+    
+    /**
      * Calculate the remaining soaking time based on recipe seed_soak_hours.
      * 
      * @return int|null Minutes remaining, or null if not soaking or no recipe
@@ -393,8 +431,16 @@ class Crop extends Model
      */
     public function timeToNextStage(): ?string
     {
-        // This is calculated and stored in time_to_next_stage_display field
-        return $this->time_to_next_stage_display;
+        // Get from the batch view if available
+        if ($this->crop_batch_id) {
+            $batchView = CropBatchListView::where('id', $this->crop_batch_id)->first();
+            if ($batchView) {
+                return $batchView->time_to_next_stage_display;
+            }
+        }
+        
+        // Otherwise calculate dynamically
+        return app(CropTimeCalculator::class)->getTimeToNextStageDisplay($this);
     }
     
     

@@ -7,6 +7,7 @@ use App\Filament\Resources\RecipeResource\Pages;
 use App\Filament\Resources\RecipeResource\Tables\RecipeTable;
 use App\Models\Recipe;
 use Filament\Forms\Form;
+use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Spatie\Activitylog\Models\LogOptions;

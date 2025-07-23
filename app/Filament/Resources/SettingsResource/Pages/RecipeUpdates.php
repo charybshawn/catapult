@@ -189,58 +189,22 @@ class RecipeUpdates extends Page
                 // Update the crop based on options selected
                 if ($data['update_germination_days'] && $crop->current_stage === 'germination') {
                     $needsUpdate = true;
-                    // Update time_to_next_stage values for crops in germination stage
-                    if ($crop->germination_at) {
-                        $stageEnd = $crop->germination_at->copy()->addDays($recipe->germination_days);
-                        if (now()->gt($stageEnd)) {
-                            $crop->time_to_next_stage_minutes = 0;
-                            $crop->time_to_next_stage_display = 'Ready to advance';
-                        } else {
-                            $minutes = now()->diffInMinutes($stageEnd);
-                            $crop->time_to_next_stage_minutes = $minutes;
-                            $crop->time_to_next_stage_display = app(CropObserver::class)->formatDuration(now()->diff($stageEnd));
-                        }
-                    }
+                    // Time calculations are now handled in crop_batches_list_view
                 }
                 
                 if ($data['update_blackout_days'] && $crop->current_stage === 'blackout') {
                     $needsUpdate = true;
-                    // Update time_to_next_stage values for crops in blackout stage
-                    if ($crop->blackout_at) {
-                        $stageEnd = $crop->blackout_at->copy()->addDays($recipe->blackout_days);
-                        if (now()->gt($stageEnd)) {
-                            $crop->time_to_next_stage_minutes = 0;
-                            $crop->time_to_next_stage_display = 'Ready to advance';
-                        } else {
-                            $minutes = now()->diffInMinutes($stageEnd);
-                            $crop->time_to_next_stage_minutes = $minutes;
-                            $crop->time_to_next_stage_display = app(CropObserver::class)->formatDuration(now()->diff($stageEnd));
-                        }
-                    }
+                    // Time calculations are now handled in crop_batches_list_view
                 }
                 
                 if ($data['update_light_days'] && $crop->current_stage === 'light') {
                     $needsUpdate = true;
-                    // Update time_to_next_stage values for crops in light stage
-                    if ($crop->light_at) {
-                        $stageEnd = $crop->light_at->copy()->addDays($recipe->light_days);
-                        if (now()->gt($stageEnd)) {
-                            $crop->time_to_next_stage_minutes = 0;
-                            $crop->time_to_next_stage_display = 'Ready to advance';
-                        } else {
-                            $minutes = now()->diffInMinutes($stageEnd);
-                            $crop->time_to_next_stage_minutes = $minutes;
-                            $crop->time_to_next_stage_display = app(CropObserver::class)->formatDuration(now()->diff($stageEnd));
-                        }
-                    }
+                    // Time calculations are now handled in crop_batches_list_view
                 }
                 
                 if ($data['update_days_to_maturity'] || $recalculateHarvestDate) {
                     $needsUpdate = true;
-                    // Recalculate expected harvest date
-                    if ($crop->planting_at && $recipe->days_to_maturity) {
-                        $crop->expected_harvest_at = $crop->planting_at->copy()->addDays($recipe->days_to_maturity);
-                    }
+                    // Expected harvest date is now calculated in crop_batches_list_view
                 }
                 
                 // Save the crop if any changes were made

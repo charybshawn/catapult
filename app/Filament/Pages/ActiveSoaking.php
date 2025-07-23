@@ -222,40 +222,10 @@ class ActiveSoaking extends Page
     }
 
     /**
-     * Get the navigation badge for the soaking page
-     */
-    public static function getNavigationBadge(): ?string
-    {
-        $batches = (new static())->getActiveSoakingBatches();
-        $count = $batches->count();
-        
-        return $count > 0 ? (string) $count : null;
-    }
-
-    /**
-     * Get the navigation badge color
-     */
-    public static function getNavigationBadgeColor(): ?string
-    {
-        $batches = (new static())->getActiveSoakingBatches();
-        $overdueBatches = $batches->where('is_overdue', true)->count();
-        
-        if ($overdueBatches > 0) {
-            return 'danger'; // Red for overdue batches
-        }
-        
-        if ($batches->count() > 0) {
-            return 'primary'; // Blue for active batches
-        }
-        
-        return null;
-    }
-
-    /**
      * Determine if this page should be registered in navigation
      */
     public static function shouldRegisterNavigation(): bool
     {
-        return true; // Always show in navigation
+        return false; // Disable navigation to prevent unnecessary queries
     }
 }

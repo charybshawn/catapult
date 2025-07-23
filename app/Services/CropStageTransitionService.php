@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Actions\Crops\RecordStageHistory;
 use App\Models\Crop;
 use App\Models\CropBatch;
 use App\Models\CropStage;
@@ -60,6 +61,9 @@ class CropStageTransitionService
         if (isset(self::STAGE_TIMESTAMP_MAP[$stageCode])) {
             $timestampField = self::STAGE_TIMESTAMP_MAP[$stageCode];
             $crop->update([$timestampField => $startTime]);
+            
+            // Record initial stage in history
+            app(RecordStageHistory::class)->execute($crop, $crop->currentStage, $startTime);
             
             Log::info('Successfully initialized crop stage timestamp', [
                 'crop_id' => $crop->id,
@@ -446,9 +450,11 @@ class CropStageTransitionService
             'failed' => 0,
             'warnings' => [],
             'crops' => [],
+            'affected_count' => 0,
         ];
 
         $timestampField = self::STAGE_TIMESTAMP_MAP[$nextStage->code] ?? null;
+        $recordStageHistory = app(RecordStageHistory::class);
 
         foreach ($crops as $crop) {
             try {
@@ -469,6 +475,9 @@ class CropStageTransitionService
                 $crop->save();
                 $crop->refresh();
 
+                // Record stage transition in history
+                $recordStageHistory->execute($crop, $nextStage, $transitionTime);
+
                 // Deactivate relevant task schedules
                 $this->deactivateTaskSchedulesForStage($crop, $currentStage);
 
@@ -476,6 +485,7 @@ class CropStageTransitionService
                 $this->createTaskSchedulesForStage($crop, $nextStage);
 
                 $results['advanced']++;
+                $results['affected_count']++;
                 $results['crops'][] = [
                     'id' => $crop->id,
                     'tray_number' => $crop->tray_number,
@@ -512,9 +522,11 @@ class CropStageTransitionService
             'failed' => 0,
             'warnings' => [],
             'crops' => [],
+            'affected_count' => 0,
         ];
 
         $currentTimestampField = self::STAGE_TIMESTAMP_MAP[$currentStage->code] ?? null;
+        $recordStageHistory = app(RecordStageHistory::class);
 
         foreach ($crops as $crop) {
             try {
@@ -533,6 +545,9 @@ class CropStageTransitionService
                 $crop->save();
                 $crop->refresh();
 
+                // Remove the current stage from history
+                $recordStageHistory->removeStageEntry($crop, $currentStage);
+
                 // Deactivate task schedules for reverted stage
                 $this->deactivateTaskSchedulesForStage($crop, $currentStage);
 
@@ -540,6 +555,7 @@ class CropStageTransitionService
                 $this->reactivateTaskSchedulesForStage($crop, $previousStage);
 
                 $results['reverted']++;
+                $results['affected_count']++;
                 $results['crops'][] = [
                     'id' => $crop->id,
                     'tray_number' => $crop->tray_number,

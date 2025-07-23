@@ -143,29 +143,22 @@ class UpdateGrowsFromRecipe
     
     /**
      * Update stage end time calculations
+     * @deprecated These fields are now calculated in crop_batches_list_view
      */
     protected function updateStageEndTime(Crop $crop, \Carbon\Carbon $stageStart, float $stageDays): void
     {
-        $stageEnd = $stageStart->copy()->addDays($stageDays);
-        
-        if (now()->gt($stageEnd)) {
-            $crop->time_to_next_stage_minutes = 0;
-            $crop->time_to_next_stage_display = 'Ready to advance';
-        } else {
-            $minutes = now()->diffInMinutes($stageEnd);
-            $crop->time_to_next_stage_minutes = $minutes;
-            $crop->time_to_next_stage_display = $this->cropObserver->formatDuration(now()->diff($stageEnd));
-        }
+        // These calculated fields have been moved to crop_batches_list_view
+        // and are no longer stored on individual crop records
     }
     
     /**
      * Update expected harvest date
+     * @deprecated expected_harvest_at is now calculated in crop_batches_list_view
      */
     protected function updateHarvestDate(Crop $crop, Recipe $recipe): void
     {
-        if ($crop->planting_at && $recipe->days_to_maturity) {
-            $crop->expected_harvest_at = $crop->planting_at->copy()->addDays($recipe->days_to_maturity);
-        }
+        // expected_harvest_at is now calculated in crop_batches_list_view
+        // and is no longer stored on individual crop records
     }
     
     /**

@@ -125,25 +125,8 @@ class CropValidationService
             }
         }
         
-        // Initialize computed time fields with safe values
-        if (!isset($crop->time_to_next_stage_minutes)) {
-            $crop->time_to_next_stage_minutes = 0;
-        }
-        if (!isset($crop->time_to_next_stage_display)) {
-            $crop->time_to_next_stage_display = 'Unknown';
-        }
-        if (!isset($crop->stage_age_minutes)) {
-            $crop->stage_age_minutes = 0;
-        }
-        if (!isset($crop->stage_age_display)) {
-            $crop->stage_age_display = '0m';
-        }
-        if (!isset($crop->total_age_minutes)) {
-            $crop->total_age_minutes = 0;
-        }
-        if (!isset($crop->total_age_display)) {
-            $crop->total_age_display = '0m';
-        }
+        // Note: Computed time fields have been moved to crop_batches_list_view
+        // They are no longer stored on individual crop records
     }
 
     /**

@@ -64,19 +64,4 @@ class CropPlanResource extends Resource
     {
         return false; // Crop plans are auto-generated from orders
     }
-
-    public static function getNavigationBadge(): ?string
-    {
-        $draftStatus = \App\Models\CropPlanStatus::findByCode('draft');
-        if (!$draftStatus) {
-            return null; // No draft status found, return no badge
-        }
-        
-        return static::getModel()::where('status_id', $draftStatus->id)->count() ?: null;
-    }
-
-    public static function getNavigationBadgeColor(): ?string
-    {
-        return static::getNavigationBadge() > 0 ? 'warning' : null;
-    }
 }

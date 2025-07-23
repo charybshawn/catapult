@@ -37,37 +37,31 @@ class SlidingNavigationBuilder
                     'label' => 'Dashboard & Overview',
                     'icon' => 'heroicon-o-home',
                     'description' => 'Farm overview and planning',
-                    'badge' => null,
                 ],
                 'production' => [
                     'label' => 'Production',
                     'icon' => 'heroicon-o-beaker',
                     'description' => 'Crops, recipes, and alerts',
-                    'badge' => self::getProductionBadge(),
                 ],
                 'products' => [
                     'label' => 'Products',
                     'icon' => 'heroicon-o-shopping-bag',
                     'description' => 'Products and pricing',
-                    'badge' => null,
                 ],
                 'inventory' => [
                     'label' => 'Inventory',
                     'icon' => 'heroicon-o-cube',
                     'description' => 'Seeds, consumables, and supplies',
-                    'badge' => null,
                 ],
                 'orders' => [
                     'label' => 'Orders & Sales',
                     'icon' => 'heroicon-o-shopping-cart',
                     'description' => 'Customer orders and invoices',
-                    'badge' => self::getOrdersBadge(),
                 ],
                 'system' => [
                     'label' => 'System',
                     'icon' => 'heroicon-o-cog-6-tooth',
                     'description' => 'Settings and administration',
-                    'badge' => null,
                 ],
             ],
             
@@ -110,7 +104,6 @@ class SlidingNavigationBuilder
                             'url' => '/admin/crop-alerts',
                             'icon' => 'heroicon-o-bell-alert',
                             'active' => request()->routeIs('filament.admin.resources.crop-alerts.*'),
-                            'badge' => self::getAlertsBadge(),
                         ],
                         // Dynamic resources will be auto-added via getDynamicNavigation()
                     ],
@@ -124,7 +117,6 @@ class SlidingNavigationBuilder
                             'url' => '/admin/product-inventories',
                             'icon' => 'heroicon-o-cube',
                             'active' => request()->routeIs('filament.admin.resources.product-inventories.*'),
-                            'badge' => self::getProductInventoryBadge(),
                         ],
                         // Dynamic resources will be auto-added via getDynamicNavigation()
                     ],
@@ -307,90 +299,5 @@ class SlidingNavigationBuilder
 
         $resourceName = class_basename($resource);
         return in_array($resourceName, $staticResources);
-    }
-    
-    private static function getProductionBadge(): ?array
-    {
-        try {
-            // Get overdue task schedules count (using existing TaskSchedule model)
-            $overdueCount = \App\Models\TaskSchedule::where('resource_type', 'crops')
-                ->where('is_active', true)
-                ->where('next_run_at', '<', now())
-                ->count();
-            
-            if ($overdueCount > 0) {
-                return [
-                    'count' => $overdueCount,
-                    'color' => 'danger',
-                ];
-            }
-        } catch (\Exception $e) {
-            // Silently fail if there's an issue
-        }
-        
-        return null;
-    }
-    
-    private static function getOrdersBadge(): ?array
-    {
-        try {
-            // Get pending orders count
-            $pendingCount = \App\Models\Order::where('status', 'pending')->count();
-            
-            if ($pendingCount > 0) {
-                return [
-                    'count' => $pendingCount,
-                    'color' => 'warning',
-                ];
-            }
-        } catch (\Exception $e) {
-            // Silently fail if there's an issue
-        }
-        
-        return null;
-    }
-    
-    private static function getAlertsBadge(): ?array
-    {
-        try {
-            // Get today's task schedules
-            $todayCount = \App\Models\TaskSchedule::where('resource_type', 'crops')
-                ->where('is_active', true)
-                ->whereDate('next_run_at', today())
-                ->count();
-            
-            if ($todayCount > 0) {
-                return [
-                    'count' => $todayCount,
-                    'color' => 'primary',
-                ];
-            }
-        } catch (\Exception $e) {
-            // Silently fail if there's an issue
-        }
-        
-        return null;
-    }
-    
-    private static function getProductInventoryBadge(): ?array
-    {
-        try {
-            // Get count of low stock items
-            $lowStockCount = \App\Models\ProductInventory::active()
-                ->where('available_quantity', '>', 0)
-                ->where('available_quantity', '<=', 10)
-                ->count();
-            
-            if ($lowStockCount > 0) {
-                return [
-                    'count' => $lowStockCount,
-                    'color' => 'warning',
-                ];
-            }
-        } catch (\Exception $e) {
-            // Silently fail if there's an issue
-        }
-        
-        return null;
     }
 }

@@ -59,16 +59,4 @@ class CropAlertResource extends BaseResource
             'edit' => Pages\EditCropAlert::route('/{record}/edit'),
         ];
     }
-    
-    public static function getNavigationBadge(): ?string
-    {
-        return static::getEloquentQuery()->count();
-    }
-    
-    public static function getNavigationBadgeColor(): ?string
-    {
-        return static::getEloquentQuery()->where('next_run_at', '<', now())->exists() 
-            ? 'danger' 
-            : 'primary';
-    }
 } 

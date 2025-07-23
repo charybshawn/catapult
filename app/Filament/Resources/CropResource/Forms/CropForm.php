@@ -14,27 +14,44 @@ class CropForm
     public static function schema(): array
     {
         return [
-            Forms\Components\Section::make('Grow Details')
+            // Main recipe selection
+            static::getRecipeField()
+                ->columnSpanFull(),
+            
+            // Conditional tray fields based on soaking requirement
+            static::getTrayCountField()
+                ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get)),
+                
+            static::getTrayNumbersField()
+                ->visible(fn (Get $get) => !static::checkRecipeRequiresSoaking($get))
+                ->dehydrated(fn (Get $get) => !static::checkRecipeRequiresSoaking($get)),
+            
+            // Soaking section - only appears if recipe requires soaking
+            Forms\Components\Section::make('Soaking Setup')
                 ->schema([
-                    static::getRecipeField(),
-                    static::getSoakingSection(),
-                    static::getOrderField(),
-                    static::getTrayFields(),
+                    Forms\Components\Placeholder::make('temp_tray_info')
+                        ->label('')
+                        ->content('Temporary tray numbers will be assigned during soaking and can be updated after germination.')
+                        ->columnSpanFull(),
+                        
+                    static::getSeedWeightCalculation(),
+                    static::getSoakingTimeFields(),
                 ])
-                ->columns(2),
+                ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
+                ->columns(2)
+                ->compact(),
             
-            Forms\Components\Section::make('Growth Timeline')
-                ->schema(static::getTimelineFields())
-                ->collapsed(),
-            
-            Forms\Components\Section::make('Additional Information')
+            // Optional advanced fields
+            Forms\Components\Section::make('Advanced Options')
                 ->schema([
+                    ...static::getTimelineFields(),
                     Forms\Components\Textarea::make('notes')
                         ->label('Notes')
                         ->rows(3)
                         ->columnSpanFull(),
                 ])
-                ->collapsed(),
+                ->collapsed()
+                ->compact(),
         ];
     }
     
@@ -47,7 +64,6 @@ class CropForm
             ->searchable()
             ->preload()
             ->reactive()
-            ->createOptionForm(RecipeResource::getFormSchema())
             ->afterStateUpdated(function ($state, Set $set, Get $get) {
                 if ($state) {
                     $recipe = Recipe::find($state);
@@ -61,55 +77,88 @@ class CropForm
             });
     }
     
-    protected static function getSoakingSection(): Forms\Components\Section
+    
+    
+    protected static function getTrayCountField(): Forms\Components\TextInput
     {
-        return Forms\Components\Section::make('Soaking Information')
-            ->schema([
-                Forms\Components\Placeholder::make('soaking_required_info')
-                    ->label('')
-                    ->content(fn (Get $get) => static::getSoakingRequiredInfo($get))
-                    ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get)),
+        return Forms\Components\TextInput::make('tray_count')
+            ->label('Number of Trays')
+            ->helperText('How many trays are you planting?')
+            ->numeric()
+            ->default(1)
+            ->required()
+            ->minValue(1)
+            ->reactive()
+            ->afterStateUpdated(function ($state, Set $set, Get $get) {
+                // Recalculate seed weight when tray count changes
+                static::calculateSeedWeight($get, $set);
+            });
+    }
+    
+    protected static function getTrayNumbersField(): Forms\Components\TagsInput
+    {
+        return Forms\Components\TagsInput::make('tray_numbers')
+            ->label('Tray Numbers')
+            ->helperText('Enter tray numbers (e.g., A1, A2, B1) - press Enter after each')
+            ->placeholder('A1')
+            ->columnSpanFull()
+            ->reactive()
+            ->afterStateUpdated(function ($state, Set $set, Get $get) {
+                // Auto-update tray count based on number of tray numbers entered
+                if (is_array($state) && count($state) > 0) {
+                    $set('tray_count', count($state));
+                    static::calculateSeedWeight($get, $set);
+                }
+            });
+    }
+    
+    protected static function getSeedWeightCalculation(): Forms\Components\Placeholder
+    {
+        return Forms\Components\Placeholder::make('seed_weight_calculation')
+            ->label('Total Seed Required')
+            ->content(function (Get $get) {
+                $recipeId = $get('recipe_id');
+                $trayCount = (int) $get('tray_count') ?: 1;
                 
-                Forms\Components\TextInput::make('soaking_duration_display')
-                    ->label('Soaking Duration')
-                    ->disabled()
-                    ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
-                    ->dehydrated(false),
+                if (!$recipeId) {
+                    return 'Select a recipe first';
+                }
                 
-                Forms\Components\DateTimePicker::make('soaking_at')
-                    ->label('Soaking Start Time')
-                    ->required(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
-                    ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
-                    ->reactive(),
-            ])
-            ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
+                $recipe = Recipe::find($recipeId);
+                if (!$recipe || !$recipe->seed_density_grams_per_tray) {
+                    return 'Recipe seed density not set';
+                }
+                
+                $totalGrams = $recipe->seed_density_grams_per_tray * $trayCount;
+                return number_format($totalGrams, 1) . 'g (' . $trayCount . ' trays × ' . $recipe->seed_density_grams_per_tray . 'g per tray)';
+            })
             ->columnSpanFull();
     }
     
-    protected static function getOrderField(): Forms\Components\Select
+    protected static function getSoakingTimeFields(): Forms\Components\Group
     {
-        return Forms\Components\Select::make('order_id')
-            ->label('Order')
-            ->relationship('order', 'id')
-            ->searchable()
-            ->preload()
-            ->getOptionLabelFromRecordUsing(fn ($record) => "Order #{$record->id} - {$record->customer?->name}");
+        return Forms\Components\Group::make([
+            Forms\Components\DateTimePicker::make('soaking_at')
+                ->label('Soaking Start Time')
+                ->default(now())
+                ->required(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
+                ->reactive(),
+        ])
+        ->columnSpanFull();
     }
     
-    protected static function getTrayFields(): array
+    protected static function calculateSeedWeight(Get $get, Set $set): void
     {
-        return [
-            Forms\Components\TextInput::make('tray_number')
-                ->label('Tray Number')
-                ->maxLength(255),
-            
-            Forms\Components\TextInput::make('tray_count')
-                ->label('Number of Trays')
-                ->numeric()
-                ->default(1)
-                ->required()
-                ->minValue(1),
-        ];
+        $recipeId = $get('recipe_id');
+        $trayCount = (int) $get('tray_count') ?: 1;
+        
+        if ($recipeId) {
+            $recipe = Recipe::find($recipeId);
+            if ($recipe && $recipe->seed_density_grams_per_tray) {
+                $totalGrams = $recipe->seed_density_grams_per_tray * $trayCount;
+                // This will trigger the placeholder to update
+            }
+        }
     }
     
     protected static function getTimelineFields(): array

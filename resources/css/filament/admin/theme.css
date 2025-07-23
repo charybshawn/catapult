@@ -386,3 +386,364 @@
     background-color: rgb(37 99 235) !important;
 }
 
+/* ===========================================
+   FLAT DESIGN THEME CUSTOMIZATIONS
+   =========================================== */
+
+/* Remove borders and shadows from sections with higher specificity */
+.fi-section,
+.fi-section-content-ctn,
+section[class*="fi-section"] {
+    border: none !important;
+    box-shadow: none !important;
+    background-color: white !important;
+    border-radius: 0.5rem !important;
+}
+
+.dark .fi-section,
+.dark .fi-section-content-ctn,
+.dark section[class*="fi-section"] {
+    background-color: rgb(17 24 39) !important;
+}
+
+/* Flatten form components with higher specificity */
+.fi-fo-field-wrp,
+[class*="fi-fo-field"] {
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.fi-fo-field-wrp .fi-input-wrp,
+[class*="fi-input-wrp"] {
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* Clean input styling - minimal borders with !important */
+.fi-input,
+input[class*="fi-input"],
+textarea[class*="fi-input"] {
+    border: none !important;
+    border-bottom: 1px solid rgb(229 231 235) !important;
+    border-radius: 0 !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
+
+.fi-input:focus,
+input[class*="fi-input"]:focus,
+textarea[class*="fi-input"]:focus {
+    border-bottom: 2px solid rgb(245 158 11) !important;
+    box-shadow: none !important;
+    ring: 0 !important;
+}
+
+.dark .fi-input,
+.dark input[class*="fi-input"],
+.dark textarea[class*="fi-input"] {
+    border-bottom: 1px solid rgb(75 85 99) !important;
+}
+
+.dark .fi-input:focus,
+.dark input[class*="fi-input"]:focus,
+.dark textarea[class*="fi-input"]:focus {
+    border-bottom: 2px solid rgb(251 191 36) !important;
+}
+
+/* Flatten select components with higher specificity */
+.fi-select-input,
+select[class*="fi-select"] {
+    border: none !important;
+    border-bottom: 1px solid rgb(229 231 235) !important;
+    border-radius: 0 !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
+
+.dark .fi-select-input,
+.dark select[class*="fi-select"] {
+    border-bottom: 1px solid rgb(75 85 99) !important;
+}
+
+/* Remove table borders and clean styling with higher specificity */
+.fi-ta-table,
+table[class*="fi-ta-table"],
+.fi-table {
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.fi-ta-table th,
+table[class*="fi-ta-table"] th,
+.fi-table th {
+    border: none !important;
+    border-bottom: 1px solid rgb(243 244 246) !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
+
+.dark .fi-ta-table th,
+.dark table[class*="fi-ta-table"] th,
+.dark .fi-table th {
+    border-bottom: 1px solid rgb(31 41 55) !important;
+}
+
+.fi-ta-table td,
+table[class*="fi-ta-table"] td,
+.fi-table td {
+    border: none !important;
+    border-bottom: 1px solid rgb(249 250 251) !important;
+}
+
+.dark .fi-ta-table td,
+.dark table[class*="fi-ta-table"] td,
+.dark .fi-table td {
+    border-bottom: 1px solid rgb(31 41 55) !important;
+}
+
+/* Clean table header with higher specificity */
+.fi-ta-header,
+[class*="fi-ta-header"] {
+    border: none !important;
+    box-shadow: none !important;
+    background-color: transparent !important;
+}
+
+/* Flatten buttons */
+.fi-btn {
+    @apply border-0 shadow-none rounded-md;
+}
+
+.fi-btn-primary {
+    @apply bg-amber-500 hover:bg-amber-600;
+}
+
+.dark .fi-btn-primary {
+    @apply bg-amber-600 hover:bg-amber-700;
+}
+
+/* Clean card styling */
+.fi-card {
+    @apply border-0 shadow-none bg-white rounded-lg;
+}
+
+.dark .fi-card {
+    @apply bg-gray-900;
+}
+
+/* Remove sidebar borders */
+.fi-sidebar {
+    @apply border-0 shadow-none;
+}
+
+/* Clean navigation items */
+.fi-sidebar-nav-item {
+    @apply border-0 rounded-md;
+}
+
+/* Flatten modal dialogs */
+.fi-modal {
+    @apply border-0 shadow-xl;
+}
+
+/* Clean form field groups */
+.fi-fo-field-group {
+    @apply border-0 shadow-none;
+}
+
+/* Remove borders from stats cards */
+.fi-stats-card {
+    @apply border-0 shadow-none;
+}
+
+/* Clean pagination */
+.fi-pagination {
+    @apply border-0 shadow-none;
+}
+
+.fi-pagination-item {
+    @apply border-0;
+}
+
+/* Flatten dropdown menus */
+.fi-dropdown-panel {
+    @apply border-0 shadow-lg;
+}
+
+/* Clean notification styling */
+.fi-notification {
+    @apply border-0 shadow-lg;
+}
+
+/* Remove borders from tabs */
+.fi-tabs {
+    @apply border-0;
+}
+
+.fi-tabs-item {
+    @apply border-0 border-b-2 border-transparent rounded-none;
+}
+
+.fi-tabs-item.fi-active {
+    @apply border-amber-500;
+}
+
+.dark .fi-tabs-item.fi-active {
+    @apply border-amber-400;
+}
+
+/* Clean badge styling */
+.fi-badge {
+    @apply border-0 shadow-none;
+}
+
+/* Flatten info lists */
+.fi-in-component-ctn {
+    @apply border-0 shadow-none;
+}
+
+/* Additional flat design refinements */
+
+/* Remove widget borders and shadows */
+.fi-widget {
+    @apply border-0 shadow-none;
+}
+
+/* Clean up form sections */
+.fi-fo-section {
+    @apply border-0 shadow-none;
+}
+
+/* Flatten resource header */
+.fi-resource-header {
+    @apply border-0 shadow-none;
+}
+
+/* Clean breadcrumbs */
+.fi-breadcrumbs {
+    @apply border-0 shadow-none;
+}
+
+/* Minimal page header */
+.fi-page-header {
+    @apply border-0 shadow-none;
+}
+
+/* Clean up action groups */
+.fi-ac-group {
+    @apply border-0 shadow-none;
+}
+
+/* Remove borders from fieldsets */
+.fi-fieldset {
+    @apply border-0 shadow-none;
+}
+
+/* Clean repeater items */
+.fi-fo-repeater-item {
+    @apply border-0 shadow-none rounded-lg;
+}
+
+/* Flatten toggle switches to match theme */
+.fi-toggle {
+    @apply border-0 shadow-none;
+}
+
+/* Clean file upload areas */
+.fi-fo-file-upload {
+    @apply border-0 shadow-none;
+}
+
+/* Minimal search input */
+.fi-global-search-input {
+    @apply border-0 border-b border-gray-200 rounded-none;
+}
+
+.dark .fi-global-search-input {
+    @apply border-gray-700;
+}
+
+/* Clean tenant switcher if present */
+.fi-tenant-menu {
+    @apply border-0 shadow-none;
+}
+
+/* Flat design for date picker */
+.fi-fo-date-time-picker {
+    @apply border-0 shadow-none;
+}
+
+/* Clean up resource pages */
+.fi-resource-page {
+    @apply border-0 shadow-none;
+}
+
+/* ===========================================
+   AGGRESSIVE FLAT DESIGN OVERRIDES
+   =========================================== */
+
+/* Global border and shadow removal */
+[class*="fi-"] {
+    box-shadow: none !important;
+}
+
+/* Specifically target common Filament elements */
+.fi-main,
+.fi-main > *,
+.fi-page,
+.fi-page > *,
+[class*="fi-resource"],
+[class*="fi-panel"],
+[class*="fi-card"],
+[class*="fi-section"] {
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* Force flat buttons globally */
+button[class*="fi-btn"],
+.fi-btn,
+a[class*="fi-btn"] {
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0.375rem !important;
+}
+
+/* Force flat form elements */
+input[class*="fi-"],
+textarea[class*="fi-"],
+select[class*="fi-"] {
+    border: none !important;
+    border-bottom: 1px solid #e5e7eb !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+.dark input[class*="fi-"],
+.dark textarea[class*="fi-"],
+.dark select[class*="fi-"] {
+    border-bottom: 1px solid #4b5563 !important;
+}
+
+/* Remove all Filament borders globally */
+[class*="border"] {
+    border: none !important;
+}
+
+/* Add back essential borders only */
+table th {
+    border-bottom: 1px solid #f3f4f6 !important;
+}
+
+table td {
+    border-bottom: 1px solid #f9fafb !important;
+}
+
+.dark table th {
+    border-bottom: 1px solid #1f2937 !important;
+}
+
+.dark table td {
+    border-bottom: 1px solid #1f2937 !important;
+}
+

@@ -30,19 +30,33 @@ class StartSoaking
             throw new \RuntimeException('Soaking stage not found in database.');
         }
         
-        // Create the crop in soaking stage
-        $crop = Crop::create([
+        // Create a crop batch first
+        $cropBatch = \App\Models\CropBatch::create([
             'recipe_id' => $recipe->id,
             'order_id' => $data['order_id'] ?? null,
             'crop_plan_id' => $data['crop_plan_id'] ?? null,
-            'tray_number' => 'SOAKING-' . time(), // Temporary tray number until assigned
-            'tray_count' => $data['tray_count'] ?? 1,
-            'current_stage_id' => $soakingStage->id,
-            'requires_soaking' => true,
-            'soaking_at' => Carbon::now(),
-            'notes' => $data['notes'] ?? null,
         ]);
         
-        return $crop;
+        // Create multiple crops based on tray_count, each with temp tray numbers
+        $trayCount = $data['tray_count'] ?? 1;
+        $soakingTime = Carbon::now();
+        $crops = [];
+        
+        for ($i = 1; $i <= $trayCount; $i++) {
+            $crops[] = Crop::create([
+                'crop_batch_id' => $cropBatch->id,
+                'recipe_id' => $recipe->id,
+                'order_id' => $data['order_id'] ?? null,
+                'crop_plan_id' => $data['crop_plan_id'] ?? null,
+                'tray_number' => 'SOAKING-' . $i, // Dynamic temp tray numbers
+                'tray_count' => 1, // Each crop represents one tray
+                'current_stage_id' => $soakingStage->id,
+                'requires_soaking' => true,
+                'soaking_at' => $soakingTime,
+                'notes' => $data['notes'] ?? null,
+            ]);
+        }
+        
+        return $crops[0]; // Return first crop for compatibility
     }
 }

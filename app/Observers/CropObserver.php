@@ -29,70 +29,14 @@ class CropObserver
             $crop->load('recipe');
         }
 
-        // Always use the current time for calculations
-        $now = now();
-
-        // Update stage age
-        $stageField = "{$crop->current_stage}_at";
-        if ($crop->$stageField) {
-            $stageStart = Carbon::parse($crop->$stageField);
-            // Calculate stage age using the current timestamp, not updated_at
-            $crop->stage_age_minutes = abs($now->diffInMinutes($stageStart));
-            $crop->stage_age_display = $this->formatDuration($now->diff($stageStart));
-            
-            // Debug logging only in debug mode to prevent memory issues
-            if (config('app.debug') && config('logging.default') !== 'production') {
-                Log::debug('CropObserver: Updated stage age', [
-                    'crop_id' => $crop->id,
-                    'current_stage' => $crop->current_stage,
-                    'diff_minutes' => $crop->stage_age_minutes,
-                ]);
-            }
-        }
-
-        // Update time to next stage
-        if ($crop->recipe) {
-            $stageDuration = match ($crop->current_stage) {
-                'germination' => $crop->recipe->germination_days ?? 0,
-                'blackout' => $crop->recipe->blackout_days ?? 0,
-                'light' => $crop->recipe->light_days ?? 0,
-                default => 0,
-            };
-
-            if ($stageDuration > 0) {
-                $stageStart = Carbon::parse($crop->$stageField);
-                $stageEnd = $stageStart->copy()->addDays($stageDuration);
-                
-                if ($now->gt($stageEnd)) {
-                    $crop->time_to_next_stage_minutes = 0;
-                    $crop->time_to_next_stage_display = 'Ready to advance';
-                } else {
-                    $crop->time_to_next_stage_minutes = abs($now->diffInMinutes($stageEnd));
-                    $crop->time_to_next_stage_display = $this->formatDuration($now->diff($stageEnd));
-                }
-            }
-        }
-
-        // Update total age
-        if ($crop->planting_at) {
-            $plantedAt = Carbon::parse($crop->planting_at);
-            $crop->total_age_minutes = abs($now->diffInMinutes($plantedAt));
-            $crop->total_age_display = $this->formatDuration($now->diff($plantedAt));
-        }
-
-        // Update expected harvest date
-        if ($crop->recipe && $crop->planting_at) {
-            $plantedAt = Carbon::parse($crop->planting_at);
-            $daysToMaturity = $crop->recipe->days_to_maturity ?? 0;
-            if ($daysToMaturity > 0) {
-                $crop->expected_harvest_at = $plantedAt->copy()->addDays($daysToMaturity);
-            }
-        }
-
-        // Update tray count and tray numbers
-        if ($crop->tray_number) {
+        // Note: Calculated columns like stage_age_minutes, time_to_next_stage_display, etc.
+        // have been moved to the crop_batches_list_view and are no longer stored on individual crops.
+        // These values can be accessed through the CropBatchListView when needed.
+        
+        // The only update we might still need is ensuring tray_count is set correctly
+        // if it's still a column in the crops table
+        if ($crop->tray_number && !$crop->tray_count) {
             $crop->tray_count = 1;
-            $crop->tray_numbers = (string)$crop->tray_number;
         }
     }
 
@@ -121,13 +65,17 @@ class CropObserver
      */
     public function updated(Crop $crop): void
     {
-        // Check if planting_at was just set (crop was planted)
-        if ($crop->wasChanged('planting_at') && $crop->planting_at && $crop->order_id) {
-            event(new OrderCropPlanted($crop->order, $crop));
+        // Check if crop stage was changed (crop was planted/advanced)
+        if ($crop->wasChanged('current_stage_id') && $crop->current_stage_id && $crop->order_id) {
+            // If moving to germination stage, it means crop was planted
+            $germinationStage = \App\Models\CropStage::findByCode('germination');
+            if ($germinationStage && $crop->current_stage_id == $germinationStage->id) {
+                event(new OrderCropPlanted($crop->order, $crop));
+            }
         }
         
         // Check if crop is now ready to harvest
-        if ($crop->wasChanged(['current_stage', 'stage_age_minutes']) && $crop->isReadyToHarvest() && $crop->order_id) {
+        if ($crop->wasChanged('current_stage_id') && $crop->isReadyToHarvest() && $crop->order_id) {
             // Check if all crops for this order are ready
             $order = $crop->order;
             if ($order && $order->crops->every(fn($c) => $c->isReadyToHarvest())) {

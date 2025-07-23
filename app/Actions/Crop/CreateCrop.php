@@ -39,17 +39,36 @@ class CreateCrop
         
         $now = Carbon::now();
         
-        $crop = Crop::create([
+        // Create a crop batch first
+        $cropBatch = \App\Models\CropBatch::create([
             'recipe_id' => $recipe->id,
             'order_id' => $data['order_id'] ?? null,
             'crop_plan_id' => $data['crop_plan_id'] ?? null,
-            'tray_number' => $data['tray_number'] ?? null,
-            'tray_count' => $data['tray_count'] ?? 1,
-            'current_stage_id' => $germinationStage->id,
-            'requires_soaking' => false,
-            'germination_at' => $now,
-            'notes' => $data['notes'] ?? null,
         ]);
+        
+        // Handle tray numbers - for non-soaking recipes, create multiple crops if multiple tray numbers
+        $trayNumbers = $data['tray_numbers'] ?? [];
+        if (empty($trayNumbers)) {
+            $trayNumbers = ['UNASSIGNED-' . time()]; // Single crop with temporary tray number
+        }
+        
+        $crops = [];
+        foreach ($trayNumbers as $trayNumber) {
+            $crops[] = Crop::create([
+                'crop_batch_id' => $cropBatch->id,
+                'recipe_id' => $recipe->id,
+                'order_id' => $data['order_id'] ?? null,
+                'crop_plan_id' => $data['crop_plan_id'] ?? null,
+                'tray_number' => $trayNumber,
+                'tray_count' => 1, // Each tray is a separate crop
+                'current_stage_id' => $germinationStage->id,
+                'requires_soaking' => false,
+                'germination_at' => $now,
+                'notes' => $data['notes'] ?? null,
+            ]);
+        }
+        
+        $crop = $crops[0]; // Return first crop for compatibility
         
         return $crop;
     }

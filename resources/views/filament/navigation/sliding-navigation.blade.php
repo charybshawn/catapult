@@ -198,24 +198,10 @@
                         </div>
                     </div>
                     
-                    <div class="flex items-center space-x-2">
-                        @if(isset($group['badge']) && $group['badge'])
-                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
-                                @if($group['badge']['color'] === 'danger') bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
-                                @elseif($group['badge']['color'] === 'warning') bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
-                                @elseif($group['badge']['color'] === 'primary') bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
-                                @else bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200
-                                @endif
-                            ">
-                                {{ $group['badge']['count'] }}
-                            </span>
-                        @endif
-                        
-                        <x-filament::icon 
-                            icon="heroicon-m-chevron-right" 
-                            class="h-4 w-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300"
-                        />
-                    </div>
+                    <x-filament::icon 
+                        icon="heroicon-m-chevron-right" 
+                        class="h-4 w-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300"
+                    />
                 </button>
             @endforeach
         </div>
@@ -305,18 +291,6 @@
                                             />
                                             
                                             <span class="flex-1">{{ $child['label'] }}</span>
-                                            
-                                            @if(isset($child['badge']))
-                                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
-                                                    @if($child['badge']['color'] === 'danger') bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
-                                                    @elseif($child['badge']['color'] === 'warning') bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
-                                                    @elseif($child['badge']['color'] === 'primary') bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
-                                                    @else bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200
-                                                    @endif
-                                                ">
-                                                    {{ $child['badge']['count'] }}
-                                                </span>
-                                            @endif
                                         </a>
                                     @endforeach
                                 </div>
@@ -341,18 +315,6 @@
                                 />
                                 
                                 <span class="flex-1">{{ $item['label'] }}</span>
-                                
-                                @if(isset($item['badge']))
-                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
-                                        @if($item['badge']['color'] === 'danger') bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
-                                        @elseif($item['badge']['color'] === 'warning') bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
-                                        @elseif($item['badge']['color'] === 'primary') bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
-                                        @else bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200
-                                        @endif
-                                    ">
-                                        {{ $item['badge']['count'] }}
-                                    </span>
-                                @endif
                             </a>
                         @endif
                     @endforeach

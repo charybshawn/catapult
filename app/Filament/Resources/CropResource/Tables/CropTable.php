@@ -13,11 +13,26 @@ use Illuminate\Support\Facades\Log;
 
 class CropTable
 {
+    public static function modifyQuery(Builder $query): Builder
+    {
+        // Eager load relationships for optimal performance
+        return $query->with([
+            'recipe',
+            'recipe.masterCultivar',
+            'recipe.masterSeedCatalog',
+            'currentStage'
+        ]);
+    }
+
     public static function columns(): array
     {
         return [
             Tables\Columns\TextColumn::make('id')
-                ->label('ID')
+                ->label('Crop ID')
+                ->sortable(),
+            
+            Tables\Columns\TextColumn::make('crop_batch_id')
+                ->label('Batch ID')
                 ->sortable()
                 ->searchable(),
             
@@ -42,28 +57,15 @@ class CropTable
                 ->numeric()
                 ->sortable(),
             
-            Tables\Columns\TextColumn::make('time_to_next_stage_display')
-                ->label('Time to Next Stage')
-                ->getStateUsing(fn (Crop $record) => static::getTimeToNextStageDisplay($record)),
-            
-            Tables\Columns\TextColumn::make('stage_age_display')
-                ->label('Stage Age'),
-            
-            Tables\Columns\TextColumn::make('order.id')
-                ->label('Order')
-                ->sortable()
-                ->url(fn ($record) => $record->order_id ? route('filament.admin.resources.orders.edit', $record->order_id) : null),
+            // Note: time_to_next_stage_display and stage_age_display are now in crop_batches_list_view
+            // For individual crop view, we could calculate these on the fly or access via relationship
             
             Tables\Columns\TextColumn::make('created_at')
                 ->label('Started')
-                ->dateTime('M j, Y')
+                ->date('M j, Y')
                 ->sortable(),
             
-            Tables\Columns\TextColumn::make('created_at')
-                ->label('Created')
-                ->dateTime('M j, Y')
-                ->sortable()
-                ->toggleable(isToggledHiddenByDefault: true),
+            // Note: expected_harvest_at is now in crop_batches_list_view
         ];
     }
     
@@ -94,41 +96,85 @@ class CropTable
     public static function actions(): array
     {
         return [
-            Tables\Actions\Action::make('advanceFromSoaking')
-                ->label('Advance to Germination')
-                ->icon('heroicon-o-arrow-right')
-                ->color('success')
-                ->visible(fn (Crop $record) => $record->getRelation('currentStage')?->code === 'soaking')
-                ->requiresConfirmation()
-                ->form([
-                    \Filament\Forms\Components\TextInput::make('tray_number')
-                        ->label('Assign Tray Number')
-                        ->required()
-                        ->placeholder('e.g., A1, B2, etc.')
-                        ->helperText('Assign a tray number for this crop'),
-                ])
-                ->action(function (Crop $record, array $data) {
-                    $advanceAction = app(\App\Actions\Crop\AdvanceFromSoaking::class);
-                    
-                    try {
-                        $advanceAction->execute($record, $data['tray_number']);
+            Tables\Actions\ActionGroup::make([
+                Tables\Actions\Action::make('advanceFromSoaking')
+                    ->label('Advance to Germination')
+                    ->icon('heroicon-o-arrow-right')
+                    ->color('success')
+                    ->visible(fn (Crop $record) => $record->isInSoaking())
+                    ->requiresConfirmation()
+                    ->form([
+                        \Filament\Forms\Components\Select::make('tray_prefix')
+                            ->label('Tray Section')
+                            ->options([
+                                'A' => 'Section A',
+                                'B' => 'Section B', 
+                                'C' => 'Section C',
+                                'D' => 'Section D',
+                                'E' => 'Section E',
+                                'F' => 'Section F',
+                                'G' => 'Section G',
+                                'H' => 'Section H',
+                            ])
+                            ->required()
+                            ->searchable()
+                            ->helperText('Crops will be assigned sequential tray numbers in this section'),
+                    ])
+                    ->action(function (Crop $record, array $data) {
+                        $advanceAction = app(\App\Actions\Crop\AdvanceFromSoaking::class);
+                        $succeeded = 0;
+                        $failed = 0;
                         
-                        \Filament\Notifications\Notification::make()
-                            ->title('Crop Advanced')
-                            ->body("Crop advanced to germination stage with tray {$data['tray_number']}")
-                            ->success()
-                            ->send();
-                    } catch (\Exception $e) {
-                        \Filament\Notifications\Notification::make()
-                            ->title('Error Advancing Crop')
-                            ->body($e->getMessage())
-                            ->danger()
-                            ->send();
-                    }
-                }),
+                        try {
+                            $trayNumber = $data['tray_prefix'] . '1';
+                            $advanceAction->execute($record, $trayNumber);
+                            $succeeded++;
+                        } catch (\Exception $e) {
+                            $failed++;
+                            Log::error('Failed to advance crop from soaking', [
+                                'crop_id' => $record->id,
+                                'error' => $e->getMessage()
+                            ]);
+                        }
+                        
+                        if ($succeeded > 0) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('Crop Advanced')
+                                ->body("Successfully advanced crop to germination stage")
+                                ->success()
+                                ->send();
+                        }
+                        
+                        if ($failed > 0) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('Crop Failed to Advance')
+                                ->body("Crop could not be advanced. Check logs for details.")
+                                ->warning()
+                                ->send();
+                        }
+                    }),
+                
+                Tables\Actions\ViewAction::make(),
+                Tables\Actions\EditAction::make(),
+            ]),
+        ];
+    }
+    
+    public static function groups(): array
+    {
+        return [
+            Tables\Grouping\Group::make('recipe.name')
+                ->label('Recipe')
+                ->collapsible(),
             
-            Tables\Actions\ViewAction::make(),
-            Tables\Actions\EditAction::make(),
+            Tables\Grouping\Group::make('currentStage.name')
+                ->label('Stage')
+                ->collapsible(),
+                
+            Tables\Grouping\Group::make('created_at')
+                ->label('Started Date')
+                ->date()
+                ->collapsible(),
         ];
     }
     
@@ -144,10 +190,20 @@ class CropTable
                 ->modalHeading('Advance Crops from Soaking')
                 ->modalDescription('This will advance all selected soaking crops to germination stage.')
                 ->form([
-                    \Filament\Forms\Components\TextInput::make('tray_prefix')
+                    \Filament\Forms\Components\Select::make('tray_prefix')
                         ->label('Tray Prefix')
+                        ->options([
+                            'A' => 'Section A',
+                            'B' => 'Section B', 
+                            'C' => 'Section C',
+                            'D' => 'Section D',
+                            'E' => 'Section E',
+                            'F' => 'Section F',
+                            'G' => 'Section G',
+                            'H' => 'Section H',
+                        ])
                         ->required()
-                        ->placeholder('e.g., A, B, C')
+                        ->searchable()
                         ->helperText('Crops will be assigned trays like A1, A2, etc.'),
                 ])
                 ->action(function (\Illuminate\Database\Eloquent\Collection $records, array $data) {
@@ -156,21 +212,21 @@ class CropTable
                     $failed = 0;
                     $trayNumber = 1;
                     
-                    foreach ($records as $record) {
+                    foreach ($records as $crop) {
                         // Skip non-soaking crops
-                        if ($record->getRelation('currentStage')?->code !== 'soaking') {
+                        if (!$crop->isInSoaking()) {
                             continue;
                         }
                         
                         try {
                             $trayCode = $data['tray_prefix'] . $trayNumber;
-                            $advanceAction->execute($record, $trayCode);
+                            $advanceAction->execute($crop, $trayCode);
                             $succeeded++;
                             $trayNumber++;
                         } catch (\Exception $e) {
                             $failed++;
                             \Illuminate\Support\Facades\Log::error('Failed to advance crop from soaking', [
-                                'crop_id' => $record->id,
+                                'crop_id' => $crop->id,
                                 'error' => $e->getMessage()
                             ]);
                         }

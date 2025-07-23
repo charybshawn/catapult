@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\CropResource\Pages;
 
 use App\Filament\Resources\CropResource;
-use App\Models\Crop;
+use App\Models\CropBatch;
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Tables\Table;
@@ -19,10 +19,10 @@ class ListCrops extends ListRecords
 
     protected static string $view = 'filament.resources.crop-resource.pages.list-crops';
 
-    // Set default sort for the page
+    // Set default sort for the page - use batch_date for grouped view
     protected function getDefaultTableSortColumn(): ?string
     {
-        return 'germination_at';
+        return 'id';
     }
 
     protected function getDefaultTableSortDirection(): ?string
@@ -62,10 +62,8 @@ class ListCrops extends ListRecords
             }),
         ]);
 
-        // Override default ordering to prevent ONLY_FULL_GROUP_BY errors
-        // Force ordering by a column that's part of the GROUP BY
-        $query->reorder('crops.germination_at', 'desc');
-        return $query->with(['recipe.masterSeedCatalog', 'recipe.masterCultivar']);
+        // No need for complex ordering - CropBatch uses simple columns
+        return $query;
     }
 
     public function getTableRecords(): Collection|Paginator|CursorPaginator
@@ -111,10 +109,12 @@ class ListCrops extends ListRecords
             return 0;
         }
 
-        return Crop::where('current_stage_id', $soakingStage->id)
-            ->where('requires_soaking', true)
-            ->whereNotNull('soaking_at')
-            ->count();
+        // Count batches that are in soaking stage
+        return CropBatch::whereHas('crops', function ($query) use ($soakingStage) {
+            $query->where('current_stage_id', $soakingStage->id)
+                ->where('requires_soaking', true)
+                ->whereNotNull('soaking_at');
+        })->count();
     }
 
     /**
@@ -128,16 +128,19 @@ class ListCrops extends ListRecords
             return false;
         }
 
-        $soakingCrops = Crop::with('recipe')
-            ->where('current_stage_id', $soakingStage->id)
-            ->where('requires_soaking', true)
-            ->whereNotNull('soaking_at')
-            ->get();
+        $soakingBatches = CropBatch::with('crops.recipe')
+            ->whereHas('crops', function ($query) use ($soakingStage) {
+                $query->where('current_stage_id', $soakingStage->id)
+                    ->where('requires_soaking', true)
+                    ->whereNotNull('soaking_at');
+            })->get();
 
-        foreach ($soakingCrops as $crop) {
-            $timeRemaining = $crop->getSoakingTimeRemaining();
-            if ($timeRemaining !== null && $timeRemaining <= 0) {
-                return true;
+        foreach ($soakingBatches as $batch) {
+            foreach ($batch->crops as $crop) {
+                $timeRemaining = $crop->getSoakingTimeRemaining();
+                if ($timeRemaining !== null && $timeRemaining <= 0) {
+                    return true;
+                }
             }
         }
 

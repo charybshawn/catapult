@@ -79,6 +79,8 @@ app/Filament/Resources/
 │   │   └── XxxForm.php               # Returns Filament form schema
 │   ├── Tables/
 │   │   └── XxxTable.php              # Returns Filament table components
+│   ├── Actions/
+│   │   └── XxxAction.php             # Custom Filament actions (minimal logic)
 │   └── Pages/
 │       ├── ListXxx.php               # Extends Filament\Resources\Pages\ListRecords
 │       ├── CreateXxx.php             # Extends Filament\Resources\Pages\CreateRecord
@@ -89,6 +91,13 @@ app/Actions/Xxx/                      # Business logic classes (not Filament cla
 ├── CreateXxx.php                     # Pure business logic
 ├── UpdateXxx.php                     # Pure business logic
 └── [SpecificOperations].php          # Domain-specific operations
+
+resources/views/filament/             # Blade views for complex HTML output
+├── actions/
+│   └── xxx-debug.blade.php           # HTML templates for action outputs
+├── components/
+│   └── xxx-badge.blade.php           # Reusable view components
+└── [other-view-directories]/
 ```
 
 ## 🔧 Implementation Templates
@@ -425,6 +434,160 @@ class ProductObserver {
 }
 ```
 
+## 🎨 HTML and Display Separation
+
+**ALWAYS use Blade views for complex HTML output to maintain clean separation of concerns:**
+
+### Why Separate HTML from Logic?
+- **Maintainability**: HTML changes don't require touching PHP classes
+- **Testability**: Business logic can be tested independently of presentation
+- **Designer Friendly**: Frontend developers can work on views without PHP knowledge
+- **Code Clarity**: Actions focus on orchestration, views focus on presentation
+
+### Implementation Pattern
+
+#### ✅ GOOD: Action delegates to Blade view
+```php
+<?php
+
+namespace App\Filament\Resources\ProductResource\Actions;
+
+use Filament\Tables\Actions\Action;
+use Filament\Notifications\Notification;
+
+class ProductDebugAction
+{
+    public static function make(): Action
+    {
+        return Action::make('debug')
+            ->label('Debug')
+            ->icon('heroicon-o-code-bracket')
+            ->action(function ($record) {
+                // Minimal logic - just data preparation and view delegation
+                $htmlOutput = view('filament.actions.product-debug', [
+                    'record' => $record,
+                    'analytics' => app(ProductAnalytics::class)->gather($record),
+                    'relationships' => $record->load(['orders', 'inventory']),
+                ])->render();
+
+                Notification::make()
+                    ->title('Product Debug Information')
+                    ->body($htmlOutput)
+                    ->persistent()
+                    ->send();
+            });
+    }
+}
+```
+
+#### ✅ GOOD: Dedicated Blade view
+```blade
+{{-- resources/views/filament/actions/product-debug.blade.php --}}
+<div class="space-y-4">
+    <div class="mb-4">
+        <h3 class="text-lg font-medium mb-2">Product Information</h3>
+        <div class="overflow-auto max-h-48 space-y-1">
+            <div class="flex">
+                <span class="font-medium w-32">Name:</span>
+                <span class="text-gray-600 dark:text-gray-400">{{ $record->name }}</span>
+            </div>
+            <div class="flex">
+                <span class="font-medium w-32">SKU:</span>
+                <span class="text-gray-600 dark:text-gray-400">{{ $record->sku }}</span>
+            </div>
+        </div>
+    </div>
+
+    @if($analytics)
+        <div class="mb-4">
+            <h3 class="text-lg font-medium mb-2">Analytics</h3>
+            <div class="space-y-2">
+                @foreach($analytics as $metric => $value)
+                    <div class="flex">
+                        <span class="font-medium w-40 text-sm">{{ $metric }}:</span>
+                        <span class="text-gray-600 dark:text-gray-400 text-sm">{{ $value }}</span>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
+</div>
+```
+
+#### ❌ BAD: HTML built in action class
+```php
+class ProductDebugAction
+{
+    public static function make(): Action
+    {
+        return Action::make('debug')
+            ->action(function ($record) {
+                // BAD: Building HTML strings in PHP
+                $html = '<div class="space-y-4">';
+                $html .= '<div class="mb-4">';
+                $html .= '<h3 class="text-lg font-medium mb-2">Product Information</h3>';
+                $html .= '<div class="overflow-auto max-h-48 space-y-1">';
+                foreach ($data as $key => $value) {
+                    $html .= '<div class="flex">';
+                    $html .= '<span class="font-medium w-32">' . $key . ':</span>';
+                    $html .= '<span class="text-gray-600">' . $value . '</span>';
+                    $html .= '</div>';
+                }
+                $html .= '</div></div></div>';
+                
+                // This is unmaintainable and hard to read
+                Notification::make()->body($html)->send();
+            });
+    }
+}
+```
+
+### View Organization Guidelines
+
+#### Directory Structure
+```
+resources/views/filament/
+├── actions/                    # Action-specific views
+│   ├── product-debug.blade.php
+│   ├── order-summary.blade.php
+│   └── batch-operations.blade.php
+├── components/                 # Reusable components
+│   ├── status-badge.blade.php
+│   ├── timeline.blade.php
+│   └── data-table.blade.php
+├── widgets/                    # Widget views
+│   └── dashboard-stats.blade.php
+└── emails/                     # Email templates
+    └── order-confirmation.blade.php
+```
+
+#### Component Reusability
+```blade
+{{-- resources/views/filament/components/status-badge.blade.php --}}
+@props(['status', 'color' => 'gray'])
+
+<span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium
+    @if($color === 'success') bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200
+    @elseif($color === 'warning') bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200
+    @else bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200
+    @endif">
+    {{ $status }}
+</span>
+```
+
+```blade
+{{-- Usage in action views --}}
+<x-filament.components.status-badge :status="$record->status" :color="$record->status_color" />
+```
+
+### Benefits of View Separation
+
+1. **Maintainability**: HTML changes don't require PHP expertise
+2. **Testability**: Actions can be unit tested without HTML concerns
+3. **Performance**: Views can be cached independently
+4. **Collaboration**: Designers can work on views while developers work on logic
+5. **Consistency**: Shared view components ensure UI consistency
+
 ## ⚡ Benefits of Working WITH Filament
 
 ### 1. **Automatic Updates**
@@ -450,6 +613,8 @@ Filament's official documentation applies to your organized code.
 - Building custom services that duplicate Filament functionality
 - Creating custom routing that bypasses Filament's resource routing
 - Implementing custom authorization outside Filament's policy system
+- **Building HTML strings in PHP classes instead of using Blade views**
+- Creating custom notification systems instead of using Filament's notifications
 
 ## 📊 Quality Metrics
 
@@ -466,6 +631,9 @@ Filament's official documentation applies to your organized code.
 - [ ] Business logic is in separate Action classes
 - [ ] No custom blade templates for forms/tables
 - [ ] No Laravel observers for Filament-managed operations
+- [ ] **Complex HTML output uses Blade views, not PHP string building**
+- [ ] Action classes delegate to views for presentation logic
+- [ ] Views are organized in logical directory structure
 
 ## 🔄 Refactoring Anti-Pattern Code
 

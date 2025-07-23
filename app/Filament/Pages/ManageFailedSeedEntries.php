@@ -44,16 +44,6 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
     
     protected static ?int $navigationSort = 7;
     
-    public static function getNavigationBadge(): ?string
-    {
-        return SeedScrapeUpload::where('failed_entries_count', '>', 0)->sum('failed_entries_count') ?: null;
-    }
-    
-    public static function getNavigationBadgeColor(): ?string
-    {
-        return 'danger';
-    }
-    
     public function table(Table $table): Table
     {
         return $table

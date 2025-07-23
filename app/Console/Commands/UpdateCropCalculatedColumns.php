@@ -14,35 +14,9 @@ class UpdateCropCalculatedColumns extends Command
 
     public function handle()
     {
-        $this->info('Starting to update calculated columns for all crops...');
-        
-        $totalCrops = Crop::count();
-        $this->output->progressStart($totalCrops);
-        
-        // Process in chunks to avoid memory issues
-        Crop::chunk(100, function ($crops) {
-            foreach ($crops as $crop) {
-                // Use the observer's method to update the calculated columns
-                app(CropObserver::class)->saving($crop);
-                
-                // Save without triggering the observer again
-                DB::table('crops')
-                    ->where('id', $crop->id)
-                    ->update([
-                        'stage_age_minutes' => $crop->stage_age_minutes,
-                        'stage_age_display' => $crop->stage_age_display,
-                        'time_to_next_stage_minutes' => $crop->time_to_next_stage_minutes,
-                        'time_to_next_stage_display' => $crop->time_to_next_stage_display,
-                        'total_age_minutes' => $crop->total_age_minutes,
-                        'total_age_display' => $crop->total_age_display,
-                        'expected_harvest_at' => $crop->expected_harvest_at,
-                    ]);
-                
-                $this->output->progressAdvance();
-            }
-        });
-        
-        $this->output->progressFinish();
-        $this->info('Successfully updated calculated columns for all crops.');
+        $this->info('This command is deprecated.');
+        $this->info('Calculated columns have been moved to the crop_batches_list_view database view.');
+        $this->info('These values are now calculated dynamically and do not need to be updated.');
+        return 0;
     }
 } 

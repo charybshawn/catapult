@@ -47,7 +47,10 @@ class UpdateCropTimeFields extends Command
      */
     public function handle()
     {
-        $this->info('Updating time fields for all crops...');
+        $this->info('This command is deprecated.');
+        $this->info('Time-related calculated columns have been moved to the crop_batches_list_view database view.');
+        $this->info('These values are now calculated dynamically and do not need to be updated.');
+        return 0;
         
         $total = Crop::whereHas('currentStage', function($q) {
             $q->where('code', '!=', 'harvested');
