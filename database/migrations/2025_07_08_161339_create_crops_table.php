@@ -23,7 +23,7 @@ return new class extends Migration
             $table->timestamp('germination_at')->nullable();
             $table->timestamp('blackout_at')->nullable();
             $table->timestamp('light_at')->nullable();
-            table->timestamp('watering_suspended_at')->nullable();
+            $table->timestamp('watering_suspended_at')->nullable();
             $table->text('notes')->nullable();
             $table->timestamps();
         });
