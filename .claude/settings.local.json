@@ -37,7 +37,12 @@
       "Bash(git merge:*)",
       "Bash(git stash:*)",
       "Bash(../dev.sh artisan:*)",
-      "Bash(../dev.sh:*)"
+      "Bash(../dev.sh:*)",
+      "Bash(../dev.sh status)",
+      "Bash(../dev.sh artisan route:list:*)",
+      "Bash(../dev.sh ps:*)",
+      "Bash(../dev.sh npm run build)",
+      "Bash(git reset:*)"
     ],
     "deny": []
   }
