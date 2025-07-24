@@ -42,7 +42,8 @@
       "Bash(../dev.sh artisan route:list:*)",
       "Bash(../dev.sh ps:*)",
       "Bash(../dev.sh npm run build)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(git check-ignore:*)"
     ],
     "deny": []
   }
