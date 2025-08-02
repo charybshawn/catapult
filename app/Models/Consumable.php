@@ -119,6 +119,109 @@ class Consumable extends Model
     }
     
     /**
+     * Get the name attribute - computed for seed consumables, stored for others.
+     */
+    public function getNameAttribute($value)
+    {
+        // For seed consumables, compute name from master catalog + cultivar
+        if ($this->consumableType && $this->consumableType->code === 'seed') {
+            // If we have both master catalog and cultivar relationships
+            if ($this->masterSeedCatalog && $this->masterCultivar) {
+                $commonName = $this->masterSeedCatalog->common_name;
+                $cultivarName = $this->masterCultivar->cultivar_name;
+                
+                // If common name and cultivar are the same, just show the name
+                if (strtolower(trim($commonName)) === strtolower(trim($cultivarName))) {
+                    return $commonName;
+                }
+                
+                // Otherwise show both: "Common Name (Cultivar)"
+                return $commonName . ' (' . $cultivarName . ')';
+            }
+            
+            // Fallback: try to use stored cultivar field if relationships are missing
+            if ($this->masterSeedCatalog && $this->cultivar) {
+                $commonName = $this->masterSeedCatalog->common_name;
+                $cultivarName = $this->cultivar;
+                
+                // If common name and cultivar are the same, just show the name
+                if (strtolower(trim($commonName)) === strtolower(trim($cultivarName))) {
+                    return $commonName;
+                }
+                
+                // Otherwise show both: "Common Name (Cultivar)"
+                return $commonName . ' (' . $cultivarName . ')';
+            }
+            
+            // Final fallback: use stored name if relationships are incomplete
+            return $value ?: 'Incomplete Seed Data';
+        }
+        
+        // For non-seed consumables, use the stored name value
+        return $value;
+    }
+    
+    /**
+     * Check if relationships are properly set for seed consumables.
+     */
+    public function hasValidSeedRelationships(): bool
+    {
+        if (!$this->consumableType || $this->consumableType->code !== 'seed') {
+            return true; // Non-seed consumables don't need these relationships
+        }
+        
+        // Seed consumables should have master catalog relationship
+        if (!$this->master_seed_catalog_id || !$this->masterSeedCatalog) {
+            return false;
+        }
+        
+        // Should have either master_cultivar_id OR cultivar field
+        if (!$this->master_cultivar_id && empty($this->cultivar)) {
+            return false;
+        }
+        
+        // If using master_cultivar_id, check that cultivar belongs to the assigned catalog
+        if ($this->master_cultivar_id && $this->masterCultivar) {
+            return $this->masterCultivar->master_seed_catalog_id === $this->master_seed_catalog_id;
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Get validation errors for seed relationships.
+     */
+    public function getSeedRelationshipErrors(): array
+    {
+        $errors = [];
+        
+        if (!$this->consumableType || $this->consumableType->code !== 'seed') {
+            return $errors; // Non-seed consumables don't need validation
+        }
+        
+        if (!$this->master_seed_catalog_id) {
+            $errors[] = 'Seed consumable is missing master_seed_catalog_id';
+        }
+        
+        if (!$this->masterSeedCatalog) {
+            $errors[] = 'Seed consumable has invalid master_seed_catalog_id reference';
+        }
+        
+        if (!$this->master_cultivar_id && empty($this->cultivar)) {
+            $errors[] = 'Seed consumable is missing both master_cultivar_id and cultivar field';
+        }
+        
+        // Check for cultivar-catalog mismatch
+        if ($this->master_cultivar_id && $this->masterCultivar && $this->masterSeedCatalog) {
+            if ($this->masterCultivar->master_seed_catalog_id !== $this->master_seed_catalog_id) {
+                $errors[] = "Cultivar '{$this->masterCultivar->cultivar_name}' belongs to catalog '{$this->masterCultivar->masterSeedCatalog->common_name}' but consumable is assigned to catalog '{$this->masterSeedCatalog->common_name}'";
+            }
+        }
+        
+        return $errors;
+    }
+    
+    /**
      * The "booted" method of the model.
      */
     protected static function booted(): void

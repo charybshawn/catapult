@@ -248,6 +248,16 @@ class MasterCultivarsTableSeeder extends Seeder
                 'created_at' => '2025-06-25 13:23:55',
                 'updated_at' => '2025-06-25 13:23:55',
             ],
+            [
+                'id' => 22,
+                'master_seed_catalog_id' => 18,
+                'cultivar_name' => 'Red',
+                'aliases' => null,
+                'description' => null,
+                'is_active' => 1,
+                'created_at' => '2025-06-25 13:23:55',
+                'updated_at' => '2025-06-25 13:23:55',
+            ],
         ]);
         
         // Re-enable foreign key checks
