@@ -19,11 +19,11 @@ class PriceVariationFormFields
         return Forms\Components\Select::make('product_id')
             ->relationship('product', 'name')
             ->label('Product')
-            ->required(fn (Forms\Get $get): bool => !$get('is_global'))
+            ->required(fn (Forms\Get $get): bool => ! $get('is_global'))
             ->searchable()
             ->preload()
             ->placeholder('Select a product...')
-            ->visible(fn (Forms\Get $get): bool => !$get('is_global'))
+            ->visible(fn (Forms\Get $get): bool => ! $get('is_global'))
             ->columnSpanFull();
     }
 
@@ -36,7 +36,7 @@ class PriceVariationFormFields
             ->label('Pricing Type')
             ->options([
                 'retail' => 'Retail',
-                'wholesale' => 'Wholesale', 
+                'wholesale' => 'Wholesale',
                 'bulk' => 'Bulk',
                 'special' => 'Special',
                 'custom' => 'Custom',
@@ -68,11 +68,10 @@ class PriceVariationFormFields
                 'per_oz' => 'Per Ounce',
             ])
             ->default('per_item')
-            ->live()
-            ->visible(fn (Forms\Get $get): bool => 
-                $get('pricing_type') === 'bulk' || 
+            ->live(onBlur: true)()
+            ->visible(fn (Forms\Get $get): bool => $get('pricing_type') === 'bulk' ||
                 $get('pricing_type') === 'wholesale' ||
-                !$get('packaging_type_id')
+                ! $get('packaging_type_id')
             );
     }
 
@@ -111,7 +110,8 @@ class PriceVariationFormFields
         return Forms\Components\TextInput::make('price')
             ->label(function (Forms\Get $get): string {
                 $unit = $get('pricing_unit');
-                return match($unit) {
+
+                return match ($unit) {
                     'per_g' => 'Price per Gram',
                     'per_kg' => 'Price per Kilogram',
                     'per_lb' => 'Price per Pound',
@@ -170,7 +170,8 @@ class PriceVariationFormFields
         return Forms\Components\TextInput::make('fill_weight')
             ->label(function (Forms\Get $get): string {
                 $pricingUnit = $get('pricing_unit');
-                return match($pricingUnit) {
+
+                return match ($pricingUnit) {
                     'per_g' => 'Weight (grams)',
                     'per_kg' => 'Weight (kg)',
                     'per_lb' => 'Weight (lbs)',
@@ -184,14 +185,16 @@ class PriceVariationFormFields
             ->step(0.01)
             ->placeholder(function (Forms\Get $get): string {
                 $packagingId = $get('packaging_type_id');
-                if (!$packagingId) {
+                if (! $packagingId) {
                     return 'Enter amount';
                 }
+
                 return 'Enter weight or quantity';
             })
             ->suffix(function (Forms\Get $get): string {
                 $pricingUnit = $get('pricing_unit');
-                return match($pricingUnit) {
+
+                return match ($pricingUnit) {
                     'per_g' => 'g',
                     'per_kg' => 'kg',
                     'per_lb' => 'lbs',
@@ -202,20 +205,21 @@ class PriceVariationFormFields
             })
             ->hint(function (Forms\Get $get): string {
                 $packagingId = $get('packaging_type_id');
-                if (!$packagingId) {
+                if (! $packagingId) {
                     return 'Package-free variation';
                 }
-                
+
                 $packaging = \App\Models\PackagingType::find($packagingId);
                 if ($packaging && $packaging->capacity_weight) {
-                    return 'Package capacity: ' . $packaging->capacity_weight . 'g';
+                    return 'Package capacity: '.$packaging->capacity_weight.'g';
                 }
+
                 return '';
             })
             ->required(function (Forms\Get $get): bool {
                 return PriceVariationFormHelpers::isFillWeightRequired($get);
             })
-            ->live();
+            ->live(onBlur: true)();
     }
 
     /**

@@ -22,10 +22,11 @@ class ConsumableForm
             if (method_exists($livewire, 'getOperation')) {
                 return $livewire->getOperation() === 'edit';
             }
+
             // Fallback: check if record exists (edit mode has a record)
             return isset($livewire->record) && $livewire->record !== null;
         };
-        
+
         return [
             static::getBasicInformationSection($isEditMode),
             static::getInventoryDetailsSection($isEditMode),
@@ -51,18 +52,20 @@ class ConsumableForm
                     ->columnSpanFull()
                     ->afterStateUpdated(function ($state, Set $set) {
                         $type = ConsumableType::find($state);
-                        if (!$type) return;
-                        
+                        if (! $type) {
+                            return;
+                        }
+
                         // Reset packaging type when type changes
-                        if (!$type->isPackaging()) {
+                        if (! $type->isPackaging()) {
                             $set('packaging_type_id', null);
                         }
-                        
+
                         // Reset mix when type changes - keeping this for backwards compatibility
                         if ($type->code !== 'mix') {
                             $set('product_mix_id', null);
                         }
-                        
+
                         // Also reset the name field
                         $set('name', null);
                     }),
@@ -73,13 +76,13 @@ class ConsumableForm
                         return static::getItemNameFields($get, $record);
                     })
                     ->columnSpanFull(),
-                
+
                 // Supplier field moved to be beside seed entry for seed type
                 Forms\Components\Grid::make()
                     ->schema(function (Get $get, $record = null) {
                         return static::getSupplierField($get, $record);
                     })->columnSpanFull(),
-                
+
                 // Seed catalog fields
                 ...static::getSeedCatalogFields(),
 
@@ -101,12 +104,12 @@ class ConsumableForm
                     ->schema(function (Get $get, $record = null) use ($isEditMode) {
                         $typeId = $get('consumable_type_id') ?? $record?->consumable_type_id;
                         $type = $typeId ? ConsumableType::find($typeId) : null;
-                        
+
                         // For seed consumables - use remaining_quantity directly
                         if ($type && $type->isSeed()) {
                             return static::getSeedInventoryFields();
                         }
-                        
+
                         // For all other consumable types - use the standard inventory fields
                         return static::getStandardInventoryFields($isEditMode);
                     })
@@ -121,12 +124,12 @@ class ConsumableForm
     {
         $typeId = $get('consumable_type_id') ?? $record?->consumable_type_id;
         $type = $typeId ? ConsumableType::find($typeId) : null;
-        
+
         if ($type && $type->isPackaging()) {
             return static::getPackagingTypeFields();
-        } else if ($type && $type->isSeed()) {
+        } elseif ($type && $type->isSeed()) {
             return static::getSeedNameFields();
-        } else if ($type && $type->code === 'mix') {
+        } elseif ($type && $type->code === 'mix') {
             return static::getProductMixFields();
         } else {
             return static::getGeneralNameFields($get);
@@ -155,15 +158,15 @@ class ConsumableForm
                 ->afterStateUpdated(function ($state, Set $set) {
                     // Get packaging type
                     $packagingType = \App\Models\PackagingType::find($state);
-                    
+
                     // Set the name field from the packaging type
                     if ($packagingType) {
                         $set('name', $packagingType->name);
                     }
                 }),
-                
+
             // Hidden name field for packaging types
-            Forms\Components\Hidden::make('name')
+            Forms\Components\Hidden::make('name'),
         ];
     }
 
@@ -174,14 +177,14 @@ class ConsumableForm
     {
         return [
             FormCommon::supplierSelect(),
-            
+
             // Read-only name field that will be auto-generated
             Forms\Components\TextInput::make('name')
                 ->label('Generated Name')
                 ->readonly()
                 ->helperText('Auto-generated from seed catalog and cultivar selection')
                 ->placeholder('Will be generated automatically'),
-            
+
             // Hidden cultivar field for storage
             Forms\Components\Hidden::make('cultivar'),
         ];
@@ -203,7 +206,7 @@ class ConsumableForm
                 })
                 ->searchable()
                 ->required()
-                ->live()
+                ->live(onBlur: true)
                 ->afterStateUpdated(function ($state, Set $set) {
                     if ($state) {
                         $mix = \App\Models\ProductMix::find($state);
@@ -212,7 +215,7 @@ class ConsumableForm
                         }
                     }
                 }),
-                
+
             // Hidden name field - will be set from the mix
             Forms\Components\Hidden::make('name'),
         ];
@@ -232,7 +235,7 @@ class ConsumableForm
                     // Only provide autocomplete for certain types
                     $typeId = $get('consumable_type_id');
                     $type = $typeId ? ConsumableType::find($typeId) : null;
-                    
+
                     if ($type && in_array($type->code, ['soil', 'label'])) {
                         return \App\Models\Consumable::where('consumable_type_id', $typeId)
                             ->where('is_active', true)
@@ -240,8 +243,9 @@ class ConsumableForm
                             ->unique()
                             ->toArray();
                     }
+
                     return [];
-                })
+                }),
         ];
     }
 
@@ -252,7 +256,7 @@ class ConsumableForm
     {
         $typeId = $get('consumable_type_id') ?? $record?->consumable_type_id;
         $type = $typeId ? ConsumableType::find($typeId) : null;
-        
+
         if ($type && $type->isSeed()) {
             // For seed type, supplier is already in the grid with master_seed_catalog_id
             return [];
@@ -283,14 +287,16 @@ class ConsumableForm
                 ->visible(function (Get $get, $record = null): bool {
                     $typeId = $get('consumable_type_id') ?? $record?->consumable_type_id;
                     $type = $typeId ? ConsumableType::find($typeId) : null;
+
                     return $type && $type->isSeed();
                 })
                 ->required(function (Get $get, $record = null): bool {
                     $typeId = $get('consumable_type_id') ?? $record?->consumable_type_id;
                     $type = $typeId ? ConsumableType::find($typeId) : null;
+
                     return $type && $type->isSeed();
                 })
-                ->live()
+                ->live(onBlur: true)
                 ->afterStateUpdated(function ($state, Set $set, Get $get) {
                     if ($state) {
                         $masterCatalog = \App\Models\MasterSeedCatalog::find($state);
@@ -299,44 +305,46 @@ class ConsumableForm
                         }
                     }
                 }),
-                
-            // Cultivar field - separate field for better control
+
+            // Cultivar field - now uses proper relationships
             Forms\Components\Select::make('cultivar')
                 ->label('Cultivar')
                 ->options(function (Get $get) {
                     $catalogId = $get('master_seed_catalog_id');
                     if ($catalogId) {
-                        $masterCatalog = \App\Models\MasterSeedCatalog::find($catalogId);
-                        if ($masterCatalog) {
-                            $cultivars = is_array($masterCatalog->cultivars) ? $masterCatalog->cultivars : [];
-                            return array_combine($cultivars, $cultivars);
-                        }
+                        return \App\Models\MasterCultivar::where('master_seed_catalog_id', $catalogId)
+                            ->where('is_active', true)
+                            ->pluck('cultivar_name', 'cultivar_name')
+                            ->toArray();
                     }
+
                     return [];
                 })
                 ->searchable()
                 ->visible(function (Get $get, $record = null): bool {
                     $typeId = $get('consumable_type_id') ?? $record?->consumable_type_id;
                     $type = $typeId ? ConsumableType::find($typeId) : null;
+
                     return $type && $type->isSeed();
                 })
                 ->required(function (Get $get, $record = null): bool {
                     $typeId = $get('consumable_type_id') ?? $record?->consumable_type_id;
                     $type = $typeId ? ConsumableType::find($typeId) : null;
+
                     return $type && $type->isSeed();
                 })
-                ->live()
+                ->live(onBlur: true)
                 ->afterStateUpdated(function ($state, Set $set, Get $get) {
                     // Generate name from common name and cultivar
                     $catalogId = $get('master_seed_catalog_id');
                     $cultivar = $state;
-                    
+
                     if ($catalogId && $cultivar) {
                         $masterCatalog = \App\Models\MasterSeedCatalog::find($catalogId);
                         if ($masterCatalog) {
-                            $name = $masterCatalog->common_name . ' (' . $cultivar . ')';
+                            $name = $masterCatalog->common_name.' ('.$cultivar.')';
                             $set('name', $name);
-                            
+
                             // Also set the master_cultivar_id
                             $masterCultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $catalogId)
                                 ->where('cultivar_name', $cultivar)
@@ -358,29 +366,23 @@ class ConsumableForm
     {
         // Auto-select first cultivar if none selected
         $cultivar = $get('cultivar');
-        if (!$cultivar) {
-            $cultivars = is_array($masterCatalog->cultivars) ? $masterCatalog->cultivars : [];
-            $firstCultivar = $cultivars[0] ?? '';
-            $set('cultivar', $firstCultivar);
+        if (! $cultivar) {
+            // Get first active cultivar from the relationship
+            $firstCultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $masterCatalog->id)
+                ->where('is_active', true)
+                ->first();
             
-            // Generate name immediately if we have a cultivar
             if ($firstCultivar) {
-                $name = $masterCatalog->common_name . ' (' . $firstCultivar . ')';
+                $set('cultivar', $firstCultivar->cultivar_name);
+                $name = $masterCatalog->common_name.' ('.$firstCultivar->cultivar_name.')';
                 $set('name', $name);
-                
-                // Set master_cultivar_id
-                $masterCultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $masterCatalog->id)
-                    ->where('cultivar_name', $firstCultivar)
-                    ->first();
-                if ($masterCultivar) {
-                    $set('master_cultivar_id', $masterCultivar->id);
-                }
+                $set('master_cultivar_id', $firstCultivar->id);
             }
         } else {
             // Update name with existing cultivar
-            $name = $masterCatalog->common_name . ' (' . $cultivar . ')';
+            $name = $masterCatalog->common_name.' ('.$cultivar.')';
             $set('name', $name);
-            
+
             // Set master_cultivar_id
             $masterCultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $masterCatalog->id)
                 ->where('cultivar_name', $cultivar)
@@ -412,11 +414,11 @@ class ConsumableForm
                         ->reactive()
                         ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
                             // When initial quantity changes, update remaining if it hasn't been manually set
-                            if (!$get('remaining_quantity') || $get('remaining_quantity') == 0) {
+                            if (! $get('remaining_quantity') || $get('remaining_quantity') == 0) {
                                 $set('remaining_quantity', $state);
                             }
                         }),
-                        
+
                     // Unit of measurement for seeds
                     Forms\Components\Select::make('quantity_unit')
                         ->label('Unit')
@@ -431,7 +433,7 @@ class ConsumableForm
                         ->reactive(),
                 ])
                 ->columnSpan(2),
-                
+
             // Remaining quantity for existing inventory
             Forms\Components\TextInput::make('remaining_quantity')
                 ->label('Current Remaining')
@@ -448,15 +450,15 @@ class ConsumableForm
                     $remaining = (float) $state;
                     $consumed = max(0, $total - $remaining);
                     $set('consumed_quantity', $consumed);
-                    
+
                     // Log the calculation for debugging
                     Log::info('Remaining quantity updated:', [
                         'total' => $total,
                         'remaining' => $remaining,
-                        'consumed' => $consumed
+                        'consumed' => $consumed,
                     ]);
                 }),
-                
+
             // Consumed quantity display
             Forms\Components\Placeholder::make('consumed_display')
                 ->label('Amount Used')
@@ -465,15 +467,16 @@ class ConsumableForm
                     $remaining = (float) $get('remaining_quantity');
                     $consumed = max(0, $total - $remaining);
                     $unit = $get('quantity_unit') ?: 'g';
-                    return number_format($consumed, 3) . ' ' . $unit . ' used';
+
+                    return number_format($consumed, 3).' '.$unit.' used';
                 }),
-                
+
             // Lot/batch number for seeds
             Forms\Components\TextInput::make('lot_no')
                 ->label('Lot/Batch Number')
                 ->helperText('Optional: Batch identifier')
                 ->maxLength(100),
-                
+
             // Hidden fields for compatibility
             Forms\Components\Hidden::make('consumed_quantity')
                 ->default(0)
@@ -504,7 +507,7 @@ class ConsumableForm
                 ->required()
                 ->default(0)
                 ->reactive(),
-            
+
             // Consumed quantity field (only in edit mode)
             Forms\Components\TextInput::make('consumed_quantity')
                 ->label('Used Quantity')
@@ -514,7 +517,7 @@ class ConsumableForm
                 ->default(0)
                 ->reactive()
                 ->visible(fn ($livewire) => $isEditMode($livewire)),
-            
+
             // Available stock display (only in edit mode)
             Forms\Components\TextInput::make('current_stock_display')
                 ->label('Available Stock')
@@ -523,7 +526,7 @@ class ConsumableForm
                 ->dehydrated(false)
                 ->numeric()
                 ->visible(fn ($livewire) => $isEditMode($livewire)),
-            
+
             // Packaging type (unit type)
             Forms\Components\Select::make('consumable_unit_id')
                 ->label('Packaging Type')
@@ -537,7 +540,7 @@ class ConsumableForm
                 ])
                 ->required()
                 ->default('unit'),
-            
+
             // Unit size/capacity
             Forms\Components\TextInput::make('quantity_per_unit')
                 ->label('Unit Size')
@@ -547,7 +550,7 @@ class ConsumableForm
                 ->default(0)
                 ->step(0.01)
                 ->reactive(),
-            
+
             // Measurement unit for quantity_per_unit
             Forms\Components\Select::make('quantity_unit')
                 ->label('Unit of Measurement')
@@ -564,7 +567,7 @@ class ConsumableForm
                 ])
                 ->required()
                 ->default('l'),
-            
+
             // Hidden field for total_quantity calculation
             Forms\Components\Hidden::make('total_quantity')
                 ->default(0),

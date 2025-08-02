@@ -2,28 +2,25 @@
 
 namespace App\Filament\Resources\Consumables\Components;
 
+use App\Filament\Traits\CsvExportAction;
+use App\Filament\Traits\HasActiveStatus;
+use App\Filament\Traits\HasInventoryStatus;
+use App\Filament\Traits\HasStandardActions;
+use App\Filament\Traits\HasStatusBadge;
+use App\Filament\Traits\HasTimestamps;
 use App\Models\Consumable;
-use App\Models\ConsumableType;
-use App\Models\ConsumableUnit;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use App\Filament\Resources\ConsumableResource;
-use App\Filament\Traits\CsvExportAction;
-use App\Filament\Traits\HasActiveStatus;
-use App\Filament\Traits\HasTimestamps;
-use App\Filament\Traits\HasStatusBadge;
-use App\Filament\Traits\HasStandardActions;
-use App\Filament\Traits\HasInventoryStatus;
 
 trait ConsumableTableComponents
 {
     use CsvExportAction;
     use HasActiveStatus;
-    use HasTimestamps;
-    use HasStatusBadge;
-    use HasStandardActions;
     use HasInventoryStatus;
+    use HasStandardActions;
+    use HasStatusBadge;
+    use HasTimestamps;
 
     /**
      * Get common table columns for all consumables
@@ -42,10 +39,13 @@ trait ConsumableTableComponents
                 ->label('Type')
                 ->badge()
                 ->color(function ($record): string {
-                    if (!$record->consumableType) return 'gray';
+                    if (! $record->consumableType) {
+                        return 'gray';
+                    }
+
                     return match ($record->consumableType->code) {
                         'packaging' => 'success',
-                        'label' => 'info', 
+                        'label' => 'info',
                         'soil' => 'warning',
                         'seed' => 'primary',
                         default => 'gray',
@@ -66,21 +66,23 @@ trait ConsumableTableComponents
                 ->label('Available Quantity')
                 ->getStateUsing(fn ($record) => $record ? max(0, $record->initial_stock - $record->consumed_quantity) : 0)
                 ->numeric()
-                ->sortable(query: fn (Builder $query, string $direction): Builder => 
-                    $query->orderByRaw("(initial_stock - consumed_quantity) {$direction}")
+                ->sortable(query: fn (Builder $query, string $direction): Builder => $query->orderByRaw("(initial_stock - consumed_quantity) {$direction}")
                 )
                 ->formatStateUsing(function ($state, $record) {
-                    if (!$record) return $state;
-                    
+                    if (! $record) {
+                        return $state;
+                    }
+
                     // For seed consumables, show actual remaining amount
                     if ($record->consumableType && $record->consumableType->isSeed()) {
                         $remaining = max(0, $record->total_quantity - $record->consumed_quantity);
+
                         return "{$remaining} {$record->quantity_unit}";
                     }
-                    
+
                     // For other types, use the consumable unit symbol
                     $displayUnit = $record->consumableUnit ? $record->consumableUnit->symbol : 'unit(s)';
-                    
+
                     return "{$state} {$displayUnit}";
                 })
                 ->size('sm')
@@ -90,60 +92,61 @@ trait ConsumableTableComponents
             ...static::getTimestampColumns(),
         ];
     }
-    
+
     /**
      * Get seed-specific columns
      */
     public static function getSeedSpecificColumns(): array
     {
         return [
-            Tables\Columns\TextColumn::make('masterSeedCatalog.common_name')
-                ->label('Master Catalog')
-                ->getStateUsing(function ($record) {
-                    if ($record->consumableType && $record->consumableType->isSeed() && $record->masterSeedCatalog) {
-                        return $record->masterSeedCatalog->common_name;
-                    }
-                    return null;
-                })
-                ->searchable()
-                ->sortable()
-                ->toggleable(),
+
             Tables\Columns\TextColumn::make('remaining_seed')
                 ->label('Remaining Seed')
                 ->getStateUsing(function ($record) {
-                    if (!$record || !$record->consumableType || !$record->consumableType->isSeed()) return null;
-                    
+                    if (! $record || ! $record->consumableType || ! $record->consumableType->isSeed()) {
+                        return null;
+                    }
+
                     // Calculate actual remaining seed: total_quantity - consumed_quantity
                     return max(0, $record->total_quantity - $record->consumed_quantity);
                 })
                 ->formatStateUsing(function ($state, $record) {
-                    if (!$record || !$record->consumableType || !$record->consumableType->isSeed() || $state === null) return '-';
-                    
+                    if (! $record || ! $record->consumableType || ! $record->consumableType->isSeed() || $state === null) {
+                        return '-';
+                    }
+
                     return "{$state} {$record->quantity_unit}";
                 })
                 ->numeric()
-                ->sortable(query: fn (Builder $query, string $direction): Builder => 
-                    $query->whereHas('consumableType', fn ($q) => $q->where('code', 'seed'))
-                          ->orderByRaw("(total_quantity - consumed_quantity) {$direction}")
+                ->sortable(query: fn (Builder $query, string $direction): Builder => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'seed'))
+                    ->orderByRaw("(total_quantity - consumed_quantity) {$direction}")
                 )
                 ->size('sm')
                 ->toggleable(),
             Tables\Columns\TextColumn::make('percentage_remaining')
                 ->label('% Remaining')
                 ->getStateUsing(function ($record) {
-                    if (!$record || !$record->consumableType || !$record->consumableType->isSeed()) return null;
-                    
+                    if (! $record || ! $record->consumableType || ! $record->consumableType->isSeed()) {
+                        return null;
+                    }
+
                     // For seeds, calculate percentage based on original purchase vs current amount
                     $originalAmount = $record->initial_stock * $record->quantity_per_unit;
                     $currentAmount = $record->total_quantity;
-                    
-                    if ($originalAmount <= 0) return null;
-                    
+
+                    if ($originalAmount <= 0) {
+                        return null;
+                    }
+
                     $percentage = ($currentAmount / $originalAmount) * 100;
+
                     return round($percentage, 1);
                 })
                 ->formatStateUsing(function ($state) {
-                    if ($state === null) return '-';
+                    if ($state === null) {
+                        return '-';
+                    }
+
                     return "{$state}%";
                 })
                 ->badge()
@@ -154,19 +157,18 @@ trait ConsumableTableComponents
                     $state <= 50 => 'info',
                     default => 'success',
                 })
-                ->sortable(query: fn (Builder $query, string $direction): Builder => 
-                    $query->whereHas('consumableType', fn ($q) => $q->where('code', 'seed'))
-                          ->whereNotNull('total_quantity')
-                          ->where('total_quantity', '>', 0)
-                          ->where('initial_stock', '>', 0)
-                          ->where('quantity_per_unit', '>', 0)
-                          ->orderByRaw("(total_quantity / (initial_stock * quantity_per_unit) * 100) {$direction}")
+                ->sortable(query: fn (Builder $query, string $direction): Builder => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'seed'))
+                    ->whereNotNull('total_quantity')
+                    ->where('total_quantity', '>', 0)
+                    ->where('initial_stock', '>', 0)
+                    ->where('quantity_per_unit', '>', 0)
+                    ->orderByRaw("(total_quantity / (initial_stock * quantity_per_unit) * 100) {$direction}")
                 )
                 ->size('sm')
                 ->toggleable(),
         ];
     }
-    
+
     /**
      * Get packaging-specific columns
      */
@@ -179,13 +181,14 @@ trait ConsumableTableComponents
                     if ($record->packagingType) {
                         return "{$record->packagingType->capacity_volume} {$record->packagingType->volume_unit}";
                     }
+
                     return null;
                 })
                 ->sortable()
                 ->toggleable(),
         ];
     }
-    
+
     /**
      * Get common filters for all consumables
      */
@@ -196,7 +199,7 @@ trait ConsumableTableComponents
             static::getActiveStatusFilter(),
         ];
     }
-    
+
     /**
      * Get type-specific filter toggles
      */
@@ -208,25 +211,25 @@ trait ConsumableTableComponents
                 ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'seed')))
                 ->toggle()
                 ->indicateUsing(fn (array $data) => ($data['seeds'] ?? false) ? 'Seeds' : null),
-                
+
             Tables\Filters\Filter::make('soil')
                 ->label('Soil & Growing Media')
                 ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'soil')))
                 ->toggle()
                 ->indicateUsing(fn (array $data) => ($data['soil'] ?? false) ? 'Soil & Growing Media' : null),
-                
+
             Tables\Filters\Filter::make('packaging')
                 ->label('Packaging')
                 ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'packaging')))
                 ->toggle()
                 ->indicateUsing(fn (array $data) => ($data['packaging'] ?? false) ? 'Packaging' : null),
-                
+
             Tables\Filters\Filter::make('labels')
                 ->label('Labels')
                 ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'label')))
                 ->toggle()
                 ->indicateUsing(fn (array $data) => ($data['labels'] ?? false) ? 'Labels' : null),
-                
+
             Tables\Filters\Filter::make('other')
                 ->label('Other')
                 ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'other')))
@@ -234,7 +237,7 @@ trait ConsumableTableComponents
                 ->indicateUsing(fn (array $data) => ($data['other'] ?? false) ? 'Other' : null),
         ];
     }
-    
+
     /**
      * Get common grouping options
      */
@@ -252,7 +255,7 @@ trait ConsumableTableComponents
                 ->collapsible(),
         ];
     }
-    
+
     /**
      * Configure common table settings
      */

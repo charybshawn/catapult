@@ -4,6 +4,7 @@ namespace App\Filament\Resources\ProductMixResource\Forms;
 
 use App\Actions\ProductMix\ValidateProductMixAction;
 use App\Forms\Components\CompactRepeater;
+use App\Filament\Resources\ProductMixResource\Actions\CreateRecipeAction;
 use Filament\Forms;
 use Filament\Forms\Components\Section;
 
@@ -251,7 +252,42 @@ class ProductMixForm
             ->searchable()
             ->placeholder('Use default recipe')
             ->helperText('Leave empty to use the default recipe for this variety')
-            ->native(false);
+            ->native(false)
+            ->suffixAction(
+                CreateRecipeAction::make()
+                    ->fillForm(function (callable $get) {
+                        // Get the current component's variety and cultivar info
+                        $varietySelection = $get('variety_selection');
+                        if (!$varietySelection) {
+                            return [];
+                        }
+                        
+                        // Parse the composite key
+                        [$catalogId, $cultivar] = explode('|', $varietySelection);
+                        
+                        // Get catalog info
+                        $catalog = \App\Models\MasterSeedCatalog::find($catalogId);
+                        if (!$catalog) {
+                            return [];
+                        }
+                        
+                        // Find cultivar record
+                        $masterCultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $catalogId)
+                            ->where('cultivar_name', $cultivar)
+                            ->first();
+                        
+                        // Generate recipe name - will be updated after form submission with DTM and seed density
+                        $recipeName = $catalog->common_name . ' (' . $cultivar . ')';
+                        
+                        return [
+                            'master_seed_catalog_id' => $catalogId,
+                            'master_cultivar_id' => $masterCultivar ? $masterCultivar->id : null,
+                            'common_name' => $catalog->common_name,
+                            'cultivar_name' => $cultivar,
+                            'name' => $recipeName,
+                        ];
+                    })
+            );
     }
 
     /**

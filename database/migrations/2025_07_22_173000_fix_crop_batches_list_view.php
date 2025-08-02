@@ -31,7 +31,7 @@ return new class extends Migration
                 MIN(c.germination_at) as germination_at,
                 MIN(c.blackout_at) as blackout_at,
                 MIN(c.light_at) as light_at,
-                MIN(c.harvested_at) as harvested_at,
+                NULL as harvested_at,
                 MIN(c.watering_suspended_at) as watering_suspended_at,
                 
                 -- Calculate expected harvest date dynamically

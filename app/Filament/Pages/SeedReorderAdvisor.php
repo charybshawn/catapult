@@ -4,46 +4,46 @@ namespace App\Filament\Pages;
 
 use App\Models\SeedEntry;
 use App\Models\SeedVariation;
-use App\Filament\Widgets\SmartSeedRecommendationsWidget;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Component;
 use Filament\Forms\Components\Grid;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Pages\Page;
+use Filament\Support\Enums\FontWeight;
 use Filament\Tables;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
-use Illuminate\Support\Collection;
 use Illuminate\Database\Eloquent\Builder;
-use Filament\Support\Enums\FontWeight;
 
 class SeedReorderAdvisor extends Page implements HasForms, HasTable
 {
     use InteractsWithForms;
     use InteractsWithTable;
-    
+
     protected static ?string $navigationIcon = 'heroicon-o-shopping-cart';
-    
+
     protected static string $view = 'filament.pages.seed-reorder-advisor';
-    
+
     protected static ?string $title = 'Seed Reorder Advisor';
-    
+
     protected static ?string $navigationGroup = 'Products & Inventory';
-    
+
     protected static ?int $navigationSort = 3;
-    
+
     public $selectedCommonName = null;
+
     public $selectedCultivars = [];
+
     public $selectedSeedSize = null;
+
     public $displayCurrency = 'CAD';
-    
+
     public function mount(): void
     {
         $this->form->fill();
     }
-    
+
     public function form(\Filament\Forms\Form $form): \Filament\Forms\Form
     {
         return $form
@@ -56,13 +56,13 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
                         })
                         ->searchable()
                         ->placeholder('Select Common Name')
-                        ->live()
+                        ->live(onBlur: true)()
                         ->afterStateUpdated(function ($state) {
                             $this->selectedCultivars = []; // Reset cultivars when common name changes
                             $this->resetTable();
-                            $this->dispatch('filtersUpdated', 
-                                selectedCommonName: $state, 
-                                selectedCultivars: [], 
+                            $this->dispatch('filtersUpdated',
+                                selectedCommonName: $state,
+                                selectedCultivars: [],
                                 selectedSeedSize: $this->selectedSeedSize
                             );
                         }),
@@ -74,13 +74,13 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
                         ->multiple()
                         ->searchable()
                         ->placeholder('Select Cultivars')
-                        ->visible(fn() => !empty($this->selectedCommonName))
-                        ->live()
+                        ->visible(fn () => ! empty($this->selectedCommonName))
+                        ->live(onBlur: true)()
                         ->afterStateUpdated(function ($state) {
                             $this->resetTable();
-                            $this->dispatch('filtersUpdated', 
-                                selectedCommonName: $this->selectedCommonName, 
-                                selectedCultivars: $state ?? [], 
+                            $this->dispatch('filtersUpdated',
+                                selectedCommonName: $this->selectedCommonName,
+                                selectedCultivars: $state ?? [],
                                 selectedSeedSize: $this->selectedSeedSize
                             );
                         }),
@@ -89,17 +89,17 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
                         ->options([
                             'x-small' => 'X-Small Seeds (0-500g)',
                             'small' => 'Small Seeds (1-5kg)',
-                            'medium' => 'Medium Seeds (5-10kg)', 
+                            'medium' => 'Medium Seeds (5-10kg)',
                             'large' => 'Large Seeds (25kg)',
                         ])
                         ->placeholder('Select Seed Size')
                         ->required()
-                        ->live()
+                        ->live(onBlur: true)()
                         ->afterStateUpdated(function ($state) {
                             $this->resetTable();
-                            $this->dispatch('filtersUpdated', 
-                                selectedCommonName: $this->selectedCommonName, 
-                                selectedCultivars: $this->selectedCultivars, 
+                            $this->dispatch('filtersUpdated',
+                                selectedCommonName: $this->selectedCommonName,
+                                selectedCultivars: $this->selectedCultivars,
                                 selectedSeedSize: $state
                             );
                         }),
@@ -110,14 +110,14 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
                             'USD' => '🇺🇸 USD (US Dollar)',
                         ])
                         ->default('CAD')
-                        ->live()
+                        ->live(onBlur: true)()
                         ->afterStateUpdated(function ($state) {
                             $this->resetTable();
                         }),
                 ]),
             ]);
     }
-    
+
     public function table(Table $table): Table
     {
         return $table
@@ -145,22 +145,22 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
                     ->numeric()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('current_price')
-                    ->label(fn() => 'Price (' . $this->displayCurrency . ')')
-                    ->getStateUsing(fn (SeedVariation $record): string => 
-                        $this->displayCurrency === 'CAD' 
+                    ->label(fn () => 'Price ('.$this->displayCurrency.')')
+                    ->getStateUsing(fn (SeedVariation $record): string => $this->displayCurrency === 'CAD'
                             ? $record->getFormattedPriceWithConversion('CAD')
                             : $record->getFormattedPriceWithConversion('USD')
                     )
                     ->sortable(),
                 Tables\Columns\TextColumn::make('price_per_kg')
-                    ->label(fn() => 'Price per kg (' . $this->displayCurrency . ')')
+                    ->label(fn () => 'Price per kg ('.$this->displayCurrency.')')
                     ->getStateUsing(function (SeedVariation $record): string {
-                        $pricePerKg = $this->displayCurrency === 'CAD' 
-                            ? $record->price_per_kg_in_cad 
+                        $pricePerKg = $this->displayCurrency === 'CAD'
+                            ? $record->price_per_kg_in_cad
                             : $record->price_per_kg_in_usd;
-                        
+
                         $symbol = $this->displayCurrency === 'CAD' ? 'CDN$' : 'USD$';
-                        return $pricePerKg ? $symbol . number_format($pricePerKg, 2) : 'N/A';
+
+                        return $pricePerKg ? $symbol.number_format($pricePerKg, 2) : 'N/A';
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         if ($this->displayCurrency === 'CAD') {
@@ -169,7 +169,7 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
                                     WHEN currency = "CAD" THEN current_price / NULLIF(weight_kg, 0)
                                     WHEN currency = "USD" THEN (current_price * 1.35) / NULLIF(weight_kg, 0)
                                     ELSE current_price / NULLIF(weight_kg, 0)
-                                END ' . $direction
+                                END '.$direction
                             );
                         } else {
                             return $query->orderByRaw('
@@ -177,7 +177,7 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
                                     WHEN currency = "USD" THEN current_price / NULLIF(weight_kg, 0)
                                     WHEN currency = "CAD" THEN (current_price * 0.74) / NULLIF(weight_kg, 0)
                                     ELSE current_price / NULLIF(weight_kg, 0)
-                                END ' . $direction
+                                END '.$direction
                             );
                         }
                     }),
@@ -218,7 +218,7 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
                                     ->label('Weight To (kg)')
                                     ->numeric()
                                     ->placeholder('Max weight'),
-                            ])
+                            ]),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         return $query
@@ -234,11 +234,12 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
                     ->indicateUsing(function (array $data): array {
                         $indicators = [];
                         if ($data['weight_from'] ?? null) {
-                            $indicators[] = 'Weight from: ' . $data['weight_from'] . ' kg';
+                            $indicators[] = 'Weight from: '.$data['weight_from'].' kg';
                         }
                         if ($data['weight_to'] ?? null) {
-                            $indicators[] = 'Weight to: ' . $data['weight_to'] . ' kg';
+                            $indicators[] = 'Weight to: '.$data['weight_to'].' kg';
                         }
+
                         return $indicators;
                     }),
                 Tables\Filters\TernaryFilter::make('is_in_stock')
@@ -262,25 +263,25 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
             ->defaultGroup('seedEntry.common_name')
             ->filtersFormColumns(2); // Display filters in 2 columns for better layout
     }
-    
+
     protected function getTableQuery(): Builder
     {
         $query = SeedVariation::query()
             ->with(['seedEntry.supplier', 'consumable']);
-            
+
         if ($this->selectedCommonName) {
             $query->whereHas('seedEntry', function ($q) {
                 $q->where('common_name', $this->selectedCommonName);
-                
-                if (!empty($this->selectedCultivars)) {
+
+                if (! empty($this->selectedCultivars)) {
                     $q->whereIn('cultivar_name', $this->selectedCultivars);
                 }
             });
         }
-        
+
         return $query;
     }
-    
+
     protected function getCommonNameOptions(): array
     {
         // Get unique common names from seed entries that have variations
@@ -291,16 +292,16 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
             ->pluck('common_name', 'common_name')
             ->filter()
             ->toArray();
-        
+
         return $commonNames;
     }
-    
+
     protected function getCultivarOptions(): array
     {
-        if (!$this->selectedCommonName) {
+        if (! $this->selectedCommonName) {
             return [];
         }
-        
+
         // Get unique cultivars for the selected common name
         $cultivars = SeedEntry::where('common_name', $this->selectedCommonName)
             ->whereNotNull('cultivar_name')
@@ -310,51 +311,50 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
             ->pluck('cultivar_name', 'cultivar_name')
             ->filter()
             ->toArray();
-        
+
         return $cultivars;
     }
-    
+
     protected function getHeaderWidgets(): array
     {
         return [];
     }
-    
+
     public function getFormActions(): array
     {
         return []; // Remove default form actions since this is just a filter form
     }
-    
+
     /**
      * Extract common name from full cultivar name
-     * 
-     * @param string $cultivarName
-     * @return string
      */
     protected function extractCommonName(string $cultivarName): string
     {
         if (empty($cultivarName) || $cultivarName === 'Unknown Cultivar') {
             return 'Unknown';
         }
-        
+
         // Remove common suffixes and prefixes
         $cleaned = trim($cultivarName);
-        
+
         // Remove organic/non-gmo/heirloom suffixes
         $cleaned = preg_replace('/\s*-\s*(Organic|Non-GMO|Heirloom|Certified).*$/i', '', $cleaned);
-        
+
         // If there's a dash, take everything before the first dash as the common name
         if (strpos($cleaned, ' - ') !== false) {
             $parts = explode(' - ', $cleaned, 2);
+
             return trim($parts[0]);
         }
-        
+
         // If there's a comma, take everything before the first comma
         if (strpos($cleaned, ',') !== false) {
             $parts = explode(',', $cleaned, 2);
+
             return trim($parts[0]);
         }
-        
+
         // Return the whole name if no separators found
         return $cleaned;
     }
-} 
+}

@@ -53,53 +53,73 @@ class LinkConsumablesToMasterCatalog extends Command
                 
                 $this->info("  Parsed: Common='{$commonName}', Cultivar='{$cultivarName}'");
                 
-                // Try to find existing master catalog entry that contains this cultivar
-                $masterCatalog = MasterSeedCatalog::where('common_name', $commonName)
-                    ->where('cultivars', 'LIKE', '%"' . $cultivarName . '"%')
+                // Try to find existing cultivar with this exact name
+                $masterCultivar = \App\Models\MasterCultivar::whereHas('masterSeedCatalog', function ($query) use ($commonName) {
+                        $query->where('common_name', $commonName);
+                    })
+                    ->whereRaw('LOWER(cultivar_name) = ?', [strtolower($cultivarName)])
+                    ->with('masterSeedCatalog')
                     ->first();
                     
-                if ($masterCatalog) {
-                    $this->info("  Found existing catalog entry: {$masterCatalog->id}");
+                if ($masterCultivar) {
+                    $this->info("  Found existing cultivar: {$masterCultivar->cultivar_name} in catalog: {$masterCultivar->masterSeedCatalog->common_name}");
                     if (!$dryRun) {
-                        $consumable->update(['master_seed_catalog_id' => $masterCatalog->id]);
+                        $consumable->update([
+                            'master_seed_catalog_id' => $masterCultivar->masterSeedCatalog->id,
+                            'master_cultivar_id' => $masterCultivar->id
+                        ]);
                     }
                     $linked++;
                 } else {
-                    // Check if there's an entry with same common name but different cultivars
-                    $existingWithSameName = MasterSeedCatalog::where('common_name', $commonName)->first();
+                    // Check if there's a catalog with same common name but no matching cultivar
+                    $existingCatalog = MasterSeedCatalog::where('common_name', $commonName)->first();
                     
-                    if ($existingWithSameName) {
-                        // Add this cultivar to the existing entry if it's not already there
-                        $existingCultivars = $existingWithSameName->cultivars ?: [];
-                        if (!in_array($cultivarName, $existingCultivars)) {
-                            $this->warn("  Adding '{$cultivarName}' to existing '{$commonName}' catalog entry");
-                            if (!$dryRun) {
-                                $existingCultivars[] = $cultivarName;
-                                // Update without triggering model events to avoid syncCultivars issues
-                                $existingWithSameName->updateQuietly(['cultivars' => $existingCultivars]);
-                            }
-                        }
-                        
-                        $this->info("  Linking to existing catalog entry: {$existingWithSameName->id}");
+                    if ($existingCatalog) {
+                        // Create new cultivar for existing catalog
+                        $this->warn("  Adding '{$cultivarName}' cultivar to existing '{$commonName}' catalog");
                         if (!$dryRun) {
-                            $consumable->update(['master_seed_catalog_id' => $existingWithSameName->id]);
+                            $newCultivar = \App\Models\MasterCultivar::create([
+                                'master_seed_catalog_id' => $existingCatalog->id,
+                                'cultivar_name' => $cultivarName,
+                                'is_active' => true,
+                            ]);
+                            
+                            $consumable->update([
+                                'master_seed_catalog_id' => $existingCatalog->id,
+                                'master_cultivar_id' => $newCultivar->id
+                            ]);
                         }
                         $linked++;
                     } else {
-                        // Create new master catalog entry
-                        $this->warn("  No existing catalog found, creating new entry");
+                        // Create new catalog and cultivar
+                        $this->warn("  No existing catalog found, creating new entry with cultivar");
                         
                         if (!$dryRun) {
+                            // Create catalog first
                             $masterCatalog = MasterSeedCatalog::create([
                                 'common_name' => $commonName,
-                                'cultivars' => [$cultivarName],
                                 'category' => $this->getCategoryForSeed($commonName),
                                 'description' => "Auto-created from consumable: {$consumable->name}",
                                 'is_active' => true,
                             ]);
                             
-                            $consumable->update(['master_seed_catalog_id' => $masterCatalog->id]);
-                            $this->info("  Created catalog entry: {$masterCatalog->id}");
+                            // Create cultivar
+                            $newCultivar = \App\Models\MasterCultivar::create([
+                                'master_seed_catalog_id' => $masterCatalog->id,
+                                'cultivar_name' => $cultivarName,
+                                'is_active' => true,
+                            ]);
+                            
+                            // Update catalog to point to this cultivar as primary
+                            $masterCatalog->update(['cultivar_id' => $newCultivar->id]);
+                            
+                            // Link consumable
+                            $consumable->update([
+                                'master_seed_catalog_id' => $masterCatalog->id,
+                                'master_cultivar_id' => $newCultivar->id
+                            ]);
+                            
+                            $this->info("  Created catalog entry: {$masterCatalog->id} with cultivar: {$newCultivar->id}");
                         }
                         $created++;
                     }

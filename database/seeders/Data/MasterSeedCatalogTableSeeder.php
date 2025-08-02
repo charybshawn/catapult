@@ -14,16 +14,16 @@ class MasterSeedCatalogTableSeeder extends Seeder
     {
         // Disable foreign key checks temporarily
         DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-        
+
         // Clear existing data
         DB::table('master_seed_catalog')->truncate();
 
-        // Insert data
+        // Insert data (linking to first cultivar of each type)
         DB::table('master_seed_catalog')->insert([
             [
                 'id' => 1,
                 'common_name' => 'Amaranth',
-                'cultivars' => '["Red"]',
+                'cultivar_id' => 1, // Red
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,
@@ -35,7 +35,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             [
                 'id' => 2,
                 'common_name' => 'Arugula',
-                'cultivars' => '["Arugula"]',
+                'cultivar_id' => 2, // Arugula
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,
@@ -47,7 +47,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             [
                 'id' => 3,
                 'common_name' => 'Basil',
-                'cultivars' => '["Genovese", "Thai"]',
+                'cultivar_id' => 3, // Genovese (first of multiple)
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,
@@ -59,7 +59,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             [
                 'id' => 4,
                 'common_name' => 'Beet',
-                'cultivars' => '["Bull\'s Blood", "Pink", "Ruby"]',
+                'cultivar_id' => 5, // Ruby
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,
@@ -71,7 +71,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             [
                 'id' => 5,
                 'common_name' => 'Borage',
-                'cultivars' => '["Borage"]',
+                'cultivar_id' => 6, // Borage
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,
@@ -83,7 +83,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             [
                 'id' => 6,
                 'common_name' => 'Broccoli',
-                'cultivars' => '["Broccoli"]',
+                'cultivar_id' => 7, // Broccoli
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,
@@ -95,7 +95,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             [
                 'id' => 7,
                 'common_name' => 'Cabbage',
-                'cultivars' => '["Red"]',
+                'cultivar_id' => 9, // Red
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,
@@ -107,7 +107,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             [
                 'id' => 8,
                 'common_name' => 'Clover',
-                'cultivars' => '["Red"]',
+                'cultivar_id' => null, // No cultivar in MasterCultivarsTableSeeder
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,
@@ -119,7 +119,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             [
                 'id' => 9,
                 'common_name' => 'Coriander',
-                'cultivars' => '["Coriander"]',
+                'cultivar_id' => 10, // Coriander
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,
@@ -131,7 +131,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             [
                 'id' => 10,
                 'common_name' => 'Cress',
-                'cultivars' => '["Curly (Garden )"]',
+                'cultivar_id' => 11, // Curly (Garden )
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,
@@ -143,7 +143,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             [
                 'id' => 11,
                 'common_name' => 'Fenugreek',
-                'cultivars' => '["Fenugreek"]',
+                'cultivar_id' => 12, // Fenugreek
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,
@@ -155,7 +155,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             [
                 'id' => 12,
                 'common_name' => 'Kale',
-                'cultivars' => '["Green", "Red"]',
+                'cultivar_id' => 13, // Green (first of multiple)
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,
@@ -167,7 +167,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             [
                 'id' => 13,
                 'common_name' => 'Kohlrabi',
-                'cultivars' => '["Purple"]',
+                'cultivar_id' => 15, // Purple
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,
@@ -179,7 +179,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             [
                 'id' => 14,
                 'common_name' => 'Mustard',
-                'cultivars' => '["Oriental"]',
+                'cultivar_id' => 16, // Oriental
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,
@@ -191,7 +191,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             [
                 'id' => 15,
                 'common_name' => 'Peas',
-                'cultivars' => '["Speckled"]',
+                'cultivar_id' => 17, // Speckled
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,
@@ -203,7 +203,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             [
                 'id' => 16,
                 'common_name' => 'Radish',
-                'cultivars' => '["Red", "Ruby Stem"]',
+                'cultivar_id' => 18, // Red (first of multiple)
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,
@@ -215,7 +215,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             [
                 'id' => 17,
                 'common_name' => 'Sunflower',
-                'cultivars' => '["Black Oilseed"]',
+                'cultivar_id' => 20, // Black Oilseed
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,
@@ -227,7 +227,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             [
                 'id' => 18,
                 'common_name' => 'Swiss Chard',
-                'cultivars' => '["Red", "Yellow"]',
+                'cultivar_id' => 21, // Yellow (first of multiple)
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,
@@ -237,7 +237,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
                 'updated_at' => '2025-07-03 09:20:54',
             ],
         ]);
-        
+
         // Re-enable foreign key checks
         DB::statement('SET FOREIGN_KEY_CHECKS=1;');
     }

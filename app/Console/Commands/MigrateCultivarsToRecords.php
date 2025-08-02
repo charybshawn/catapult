@@ -20,14 +20,16 @@ class MigrateCultivarsToRecords extends Command
      *
      * @var string
      */
-    protected $description = 'Migrate JSON cultivars from MasterSeedCatalog to MasterCultivar records';
+    protected $description = '[OBSOLETE] Migrate JSON cultivars from MasterSeedCatalog to MasterCultivar records - No longer needed with new schema';
 
     /**
      * Execute the console command.
      */
     public function handle()
     {
-        $isDryRun = $this->option('dry-run');
+        $this->error('This command is obsolete. The schema has been updated to use proper foreign key relationships.');
+        $this->info('Cultivars are now stored in the master_cultivars table with proper relationships.');
+        return Command::FAILURE;
         
         if ($isDryRun) {
             $this->info('DRY RUN - No records will be created');

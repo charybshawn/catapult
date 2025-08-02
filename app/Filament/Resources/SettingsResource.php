@@ -3,29 +3,30 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\SettingsResource\Pages;
-use App\Models\Setting;
-use App\Models\Recipe;
 use App\Models\Crop;
+use App\Models\Recipe;
+use App\Models\Setting;
 use Filament\Forms;
+use Filament\Forms\Components\Tabs;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
-use Filament\Forms\Components\Tabs;
-use Filament\Notifications\Notification;
 
 class SettingsResource extends Resource
 {
     protected static ?string $model = Setting::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-cog-6-tooth';
+
     protected static ?string $navigationLabel = 'Advanced Settings';
+
     protected static ?string $navigationGroup = 'System';
+
     protected static ?int $navigationSort = 10;
+
     protected static bool $shouldRegisterNavigation = false;
-    
+
     protected static ?string $recordTitleAttribute = 'key';
 
     public static function form(Form $form): Form
@@ -48,7 +49,7 @@ class SettingsResource extends Resource
                                         return Setting::getValue('primary_color', '#4f46e5');
                                     }),
                             ]),
-                            
+
                         Tabs\Tab::make('Recipe Changes')
                             ->icon('heroicon-o-arrow-path')
                             ->schema([
@@ -60,9 +61,9 @@ class SettingsResource extends Resource
                                             ->options(Recipe::pluck('name', 'id'))
                                             ->searchable()
                                             ->required()
-                                            ->live()
+                                            ->live(onBlur: true)()
                                             ->afterStateUpdated(fn (Forms\Set $set) => $set('affected_grows_count', null)),
-                                            
+
                                         Forms\Components\Select::make('current_stage')
                                             ->label('Current Stage Filter')
                                             ->options([
@@ -73,51 +74,51 @@ class SettingsResource extends Resource
                                             ])
                                             ->default('all')
                                             ->required()
-                                            ->live()
+                                            ->live(onBlur: true)()
                                             ->afterStateUpdated(fn (Forms\Set $set) => $set('affected_grows_count', null)),
-                                            
+
                                         Forms\Components\Placeholder::make('affected_grows_count')
                                             ->label('Affected Grows')
                                             ->content(function (Forms\Get $get, Forms\Set $set) {
                                                 $recipeId = $get('recipe_id');
                                                 $stage = $get('current_stage');
-                                                
-                                                if (!$recipeId) {
+
+                                                if (! $recipeId) {
                                                     return 'Please select a recipe';
                                                 }
-                                                
+
                                                 $harvestedStage = \App\Models\CropStage::findByCode('harvested');
                                                 $query = Crop::where('recipe_id', $recipeId)
                                                     ->where('current_stage_id', '!=', $harvestedStage?->id);
-                                                
+
                                                 if ($stage !== 'all') {
                                                     $stageRecord = \App\Models\CropStage::findByCode($stage);
                                                     if ($stageRecord) {
                                                         $query->where('current_stage_id', $stageRecord->id);
                                                     }
                                                 }
-                                                
+
                                                 $count = $query->count();
-                                                
+
                                                 return "{$count} grows will be affected";
                                             }),
-                                            
+
                                         Forms\Components\Checkbox::make('update_germination_days')
                                             ->label('Update Germination Days'),
-                                            
+
                                         Forms\Components\Checkbox::make('update_blackout_days')
                                             ->label('Update Blackout Days'),
-                                            
+
                                         Forms\Components\Checkbox::make('update_light_days')
                                             ->label('Update Light Days'),
-                                            
+
                                         Forms\Components\Checkbox::make('update_days_to_maturity')
                                             ->label('Update Days to Maturity'),
-                                            
+
                                         Forms\Components\Checkbox::make('update_expected_harvest_dates')
                                             ->label('Update Expected Harvest Dates')
                                             ->helperText('This will recalculate harvest dates based on the recipe settings'),
-                                            
+
                                         Forms\Components\Checkbox::make('confirm_updates')
                                             ->label('I understand this will modify existing grows')
                                             ->required()
@@ -135,7 +136,7 @@ class SettingsResource extends Resource
             ->persistFiltersInSession()
             ->persistSortInSession()
             ->persistColumnSearchesInSession()
-            ->persistSearchInSession()            ->columns([
+            ->persistSearchInSession()->columns([
                 Tables\Columns\TextColumn::make('key')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('value')
@@ -186,4 +187,4 @@ class SettingsResource extends Resource
             'recipe-updates' => Pages\RecipeUpdates::route('/recipe-updates'),
         ];
     }
-} 
+}

@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\MasterSeedCatalogResource\Pages;
 use App\Filament\Resources\MasterSeedCatalogResource\RelationManagers;
 use App\Models\MasterSeedCatalog;
+use App\Models\MasterCultivar;
 use Filament\Forms;
 use Filament\Forms\Form;
 use App\Filament\Resources\BaseResource;
@@ -34,9 +35,20 @@ class MasterSeedCatalogResource extends BaseResource
                     ->maxLength(255)
                     ->unique(ignoreRecord: true)
                     ->helperText('e.g. Radish, Cress, Peas, Sunflower'),
-                Forms\Components\TagsInput::make('cultivars')
-                    ->label('Cultivars')
-                    ->helperText('Enter multiple cultivar names, e.g. Cherry Belle, French Breakfast, Watermelon'),
+                Forms\Components\Select::make('cultivar_id')
+                    ->label('Primary Cultivar')
+                    ->relationship('cultivar', 'cultivar_name')
+                    ->searchable()
+                    ->preload()
+                    ->createOptionForm([
+                        Forms\Components\TextInput::make('cultivar_name')
+                            ->required()
+                            ->maxLength(255),
+                        Forms\Components\Textarea::make('description'),
+                        Forms\Components\TagsInput::make('aliases')
+                            ->helperText('Alternative names for this cultivar'),
+                    ])
+                    ->helperText('Select or create the primary cultivar for this seed type'),
                 Forms\Components\Select::make('category')
                     ->options([
                         'Herbs' => 'Herbs',
@@ -62,10 +74,11 @@ class MasterSeedCatalogResource extends BaseResource
                 Tables\Columns\TextColumn::make('common_name')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\ViewColumn::make('cultivars')
-                    ->label('Cultivars')
-                    ->toggleable()
-                    ->view('filament.columns.cultivars-badges'),
+                Tables\Columns\TextColumn::make('cultivar.cultivar_name')
+                    ->label('Primary Cultivar')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('category')
                     ->badge()
                     ->sortable()
@@ -124,7 +137,7 @@ class MasterSeedCatalogResource extends BaseResource
         $autoColumns = static::getColumnsFromSchema();
         
         return static::addRelationshipColumns($autoColumns, [
-            'masterCultivars' => ['cultivar_name', 'is_active'],
+            'cultivar' => ['cultivar_name', 'is_active'],
             'products' => ['name', 'base_price'],
             'recipes' => ['name'],
         ]);
@@ -135,6 +148,6 @@ class MasterSeedCatalogResource extends BaseResource
      */
     protected static function getCsvExportRelationships(): array
     {
-        return ['masterCultivars', 'products', 'recipes'];
+        return ['cultivar', 'products', 'recipes'];
     }
 }

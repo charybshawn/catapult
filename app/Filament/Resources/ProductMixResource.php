@@ -9,6 +9,7 @@ use App\Filament\Resources\ProductMixResource\Tables\ProductMixTable;
 use App\Models\ProductMix;
 use Filament\Forms\Form;
 use Filament\Tables\Table;
+use Filament\Tables;
 use Illuminate\Database\Eloquent\Builder;
 
 class ProductMixResource extends BaseResource

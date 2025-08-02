@@ -58,40 +58,51 @@ class FixConsumableRelationships extends Command
                     $this->line("  Found master catalog: {$masterCatalog->common_name} (ID: {$masterCatalog->id})");
                     
                     // Check if the cultivar exists in the catalog
-                    $cultivars = is_array($masterCatalog->cultivars) ? $masterCatalog->cultivars : [];
-                    $cultivarIndex = null;
+                    $masterCultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $masterCatalog->id)
+                        ->whereRaw('LOWER(cultivar_name) = ?', [strtolower(trim($cultivar))])
+                        ->first();
                     
-                    foreach ($cultivars as $index => $catalogCultivar) {
-                        if (strcasecmp(trim($catalogCultivar), $cultivar) === 0) {
-                            $cultivarIndex = $index;
-                            break;
-                        }
-                    }
-                    
-                    if ($cultivarIndex !== null) {
-                        $this->line("  Found matching cultivar at index: $cultivarIndex");
+                    if ($masterCultivar) {
+                        $this->line("  Found matching cultivar: {$masterCultivar->cultivar_name}");
                         
-                        // Update the consumable with just the catalog ID (integer)
+                        // Update the consumable with catalog and cultivar IDs
                         $consumable->update([
                             'supplier_id' => $defaultSeedSupplier->id,
                             'master_seed_catalog_id' => $masterCatalog->id,
-                            'cultivar' => $cultivar
+                            'master_cultivar_id' => $masterCultivar->id,
+                            'cultivar' => $masterCultivar->cultivar_name
                         ]);
                         
                         $this->info("  ✓ Updated successfully");
                         $updated++;
                     } else {
-                        $this->warn("  ✗ Cultivar '$cultivar' not found in catalog. Available: " . json_encode($cultivars));
+                        $availableCultivars = \App\Models\MasterCultivar::where('master_seed_catalog_id', $masterCatalog->id)
+                            ->where('is_active', true)
+                            ->pluck('cultivar_name')
+                            ->toArray();
+                        
+                        $this->warn("  ✗ Cultivar '$cultivar' not found in catalog. Available: " . implode(', ', $availableCultivars));
                         
                         // Still update with supplier and catalog, use the first available cultivar
-                        $firstCultivar = !empty($cultivars) ? $cultivars[0] : $cultivar;
-                        $consumable->update([
-                            'supplier_id' => $defaultSeedSupplier->id,
-                            'master_seed_catalog_id' => $masterCatalog->id,
-                            'cultivar' => $firstCultivar
-                        ]);
+                        $firstCultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $masterCatalog->id)
+                            ->where('is_active', true)
+                            ->first();
                         
-                        $this->warn("  ⚠ Updated with default cultivar: $firstCultivar");
+                        if ($firstCultivar) {
+                            $consumable->update([
+                                'supplier_id' => $defaultSeedSupplier->id,
+                                'master_seed_catalog_id' => $masterCatalog->id,
+                                'master_cultivar_id' => $firstCultivar->id,
+                                'cultivar' => $firstCultivar->cultivar_name
+                            ]);
+                            $this->warn("  ⚠ Updated with default cultivar: {$firstCultivar->cultivar_name}");
+                        } else {
+                            $consumable->update([
+                                'supplier_id' => $defaultSeedSupplier->id,
+                                'master_seed_catalog_id' => $masterCatalog->id,
+                            ]);
+                            $this->warn("  ⚠ Updated without cultivar (none available)");
+                        }
                         $updated++;
                     }
                 } else {

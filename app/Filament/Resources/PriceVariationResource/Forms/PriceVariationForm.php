@@ -35,7 +35,7 @@ class PriceVariationForm
                 ->label('Global Pricing Template')
                 ->helperText('Create a reusable template for any product')
                 ->default(false)
-                ->live()
+                ->live(onBlur: true)()
                 ->afterStateUpdated(function ($state, Forms\Set $set) {
                     if ($state) {
                         $set('is_default', false);
@@ -43,7 +43,7 @@ class PriceVariationForm
                     }
                 }),
         ])
-        ->extraAttributes(['class' => 'bg-gray-50 dark:bg-gray-900 p-4 rounded-lg mb-6']);
+            ->extraAttributes(['class' => 'bg-gray-50 dark:bg-gray-900 p-4 rounded-lg mb-6']);
     }
 
     /**
@@ -52,9 +52,8 @@ class PriceVariationForm
     protected static function getBasicInformationSection(): Forms\Components\Section
     {
         return Forms\Components\Section::make('Basic Information')
-            ->description(fn (Forms\Get $get): string => 
-                $get('is_global') 
-                    ? 'This template can be applied to any product' 
+            ->description(fn (Forms\Get $get): string => $get('is_global')
+                    ? 'This template can be applied to any product'
                     : 'Define pricing for a specific product'
             )
             ->schema([
@@ -159,7 +158,7 @@ class PriceVariationForm
             ->label('Default Price')
             ->helperText('Use as the default price for this product')
             ->default(false)
-            ->visible(fn (Forms\Get $get): bool => !$get('is_global'))
+            ->visible(fn (Forms\Get $get): bool => ! $get('is_global'))
             ->disabled(fn (Forms\Get $get): bool => $get('is_global'));
     }
 

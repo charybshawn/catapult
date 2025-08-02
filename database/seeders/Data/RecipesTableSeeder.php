@@ -20,7 +20,7 @@ class RecipesTableSeeder extends Seeder
         // Get specific consumables by lot number to match recipes
         $sunflowerSfr16Consumable = DB::table('consumables')->where('lot_no', 'SFR16')->first();
         $basilBas8yConsumable = DB::table('consumables')->where('lot_no', 'BAS8Y')->first();
-        
+
         // Note: We'll use SFR16 for both sunflower recipes since it's the only available lot
         $soilConsumable = DB::table('consumables')
             ->join('consumable_types', 'consumables.consumable_type_id', '=', 'consumable_types.id')
@@ -33,7 +33,7 @@ class RecipesTableSeeder extends Seeder
         $sunflowerCatalog = DB::table('master_seed_catalog')
             ->where('common_name', 'Sunflower')
             ->first();
-            
+
         $basilCatalog = DB::table('master_seed_catalog')
             ->where('common_name', 'Basil')
             ->first();
@@ -45,9 +45,9 @@ class RecipesTableSeeder extends Seeder
             ->where('master_cultivars.cultivar_name', 'Black Oilseed')
             ->select('master_cultivars.*')
             ->first();
-            
+
         $basilCultivar = DB::table('master_cultivars')
-            ->join('master_seed_catalog', 'master_cultivars.master_seed_catalog_id', '=', 'master_seed_catalog.id')  
+            ->join('master_seed_catalog', 'master_cultivars.master_seed_catalog_id', '=', 'master_seed_catalog.id')
             ->where('master_seed_catalog.common_name', 'Basil')
             ->where('master_cultivars.cultivar_name', 'Genovese')
             ->select('master_cultivars.*')
@@ -68,7 +68,6 @@ class RecipesTableSeeder extends Seeder
                 'blackout_days' => 1,
                 'days_to_maturity' => 9,
                 'light_days' => 5,
-                'harvest_days' => 7,
                 'expected_yield_grams' => 450,
                 'buffer_percentage' => 15,
                 'seed_density_grams_per_tray' => 100,
@@ -93,7 +92,6 @@ class RecipesTableSeeder extends Seeder
                 'blackout_days' => 0,
                 'days_to_maturity' => 9,
                 'light_days' => 6,
-                'harvest_days' => 7,
                 'expected_yield_grams' => null,
                 'buffer_percentage' => 15,
                 'seed_density_grams_per_tray' => 100,
@@ -118,7 +116,6 @@ class RecipesTableSeeder extends Seeder
                 'blackout_days' => 0,
                 'days_to_maturity' => 21,
                 'light_days' => 17,
-                'harvest_days' => 7,
                 'expected_yield_grams' => 80,
                 'buffer_percentage' => 10,
                 'seed_density_grams_per_tray' => 5,

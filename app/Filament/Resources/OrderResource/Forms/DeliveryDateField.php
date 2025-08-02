@@ -21,14 +21,14 @@ class DeliveryDateField
         return Forms\Components\DateTimePicker::make('delivery_date')
             ->label('Delivery Date')
             ->required()
-            ->live(onBlur: true)
+            ->live(onBlur: true)(onBlur: true)
             ->afterStateUpdated(function ($state, callable $set, callable $get) {
                 static::updateHarvestDate($state, $set);
             })
             ->helperText(function (callable $get) {
                 return static::getHelperText($get);
             })
-            ->visible(fn (Forms\Get $get) => !$get('is_recurring'));
+            ->visible(fn (Forms\Get $get) => ! $get('is_recurring'));
     }
 
     /**
@@ -39,8 +39,8 @@ class DeliveryDateField
         return Forms\Components\DateTimePicker::make('harvest_date')
             ->label('Harvest Date')
             ->helperText('When this order should be harvested (automatically set to evening before delivery, but can be overridden)')
-            ->required(fn (Forms\Get $get) => !$get('is_recurring'))
-            ->visible(fn (Forms\Get $get) => !$get('is_recurring'));
+            ->required(fn (Forms\Get $get) => ! $get('is_recurring'))
+            ->visible(fn (Forms\Get $get) => ! $get('is_recurring'));
     }
 
     /**
@@ -57,7 +57,7 @@ class DeliveryDateField
                 $set('harvest_date', $harvestDateTime->toDateTimeString());
             } catch (\Exception $e) {
                 // If parsing fails, don't update harvest_date
-                Log::error('Failed to parse delivery date: ' . $e->getMessage());
+                Log::error('Failed to parse delivery date: '.$e->getMessage());
             }
         }
     }
@@ -69,14 +69,14 @@ class DeliveryDateField
     protected static function getHelperText(callable $get): string
     {
         $helperText = 'Select the date and time for delivery - harvest date will be automatically set to 4:00 PM the day before';
-        
+
         // Check if delivery date is too soon
         $deliveryDate = $get('delivery_date');
         if ($deliveryDate) {
             try {
                 $delivery = Carbon::parse($deliveryDate);
                 $daysUntilDelivery = now()->diffInDays($delivery, false);
-                
+
                 // Most crops need at least 5-21 days to grow
                 if ($daysUntilDelivery < 5) {
                     $helperText .= ' ⚠️ WARNING: This delivery date may be too soon for crop production!';
@@ -85,7 +85,7 @@ class DeliveryDateField
                 // Ignore parse errors
             }
         }
-        
+
         return $helperText;
     }
 }

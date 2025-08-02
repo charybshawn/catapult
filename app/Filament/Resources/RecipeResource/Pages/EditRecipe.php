@@ -36,42 +36,34 @@ class EditRecipe extends BaseEditRecord
                         ->label('Seed Variety')
                         ->options(function () {
                             // Get unique seed varieties with lot information
-                            $varieties = Consumable::whereHas('consumableType', function($query) {
-                                    $query->where('code', 'seed');
-                                })
+                            $varieties = Consumable::whereHas('consumableType', function ($query) {
+                                $query->where('code', 'seed');
+                            })
                                 ->where('is_active', true)
-                                ->whereNotNull('name')
                                 ->whereNotNull('lot_no')
+                                ->whereNotNull('master_seed_catalog_id')
+                                ->whereNotNull('master_cultivar_id')
                                 ->whereRaw('(total_quantity - consumed_quantity) > 0')
+                                ->with(['consumableType', 'masterSeedCatalog', 'masterCultivar'])
                                 ->get()
                                 ->groupBy('name')
                                 ->map(function ($group, $name) {
-                                    $totalAvailable = $group->sum(function($item) {
-                                        return max(0, $item->total_quantity - $item->consumed_quantity);
-                                    });
-                                    $lotCount = $group->count();
-                                    $lotText = $lotCount > 1 ? " ({$lotCount} lots)" : " (1 lot)";
-                                    
-                                    return [
-                                        'name' => $name,
-                                        'display' => $name . $lotText . " - " . number_format($totalAvailable, 1) . "g available",
-                                        'lots' => $group->pluck('lot_no')->unique()->sort()->values()
-                                    ];
+                                    return $name;
                                 })
-                                ->pluck('display', 'name');
-                            
+                                ->unique();
+
                             return $varieties->toArray();
                         })
                         ->afterStateHydrated(function (callable $set, callable $get, $state, $record) {
                             // Pre-populate variety helper based on existing lot_number
-                            if (!$state && $record && $record->lot_number) {
-                                $consumable = Consumable::whereHas('consumableType', function($query) {
-                                        $query->where('code', 'seed');
-                                    })
+                            if (! $state && $record && $record->lot_number) {
+                                $consumable = Consumable::whereHas('consumableType', function ($query) {
+                                    $query->where('code', 'seed');
+                                })
                                     ->where('lot_no', $record->lot_number)
                                     ->where('is_active', true)
                                     ->first();
-                                
+
                                 if ($consumable) {
                                     $set('seed_variety_helper', $consumable->name);
                                 }
@@ -79,7 +71,7 @@ class EditRecipe extends BaseEditRecord
                         })
                         ->searchable()
                         ->preload()
-                        ->live()
+                        ->live(onBlur: true)
                         ->afterStateUpdated(function (callable $set, $state, callable $get) {
                             // Don't clear lot_number if we're just hydrating from existing data
                             if ($state !== $get('seed_variety_helper')) {
@@ -93,48 +85,52 @@ class EditRecipe extends BaseEditRecord
                         ->label('Available Lots (Required)')
                         ->options(function (callable $get) {
                             $selectedVariety = $get('seed_variety_helper');
-                            if (!$selectedVariety) {
+                            if (! $selectedVariety) {
                                 return [];
                             }
 
-                            $lots = Consumable::whereHas('consumableType', function($query) {
-                                    $query->where('code', 'seed');
-                                })
-                                ->where('name', $selectedVariety)
+                            $lots = Consumable::whereHas('consumableType', function ($query) {
+                                $query->where('code', 'seed');
+                            })
                                 ->where('is_active', true)
                                 ->whereNotNull('lot_no')
+                                ->whereNotNull('master_seed_catalog_id')
+                                ->whereNotNull('master_cultivar_id')
                                 ->whereRaw('(total_quantity - consumed_quantity) > 0')
+                                ->with(['consumableType', 'masterSeedCatalog', 'masterCultivar'])
                                 ->orderBy('created_at', 'asc') // FIFO ordering
                                 ->get()
+                                ->filter(function ($consumable) use ($selectedVariety) {
+                                    return $consumable->name === $selectedVariety;
+                                })
                                 ->mapWithKeys(function ($consumable) {
                                     $available = max(0, $consumable->total_quantity - $consumable->consumed_quantity);
                                     $unit = $consumable->quantity_unit ?? 'g';
                                     $createdDate = $consumable->created_at->format('M j, Y');
                                     $ageIndicator = $consumable->created_at->diffInDays(now()) > 30 ? 'Old' : 'New';
-                                    
+
                                     $display = "Lot {$consumable->lot_no} - {$available} {$unit} ({$ageIndicator}, Added: {$createdDate})";
-                                    
+
                                     return [$consumable->lot_no => $display];
                                 });
-                                
+
                             return $lots->toArray();
                         })
                         ->searchable()
                         ->preload()
-                        ->live()
+                        ->live(onBlur: true)
                         ->helperText('Select specific lot (oldest shown first for FIFO)')
-                        ->disabled(fn (callable $get) => !$get('seed_variety_helper'))
+                        ->disabled(fn (callable $get) => ! $get('seed_variety_helper'))
                         ->required()
                         ->columnSpan(1),
-
 
                     Select::make('soil_consumable_id')
                         ->label('Soil')
                         ->relationship('soilConsumable', 'name')
                         ->options(function () {
-                            return Consumable::whereHas('consumableType', function($query) {
-                                    $query->where('code', 'soil');
-                                })
+                            return Consumable::whereHas('consumableType', function ($query) {
+                                $query->where('code', 'soil');
+                            })
                                 ->where('is_active', true)
                                 ->get()
                                 ->mapWithKeys(function ($soil) {
@@ -166,7 +162,7 @@ class EditRecipe extends BaseEditRecord
                         ->numeric()
                         ->minValue(0)
                         ->step(0.01)
-                        ->live()
+                        ->live(onBlur: true)
                         ->afterStateUpdated(function (callable $set, $state) {
                             // Sync with legacy seed_density field
                             $set('seed_density', $state);
@@ -177,10 +173,8 @@ class EditRecipe extends BaseEditRecord
                     // Hidden fields for legacy compatibility
                     Forms\Components\Hidden::make('seed_density')
                         ->default(0),
-                    
-                    Forms\Components\Hidden::make('harvest_days')
-                        ->default(0),
-                        
+
+
                     Forms\Components\Hidden::make('seed_consumable_id')
                         ->default(null),
 
@@ -225,7 +219,7 @@ class EditRecipe extends BaseEditRecord
                         ->minValue(0)
                         ->step(0.1)
                         ->required()
-                        ->live()
+                        ->live(onBlur: true)
                         ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
                             $germ = floatval($get('germination_days') ?? 0);
                             $blackout = floatval($get('blackout_days') ?? 0);
@@ -248,7 +242,7 @@ class EditRecipe extends BaseEditRecord
                         ->numeric()
                         ->minValue(0)
                         ->step(0.1)
-                        ->live()
+                        ->live(onBlur: true)
                         ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
                             $germ = floatval($state ?? 0);
                             $blackout = floatval($get('blackout_days') ?? 0);
@@ -265,7 +259,7 @@ class EditRecipe extends BaseEditRecord
                         ->numeric()
                         ->minValue(0)
                         ->step(0.1)
-                        ->live()
+                        ->live(onBlur: true)
                         ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
                             $germ = floatval($get('germination_days') ?? 0);
                             $blackout = floatval($state ?? 0);

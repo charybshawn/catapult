@@ -38,7 +38,6 @@ class Recipe extends Model
         'blackout_days',
         'days_to_maturity',
         'light_days',
-        'harvest_days',
         'seed_soak_hours',
         'expected_yield_grams', 
         'buffer_percentage',

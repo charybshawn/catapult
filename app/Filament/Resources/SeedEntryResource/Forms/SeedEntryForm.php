@@ -24,7 +24,7 @@ class SeedEntryForm
                             static::getCultivarNameField(),
                         ]),
                 ]),
-            
+
             Forms\Components\Section::make('Supplier Information')
                 ->description('Specify the supplier and their product details.')
                 ->icon('heroicon-o-building-storefront')
@@ -36,7 +36,7 @@ class SeedEntryForm
                             static::getUrlField(),
                         ]),
                 ]),
-            
+
             Forms\Components\Section::make('Additional Details')
                 ->description('Optional information to enhance the seed entry.')
                 ->icon('heroicon-o-document-text')
@@ -45,7 +45,7 @@ class SeedEntryForm
                     static::getDescriptionField(),
                     static::getTagsField(),
                 ]),
-            
+
             static::getSeedVariationsSection(),
         ];
     }
@@ -73,7 +73,7 @@ class SeedEntryForm
             ->createOptionUsing(function (array $data): string {
                 return $data['common_name'];
             })
-            ->live()
+            ->live(onBlur: true)()
             ->afterStateUpdated(function ($state, Set $set) {
                 // When common name changes, filter cultivar options
                 $set('cultivar_name', null); // Reset cultivar selection
@@ -87,14 +87,14 @@ class SeedEntryForm
             ->label('Cultivar Name')
             ->options(function (Get $get) {
                 $commonName = $get('common_name');
-                
+
                 $query = \App\Models\SeedEntry::whereNotNull('cultivar_name')
                     ->where('cultivar_name', '<>', '');
-                    
+
                 if ($commonName) {
                     $query->where('common_name', $commonName);
                 }
-                
+
                 return $query->distinct()
                     ->orderBy('cultivar_name')
                     ->pluck('cultivar_name', 'cultivar_name')
@@ -113,6 +113,7 @@ class SeedEntryForm
             })
             ->placeholder(function (Get $get) {
                 $commonName = $get('common_name');
+
                 return $commonName ? "Select or create cultivar for {$commonName}" : 'Select common name first';
             })
             ->disabled(fn (Get $get): bool => empty($get('common_name')))
@@ -200,9 +201,10 @@ class SeedEntryForm
                         ->visible(function ($livewire) {
                             // Check if we have a record - if not, we're in create mode
                             $record = method_exists($livewire, 'getRecord') ? $livewire->getRecord() : null;
-                            return !$record || !$record->exists;
+
+                            return ! $record || ! $record->exists;
                         }),
-                        
+
                     // For edit mode: show the full variations management
                     Forms\Components\Group::make([
                         Forms\Components\Grid::make(2)
@@ -210,32 +212,38 @@ class SeedEntryForm
                                 Forms\Components\Placeholder::make('variations_count')
                                     ->label('Seed Variations')
                                     ->content(function ($record) {
-                                        if (!$record) return '0 variations';
+                                        if (! $record) {
+                                            return '0 variations';
+                                        }
                                         $count = $record->variations()->count();
                                         $activeCount = $record->variations()->where('is_available', true)->count();
+
                                         return "{$activeCount} available / {$count} total";
                                     }),
                                 Forms\Components\Placeholder::make('default_variation_display')
                                     ->label('Primary Variation')
                                     ->content(function ($record) {
-                                        if (!$record) return 'No variations yet';
+                                        if (! $record) {
+                                            return 'No variations yet';
+                                        }
                                         $defaultVariation = $record->variations()->first();
-                                        return $defaultVariation 
-                                            ? $defaultVariation->size . ' - $' . number_format($defaultVariation->current_price, 2)
+
+                                        return $defaultVariation
+                                            ? $defaultVariation->size.' - $'.number_format($defaultVariation->current_price, 2)
                                             : 'No variations created';
                                     }),
                             ]),
                         Forms\Components\Placeholder::make('variations_info')
                             ->content(function ($record) {
-                                $content = "Seed variations allow you to offer different package sizes, weights, and prices for the same seed type.";
-                                
+                                $content = 'Seed variations allow you to offer different package sizes, weights, and prices for the same seed type.';
+
                                 if ($record) {
                                     $variationTypes = $record->variations()->pluck('size')->toArray();
-                                    if (!empty($variationTypes)) {
-                                        $content .= "<br><br>Current variations: <span class='text-primary-500'>" . implode(', ', $variationTypes) . "</span>";
+                                    if (! empty($variationTypes)) {
+                                        $content .= "<br><br>Current variations: <span class='text-primary-500'>".implode(', ', $variationTypes).'</span>';
                                     }
                                 }
-                                
+
                                 return $content;
                             })
                             ->columnSpanFull()
@@ -246,9 +254,10 @@ class SeedEntryForm
                     ])->visible(function ($livewire) {
                         // Check if we have a record - if so, we're in edit mode
                         $record = method_exists($livewire, 'getRecord') ? $livewire->getRecord() : null;
+
                         return $record && $record->exists;
                     }),
-                ])
+                ]),
             ])
             ->collapsible();
     }

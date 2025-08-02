@@ -31,7 +31,7 @@ return new class extends Migration
                 MIN(c.germination_at) as germination_at,
                 MIN(c.blackout_at) as blackout_at,
                 MIN(c.light_at) as light_at,
-                MIN(c.harvested_at) as harvested_at,
+                NULL as harvested_at,
                 MIN(c.watering_suspended_at) as watering_suspended_at,
                 
                 -- Calculate expected harvest date
@@ -118,8 +118,8 @@ return new class extends Migration
                         TIMESTAMPDIFF(MINUTE, MIN(c.blackout_at), NOW())
                     WHEN cs.code = 'light' AND MIN(c.light_at) IS NOT NULL THEN
                         TIMESTAMPDIFF(MINUTE, MIN(c.light_at), NOW())
-                    WHEN cs.code = 'harvested' AND MIN(c.harvested_at) IS NOT NULL THEN
-                        TIMESTAMPDIFF(MINUTE, MIN(c.harvested_at), NOW())
+                    WHEN cs.code = 'harvested' THEN
+                        0
                     ELSE 0
                 END as stage_age_minutes,
                 
@@ -165,16 +165,8 @@ return new class extends Migration
                                        MOD(TIMESTAMPDIFF(MINUTE, MIN(c.light_at), NOW()), 60), 'm')
                             ELSE CONCAT(TIMESTAMPDIFF(MINUTE, MIN(c.light_at), NOW()), 'm')
                         END
-                    WHEN cs.code = 'harvested' AND MIN(c.harvested_at) IS NOT NULL THEN
-                        CASE
-                            WHEN TIMESTAMPDIFF(DAY, MIN(c.harvested_at), NOW()) > 0 THEN 
-                                CONCAT(TIMESTAMPDIFF(DAY, MIN(c.harvested_at), NOW()), 'd ', 
-                                       MOD(TIMESTAMPDIFF(HOUR, MIN(c.harvested_at), NOW()), 24), 'h')
-                            WHEN TIMESTAMPDIFF(HOUR, MIN(c.harvested_at), NOW()) > 0 THEN 
-                                CONCAT(TIMESTAMPDIFF(HOUR, MIN(c.harvested_at), NOW()), 'h ', 
-                                       MOD(TIMESTAMPDIFF(MINUTE, MIN(c.harvested_at), NOW()), 60), 'm')
-                            ELSE CONCAT(TIMESTAMPDIFF(MINUTE, MIN(c.harvested_at), NOW()), 'm')
-                        END
+                    WHEN cs.code = 'harvested' THEN
+                        'Harvested'
                     ELSE '0m'
                 END as stage_age_display,
                 

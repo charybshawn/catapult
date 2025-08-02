@@ -29,7 +29,6 @@ return new class extends Migration
                 r.blackout_days,
                 r.days_to_maturity,
                 r.light_days,
-                r.harvest_days,
                 r.seed_soak_hours,
                 r.expected_yield_grams,
                 r.buffer_percentage,
@@ -43,12 +42,47 @@ return new class extends Migration
                 -- Calculated fields
                 (r.germination_days + r.blackout_days + r.light_days) AS total_days,
                 
-                -- Seed consumable data
-                sc.name AS seed_consumable_name,
-                sc.total_quantity AS seed_total_quantity,
-                sc.consumed_quantity AS seed_consumed_quantity,
-                GREATEST(0, sc.total_quantity - sc.consumed_quantity) AS seed_available_quantity,
-                sc.quantity_unit AS seed_quantity_unit,
+                -- Seed consumable data (lot-based)
+                CASE 
+                    WHEN r.lot_number IS NOT NULL THEN
+                        CONCAT(r.common_name, " (", r.cultivar_name, ")")
+                    ELSE sc.name
+                END AS seed_consumable_name,
+                
+                CASE 
+                    WHEN r.lot_number IS NOT NULL THEN
+                        (SELECT SUM(total_quantity) 
+                         FROM consumables 
+                         WHERE lot_no = r.lot_number AND is_active = 1)
+                    ELSE sc.total_quantity
+                END AS seed_total_quantity,
+                
+                CASE 
+                    WHEN r.lot_number IS NOT NULL THEN
+                        (SELECT SUM(consumed_quantity) 
+                         FROM consumables 
+                         WHERE lot_no = r.lot_number AND is_active = 1)
+                    ELSE sc.consumed_quantity
+                END AS seed_consumed_quantity,
+                
+                CASE 
+                    WHEN r.lot_number IS NOT NULL THEN
+                        GREATEST(0, 
+                            (SELECT SUM(total_quantity - consumed_quantity) 
+                             FROM consumables 
+                             WHERE lot_no = r.lot_number AND is_active = 1)
+                        )
+                    ELSE GREATEST(0, sc.total_quantity - sc.consumed_quantity)
+                END AS seed_available_quantity,
+                
+                CASE 
+                    WHEN r.lot_number IS NOT NULL THEN
+                        (SELECT quantity_unit 
+                         FROM consumables 
+                         WHERE lot_no = r.lot_number AND is_active = 1 
+                         LIMIT 1)
+                    ELSE sc.quantity_unit
+                END AS seed_quantity_unit,
                 
                 -- Soil consumable data
                 soil.name AS soil_consumable_name,

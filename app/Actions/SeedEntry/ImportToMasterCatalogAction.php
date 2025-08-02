@@ -53,22 +53,17 @@ class ImportToMasterCatalogAction
     
     protected function updateExistingEntry(MasterSeedCatalog $masterCatalog, SeedEntry $seedEntry): array
     {
-        // Update existing entry - add cultivar if not already present
-        $cultivars = $masterCatalog->cultivars ?? [];
-        
-        // Check if cultivar already exists (case-insensitive)
-        $cultivarExists = false;
-        foreach ($cultivars as $existing) {
-            if (strcasecmp(trim($existing), trim($seedEntry->cultivar_name)) === 0) {
-                $cultivarExists = true;
-                break;
-            }
-        }
+        // Check if cultivar already exists for this catalog (case-insensitive)
+        $cultivarExists = \App\Models\MasterCultivar::where('master_seed_catalog_id', $masterCatalog->id)
+            ->whereRaw('LOWER(cultivar_name) = ?', [strtolower(trim($seedEntry->cultivar_name))])
+            ->exists();
         
         if (!$cultivarExists) {
-            $cultivars[] = $seedEntry->cultivar_name;
-            $masterCatalog->update([
-                'cultivars' => array_values(array_unique($cultivars))
+            // Create new cultivar for this catalog
+            \App\Models\MasterCultivar::create([
+                'master_seed_catalog_id' => $masterCatalog->id,
+                'cultivar_name' => $seedEntry->cultivar_name,
+                'is_active' => true,
             ]);
             return ['created' => false, 'updated' => true];
         }
@@ -78,13 +73,23 @@ class ImportToMasterCatalogAction
     
     protected function createNewEntry(SeedEntry $seedEntry): array
     {
-        // Create new master catalog entry
-        MasterSeedCatalog::create([
+        // Create new cultivar first
+        $cultivar = \App\Models\MasterCultivar::create([
+            'master_seed_catalog_id' => null, // Will be set below
+            'cultivar_name' => $seedEntry->cultivar_name,
+            'is_active' => true,
+        ]);
+        
+        // Create new master catalog entry with reference to cultivar
+        $masterCatalog = MasterSeedCatalog::create([
             'common_name' => $seedEntry->common_name,
-            'cultivars' => [$seedEntry->cultivar_name],
+            'cultivar_id' => $cultivar->id,
             'description' => $seedEntry->description,
             'is_active' => true,
         ]);
+        
+        // Update cultivar with the catalog ID
+        $cultivar->update(['master_seed_catalog_id' => $masterCatalog->id]);
         
         return ['created' => true, 'updated' => false];
     }

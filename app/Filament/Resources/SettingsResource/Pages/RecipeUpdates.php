@@ -3,29 +3,28 @@
 namespace App\Filament\Resources\SettingsResource\Pages;
 
 use App\Filament\Resources\SettingsResource;
+use App\Models\Crop;
+use App\Models\Recipe;
+use Filament\Actions\Action;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Pages\Page;
-use App\Models\Recipe;
-use App\Models\Crop;
-use App\Observers\CropObserver;
-use Illuminate\Support\Facades\DB;
 use Filament\Notifications\Notification;
-use Filament\Actions\Action;
+use Filament\Resources\Pages\Page;
+use Illuminate\Support\Facades\DB;
 
 class RecipeUpdates extends Page
 {
     protected static string $resource = SettingsResource::class;
 
     protected static string $view = 'filament.resources.settings-resource.pages.recipe-updates';
-    
+
     public ?array $data = [];
-    
+
     public function mount(): void
     {
         $this->form->fill();
     }
-    
+
     public function form(Form $form): Form
     {
         return $form
@@ -38,9 +37,9 @@ class RecipeUpdates extends Page
                             ->options(Recipe::pluck('name', 'id'))
                             ->searchable()
                             ->required()
-                            ->live()
+                            ->live(onBlur: true)()
                             ->afterStateUpdated(fn (Forms\Set $set) => $set('affected_grows_count', null)),
-                            
+
                         Forms\Components\Select::make('current_stage')
                             ->label('Current Stage Filter')
                             ->options([
@@ -51,56 +50,56 @@ class RecipeUpdates extends Page
                             ])
                             ->default('all')
                             ->required()
-                            ->live()
+                            ->live(onBlur: true)()
                             ->afterStateUpdated(fn (Forms\Set $set) => $set('affected_grows_count', null)),
-                            
+
                         Forms\Components\Placeholder::make('affected_grows_count')
                             ->label('Affected Grows')
                             ->content(function (Forms\Get $get, Forms\Set $set) {
                                 $recipeId = $get('recipe_id');
                                 $stage = $get('current_stage');
-                                
-                                if (!$recipeId) {
+
+                                if (! $recipeId) {
                                     return 'Please select a recipe';
                                 }
-                                
+
                                 $harvestedStage = \App\Models\CropStage::findByCode('harvested');
                                 $query = Crop::where('recipe_id', $recipeId)
                                     ->where('current_stage_id', '!=', $harvestedStage?->id);
-                                
+
                                 if ($stage !== 'all') {
                                     $stageRecord = \App\Models\CropStage::findByCode($stage);
                                     if ($stageRecord) {
                                         $query->where('current_stage_id', $stageRecord->id);
                                     }
                                 }
-                                
+
                                 $recipe = Recipe::find($recipeId);
                                 $count = $query->count();
-                                
+
                                 if ($count === 0) {
                                     return "No active grows found for recipe: {$recipe->name}";
                                 }
-                                
+
                                 return "{$count} grows will be affected for recipe: {$recipe->name}";
                             }),
-                            
+
                         Forms\Components\Checkbox::make('update_germination_days')
                             ->label('Update Germination Days'),
-                            
+
                         Forms\Components\Checkbox::make('update_blackout_days')
                             ->label('Update Blackout Days'),
-                            
+
                         Forms\Components\Checkbox::make('update_light_days')
                             ->label('Update Light Days'),
-                            
+
                         Forms\Components\Checkbox::make('update_days_to_maturity')
                             ->label('Update Days to Maturity'),
-                            
+
                         Forms\Components\Checkbox::make('update_expected_harvest_dates')
                             ->label('Update Expected Harvest Dates')
                             ->helperText('This will recalculate harvest dates based on the recipe settings'),
-                            
+
                         Forms\Components\Checkbox::make('confirm_updates')
                             ->label('I understand this will modify existing grows')
                             ->required()
@@ -109,7 +108,7 @@ class RecipeUpdates extends Page
             ])
             ->statePath('data');
     }
-    
+
     protected function getFormActions(): array
     {
         return [
@@ -120,118 +119,121 @@ class RecipeUpdates extends Page
                 ->requiresConfirmation(),
         ];
     }
-    
+
     public function updateGrows(): void
     {
         $this->validate();
-        
+
         $data = $this->form->getState();
-        
-        if (!$data['confirm_updates']) {
+
+        if (! $data['confirm_updates']) {
             Notification::make()
                 ->title('Confirmation Required')
                 ->body('You must confirm that you understand this action will modify existing grows.')
                 ->danger()
                 ->send();
+
             return;
         }
-        
+
         // Get the recipe
         $recipe = Recipe::find($data['recipe_id']);
-        
-        if (!$recipe) {
+
+        if (! $recipe) {
             Notification::make()
                 ->title('Recipe Not Found')
                 ->body('Could not find the selected recipe.')
                 ->danger()
                 ->send();
+
             return;
         }
-        
+
         // Build the query for crops to update
         $harvestedStage = \App\Models\CropStage::findByCode('harvested');
         $query = Crop::where('recipe_id', $recipe->id)
             ->where('current_stage_id', '!=', $harvestedStage?->id);
-        
+
         if ($data['current_stage'] !== 'all') {
             $stageRecord = \App\Models\CropStage::findByCode($data['current_stage']);
             if ($stageRecord) {
                 $query->where('current_stage_id', $stageRecord->id);
             }
         }
-        
+
         // Get the crops to update
         $crops = $query->get();
-        
+
         if ($crops->isEmpty()) {
             Notification::make()
                 ->title('No Grows Found')
                 ->body('No active grows found for the selected recipe and stage.')
                 ->warning()
                 ->send();
+
             return;
         }
-        
+
         // Track counters for notification
         $totalCrops = $crops->count();
         $updatedCrops = 0;
-        
+
         // Begin a database transaction
         DB::beginTransaction();
-        
+
         try {
             foreach ($crops as $crop) {
                 $needsUpdate = false;
-                
+
                 // Check if we need to update expected harvest date
                 $recalculateHarvestDate = $data['update_expected_harvest_dates'] ?? false;
-                
+
                 // Update the crop based on options selected
                 if ($data['update_germination_days'] && $crop->current_stage === 'germination') {
                     $needsUpdate = true;
                     // Time calculations are now handled in crop_batches_list_view
                 }
-                
+
                 if ($data['update_blackout_days'] && $crop->current_stage === 'blackout') {
                     $needsUpdate = true;
                     // Time calculations are now handled in crop_batches_list_view
                 }
-                
+
                 if ($data['update_light_days'] && $crop->current_stage === 'light') {
                     $needsUpdate = true;
                     // Time calculations are now handled in crop_batches_list_view
                 }
-                
+
                 if ($data['update_days_to_maturity'] || $recalculateHarvestDate) {
                     $needsUpdate = true;
                     // Expected harvest date is now calculated in crop_batches_list_view
                 }
-                
+
                 // Save the crop if any changes were made
                 if ($needsUpdate) {
                     $crop->save();
                     $updatedCrops++;
                 }
             }
-            
+
             // Commit the transaction
             DB::commit();
-            
+
             Notification::make()
                 ->title('Grows Updated Successfully')
                 ->body("Updated {$updatedCrops} out of {$totalCrops} grows to match recipe settings.")
                 ->success()
                 ->send();
-                
+
         } catch (\Exception $e) {
             // Rollback the transaction on error
             DB::rollBack();
-            
+
             Notification::make()
                 ->title('Error Updating Grows')
-                ->body('An error occurred: ' . $e->getMessage())
+                ->body('An error occurred: '.$e->getMessage())
                 ->danger()
                 ->send();
         }
     }
-} 
+}

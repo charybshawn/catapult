@@ -138,10 +138,10 @@ class ProductForm
             ->options(function () {
                 return \App\Models\MasterSeedCatalog::where('is_active', true)
                 ->orderBy('common_name', 'asc')
+                ->with('cultivar')
                 ->get()
                 ->mapWithKeys(function ($catalog) {
-                    $cultivars = is_array($catalog->cultivars) ? $catalog->cultivars : [];
-                    $cultivarName = !empty($cultivars) ? $cultivars[0] : 'No cultivar';
+                    $cultivarName = $catalog->cultivar ? $catalog->cultivar->cultivar_name : 'No cultivar';
                     
                     return [$catalog->id => $catalog->common_name . ' (' . $cultivarName . ')'];
                 })
@@ -568,15 +568,21 @@ class ProductForm
                         ->content(function ($record) {
                             $catalog = $record->masterSeedCatalog;
                             if (!$catalog) return 'Unknown';
-                            $cultivar = !empty($catalog->cultivars) ? $catalog->cultivars[0] : 'No cultivar';
-                            return $catalog->common_name . ' (' . $cultivar . ')';
+                            $cultivarName = $catalog->cultivar ? $catalog->cultivar->cultivar_name : 'No cultivar';
+                            return $catalog->common_name . ' (' . $cultivarName . ')';
                         }),
-                    Forms\Components\Placeholder::make('cultivars')
-                        ->label('All Cultivars')
+                    Forms\Components\Placeholder::make('available_cultivars')
+                        ->label('Available Cultivars')
                         ->content(function ($record) {
                             $catalog = $record->masterSeedCatalog;
-                            if (!$catalog || empty($catalog->cultivars)) return 'N/A';
-                            return implode(', ', $catalog->cultivars);
+                            if (!$catalog) return 'N/A';
+                            
+                            $cultivars = \App\Models\MasterCultivar::where('master_seed_catalog_id', $catalog->id)
+                                ->where('is_active', true)
+                                ->pluck('cultivar_name')
+                                ->toArray();
+                            
+                            return empty($cultivars) ? 'N/A' : implode(', ', $cultivars);
                         }),
                 ]),
             static::getVarietyDetailsGrid(),

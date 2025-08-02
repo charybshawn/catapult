@@ -20,7 +20,6 @@ return new class extends Migration
             $table->integer('germination_days');
             $table->integer('blackout_days');
             $table->integer('light_days');
-            $table->integer('harvest_days');
             $table->integer('days_to_maturity')->nullable();
             $table->decimal('expected_yield_grams', 8, 2)->nullable();
             $table->decimal('seed_density_grams_per_tray', 8, 2)->nullable();

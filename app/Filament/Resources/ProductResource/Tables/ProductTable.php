@@ -99,8 +99,8 @@ class ProductTable
             ->getStateUsing(function ($record): string {
                 if ($record->master_seed_catalog_id) {
                     $catalog = $record->masterSeedCatalog;
-                    $cultivar = !empty($catalog->cultivars) ? $catalog->cultivars[0] : 'Unknown';
-                    return 'Single: ' . $catalog->common_name . ' (' . $cultivar . ')';
+                    $cultivarName = $catalog->cultivar ? $catalog->cultivar->cultivar_name : 'Unknown';
+                    return 'Single: ' . $catalog->common_name . ' (' . $cultivarName . ')';
                 } elseif ($record->product_mix_id) {
                     return 'Mix: ' . ($record->productMix->name ?? 'Unknown');
                 }

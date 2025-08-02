@@ -31,16 +31,16 @@ return new class extends Migration
                 MIN(c.germination_at) as germination_at,
                 MIN(c.blackout_at) as blackout_at,
                 MIN(c.light_at) as light_at,
-                MIN(c.harvested_at) as harvested_at,
-                MIN(c.expected_harvest_at) as expected_harvest_at,
+                NULL as harvested_at,
+                NULL as expected_harvest_at,
                 MIN(CASE WHEN c.watering_suspended_at IS NOT NULL THEN c.watering_suspended_at END) as watering_suspended_at,
-                -- Use MIN for consistent values across the batch
-                MIN(c.time_to_next_stage_minutes) as time_to_next_stage_minutes,
-                MIN(c.time_to_next_stage_display) as time_to_next_stage_display,
-                MIN(c.stage_age_minutes) as stage_age_minutes,
-                MIN(c.stage_age_display) as stage_age_display,
-                MIN(c.total_age_minutes) as total_age_minutes,
-                MIN(c.total_age_display) as total_age_display,
+                -- Placeholder values for time calculations
+                0 as time_to_next_stage_minutes,
+                'Calculating...' as time_to_next_stage_display,
+                0 as stage_age_minutes,
+                '0m' as stage_age_display,
+                0 as total_age_minutes,
+                '0m' as total_age_display,
                 -- Calculate planting_at as the earliest non-null stage timestamp
                 LEAST(
                     COALESCE(MIN(c.soaking_at), '9999-12-31'),

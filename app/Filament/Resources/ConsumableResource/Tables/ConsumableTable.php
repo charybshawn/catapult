@@ -20,6 +20,7 @@ class ConsumableTable
             'consumableType',
             'consumableUnit',
             'masterSeedCatalog',
+            'masterCultivar',
             'packagingType'
         ]);
     }
@@ -114,7 +115,6 @@ class ConsumableTable
                 })
                 ->size('sm')
                 ->toggleable(),
-            static::getInventoryStatusColumn(),
             static::getActiveStatusBadgeColumn(),
             ...static::getTimestampColumns(),
         ];
@@ -296,16 +296,6 @@ class ConsumableTable
      * Placeholder methods for trait functionality
      * These would normally come from traits but we can't access them here
      */
-    protected static function getInventoryStatusColumn(): Tables\Columns\Column
-    {
-        return Tables\Columns\IconColumn::make('inventory_status')
-            ->label('Inventory')
-            ->boolean()
-            ->trueIcon('heroicon-o-check-circle')
-            ->falseIcon('heroicon-o-x-circle')
-            ->trueColor('success')
-            ->falseColor('danger');
-    }
 
     protected static function getActiveStatusBadgeColumn(): Tables\Columns\Column
     {
@@ -349,7 +339,7 @@ class ConsumableTable
         ];
     }
 
-    protected static function getActiveStatusFilter(): Tables\Filters\Filter
+    protected static function getActiveStatusFilter(): Tables\Filters\TernaryFilter
     {
         return Tables\Filters\TernaryFilter::make('is_active')
             ->label('Active Status');
