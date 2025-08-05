@@ -26,15 +26,17 @@ class CropBatchResource extends BaseResource
 
     protected static ?string $navigationIcon = 'heroicon-o-fire';
 
-    protected static ?string $navigationLabel = 'Crops';
+    protected static ?string $navigationLabel = 'Crop Batches';
 
     protected static ?string $navigationGroup = 'Production';
 
     protected static ?int $navigationSort = 2;
 
-    protected static ?string $pluralModelLabel = 'Crops';
+    protected static ?string $pluralModelLabel = 'Crop Batches';
 
-    protected static ?string $modelLabel = 'Crop';
+    protected static ?string $modelLabel = 'Crop Batch';
+    
+    protected static ?string $slug = 'crop-batches';
 
     protected static ?string $recordTitleAttribute = 'recipe_name';
 

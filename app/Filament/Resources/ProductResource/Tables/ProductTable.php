@@ -316,7 +316,7 @@ class ProductTable
     {
         return $query->with([
             'category',
-            'masterSeedCatalog',
+            'masterSeedCatalog.cultivar',
             'productMix',
             'recipe',
             'priceVariations.packagingType'

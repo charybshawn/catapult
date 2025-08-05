@@ -20,6 +20,11 @@
       "icon": "heroicon-o-cube",
       "description": "Seeds, consumables, and supplies"
     },
+    "planning": {
+      "label": "Planning",
+      "icon": "heroicon-o-calculator",
+      "description": "Order simulation and planning tools"
+    },
     "orders": {
       "label": "Orders & Sales",
       "icon": "heroicon-o-shopping-cart",
@@ -154,6 +159,11 @@
       },
       {
         "resource": "SupplierResource"
+      }
+    ],
+    "planning": [
+      {
+        "resource": "OrderSimulatorResource"
       }
     ],
     "orders": [
