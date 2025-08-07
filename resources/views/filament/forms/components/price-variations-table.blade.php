@@ -85,6 +85,7 @@
                         @foreach($variations as $variation)
                             <tr class="hover:bg-gray-50 dark:hover:bg-gray-800" x-data="{ 
                                 editing: false,
+                                saving: false,
                                 name: '{{ $variation->name ?: 'Default' }}',
                                 pricing_type: '{{ $variation->pricing_type ?: 'retail' }}',
                                 pricing_unit: '{{ $variation->pricing_unit ?: 'per_item' }}',
@@ -93,6 +94,31 @@
                                 fill_weight_grams: '{{ $variation->fill_weight }}',
                                 price: '{{ $variation->price }}',
                                 is_name_manual: {{ $variation->is_name_manual ? 'true' : 'false' }},
+                                
+                                // Save function to handle Enter key and save button
+                                async saveVariation() {
+                                    if (this.saving) return; // Prevent double-saves
+                                    
+                                    this.saving = true;
+                                    try {
+                                        await Livewire.find('{{ $livewire->getId() }}').updateVariation({{ $variation->id }}, {
+                                            name: this.name,
+                                            pricing_type: this.pricing_type,
+                                            pricing_unit: this.pricing_unit,
+                                            packaging_type_id: this.packaging_type_id,
+                                            sku: this.sku,
+                                            fill_weight_grams: this.fill_weight_grams,
+                                            price: this.price,
+                                            is_name_manual: this.is_name_manual
+                                        });
+                                        // Visual feedback could be added here
+                                    } catch (error) {
+                                        console.error('Error saving variation:', error);
+                                    } finally {
+                                        this.saving = false;
+                                        this.editing = false;
+                                    }
+                                },
                                 
                                 // Auto-generate name when fields change (only for new records)
                                 generateName() {
@@ -132,18 +158,10 @@
                                 }
                             }">
                                 <td class="px-4 py-4 whitespace-nowrap">
-                                    <div x-show="!editing" class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                        @php
-                                            $displayName = $variation->name ?: 'Default';
-                                        @endphp
-                                        {{ $displayName }}
-                                        @if($variation->is_name_manual)
-                                            <span class="ml-1 text-xs text-blue-600" title="Manually set name">✓</span>
-                                        @endif
-                                    </div>
-                                    <div x-show="editing" class="flex space-x-1" x-cloak>
+                                    <div class="flex space-x-1">
                                         <input x-model="name" 
                                                @input="markNameAsManual()"
+                                               @keydown.enter.prevent.stop="saveVariation()"
                                                type="text" 
                                                class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100">
                                         <button type="button" 
@@ -152,26 +170,15 @@
                                                 title="Reset to auto-generated">
                                             ↻
                                         </button>
+                                        @if($variation->is_name_manual)
+                                            <span class="ml-1 text-xs text-blue-600" title="Manually set name">✓</span>
+                                        @endif
                                     </div>
                                 </td>
                                 <td class="px-4 py-4 whitespace-nowrap">
-                                    <div x-show="!editing" class="text-sm text-gray-900 dark:text-gray-100">
-                                        @php
-                                            $pricingTypeNames = [
-                                                'retail' => 'Retail',
-                                                'wholesale' => 'Wholesale',
-                                                'bulk' => 'Bulk',
-                                                'special' => 'Special',
-                                                'custom' => 'Custom'
-                                            ];
-                                            echo $pricingTypeNames[$variation->pricing_type ?? 'retail'] ?? ucfirst($variation->pricing_type ?? 'Retail');
-                                        @endphp
-                                    </div>
-                                    <select x-show="editing" 
-                                            x-model="pricing_type"
+                                    <select x-model="pricing_type"
                                             @change="generateName()"
-                                            class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                                            x-cloak>
+                                            class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100">
                                         <option value="retail">Retail</option>
                                         <option value="wholesale">Wholesale</option>
                                         <option value="bulk">Bulk</option>
@@ -180,24 +187,9 @@
                                     </select>
                                 </td>
                                 <td class="px-4 py-4 whitespace-nowrap">
-                                    <div x-show="!editing" class="text-sm text-gray-900 dark:text-gray-100">
-                                        @php
-                                            $pricingUnitNames = [
-                                                'per_item' => 'Per Item',
-                                                'per_tray' => 'Per Tray',
-                                                'per_g' => 'Per Gram',
-                                                'per_kg' => 'Per Kg',
-                                                'per_lb' => 'Per Lb',
-                                                'per_oz' => 'Per Oz'
-                                            ];
-                                            echo $pricingUnitNames[$variation->pricing_unit ?? 'per_item'] ?? 'Per Item';
-                                        @endphp
-                                    </div>
-                                    <select x-show="editing" 
-                                            x-model="pricing_unit"
+                                    <select x-model="pricing_unit"
                                             @change="generateName()"
-                                            class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                                            x-cloak>
+                                            class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100">
                                         <option value="per_item">Per Item</option>
                                         <option value="per_tray">Per Tray</option>
                                         <option value="per_g">Per Gram</option>
@@ -207,14 +199,9 @@
                                     </select>
                                 </td>
                                 <td class="px-4 py-4 whitespace-nowrap">
-                                    <div x-show="!editing" class="text-sm text-gray-900 dark:text-gray-100">
-                                        {{ $variation->packagingType?->display_name ?? 'No packaging' }}
-                                    </div>
-                                    <select x-show="editing" 
-                                            x-model="packaging_type_id"
+                                    <select x-model="packaging_type_id"
                                             @change="generateName()"
-                                            class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                                            x-cloak>
+                                            class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100">
                                         <option value="">No packaging</option>
                                         @foreach(\App\Models\PackagingType::all() as $packaging)
                                             <option value="{{ $packaging->id }}">{{ $packaging->display_name }}</option>
@@ -222,40 +209,29 @@
                                     </select>
                                 </td>
                                 <td class="px-4 py-4 whitespace-nowrap">
-                                    <div x-show="!editing" class="text-sm text-gray-900 dark:text-gray-100">
-                                        {{ $variation->sku ?? '-' }}
-                                    </div>
-                                    <input x-show="editing" 
-                                           x-model="sku" 
+                                    <input x-model="sku" 
+                                           @keydown.enter.prevent="saveVariation()"
                                            type="text" 
-                                           class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                                           x-init="sku = '{{ $variation->sku }}'"
-                                           x-cloak>
+                                           placeholder="SKU"
+                                           class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100">
                                 </td>
                                 <td class="px-4 py-4 whitespace-nowrap">
-                                    <div x-show="!editing" class="text-sm text-gray-900 dark:text-gray-100">
-                                        {{ $variation->fill_weight ? number_format($variation->fill_weight, 2) . 'g' : '-' }}
-                                    </div>
-                                    <input x-show="editing" 
-                                           x-model="fill_weight_grams" 
+                                    <input x-model="fill_weight_grams" 
+                                           @keydown.enter.prevent="saveVariation()"
                                            type="number" 
                                            step="0.01"
-                                           class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                                           x-init="fill_weight_grams = '{{ $variation->fill_weight }}'"
-                                           x-cloak>
+                                           placeholder="Weight (g)"
+                                           class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100">
                                 </td>
                                 <td class="px-4 py-4 whitespace-nowrap">
-                                    <div x-show="!editing" class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                        ${{ number_format($variation->price, 2) }}
-                                    </div>
-                                    <input x-show="editing" 
-                                           x-model="price" 
+                                    <input x-model="price" 
                                            @input="generateName()"
+                                           @keydown.enter.prevent="saveVariation()"
                                            type="number" 
                                            step="0.01"
                                            min="0"
-                                           class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                                           x-cloak>
+                                           placeholder="Price"
+                                           class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100">
                                 </td>
                                 <td class="px-4 py-4 whitespace-nowrap">
                                     <div class="flex items-center">
@@ -288,36 +264,12 @@
                                 <td class="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <div class="flex items-center justify-end space-x-2">
                                         <button type="button"
-                                                x-show="!editing" 
-                                                @click="editing = true"
-                                                class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300">
-                                            Edit
-                                        </button>
-                                        <button type="button"
-                                                x-show="editing" 
-                                                @click="
-                                                    Livewire.find('{{ $livewire->getId() }}').updateVariation({{ $variation->id }}, {
-                                                        name: name,
-                                                        pricing_type: pricing_type,
-                                                        pricing_unit: pricing_unit,
-                                                        packaging_type_id: packaging_type_id,
-                                                        sku: sku,
-                                                        fill_weight_grams: fill_weight_grams,
-                                                        price: price,
-                                                        is_name_manual: is_name_manual
-                                                    });
-                                                    editing = false;
-                                                "
-                                                class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                                                x-cloak>
-                                            Save
-                                        </button>
-                                        <button type="button"
-                                                x-show="editing" 
-                                                @click="editing = false"
-                                                class="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
-                                                x-cloak>
-                                            Cancel
+                                                @click="saveVariation()"
+                                                :disabled="saving"
+                                                class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                title="Save changes">
+                                            <span x-show="!saving">Save</span>
+                                            <span x-show="saving">Saving...</span>
                                         </button>
                                         <button type="button"
                                                 @click="if (confirm('Are you sure you want to delete this price variation?')) { Livewire.find('{{ $livewire->getId() }}').deleteVariation({{ $variation->id }}) }"

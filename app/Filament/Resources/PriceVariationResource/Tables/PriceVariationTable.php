@@ -315,6 +315,14 @@ class PriceVariationTable
     {
         return ['product', 'packagingType'];
     }
+    
+    /**
+     * Get the model class for CSV export
+     */
+    protected static function getModelClass(): string
+    {
+        return \App\Models\PriceVariation::class;
+    }
 
     /**
      * Get table configuration with persistence

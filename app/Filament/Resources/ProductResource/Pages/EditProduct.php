@@ -216,14 +216,46 @@ class EditProduct extends BaseEditRecord
     /**
      * Update a price variation from the table
      */
-    public function updateVariation($variationId, array $data)
+    public function updateVariation(array $data)
     {
-        Log::info('updateVariation called', ['variationId' => $variationId, 'data' => $data]);
+        // Extract parameters from the data array
+        $variationIndex = $data['variationIndex'] ?? null;
+        $fieldName = $data['fieldName'] ?? null;
+        $value = $data['value'] ?? null;
+        $variation = $data['variation'] ?? null;
         
-        $variation = PriceVariation::findOrFail($variationId);
+        Log::info('updateVariation called', [
+            'variationIndex' => $variationIndex, 
+            'fieldName' => $fieldName, 
+            'value' => $value, 
+            'variation' => $variation ? $variation['id'] ?? null : null
+        ]);
+        
+        // If variation object is passed, extract the ID from it
+        $variationId = null;
+        if ($variation && isset($variation['id'])) {
+            $variationId = $variation['id'];
+        } else {
+            // Fallback: try to get variation by index from the product's variations
+            $variations = $this->record->priceVariations()->get();
+            if (isset($variations[$variationIndex])) {
+                $variationId = $variations[$variationIndex]->id;
+            }
+        }
+        
+        if (!$variationId) {
+            Notification::make()
+                ->title('Error')
+                ->body('Could not identify the variation to update.')
+                ->danger()
+                ->send();
+            return;
+        }
+        
+        $variationModel = PriceVariation::findOrFail($variationId);
         
         // Ensure the variation belongs to this product
-        if ($variation->product_id !== $this->record->id) {
+        if ($variationModel->product_id !== $this->record->id) {
             Notification::make()
                 ->title('Unauthorized')
                 ->body('You cannot update this variation.')
@@ -232,46 +264,57 @@ class EditProduct extends BaseEditRecord
             return;
         }
         
-        // Prepare update data from the data array
+        // Prepare update data for the specific field
         $updateData = [];
         
-        if (isset($data['name'])) {
-            $updateData['name'] = trim($data['name']);
-            $updateData['is_name_manual'] = $data['is_name_manual'] ?? true;
-        }
-        
-        if (isset($data['pricing_type'])) {
-            $updateData['pricing_type'] = $data['pricing_type'];
-        }
-        
-        if (isset($data['pricing_unit'])) {
-            $updateData['pricing_unit'] = $data['pricing_unit'];
-        }
-        
-        if (isset($data['packaging_type_id'])) {
-            $updateData['packaging_type_id'] = $data['packaging_type_id'] ?: null;
-        }
-        
-        if (isset($data['sku'])) {
-            $updateData['sku'] = $data['sku'] ?: null;
-        }
-        
-        if (isset($data['fill_weight_grams'])) {
-            $updateData['fill_weight_grams'] = $data['fill_weight_grams'] ?: null;
-        }
-        
-        if (isset($data['price'])) {
-            $updateData['price'] = $data['price'];
+        switch ($fieldName) {
+            case 'name':
+                $updateData['name'] = trim($value);
+                $updateData['is_name_manual'] = true;
+                break;
+                
+            case 'pricing_type':
+                $updateData['pricing_type'] = $value;
+                break;
+                
+            case 'pricing_unit':
+                $updateData['pricing_unit'] = $value;
+                break;
+                
+            case 'packaging_type_id':
+                $updateData['packaging_type_id'] = $value ?: null;
+                break;
+                
+            case 'sku':
+                $updateData['sku'] = $value ?: null;
+                break;
+                
+            case 'fill_weight_grams':
+                $updateData['fill_weight_grams'] = $value ?: null;
+                break;
+                
+            case 'price':
+                $updateData['price'] = $value;
+                break;
+                
+            default:
+                Notification::make()
+                    ->title('Invalid field')
+                    ->body("Field '{$fieldName}' is not allowed to be updated.")
+                    ->warning()
+                    ->send();
+                return;
         }
         
         if (!empty($updateData)) {
-            $variation->update($updateData);
+            $variationModel->update($updateData);
             
             // Refresh the record to ensure the relationship is updated
             $this->record->refresh();
             
             Notification::make()
                 ->title('Price variation updated')
+                ->body("Field '{$fieldName}' updated successfully.")
                 ->success()
                 ->send();
         }

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
@@ -25,6 +26,11 @@ class MasterSeedCatalog extends Model
         'is_active' => 'boolean',
     ];
 
+    public function cultivar(): BelongsTo
+    {
+        return $this->belongsTo(MasterCultivar::class, 'cultivar_id');
+    }
+
     public function cultivars(): HasMany
     {
         return $this->hasMany(MasterCultivar::class);
@@ -46,10 +52,10 @@ class MasterSeedCatalog extends Model
     }
 
     /**
-     * Get the cultivar name from the primary related MasterCultivar
+     * Get the cultivar name from the related MasterCultivar
      */
     public function getCultivarNameAttribute(): ?string
     {
-        return $this->primaryCultivar?->cultivar_name;
+        return $this->cultivar?->cultivar_name;
     }
 }

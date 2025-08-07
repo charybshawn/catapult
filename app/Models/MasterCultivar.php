@@ -41,8 +41,4 @@ class MasterCultivar extends Model
         return $this->hasMany(Harvest::class);
     }
 
-    public function masterSeedCatalogs(): HasMany
-    {
-        return $this->hasMany(MasterSeedCatalog::class);
-    }
 }

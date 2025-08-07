@@ -102,7 +102,25 @@ trait CsvExportAction
      */
     protected static function getTableQuery(): Builder
     {
-        return static::getModel()::query();
+        $modelClass = static::getModelClass();
+        return $modelClass::query();
+    }
+    
+    /**
+     * Get the model class - works for both Resource and Table classes
+     */
+    protected static function getModelClass(): string
+    {
+        // If using in a Resource class, use getModel()
+        if (method_exists(static::class, 'getModel')) {
+            return static::getModel();
+        }
+        
+        // If using in a Table class, override this method to return the model class
+        throw new \RuntimeException(
+            'You must override the getModelClass() method in ' . static::class . 
+            ' to return the model class string (e.g., return PriceVariation::class;)'
+        );
     }
     
     /**
@@ -120,7 +138,8 @@ trait CsvExportAction
      */
     protected static function getColumnsFromSchema(): array
     {
-        $model = new (static::getModel());
+        $modelClass = static::getModelClass();
+        $model = new $modelClass();
         $schemaColumns = $model->getConnection()->getSchemaBuilder()->getColumnListing($model->getTable());
         
         // Filter out sensitive columns

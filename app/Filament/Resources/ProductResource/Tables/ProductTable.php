@@ -99,12 +99,20 @@ class ProductTable
             ->getStateUsing(function ($record): string {
                 if ($record->master_seed_catalog_id) {
                     $catalog = $record->masterSeedCatalog;
-                    $cultivarName = $catalog->cultivar ? $catalog->cultivar->cultivar_name : 'Unknown';
-                    return 'Single: ' . $catalog->common_name . ' (' . $cultivarName . ')';
+                    if (!$catalog) {
+                        return 'Single Variety';
+                    }
+                    
+                    // Show cultivar name if available, otherwise just common name
+                    if ($catalog->cultivar && $catalog->cultivar->cultivar_name) {
+                        return $catalog->cultivar->cultivar_name;
+                    }
+                    
+                    return $catalog->common_name;
                 } elseif ($record->product_mix_id) {
-                    return 'Mix: ' . ($record->productMix->name ?? 'Unknown');
+                    return $record->productMix->name ?? 'Product Mix';
                 }
-                return 'None';
+                return 'No Variety';
             })
             ->searchable(false)
             ->sortable(false)
@@ -125,7 +133,7 @@ class ProductTable
                     ->whereNotNull('packaging_type_id')
                     ->with('packagingType')
                     ->get()
-                    ->pluck('packagingType.display_name')
+                    ->pluck('packagingType.name')
                     ->unique();
                 
                 // Only show actual product packaging, not potential templates

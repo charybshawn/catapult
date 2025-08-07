@@ -2,7 +2,24 @@
   "permissions": {
     "allow": [
       "Bash(php artisan:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(mysql:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(tail:*)",
+      "Bash(grep:*)",
+      "Bash(head:*)",
+      "Bash(cat:*)",
+      "Bash(composer:*)",
+      "Bash(php:*)",
+      "Bash(rm:*)",
+      "Bash(php -l:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "WebFetch(domain:uxdworld.com)"
     ],
     "deny": []
   }
