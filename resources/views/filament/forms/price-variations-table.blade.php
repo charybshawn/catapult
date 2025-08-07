@@ -18,7 +18,10 @@
     }
 @endphp
 
-<div class="space-y-4" wire:key="price-variations-table-{{ $product?->id }}">
+<div class="space-y-4" 
+     wire:key="price-variations-table-{{ $product?->id }}"
+     x-data="priceVariationsTable({{ $variations->toJson() }})"
+     x-init="initializeVariations()">
     
     @if($variations->isNotEmpty())
         <div class="overflow-hidden rounded-lg border border-gray-300 dark:border-gray-600">
@@ -57,79 +60,187 @@
                             // Use the stored variation name or fallback to 'Default'
                             $displayName = $variation->name ?: 'Default';
                         @endphp
-                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-800" x-data="{ editing: false, name: '{{ $displayName }}', packaging_type_id: '{{ $variation->packaging_type_id }}', pricing_unit: '{{ $variation->pricing_unit ?? 'per_item' }}', fill_weight_grams: '{{ $variation->fill_weight }}', price: '{{ $variation->price }}' }">
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
                             <td class="px-4 py-4 whitespace-nowrap">
-                                <div x-show="!editing" class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                    {{ $displayName }}
+                                <div class="relative">
+                                    <input x-model="localVariations[{{ $loop->index }}].name"
+                                           @input="markFieldDirty({{ $loop->index }}, 'name')"
+                                           @blur="saveVariation({{ $loop->index }}, 'name')"
+                                           @keydown.enter.prevent.stop="saveVariation({{ $loop->index }}, 'name')"
+                                           type="text" 
+                                           placeholder="{{ $displayName }}"
+                                           x-bind:disabled="saving"
+                                           x-bind:class="{
+                                               'border-yellow-300': isDirty[{{ $loop->index }}] && isDirty[{{ $loop->index }}]['name'],
+                                               'border-red-300': hasError[{{ $loop->index }}] && hasError[{{ $loop->index }}]['name'],
+                                               'block w-full text-sm rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100': true,
+                                               'border-gray-300 dark:border-gray-600': !isDirty[{{ $loop->index }}] || !isDirty[{{ $loop->index }}]['name']
+                                           }"
+                                           class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100">
+                                    
+                                    <!-- Loading indicator -->
+                                    <div x-show="saving" class="absolute inset-y-0 right-0 flex items-center pr-3">
+                                        <svg class="animate-spin h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    </div>
+                                    
+                                    <!-- Dirty indicator -->
+                                    <div x-show="isDirty[{{ $loop->index }}] && isDirty[{{ $loop->index }}]['name'] && !saving" class="absolute inset-y-0 right-0 flex items-center pr-3">
+                                        <div class="h-2 w-2 bg-orange-400 rounded-full"></div>
+                                    </div>
                                 </div>
-                                <input x-show="editing" 
-                                       x-model="name" 
-                                       type="text" 
-                                       class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                                       x-cloak>
+                                @error('variations.'.$loop->index.'.name')
+                                    <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
+                                @enderror
                             </td>
                             <td class="px-4 py-4 whitespace-nowrap">
-                                <div x-show="!editing" class="text-sm text-gray-900 dark:text-gray-100">
-                                    {{ $variation->packagingType?->display_name ?? 'No packaging' }}
+                                <div class="relative">
+                                    <select x-model="localVariations[{{ $loop->index }}].packaging_type_id"
+                                            @change="markFieldDirty({{ $loop->index }}, 'packaging_type_id')"
+                                            @blur="saveVariation({{ $loop->index }}, 'packaging_type_id')"
+                                            @keydown.enter.prevent.stop="saveVariation({{ $loop->index }}, 'packaging_type_id')"
+                                            x-bind:disabled="saving"
+                                            x-bind:class="{
+                                                'border-yellow-300': isDirty[{{ $loop->index }}] && isDirty[{{ $loop->index }}]['packaging_type_id'],
+                                                'border-red-300': hasError[{{ $loop->index }}] && hasError[{{ $loop->index }}]['packaging_type_id'],
+                                                'block w-full text-sm rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100': true,
+                                                'border-gray-300 dark:border-gray-600': !isDirty[{{ $loop->index }}] || !isDirty[{{ $loop->index }}]['packaging_type_id']
+                                            }"
+                                            class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100">
+                                        <option value="" @if(empty($variation->packaging_type_id)) selected @endif>No packaging</option>
+                                        @foreach(\App\Models\PackagingType::all() as $packaging)
+                                            <option value="{{ $packaging->id }}" @if($variation->packaging_type_id == $packaging->id) selected @endif>{{ $packaging->display_name }}</option>
+                                        @endforeach
+                                    </select>
+                                    
+                                    <!-- Loading indicator -->
+                                    <div x-show="saving" class="absolute inset-y-0 right-0 flex items-center pr-8">
+                                        <svg class="animate-spin h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 814 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    </div>
+                                    
+                                    <!-- Dirty indicator -->
+                                    <div x-show="isDirty[{{ $loop->index }}] && isDirty[{{ $loop->index }}]['packaging_type_id'] && !saving" class="absolute inset-y-0 right-0 flex items-center pr-8">
+                                        <div class="h-2 w-2 bg-orange-400 rounded-full"></div>
+                                    </div>
                                 </div>
-                                <select x-show="editing" 
-                                        x-model="packaging_type_id" 
-                                        class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                                        x-cloak>
-                                    <option value="">No packaging</option>
-                                    @foreach(\App\Models\PackagingType::all() as $packaging)
-                                        <option value="{{ $packaging->id }}">{{ $packaging->display_name }}</option>
-                                    @endforeach
-                                </select>
+                                @error('variations.'.$loop->index.'.packaging_type_id')
+                                    <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
+                                @enderror
                             </td>
                             <td class="px-4 py-4 whitespace-nowrap">
-                                <div x-show="!editing" class="text-sm text-gray-900 dark:text-gray-100">
-                                    @php
-                                        $pricingUnitNames = [
-                                            'per_item' => 'Per Item',
-                                            'per_tray' => 'Per Tray',
-                                            'per_g' => 'Per Gram',
-                                            'per_kg' => 'Per Kg',
-                                            'per_lb' => 'Per Lb',
-                                            'per_oz' => 'Per Oz'
-                                        ];
-                                        echo $pricingUnitNames[$variation->pricing_unit ?? 'per_item'] ?? 'Per Item';
-                                    @endphp
+                                <div class="relative">
+                                    <select x-model="localVariations[{{ $loop->index }}].pricing_unit"
+                                            @change="markFieldDirty({{ $loop->index }}, 'pricing_unit')"
+                                            @blur="saveVariation({{ $loop->index }}, 'pricing_unit')"
+                                            @keydown.enter.prevent.stop="saveVariation({{ $loop->index }}, 'pricing_unit')"
+                                            x-bind:disabled="saving"
+                                            x-bind:class="{
+                                                'border-yellow-300': isDirty[{{ $loop->index }}] && isDirty[{{ $loop->index }}]['pricing_unit'],
+                                                'border-red-300': hasError[{{ $loop->index }}] && hasError[{{ $loop->index }}]['pricing_unit'],
+                                                'block w-full text-sm rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100': true,
+                                                'border-gray-300 dark:border-gray-600': !isDirty[{{ $loop->index }}] || !isDirty[{{ $loop->index }}]['pricing_unit']
+                                            }"
+                                            class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100">
+                                        <option value="per_item">Per Item</option>
+                                        <option value="per_tray">Per Tray</option>
+                                        <option value="per_g">Per Gram</option>
+                                        <option value="per_kg">Per Kg</option>
+                                        <option value="per_lb">Per Lb</option>
+                                        <option value="per_oz">Per Oz</option>
+                                    </select>
+                                    
+                                    <!-- Loading indicator -->
+                                    <div x-show="saving" class="absolute inset-y-0 right-0 flex items-center pr-8">
+                                        <svg class="animate-spin h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    </div>
+                                    
+                                    <!-- Dirty indicator -->
+                                    <div x-show="isDirty[{{ $loop->index }}] && isDirty[{{ $loop->index }}]['pricing_unit'] && !saving" class="absolute inset-y-0 right-0 flex items-center pr-8">
+                                        <div class="h-2 w-2 bg-orange-400 rounded-full"></div>
+                                    </div>
                                 </div>
-                                <select x-show="editing" 
-                                        x-model="pricing_unit" 
-                                        class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                                        x-cloak>
-                                    <option value="per_item">Per Item</option>
-                                    <option value="per_tray">Per Tray</option>
-                                    <option value="per_g">Per Gram</option>
-                                    <option value="per_kg">Per Kg</option>
-                                    <option value="per_lb">Per Lb</option>
-                                    <option value="per_oz">Per Oz</option>
-                                </select>
+                                @error('variations.'.$loop->index.'.pricing_unit')
+                                    <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
+                                @enderror
                             </td>
                             <td class="px-4 py-4 whitespace-nowrap">
-                                <div x-show="!editing" class="text-sm text-gray-900 dark:text-gray-100">
-                                    {{ $variation->fill_weight ? number_format($variation->fill_weight, 2) . 'g' : '-' }}
+                                <div class="relative">
+                                    <input x-model="localVariations[{{ $loop->index }}].fill_weight_grams"
+                                           @input="markFieldDirty({{ $loop->index }}, 'fill_weight_grams')"
+                                           @blur="saveVariation({{ $loop->index }}, 'fill_weight_grams')"
+                                           @keydown.enter.prevent.stop="saveVariation({{ $loop->index }}, 'fill_weight_grams')"
+                                           type="number" 
+                                           step="0.01"
+                                           placeholder="{{ $variation->fill_weight ? number_format($variation->fill_weight, 2) : '0' }}"
+                                           x-bind:disabled="saving"
+                                           x-bind:class="{
+                                               'border-yellow-300': isDirty[{{ $loop->index }}] && isDirty[{{ $loop->index }}]['fill_weight_grams'],
+                                               'border-red-300': hasError[{{ $loop->index }}] && hasError[{{ $loop->index }}]['fill_weight_grams'],
+                                               'block w-full text-sm rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100': true,
+                                               'border-gray-300 dark:border-gray-600': !isDirty[{{ $loop->index }}] || !isDirty[{{ $loop->index }}]['fill_weight_grams']
+                                           }"
+                                           class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100">
+                                    
+                                    <!-- Loading indicator -->
+                                    <div x-show="saving" class="absolute inset-y-0 right-0 flex items-center pr-3">
+                                        <svg class="animate-spin h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    </div>
+                                    
+                                    <!-- Dirty indicator -->
+                                    <div x-show="isDirty[{{ $loop->index }}] && isDirty[{{ $loop->index }}]['fill_weight_grams'] && !saving" class="absolute inset-y-0 right-0 flex items-center pr-3">
+                                        <div class="h-2 w-2 bg-orange-400 rounded-full"></div>
+                                    </div>
                                 </div>
-                                <input x-show="editing" 
-                                       x-model="fill_weight_grams" 
-                                       type="number" 
-                                       step="0.01"
-                                       class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                                       x-cloak>
+                                @error('variations.'.$loop->index.'.fill_weight_grams')
+                                    <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
+                                @enderror
                             </td>
                             <td class="px-4 py-4 whitespace-nowrap">
-                                <div x-show="!editing" class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                    ${{ number_format($variation->price, 3) }}
+                                <div class="relative">
+                                    <input x-model="localVariations[{{ $loop->index }}].price"
+                                           @input="markFieldDirty({{ $loop->index }}, 'price')"
+                                           @blur="saveVariation({{ $loop->index }}, 'price')"
+                                           @keydown.enter.prevent.stop="saveVariation({{ $loop->index }}, 'price')"
+                                           type="number" 
+                                           step="0.001"
+                                           min="0"
+                                           placeholder="{{ number_format($variation->price, 3) }}"
+                                           x-bind:disabled="saving"
+                                           x-bind:class="{
+                                               'border-yellow-300': isDirty[{{ $loop->index }}] && isDirty[{{ $loop->index }}]['price'],
+                                               'border-red-300': hasError[{{ $loop->index }}] && hasError[{{ $loop->index }}]['price'],
+                                               'block w-full text-sm rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100': true,
+                                               'border-gray-300 dark:border-gray-600': !isDirty[{{ $loop->index }}] || !isDirty[{{ $loop->index }}]['price']
+                                           }"
+                                           class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100">
+                                    
+                                    <!-- Loading indicator -->
+                                    <div x-show="saving" class="absolute inset-y-0 right-0 flex items-center pr-3">
+                                        <svg class="animate-spin h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    </div>
+                                    
+                                    <!-- Dirty indicator -->
+                                    <div x-show="isDirty[{{ $loop->index }}] && isDirty[{{ $loop->index }}]['price'] && !saving" class="absolute inset-y-0 right-0 flex items-center pr-3">
+                                        <div class="h-2 w-2 bg-orange-400 rounded-full"></div>
+                                    </div>
                                 </div>
-                                <input x-show="editing" 
-                                       x-model="price" 
-                                       type="number" 
-                                       step="0.001"
-                                       min="0"
-                                       class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                                       x-cloak>
+                                @error('variations.'.$loop->index.'.price')
+                                    <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
+                                @enderror
                             </td>
                             <td class="px-4 py-4 whitespace-nowrap">
                                 <div class="flex items-center">
@@ -160,42 +271,11 @@
                                 </div>
                             </td>
                             <td class="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <div class="flex items-center justify-end space-x-2">
-                                    <button type="button"
-                                            x-show="!editing" 
-                                            @click="editing = true"
-                                            class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300">
-                                        Edit
-                                    </button>
-                                    <button type="button"
-                                            x-show="editing" 
-                                            @click="
-                                                Livewire.find('{{ $livewire->getId() }}').updateVariation({{ $variation->id }}, {
-                                                    name: name,
-                                                    packaging_type_id: packaging_type_id,
-                                                    pricing_unit: pricing_unit,
-                                                    fill_weight_grams: fill_weight_grams,
-                                                    price: price
-                                                });
-                                                editing = false;
-                                            "
-                                            class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                                            x-cloak>
-                                        Save
-                                    </button>
-                                    <button type="button"
-                                            x-show="editing" 
-                                            @click="editing = false"
-                                            class="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
-                                            x-cloak>
-                                        Cancel
-                                    </button>
-                                    <button type="button"
-                                            @click="if (confirm('Are you sure you want to delete this price variation?')) { Livewire.find('{{ $livewire->getId() }}').deleteVariation({{ $variation->id }}) }"
-                                            class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
-                                        Delete
-                                    </button>
-                                </div>
+                                <button type="button"
+                                        @click="if (confirm('Are you sure you want to delete this price variation?')) { Livewire.find('{{ $livewire->getId() }}').deleteVariation({{ $variation->id }}) }"
+                                        class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
+                                    Delete
+                                </button>
                             </td>
                         </tr>
                     @endforeach
@@ -230,3 +310,114 @@
         @endif
     </div>
 </div>
+
+<script>
+function priceVariationsTable(serverVariations) {
+    return {
+        // Local state for immediate UI updates
+        localVariations: [],
+        originalVariations: [],
+        isDirty: {},
+        hasError: {},
+        saving: false,
+        
+        // Initialize local variations from server data
+        initializeVariations() {
+            this.localVariations = JSON.parse(JSON.stringify(serverVariations));
+            this.originalVariations = JSON.parse(JSON.stringify(serverVariations));
+            
+            // Ensure packaging_type_id is properly set for each variation
+            this.localVariations.forEach((variation, index) => {
+                // Make sure packaging_type_id is set correctly for the select field
+                if (variation.packaging_type_id === null || variation.packaging_type_id === undefined) {
+                    variation.packaging_type_id = '';
+                } else {
+                    // Ensure it's a string for select binding
+                    variation.packaging_type_id = String(variation.packaging_type_id);
+                }
+                
+            });
+            
+            // Also fix the original variations for comparison
+            this.originalVariations.forEach((variation, index) => {
+                if (variation.packaging_type_id === null || variation.packaging_type_id === undefined) {
+                    variation.packaging_type_id = '';
+                } else {
+                    variation.packaging_type_id = String(variation.packaging_type_id);
+                }
+            });
+            
+            // Initialize tracking objects
+            this.isDirty = {};
+            this.hasError = {};
+            
+            serverVariations.forEach((variation, index) => {
+                this.isDirty[index] = {};
+                this.hasError[index] = {};
+            });
+        },
+        
+        // Save a specific field for a variation
+        async saveVariation(variationIndex, fieldName) {
+            // Don't save if already saving
+            if (this.saving) return;
+            
+            const currentValue = this.localVariations[variationIndex][fieldName];
+            const originalValue = this.originalVariations[variationIndex][fieldName];
+            
+            // Skip saving if value hasn't changed
+            if (currentValue === originalValue) {
+                this.isDirty[variationIndex][fieldName] = false;
+                return;
+            }
+            
+            // Clear any previous errors for this field
+            this.hasError[variationIndex][fieldName] = false;
+            
+            try {
+                this.saving = true;
+                
+                // Call the Livewire updateVariation method
+                const livewireComponent = Livewire.find(this.$el.closest('[wire\\:id]').getAttribute('wire:id'));
+                
+                // Create the update data
+                const updateData = {
+                    variationIndex: variationIndex,
+                    fieldName: fieldName,
+                    value: currentValue,
+                    variation: this.localVariations[variationIndex]
+                };
+                
+                // Call the Livewire method
+                await livewireComponent.call('updateVariation', updateData);
+                
+                // Update original value if successful
+                this.originalVariations[variationIndex][fieldName] = currentValue;
+                this.isDirty[variationIndex][fieldName] = false;
+                
+            } catch (error) {
+                console.error('Error saving variation:', error);
+                
+                // Mark field as having an error
+                this.hasError[variationIndex][fieldName] = true;
+                
+                // Optionally revert to original value
+                // this.localVariations[variationIndex][fieldName] = this.originalVariations[variationIndex][fieldName];
+                // this.isDirty[variationIndex][fieldName] = false;
+                
+            } finally {
+                this.saving = false;
+            }
+        },
+        
+        // Watch for changes and mark as dirty
+        markFieldDirty(variationIndex, fieldName) {
+            const currentValue = this.localVariations[variationIndex][fieldName];
+            const originalValue = this.originalVariations[variationIndex][fieldName];
+            
+            this.isDirty[variationIndex][fieldName] = (currentValue !== originalValue);
+            this.hasError[variationIndex][fieldName] = false;
+        }
+    }
+}
+</script>

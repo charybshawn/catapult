@@ -192,8 +192,8 @@ class OrderToCropService
         // Try to get from price variation if packaging defines weight
         if ($product->priceVariations()->exists()) {
             $priceVar = $product->priceVariations()->first();
-            if ($priceVar->fill_weight) {
-                $baseGramsPerUnit = $priceVar->fill_weight;
+            if ($priceVar->fill_weight_grams) {
+                $baseGramsPerUnit = $priceVar->fill_weight_grams;
             }
         }
 

@@ -257,7 +257,7 @@ class EditProduct extends BaseEditRecord
         }
         
         if (isset($data['fill_weight_grams'])) {
-            $updateData['fill_weight'] = $data['fill_weight_grams'] ?: null;
+            $updateData['fill_weight_grams'] = $data['fill_weight_grams'] ?: null;
         }
         
         if (isset($data['price'])) {

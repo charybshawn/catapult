@@ -35,7 +35,7 @@ class PriceVariation extends Model
         'is_name_manual',
         'unit',
         'sku',
-        'fill_weight',
+        'fill_weight_grams',
         'price',
         'pricing_unit',
         'is_default',
@@ -53,7 +53,7 @@ class PriceVariation extends Model
         'is_global' => 'boolean',
         'is_active' => 'boolean',
         'is_name_manual' => 'boolean',
-        'fill_weight' => 'decimal:2',
+        'fill_weight_grams' => 'decimal:2',
         'price' => 'decimal:2',
     ];
 
@@ -74,7 +74,7 @@ class PriceVariation extends Model
             'name' => 'required|string|max:255',
             'sku' => 'nullable|string|max:255',
             'price' => 'required|numeric|min:0',
-            'fill_weight' => $isGlobal || $isLiveTray ? 'nullable|numeric|min:0' : 'required|numeric|min:0',
+            'fill_weight_grams' => $isGlobal || $isLiveTray ? 'nullable|numeric|min:0' : 'required|numeric|min:0',
             'packaging_type_id' => 'nullable|exists:packaging_types,id',
             'is_default' => 'boolean',
             'is_global' => 'boolean',
@@ -231,6 +231,7 @@ class PriceVariation extends Model
                 'name',
                 'sku',
                 'fill_weight',
+                'fill_weight_grams',
                 'price',
                 'pricing_unit',
                 'is_default',
@@ -279,9 +280,13 @@ class PriceVariation extends Model
             return;
         }
 
-        \App\Models\ProductInventory::where('product_id', $this->product_id)
-            ->where('price_variation_id', $this->id)
-            ->update(['status' => 'inactive']);
+        // Get inactive status ID
+        $inactiveStatus = \App\Models\ProductInventoryStatus::where('code', 'inactive')->first();
+        if ($inactiveStatus) {
+            \App\Models\ProductInventory::where('product_id', $this->product_id)
+                ->where('price_variation_id', $this->id)
+                ->update(['product_inventory_status_id' => $inactiveStatus->id]);
+        }
     }
 
     /**
