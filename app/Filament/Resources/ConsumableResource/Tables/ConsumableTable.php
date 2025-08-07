@@ -126,17 +126,6 @@ class ConsumableTable
     protected static function getSeedSpecificColumns(): array
     {
         return [
-            Tables\Columns\TextColumn::make('masterSeedCatalog.common_name')
-                ->label('Master Catalog')
-                ->getStateUsing(function ($record) {
-                    if ($record->consumableType && $record->consumableType->isSeed() && $record->masterSeedCatalog) {
-                        return $record->masterSeedCatalog->common_name;
-                    }
-                    return null;
-                })
-                ->searchable()
-                ->sortable()
-                ->toggleable(),
             Tables\Columns\TextColumn::make('remaining_seed')
                 ->label('Remaining Seed')
                 ->getStateUsing(function ($record) {
