@@ -224,33 +224,57 @@ class EditProduct extends BaseEditRecord
         
         // Ensure the variation belongs to this product
         if ($variation->product_id !== $this->record->id) {
+            Notification::make()
+                ->title('Unauthorized')
+                ->body('You cannot update this variation.')
+                ->danger()
+                ->send();
             return;
         }
         
-        // Prepare update data
-        $updateData = [
-            'packaging_type_id' => $data['packaging_type_id'] ?: null,
-            'pricing_unit' => $data['pricing_unit'] ?? 'per_item',
-            'fill_weight' => $data['fill_weight_grams'] ?: null,
-            'price' => $data['price'],
-            'pricing_type' => $data['pricing_type'] ?? 'retail',
-            'is_name_manual' => $data['is_name_manual'] ?? false,
-        ];
+        // Prepare update data from the data array
+        $updateData = [];
         
-        // Always allow name updates if provided
-        if (isset($data['name']) && trim($data['name']) !== '') {
+        if (isset($data['name'])) {
             $updateData['name'] = trim($data['name']);
+            $updateData['is_name_manual'] = $data['is_name_manual'] ?? true;
         }
         
-        $variation->update($updateData);
+        if (isset($data['pricing_type'])) {
+            $updateData['pricing_type'] = $data['pricing_type'];
+        }
         
-        // Refresh the record to ensure the relationship is updated
-        $this->record->refresh();
+        if (isset($data['pricing_unit'])) {
+            $updateData['pricing_unit'] = $data['pricing_unit'];
+        }
         
-        Notification::make()
-            ->title('Price variation updated')
-            ->success()
-            ->send();
+        if (isset($data['packaging_type_id'])) {
+            $updateData['packaging_type_id'] = $data['packaging_type_id'] ?: null;
+        }
+        
+        if (isset($data['sku'])) {
+            $updateData['sku'] = $data['sku'] ?: null;
+        }
+        
+        if (isset($data['fill_weight_grams'])) {
+            $updateData['fill_weight'] = $data['fill_weight_grams'] ?: null;
+        }
+        
+        if (isset($data['price'])) {
+            $updateData['price'] = $data['price'];
+        }
+        
+        if (!empty($updateData)) {
+            $variation->update($updateData);
+            
+            // Refresh the record to ensure the relationship is updated
+            $this->record->refresh();
+            
+            Notification::make()
+                ->title('Price variation updated')
+                ->success()
+                ->send();
+        }
         
         // Dispatch event to refresh the form
         $this->dispatch('$refresh');
