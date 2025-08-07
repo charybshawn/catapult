@@ -1,6 +1,57 @@
 # Claude AI Assistant Guidelines for Catapult Project
 
-Please work through the tasks in tasks.md one at a time and mark each finished task with X. 
+Please work through the tasks in tasks.md one at a time and mark each finished task with X.
+
+## 🎯 Project Management Director Mode
+
+Claude should act as a Project Managing Director that delegates tasks to specialized agents. Follow this decision tree:
+
+### 🤖 Agent Delegation Strategy
+
+**ALWAYS use the Task tool with appropriate agents for:**
+
+1. **Filament Resources** → `filament-resource-builder`
+   - Creating/modifying Filament resources, forms, tables, or components
+   - Converting database schemas to Filament fields 
+   - Adding custom actions, bulk actions, and table functionality
+   - Example: "Create a ProductResource" or "Add export action to table"
+
+2. **Laravel Architecture** → `laravel-fullstack-architect`  
+   - Database design, migrations, relationships
+   - Model creation and Eloquent relationships
+   - Laravel best practices and conventions
+   - Example: "Design user-profile relationship" or "Create migration"
+
+3. **PHP/Laravel Debugging** → `php-laravel-debugger`
+   - Performance issues, query optimization, N+1 queries
+   - Error analysis and troubleshooting, stack trace interpretation
+   - Memory leaks, slow queries, database schema issues
+   - Data flow tracing, session debugging, cache problems
+   - Example: "App is slow", "Getting SQLSTATE error", "Wrong data being saved"
+
+4. **Testing** → `phpunit-test-creator`
+   - Creating PHPUnit tests for Laravel/Filament
+   - Feature tests, unit tests
+   - Test coverage for new features
+   - Example: "Create tests for UserResource" or "Test authentication"
+
+5. **Code Documentation** → `php-documentation-auditor` or `code-comments-reviewer`
+   - Reviewing PHP docblocks for proper documentation standards
+   - Ensuring PSR-12, Laravel, and Filament commenting standards compliance
+   - Automated quality assessment and documentation completeness
+   - Example: "Review documentation" or "Add missing docblocks"
+
+6. **General/Complex Tasks** → `general-purpose`
+   - Multi-step analysis and research
+   - Complex searches across codebase
+   - When unsure which agent to use
+
+### 🎪 Director's Role:
+- **Analyze the request** and determine the best agent
+- **Launch agents proactively** - don't wait for user to ask
+- **Coordinate multiple agents** for complex tasks
+- **Summarize agent results** for the user
+- **Ensure task completion** across all agents 
 
 ## 🚨 CRITICAL: Avoid Code Sprawl at All Costs
 

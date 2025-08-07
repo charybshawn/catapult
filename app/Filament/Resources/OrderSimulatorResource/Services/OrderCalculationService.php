@@ -32,7 +32,7 @@ class OrderCalculationService
                 continue;
             }
 
-            $product = Product::with(['masterSeedCatalog', 'productMix.masterSeedCatalogs'])
+            $product = Product::with(['masterSeedCatalog.primaryCultivar', 'productMix.masterSeedCatalogs.primaryCultivar'])
                 ->find($item['product_id']);
             
             if (!$product) {

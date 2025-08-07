@@ -299,10 +299,16 @@ class ProductInventory extends Model
         $statusCode = $this->calculateStockStatus($totals->total_quantity ?? 0, $totals->total_reserved ?? 0, $product->reorder_threshold);
         $stockStatus = \App\Models\ProductStockStatus::findByCode($statusCode);
         
+        // Fallback to first available status if none found
+        $stockStatusId = $stockStatus?->id ?? 
+                        \App\Models\ProductStockStatus::findByCode('in_stock')?->id ?? 
+                        \App\Models\ProductStockStatus::first()?->id ?? 
+                        1; // Ultimate fallback
+        
         $product->update([
             'total_stock' => $totals->total_quantity ?? 0,
             'reserved_stock' => $totals->total_reserved ?? 0,
-            'stock_status_id' => $stockStatus?->id ?? \App\Models\ProductStockStatus::findByCode('in_stock')?->id,
+            'stock_status_id' => $stockStatusId,
         ]);
     }
 

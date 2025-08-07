@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class MasterSeedCatalog extends Model
 {
@@ -25,9 +25,14 @@ class MasterSeedCatalog extends Model
         'is_active' => 'boolean',
     ];
 
-    public function cultivar(): BelongsTo
+    public function cultivars(): HasMany
     {
-        return $this->belongsTo(MasterCultivar::class);
+        return $this->hasMany(MasterCultivar::class);
+    }
+    
+    public function primaryCultivar(): HasOne
+    {
+        return $this->hasOne(MasterCultivar::class);
     }
 
     public function consumables(): HasMany
@@ -38,5 +43,13 @@ class MasterSeedCatalog extends Model
     public function seedEntries(): HasMany
     {
         return $this->hasMany(SeedEntry::class);
+    }
+
+    /**
+     * Get the cultivar name from the primary related MasterCultivar
+     */
+    public function getCultivarNameAttribute(): ?string
+    {
+        return $this->primaryCultivar?->cultivar_name;
     }
 }
