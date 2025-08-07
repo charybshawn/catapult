@@ -31,6 +31,7 @@ use Database\Seeders\Lookup\TaskTypeSeeder;
 use Database\Seeders\Data\PackagingSeeder;
 use Database\Seeders\Data\CurrentSeedEntryDataSeeder;
 use Database\Seeders\Data\CurrentSeedConsumableDataSeeder;
+use Database\Seeders\DataSeeder;
 use Database\Seeders\Development\DevelopmentSeeder;
 
 class DatabaseSeeder extends Seeder
@@ -65,6 +66,10 @@ class DatabaseSeeder extends Seeder
             ProductStockStatusSeeder::class,
             SupplierTypeSeeder::class,
             TaskTypeSeeder::class,
+            
+            // Data seeders
+            PackagingSeeder::class,
+            DataSeeder::class,
         ]);
 
         // Note: NotificationSetting creation removed as the table structure doesn't match

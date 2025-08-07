@@ -1,0 +1,15 @@
+{
+    "timestamp": "2025-07-18T10:30:21-07:00",
+    "backup_type": "full",
+    "has_issues": true,
+    "summary": "Could not compare schemas: Failed to analyze migration schema: SQLSTATE[42000]: Syntax error or access violation: 1044 Access denied for user 'laravel_user'@'%' to database 'catapult_schema_test_1752859821' (Connection: mysql, SQL: DROP DATABASE IF EXISTS `catapult_schema_test_1752859821`)",
+    "details": {
+        "has_issues": true,
+        "summary": "Could not compare schemas: Failed to analyze migration schema: SQLSTATE[42000]: Syntax error or access violation: 1044 Access denied for user 'laravel_user'@'%' to database 'catapult_schema_test_1752859821' (Connection: mysql, SQL: DROP DATABASE IF EXISTS `catapult_schema_test_1752859821`)",
+        "error": true,
+        "extra_tables": [],
+        "missing_tables": [],
+        "column_differences": []
+    },
+    "formatted_report": "\u26a0\ufe0f Could not compare schemas: Failed to analyze migration schema: SQLSTATE[42000]: Syntax error or access violation: 1044 Access denied for user 'laravel_user'@'%' to database 'catapult_schema_test_1752859821' (Connection: mysql, SQL: DROP DATABASE IF EXISTS `catapult_schema_test_1752859821`)\n\n\ud83d\udca1 Impact on Backups:\n   \u2705 All backup types will work correctly - schema is in sync\n"
+}

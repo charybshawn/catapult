@@ -91,7 +91,7 @@
                                 pricing_unit: '{{ $variation->pricing_unit ?: 'per_item' }}',
                                 packaging_type_id: '{{ $variation->packaging_type_id }}',
                                 sku: '{{ $variation->sku }}',
-                                fill_weight_grams: '{{ $variation->fill_weight }}',
+                                fill_weight_grams: '{{ $variation->fill_weight_grams }}',
                                 price: '{{ $variation->price }}',
                                 is_name_manual: {{ $variation->is_name_manual ? 'true' : 'false' }},
                                 
