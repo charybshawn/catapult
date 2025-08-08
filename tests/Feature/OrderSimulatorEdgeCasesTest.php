@@ -53,7 +53,7 @@ class OrderSimulatorEdgeCasesTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Large Pack',
             'price' => 10.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -100,7 +100,7 @@ class OrderSimulatorEdgeCasesTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Tiny Pack',
             'price' => 1.00,
-            'fill_weight' => 0.001, // Very small fill weight
+            'fill_weight_grams' => 0.001, // Very small fill weight
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -146,7 +146,7 @@ class OrderSimulatorEdgeCasesTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Zero Weight Pack',
             'price' => 10.00,
-            'fill_weight' => 0, // Zero fill weight
+            'fill_weight_grams' => 0, // Zero fill weight
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -190,7 +190,7 @@ class OrderSimulatorEdgeCasesTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Null Weight Pack',
             'price' => 10.00,
-            'fill_weight' => null, // Null fill weight
+            'fill_weight_grams' => null, // Null fill weight
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -251,7 +251,7 @@ class OrderSimulatorEdgeCasesTest extends TestCase
             'product_id' => $mixProduct->id,
             'name' => 'Zero Mix Pack',
             'price' => 15.00,
-            'fill_weight' => 200.0,
+            'fill_weight_grams' => 200.0,
             'is_active' => true,
         ]);
 
@@ -312,7 +312,7 @@ class OrderSimulatorEdgeCasesTest extends TestCase
             'product_id' => $mixProduct->id,
             'name' => 'Broken Mix Pack',
             'price' => 15.00,
-            'fill_weight' => 200.0,
+            'fill_weight_grams' => 200.0,
             'is_active' => true,
         ]);
 
@@ -357,7 +357,7 @@ class OrderSimulatorEdgeCasesTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Concurrent Pack',
             'price' => 10.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -401,7 +401,7 @@ class OrderSimulatorEdgeCasesTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Transaction Pack',
             'price' => 10.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -466,7 +466,7 @@ class OrderSimulatorEdgeCasesTest extends TestCase
             'product_id' => $product->id,
             'name' => str_repeat('Very Long Variation Name ', 10),
             'price' => 10.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -515,7 +515,7 @@ class OrderSimulatorEdgeCasesTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Pack with "quotes" & <tags>',
             'price' => 10.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -580,7 +580,7 @@ class OrderSimulatorEdgeCasesTest extends TestCase
             'product_id' => $mixProduct->id,
             'name' => 'Large Memory Pack',
             'price' => 50.00,
-            'fill_weight' => 1000.0, // 1kg
+            'fill_weight_grams' => 1000.0, // 1kg
             'is_active' => true,
         ]);
 
@@ -627,7 +627,7 @@ class OrderSimulatorEdgeCasesTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Circular Pack',
             'price' => 10.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);

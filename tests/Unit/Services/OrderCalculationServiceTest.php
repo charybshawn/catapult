@@ -50,7 +50,7 @@ class OrderCalculationServiceTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Default',
             'price' => 10.00,
-            'fill_weight' => 113.4, // 4oz container in grams
+            'fill_weight_grams' => 113.4, // 4oz container in grams
             'is_default' => true,
             'is_active' => true,
         ]);
@@ -84,7 +84,7 @@ class OrderCalculationServiceTest extends TestCase
         $this->assertEquals('Basil Genovese Seeds', $item['product_name']);
         $this->assertEquals('Default', $item['package_size']);
         $this->assertEquals(3, $item['quantity']);
-        $this->assertEquals(113.4, $item['fill_weight']);
+        $this->assertEquals(113.4, $item['fill_weight_grams']);
         $this->assertEquals(340.2, $item['total_grams']);
         $this->assertEquals('single', $item['type']);
         
@@ -146,7 +146,7 @@ class OrderCalculationServiceTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Default Mix',
             'price' => 15.00,
-            'fill_weight' => 226.8, // 8oz container in grams
+            'fill_weight_grams' => 226.8, // 8oz container in grams
             'is_default' => true,
             'is_active' => true,
         ]);
@@ -188,7 +188,7 @@ class OrderCalculationServiceTest extends TestCase
         $this->assertEquals('Lettuce Salad Mix', $item['product_name']);
         $this->assertEquals('Default Mix', $item['package_size']);
         $this->assertEquals(2, $item['quantity']);
-        $this->assertEquals(226.8, $item['fill_weight']);
+        $this->assertEquals(226.8, $item['fill_weight_grams']);
         $this->assertEquals(453.6, $item['total_grams']);
         $this->assertEquals('mix', $item['type']);
 
@@ -260,7 +260,7 @@ class OrderCalculationServiceTest extends TestCase
             'product_id' => $singleProduct->id,
             'name' => 'Single Pack',
             'price' => 5.00,
-            'fill_weight' => 113.4, // 4oz
+            'fill_weight_grams' => 113.4, // 4oz
             'is_default' => true,
             'is_active' => true,
         ]);
@@ -269,7 +269,7 @@ class OrderCalculationServiceTest extends TestCase
             'product_id' => $mixProduct->id,
             'name' => 'Mix Pack',
             'price' => 8.00,
-            'fill_weight' => 113.4, // 4oz
+            'fill_weight_grams' => 113.4, // 4oz
             'is_default' => true,
             'is_active' => true,
         ]);
@@ -402,7 +402,7 @@ class OrderCalculationServiceTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Default',
             'price' => 10.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'is_default' => true,
             'is_active' => true,
         ]);
@@ -448,7 +448,7 @@ class OrderCalculationServiceTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Unusual Weight',
             'price' => 10.00,
-            'fill_weight' => 33.333, // This will create fractional results
+            'fill_weight_grams' => 33.333, // This will create fractional results
             'is_default' => true,
             'is_active' => true,
         ]);
@@ -505,7 +505,7 @@ class OrderCalculationServiceTest extends TestCase
             'product_id' => $product1->id,
             'name' => 'Small',
             'price' => 5.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'is_default' => true,
             'is_active' => true,
         ]);
@@ -514,7 +514,7 @@ class OrderCalculationServiceTest extends TestCase
             'product_id' => $product2->id,
             'name' => 'Large',
             'price' => 8.00,
-            'fill_weight' => 226.8,
+            'fill_weight_grams' => 226.8,
             'is_default' => true,
             'is_active' => true,
         ]);

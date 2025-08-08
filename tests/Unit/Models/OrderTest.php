@@ -68,7 +68,7 @@ class OrderTest extends TestCase
             'is_default' => true,
             'is_global' => false,
             'is_active' => true,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
         ]);
         
         $priceVar2 = PriceVariation::create([
@@ -79,7 +79,7 @@ class OrderTest extends TestCase
             'is_default' => true,
             'is_global' => false,
             'is_active' => true,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
         ]);
         
         // Create order items manually with controlled prices

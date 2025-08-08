@@ -19,7 +19,9 @@
       "Bash(git push:*)",
       "mcp__context7__resolve-library-id",
       "mcp__context7__get-library-docs",
-      "WebFetch(domain:uxdworld.com)"
+      "WebFetch(domain:uxdworld.com)",
+      "Bash(mv:*)",
+      "Bash(git rm:*)"
     ],
     "deny": []
   }

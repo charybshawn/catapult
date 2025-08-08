@@ -54,7 +54,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Retail Standard',
             'price' => 10.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -63,7 +63,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Wholesale Container',
             'price' => 8.00,
-            'fill_weight' => 226.8,
+            'fill_weight_grams' => 226.8,
             'pricing_type' => 'wholesale',
             'is_active' => true,
         ]);
@@ -72,7 +72,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Bulk Pack',
             'price' => 30.00,
-            'fill_weight' => 453.6,
+            'fill_weight_grams' => 453.6,
             'pricing_type' => 'bulk',
             'is_active' => true,
         ]);
@@ -90,7 +90,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
                 'product_id' => $product->id,
                 'name' => $name,
                 'price' => 7.50,
-                'fill_weight' => 226.8,
+                'fill_weight_grams' => 226.8,
                 'pricing_type' => 'retail', // Even with retail type, should be filtered by name
                 'is_active' => true,
             ]);
@@ -139,7 +139,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Standard Container',
             'price' => 12.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -159,7 +159,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
                 'product_id' => $product->id,
                 'name' => $name,
                 'price' => 25.00,
-                'fill_weight' => null, // Live trays often don't have fill weight
+                'fill_weight_grams' => null, // Live trays often don't have fill weight
                 'pricing_type' => 'retail',
                 'is_active' => true,
             ]);
@@ -203,7 +203,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Bulk - 1lb',
             'price' => 20.00,
-            'fill_weight' => 453.6, // 1 pound
+            'fill_weight_grams' => 453.6, // 1 pound
             'pricing_type' => 'bulk',
             'pricing_unit' => 'per_lb',
             'is_active' => true,
@@ -213,7 +213,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Bulk - 5lb',
             'price' => 90.00, // Better price per pound
-            'fill_weight' => 2268.0, // 5 pounds
+            'fill_weight_grams' => 2268.0, // 5 pounds
             'pricing_type' => 'bulk',
             'pricing_unit' => 'per_lb',
             'is_active' => true,
@@ -223,7 +223,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Bulk - 10lb',
             'price' => 170.00, // Even better price per pound
-            'fill_weight' => 4536.0, // 10 pounds
+            'fill_weight_grams' => 4536.0, // 10 pounds
             'pricing_type' => 'bulk',
             'pricing_unit' => 'per_lb',
             'is_active' => true,
@@ -327,7 +327,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
             'product_id' => $mixProduct->id,
             'name' => 'Mix Bulk - 2lb',
             'price' => 35.00,
-            'fill_weight' => 907.2, // 2 pounds
+            'fill_weight_grams' => 907.2, // 2 pounds
             'pricing_type' => 'bulk',
             'is_active' => true,
         ]);
@@ -336,7 +336,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
             'product_id' => $mixProduct->id,
             'name' => 'Mix Bulk - 5lb',
             'price' => 80.00,
-            'fill_weight' => 2268.0, // 5 pounds
+            'fill_weight_grams' => 2268.0, // 5 pounds
             'pricing_type' => 'bulk',
             'is_active' => true,
         ]);
@@ -410,7 +410,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Bulk - 500g',
             'price' => 15.00,
-            'fill_weight' => 500.0,
+            'fill_weight_grams' => 500.0,
             'pricing_unit' => 'per_g',
             'is_active' => true,
         ]);
@@ -419,7 +419,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Bulk - 2kg',
             'price' => 55.00,
-            'fill_weight' => 2000.0,
+            'fill_weight_grams' => 2000.0,
             'pricing_unit' => 'per_kg',
             'is_active' => true,
         ]);
@@ -428,7 +428,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Bulk - 5lb',
             'price' => 120.00,
-            'fill_weight' => 2268.0, // 5 * 453.6
+            'fill_weight_grams' => 2268.0, // 5 * 453.6
             'pricing_unit' => 'per_lb',
             'is_active' => true,
         ]);
@@ -505,7 +505,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Retail - 4oz Container',
             'price' => 8.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -514,7 +514,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Bulk - 1lb',
             'price' => 25.00,
-            'fill_weight' => 453.6,
+            'fill_weight_grams' => 453.6,
             'pricing_type' => 'bulk',
             'is_active' => true,
         ]);
@@ -523,7 +523,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Bulk - 5lb',
             'price' => 110.00,
-            'fill_weight' => 2268.0,
+            'fill_weight_grams' => 2268.0,
             'pricing_type' => 'bulk',
             'is_active' => true,
         ]);
@@ -597,7 +597,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Live Tray - Large',
             'price' => 30.00,
-            'fill_weight' => null, // Live trays typically don't have fill weight
+            'fill_weight_grams' => null, // Live trays typically don't have fill weight
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -624,7 +624,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
         $this->assertEquals('Live Tray Service Product', $item['product_name']);
         $this->assertEquals('Live Tray - Large', $item['package_size']);
         $this->assertEquals(2, $item['quantity']);
-        $this->assertEquals(0, $item['fill_weight']);
+        $this->assertEquals(0, $item['fill_weight_grams']);
         $this->assertEquals(0, $item['total_grams']);
     }
 
@@ -685,7 +685,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
             'product_id' => $singleProduct->id,
             'name' => 'Single Retail - 4oz',
             'price' => 9.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -694,7 +694,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
             'product_id' => $singleProduct->id,
             'name' => 'Single Bulk - 1lb',
             'price' => 32.00,
-            'fill_weight' => 453.6,
+            'fill_weight_grams' => 453.6,
             'pricing_type' => 'bulk',
             'is_active' => true,
         ]);
@@ -703,7 +703,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
             'product_id' => $mixProduct->id,
             'name' => 'Mix Retail - 8oz',
             'price' => 18.00,
-            'fill_weight' => 226.8,
+            'fill_weight_grams' => 226.8,
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -712,7 +712,7 @@ class OrderSimulatorBulkPricingTest extends TestCase
             'product_id' => $mixProduct->id,
             'name' => 'Mix Bulk - 2lb',
             'price' => 65.00,
-            'fill_weight' => 907.2,
+            'fill_weight_grams' => 907.2,
             'pricing_type' => 'bulk',
             'is_active' => true,
         ]);

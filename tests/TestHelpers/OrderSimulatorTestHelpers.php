@@ -69,7 +69,7 @@ class OrderSimulatorTestHelpers
                 [
                     'name' => 'Default',
                     'price' => 10.00,
-                    'fill_weight' => 113.4,
+                    'fill_weight_grams' => 113.4,
                     'pricing_type' => 'retail',
                     'is_active' => true,
                     'is_default' => true,
@@ -198,7 +198,7 @@ class OrderSimulatorTestHelpers
                 [
                     'name' => 'Default Mix',
                     'price' => 15.00,
-                    'fill_weight' => 226.8,
+                    'fill_weight_grams' => 226.8,
                     'pricing_type' => 'retail',
                     'is_active' => true,
                 ]
@@ -235,21 +235,21 @@ class OrderSimulatorTestHelpers
             [
                 'name' => 'Bulk - 1lb',
                 'price' => 20.00,
-                'fill_weight' => 453.6,
+                'fill_weight_grams' => 453.6,
                 'pricing_type' => 'bulk',
                 'pricing_unit' => 'per_lb',
             ],
             [
                 'name' => 'Bulk - 5lb',
                 'price' => 90.00,
-                'fill_weight' => 2268.0,
+                'fill_weight_grams' => 2268.0,
                 'pricing_type' => 'bulk',
                 'pricing_unit' => 'per_lb',
             ],
             [
                 'name' => 'Bulk - 10lb',
                 'price' => 170.00,
-                'fill_weight' => 4536.0,
+                'fill_weight_grams' => 4536.0,
                 'pricing_type' => 'bulk',
                 'pricing_unit' => 'per_lb',
             ]
@@ -377,19 +377,19 @@ class OrderSimulatorTestHelpers
             [
                 'name' => 'Retail Standard',
                 'price' => 10.00,
-                'fill_weight' => 113.4,
+                'fill_weight_grams' => 113.4,
                 'pricing_type' => 'retail',
             ],
             [
                 'name' => 'Bulk Container',
                 'price' => 30.00,
-                'fill_weight' => 453.6,
+                'fill_weight_grams' => 453.6,
                 'pricing_type' => 'bulk',
             ],
             [
                 'name' => 'Premium Pack',
                 'price' => 15.00,
-                'fill_weight' => 226.8,
+                'fill_weight_grams' => 226.8,
                 'pricing_type' => 'retail',
             ],
         ];
@@ -399,19 +399,19 @@ class OrderSimulatorTestHelpers
             [
                 'name' => 'Wholesale Container',
                 'price' => 8.00,
-                'fill_weight' => 113.4,
+                'fill_weight_grams' => 113.4,
                 'pricing_type' => 'wholesale',
             ],
             [
                 'name' => 'Live Tray',
                 'price' => 25.00,
-                'fill_weight' => null,
+                'fill_weight_grams' => null,
                 'pricing_type' => 'retail',
             ],
             [
                 'name' => 'Premium Wholesale',
                 'price' => 12.00,
-                'fill_weight' => 226.8,
+                'fill_weight_grams' => 226.8,
                 'pricing_type' => 'retail',
             ],
         ];
@@ -485,8 +485,8 @@ class OrderSimulatorTestHelpers
             ['name' => 'Genovese Basil Seeds'],
             ['common_name' => 'Basil', 'cultivar_name' => 'Genovese'],
             [
-                ['name' => 'Retail - 4oz', 'price' => 8.99, 'fill_weight' => 113.4],
-                ['name' => 'Bulk - 1lb', 'price' => 32.99, 'fill_weight' => 453.6, 'pricing_type' => 'bulk'],
+                ['name' => 'Retail - 4oz', 'price' => 8.99, 'fill_weight_grams' => 113.4],
+                ['name' => 'Bulk - 1lb', 'price' => 32.99, 'fill_weight_grams' => 453.6, 'pricing_type' => 'bulk'],
             ]
         );
 
@@ -494,8 +494,8 @@ class OrderSimulatorTestHelpers
             ['name' => 'Cherry Tomato Seeds'],
             ['common_name' => 'Tomato', 'cultivar_name' => 'Cherry'],
             [
-                ['name' => 'Retail - 4oz', 'price' => 12.99, 'fill_weight' => 113.4],
-                ['name' => 'Retail - 8oz', 'price' => 22.99, 'fill_weight' => 226.8],
+                ['name' => 'Retail - 4oz', 'price' => 12.99, 'fill_weight_grams' => 113.4],
+                ['name' => 'Retail - 8oz', 'price' => 22.99, 'fill_weight_grams' => 226.8],
             ]
         );
 
@@ -518,8 +518,8 @@ class OrderSimulatorTestHelpers
             ],
             ['name' => 'Premium Salad Mix Seeds'],
             [
-                ['name' => 'Mix - 8oz', 'price' => 18.99, 'fill_weight' => 226.8],
-                ['name' => 'Mix Bulk - 2lb', 'price' => 65.99, 'fill_weight' => 907.2, 'pricing_type' => 'bulk'],
+                ['name' => 'Mix - 8oz', 'price' => 18.99, 'fill_weight_grams' => 226.8],
+                ['name' => 'Mix Bulk - 2lb', 'price' => 65.99, 'fill_weight_grams' => 907.2, 'pricing_type' => 'bulk'],
             ]
         );
 

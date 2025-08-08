@@ -73,7 +73,7 @@ class OrderSimulatorTest extends TestCase
             'product_id' => $activeProduct->id,
             'name' => 'Retail - 4oz',
             'price' => 10.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -83,7 +83,7 @@ class OrderSimulatorTest extends TestCase
             'product_id' => $activeProduct->id,
             'name' => 'Wholesale - 4oz',
             'price' => 8.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'pricing_type' => 'wholesale',
             'is_active' => true,
         ]);
@@ -93,7 +93,7 @@ class OrderSimulatorTest extends TestCase
             'product_id' => $activeProduct->id,
             'name' => 'Live Tray',
             'price' => 15.00,
-            'fill_weight' => null,
+            'fill_weight_grams' => null,
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -103,7 +103,7 @@ class OrderSimulatorTest extends TestCase
             'product_id' => $activeProduct->id,
             'name' => 'Inactive - 4oz',
             'price' => 12.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'pricing_type' => 'retail',
             'is_active' => false,
         ]);
@@ -163,7 +163,7 @@ class OrderSimulatorTest extends TestCase
                 'product_id' => $product->id,
                 'name' => $variation['name'],
                 'price' => 10.00,
-                'fill_weight' => 113.4,
+                'fill_weight_grams' => 113.4,
                 'pricing_type' => 'retail',
                 'is_active' => true,
             ]);
@@ -203,7 +203,7 @@ class OrderSimulatorTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Test Pack',
             'price' => 10.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -268,7 +268,7 @@ class OrderSimulatorTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Hide Pack',
             'price' => 10.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -325,7 +325,7 @@ class OrderSimulatorTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Remove Pack',
             'price' => 10.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -369,7 +369,7 @@ class OrderSimulatorTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Calc Pack',
             'price' => 10.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -429,7 +429,7 @@ class OrderSimulatorTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Zero Pack',
             'price' => 10.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -560,7 +560,7 @@ class OrderSimulatorTest extends TestCase
             'product_id' => $product1->id,
             'name' => 'Pack 1',
             'price' => 10.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);
@@ -569,7 +569,7 @@ class OrderSimulatorTest extends TestCase
             'product_id' => $product2->id,
             'name' => 'Pack 2',
             'price' => 15.00,
-            'fill_weight' => 226.8,
+            'fill_weight_grams' => 226.8,
             'pricing_type' => 'retail',
             'is_active' => true,
         ]);

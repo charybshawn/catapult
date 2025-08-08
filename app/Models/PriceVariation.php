@@ -230,7 +230,6 @@ class PriceVariation extends Model
                 'packaging_type_id',
                 'name',
                 'sku',
-                'fill_weight',
                 'fill_weight_grams',
                 'price',
                 'pricing_unit',

@@ -94,7 +94,7 @@ class FactoryTest extends TestCase
             'is_default' => true,
             'is_global' => false,
             'is_active' => true,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
         ]);
 
         $this->assertInstanceOf(PriceVariation::class, $priceVariation);
@@ -126,7 +126,7 @@ class FactoryTest extends TestCase
             'is_default' => true,
             'is_global' => false,
             'is_active' => true,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
         ]);
 
         $orderItem = OrderItem::create([

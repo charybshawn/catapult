@@ -35,7 +35,7 @@ class PriceVariationForm
                 ->label('Global Pricing Template')
                 ->helperText('Create a reusable template for any product')
                 ->default(false)
-                ->live(onBlur: true)()
+                ->live(onBlur: true)
                 ->afterStateUpdated(function ($state, Forms\Set $set) {
                     if ($state) {
                         $set('is_default', false);

@@ -66,7 +66,7 @@ class OrderSimulatorPricingIntegrationTest extends TestCase
             'packaging_type_id' => $container4oz->id,
             'name' => 'Retail - 4oz Container',
             'price' => 10.00,
-            'fill_weight' => 113.4,
+            'fill_weight_grams' => 113.4,
             'pricing_type' => 'retail',
             'pricing_unit' => 'per_item',
             'is_active' => true,
@@ -77,7 +77,7 @@ class OrderSimulatorPricingIntegrationTest extends TestCase
             'packaging_type_id' => $container8oz->id,
             'name' => 'Wholesale - 8oz Container',
             'price' => 8.00,
-            'fill_weight' => 226.8,
+            'fill_weight_grams' => 226.8,
             'pricing_type' => 'wholesale',
             'pricing_unit' => 'per_item',
             'is_active' => true,
@@ -87,7 +87,7 @@ class OrderSimulatorPricingIntegrationTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Bulk - per lb',
             'price' => 6.00,
-            'fill_weight' => 453.6,
+            'fill_weight_grams' => 453.6,
             'pricing_type' => 'bulk',
             'pricing_unit' => 'per_lb',
             'is_active' => true,
@@ -135,7 +135,7 @@ class OrderSimulatorPricingIntegrationTest extends TestCase
             ->first();
         
         $this->assertEquals(2, $retailItem['quantity']);
-        $this->assertEquals(113.4, $retailItem['fill_weight']);
+        $this->assertEquals(113.4, $retailItem['fill_weight_grams']);
         $this->assertEquals(226.8, $retailItem['total_grams']);
 
         $wholesaleItem = collect($results['item_breakdown'])
@@ -143,14 +143,14 @@ class OrderSimulatorPricingIntegrationTest extends TestCase
             ->first();
         
         $this->assertEquals(1, $wholesaleItem['quantity']);
-        $this->assertEquals(226.8, $wholesaleItem['fill_weight']);
+        $this->assertEquals(226.8, $wholesaleItem['fill_weight_grams']);
 
         $bulkItem = collect($results['item_breakdown'])
             ->where('package_size', 'Bulk - per lb')
             ->first();
         
         $this->assertEquals(1, $bulkItem['quantity']);
-        $this->assertEquals(453.6, $bulkItem['fill_weight']);
+        $this->assertEquals(453.6, $bulkItem['fill_weight_grams']);
     }
 
     /** @test */
@@ -176,7 +176,7 @@ class OrderSimulatorPricingIntegrationTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Per Gram',
             'price' => 0.10,
-            'fill_weight' => 100.0, // 100 grams
+            'fill_weight_grams' => 100.0, // 100 grams
             'pricing_unit' => 'per_g',
             'is_active' => true,
         ]);
@@ -185,7 +185,7 @@ class OrderSimulatorPricingIntegrationTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Per Kilogram',
             'price' => 100.00,
-            'fill_weight' => 1000.0, // 1000 grams (1 kg)
+            'fill_weight_grams' => 1000.0, // 1000 grams (1 kg)
             'pricing_unit' => 'per_kg',
             'is_active' => true,
         ]);
@@ -194,7 +194,7 @@ class OrderSimulatorPricingIntegrationTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Per Pound',
             'price' => 45.36,
-            'fill_weight' => 453.592, // 1 pound in grams
+            'fill_weight_grams' => 453.592, // 1 pound in grams
             'pricing_unit' => 'per_lb',
             'is_active' => true,
         ]);
@@ -203,7 +203,7 @@ class OrderSimulatorPricingIntegrationTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Per Ounce',
             'price' => 2.83,
-            'fill_weight' => 28.3495, // 1 ounce in grams
+            'fill_weight_grams' => 28.3495, // 1 ounce in grams
             'pricing_unit' => 'per_oz',
             'is_active' => true,
         ]);
@@ -279,7 +279,7 @@ class OrderSimulatorPricingIntegrationTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Unknown Unit',
             'price' => 10.00,
-            'fill_weight' => 100.0,
+            'fill_weight_grams' => 100.0,
             'pricing_unit' => 'invalid_unit',
             'is_active' => true,
         ]);
@@ -289,7 +289,7 @@ class OrderSimulatorPricingIntegrationTest extends TestCase
             'product_id' => $product->id,
             'name' => 'Null Unit',
             'price' => 10.00,
-            'fill_weight' => 100.0,
+            'fill_weight_grams' => 100.0,
             'pricing_unit' => null,
             'is_active' => true,
         ]);
@@ -381,7 +381,7 @@ class OrderSimulatorPricingIntegrationTest extends TestCase
             'product_id' => $mixProduct->id,
             'name' => 'Small Mix - 4oz',
             'price' => 12.00,
-            'fill_weight' => 113.4, // 4oz in grams
+            'fill_weight_grams' => 113.4, // 4oz in grams
             'pricing_unit' => 'per_item',
             'is_active' => true,
         ]);
@@ -390,7 +390,7 @@ class OrderSimulatorPricingIntegrationTest extends TestCase
             'product_id' => $mixProduct->id,
             'name' => 'Large Mix - 1lb',
             'price' => 40.00,
-            'fill_weight' => 453.6, // 1 pound in grams
+            'fill_weight_grams' => 453.6, // 1 pound in grams
             'pricing_unit' => 'per_lb',
             'is_active' => true,
         ]);
@@ -504,7 +504,7 @@ class OrderSimulatorPricingIntegrationTest extends TestCase
             'product_id' => $mixProduct->id,
             'name' => 'Precision Pack',
             'price' => 15.00,
-            'fill_weight' => 300.0, // Use round number for easy calculation
+            'fill_weight_grams' => 300.0, // Use round number for easy calculation
             'is_active' => true,
         ]);
 

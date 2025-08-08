@@ -1,0 +1,14 @@
+{
+    "timestamp": "2025-08-08T11:37:45-07:00",
+    "backup_type": "data-only",
+    "has_issues": false,
+    "summary": "Database schema matches migrations perfectly",
+    "details": {
+        "extra_tables": [],
+        "missing_tables": [],
+        "column_differences": [],
+        "summary": "Database schema matches migrations perfectly",
+        "has_issues": false
+    },
+    "formatted_report": "\u2705 Database schema matches migrations perfectly"
+}

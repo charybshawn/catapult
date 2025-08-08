@@ -68,7 +68,7 @@ class PriceVariationFormFields
                 'per_oz' => 'Per Ounce',
             ])
             ->default('per_item')
-            ->live(onBlur: true)()
+            ->live(onBlur: true)
             ->visible(fn (Forms\Get $get): bool => $get('pricing_type') === 'bulk' ||
                 $get('pricing_type') === 'wholesale' ||
                 ! $get('packaging_type_id')
@@ -219,7 +219,7 @@ class PriceVariationFormFields
             ->required(function (Forms\Get $get): bool {
                 return PriceVariationFormHelpers::isFillWeightRequired($get);
             })
-            ->live(onBlur: true)();
+            ->live(onBlur: true);
     }
 
     /**
