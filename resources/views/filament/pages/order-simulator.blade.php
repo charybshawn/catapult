@@ -356,6 +356,17 @@
                 .print-controls { margin: 20px 0; text-align: center; }
                 .print-btn { background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; margin: 0 10px; }
                 .print-btn:hover { background: #2563eb; }
+                .item-card { margin-bottom: 20px; border: 1px solid #e5e7eb; border-radius: 4px; padding: 15px; break-inside: avoid; }
+                .item-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+                .item-title { font-weight: bold; font-size: 14px; color: #1f2937; }
+                .item-details { font-size: 12px; color: #6b7280; margin-top: 2px; }
+                .item-total { font-weight: bold; font-size: 14px; color: #1f2937; text-align: right; }
+                .mix-components { margin-top: 12px; padding-top: 10px; border-top: 1px solid #f3f4f6; }
+                .mix-label { font-size: 11px; color: #6b7280; text-transform: uppercase; font-weight: bold; margin-bottom: 8px; }
+                .mix-table { font-size: 12px; }
+                .mix-row { display: flex; justify-content: space-between; padding: 3px 0; }
+                .variety-name { color: #374151; }
+                .variety-grams { color: #1f2937; font-weight: 500; font-family: "Courier New", monospace; }
             `;
             
             head.appendChild(title);
@@ -399,11 +410,31 @@
                 <div class="section">
                     <h2 class="section-title">Detailed Item Breakdown</h2>
                     ` + (data.results.item_breakdown && data.results.item_breakdown.length > 0 ?
-                        '<table><thead><tr><th>Product</th><th>Package Size</th><th class="number">Quantity</th><th class="number">Total Grams</th></tr></thead><tbody>' +
-                        data.results.item_breakdown.map(item => 
-                            '<tr><td>' + item.product_name + '</td><td>' + item.package_size + '</td><td class="number">' + item.quantity + '</td><td class="number">' + parseFloat(item.total_grams).toFixed(2) + 'g</td></tr>'
-                        ).join('') +
-                        '</tbody></table>'
+                        data.results.item_breakdown.map(item => {
+                            let html = '<div class="item-card">';
+                            html += '<div class="item-header">';
+                            html += '<div class="item-title"><strong>' + item.product_name + '</strong></div>';
+                            html += '<div class="item-details">' + item.package_size + ' - Qty: ' + item.quantity + '</div>';
+                            html += '<div class="item-total">' + parseFloat(item.total_grams).toFixed(2) + 'g total</div>';
+                            html += '</div>';
+                            
+                            if (item.type === 'mix' && item.varieties && item.varieties.length > 0) {
+                                html += '<div class="mix-components">';
+                                html += '<div class="mix-label">Mix Components:</div>';
+                                html += '<div class="mix-table">';
+                                item.varieties.forEach(component => {
+                                    html += '<div class="mix-row">';
+                                    html += '<span class="variety-name">' + component.name + ' (' + component.percentage + '%)</span>';
+                                    html += '<span class="variety-grams">' + parseFloat(component.grams).toFixed(2) + 'g</span>';
+                                    html += '</div>';
+                                });
+                                html += '</div>';
+                                html += '</div>';
+                            }
+                            
+                            html += '</div>';
+                            return html;
+                        }).join('')
                         : '<p>No item breakdown available.</p>'
                     ) + `
                 </div>
