@@ -13,16 +13,19 @@ use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Page;
+use Filament\Actions\Action as PageAction;
 use Filament\Tables\Actions\Action as TableAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\TextInputColumn;
+use Filament\Tables\Columns\ViewColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 
 class ManageOrderSimulator extends Page implements HasForms, HasTable
@@ -34,8 +37,8 @@ class ManageOrderSimulator extends Page implements HasForms, HasTable
 
     protected static string $view = 'filament.pages.order-simulator';
 
-    public ?array $quantities = [];
-    public ?array $hiddenRows = [];
+    public array $quantities = [];
+    public array $hiddenRows = [];
     public bool $showHiddenPanel = false;
 
     public function mount(): void
@@ -45,11 +48,16 @@ class ManageOrderSimulator extends Page implements HasForms, HasTable
         $this->showHiddenPanel = Session::get('order_simulator_panel_open', false);
     }
     
+    public function updatedQuantities($value, $key): void
+    {
+        // Save to session whenever quantities are updated
+        Session::put('order_simulator_quantities', $this->quantities);
+    }
+    
     public function getTableRecordKey($record): string
     {
-        // Build composite key from individual IDs to ensure consistency
-        // Must match the format used in hideRow() and quantity tracking
-        return (string)$record->product_id . '_' . (string)$record->variation_id;
+        // Use variation_id directly as the record key
+        return (string) $record->variation_id;
     }
 
     public function table(Table $table): Table
@@ -68,22 +76,23 @@ class ManageOrderSimulator extends Page implements HasForms, HasTable
                 'products.category_id',
                 'product_price_variations.id as variation_id',
                 'product_price_variations.name as variation_name',
-                'product_price_variations.fill_weight',
+                'product_price_variations.fill_weight_grams',
                 'product_price_variations.price',
                 'product_price_variations.is_default'
             ])
             ->with('category')
-            ->orderBy('products.name')
-            ->orderBy('product_price_variations.name')
+            // CRITICAL FIX: Use deterministic ordering with primary keys first
+            // This ensures consistent record positioning across page loads
             ->orderBy('products.id')
-            ->orderBy('product_price_variations.id');
+            ->orderBy('product_price_variations.id')
+            ->orderBy('products.name')
+            ->orderBy('product_price_variations.name');
 
         // Filter out hidden rows if any exist
         if (!empty($this->hiddenRows)) {
-            $baseQuery->whereNotIn(
-                DB::raw('CONCAT(products.id, "_", product_price_variations.id)'),
-                array_keys($this->hiddenRows)
-            );
+            // Use variation IDs directly as keys
+            $hiddenVariationIds = array_keys($this->hiddenRows);
+            $baseQuery->whereNotIn('product_price_variations.id', $hiddenVariationIds);
         }
 
         return $table
@@ -102,8 +111,8 @@ class ManageOrderSimulator extends Page implements HasForms, HasTable
                     ->label('Package')
                     ->getStateUsing(function ($record) {
                         $label = $record->variation_name;
-                        if ($record->fill_weight) {
-                            $label .= ' (' . $record->fill_weight . 'g)';
+                        if ($record->fill_weight_grams) {
+                            $label .= ' (' . $record->fill_weight_grams . 'g)';
                         }
                         if ($record->is_default) {
                             $label .= ' (Default)';
@@ -116,24 +125,9 @@ class ManageOrderSimulator extends Page implements HasForms, HasTable
                     ->money('USD')
                     ->sortable(),
                     
-                TextInputColumn::make('quantity')
+                ViewColumn::make('quantity')
                     ->label('Quantity')
-                    ->type('number')
-                    ->rules(['nullable', 'integer', 'min:0'])
-                    ->getStateUsing(function ($record) {
-                        $key = $record->product_id . '_' . $record->variation_id;
-                        return $this->quantities[$key] ?? 0;
-                    })
-                    ->updateStateUsing(function ($record, $state) {
-                        $key = $record->product_id . '_' . $record->variation_id;
-                        if ($state > 0) {
-                            $this->quantities[$key] = (int) $state;
-                        } else {
-                            unset($this->quantities[$key]);
-                        }
-                        Session::put('order_simulator_quantities', $this->quantities);
-                        return $state;
-                    }),
+                    ->view('filament.tables.columns.quantity-input'),
             ])
             ->actions([
                 TableAction::make('hide')
@@ -141,30 +135,8 @@ class ManageOrderSimulator extends Page implements HasForms, HasTable
                     ->icon('heroicon-o-eye-slash')
                     ->color('gray')
                     ->action(function ($record) {
-                        // Get fresh data from database to ensure accuracy
-                        $freshRecord = Product::query()
-                            ->join('product_price_variations', 'products.id', '=', 'product_price_variations.product_id')
-                            ->where('products.id', $record->product_id)
-                            ->where('product_price_variations.id', $record->variation_id)
-                            ->select([
-                                'products.id as product_id',
-                                'products.name',
-                                'product_price_variations.id as variation_id',
-                                'product_price_variations.name as variation_name',
-                            ])
-                            ->first();
-                        
-                        if (!$freshRecord) {
-                            Notification::make()
-                                ->title('Error')
-                                ->danger()
-                                ->body('Could not find the specified product variation.')
-                                ->send();
-                            return;
-                        }
-                        
-                        $compositeId = $freshRecord->product_id . '_' . $freshRecord->variation_id;
-                        $this->hideRow($compositeId);
+                        // Use variation_id directly as the key
+                        $this->hideRow((string) $record->variation_id);
                     })
                     ->tooltip('Hide this row from the list'),
             ])
@@ -213,22 +185,16 @@ class ManageOrderSimulator extends Page implements HasForms, HasTable
         
         // Convert to the format expected by OrderCalculationService
         $orderItems = [];
-        foreach ($activeQuantities as $key => $quantity) {
-            // Parse the key: "product_id_variation_id"
-            $parts = explode('_', $key);
-            if (count($parts) !== 2) continue;
+        foreach ($activeQuantities as $variationIdKey => $quantity) {
+            // Use variation ID directly as it's already the key
+            $variationId = (int) $variationIdKey;
             
-            $productId = (int) $parts[0];
-            $variationId = (int) $parts[1];
-            
-            // Verify the product and variation exist
-            $product = Product::find($productId);
-            $variation = PriceVariation::find($variationId);
-            
-            if (!$product || !$variation) continue;
+            // Get the variation and its product
+            $variation = PriceVariation::with('product')->find($variationId);
+            if (!$variation || !$variation->product) continue;
             
             $orderItems[] = [
-                'product_id' => $productId,
+                'product_id' => $variation->product_id,
                 'price_variation_id' => $variationId,
                 'quantity' => $quantity
             ];
@@ -241,11 +207,33 @@ class ManageOrderSimulator extends Page implements HasForms, HasTable
         // Store results in session for display
         Session::put('order_simulator_results', $results);
         
-        Notification::make()
-            ->title('Calculation Complete')
-            ->success()
-            ->body('Variety requirements calculated for ' . count($orderItems) . ' product packages.')
-            ->send();
+        // Check for errors and notify user appropriately
+        if (!empty($results['missing_fill_weights'])) {
+            $missingProducts = collect($results['missing_fill_weights'])
+                ->map(fn($item) => "• {$item['product_name']} - {$item['variation_name']}")
+                ->join("\n");
+            
+            Notification::make()
+                ->title('Missing Fill Weight Data')
+                ->warning()
+                ->body("The following products are missing fill weight data and were skipped:\n\n{$missingProducts}\n\nPlease update the fill weight (grams) for these product variations to include them in calculations.")
+                ->duration(10000) // Show for 10 seconds
+                ->send();
+        }
+        
+        // Show success notification if any items were calculated
+        if (!empty($results['variety_totals']) || !empty($results['item_breakdown'])) {
+            $successMessage = 'Variety requirements calculated for ' . count($results['item_breakdown']) . ' product packages.';
+            if (!empty($results['missing_fill_weights'])) {
+                $successMessage .= ' (' . count($results['missing_fill_weights']) . ' items skipped due to missing data)';
+            }
+            
+            Notification::make()
+                ->title('Calculation Complete')
+                ->success()
+                ->body($successMessage)
+                ->send();
+        }
         
         // Force a refresh to show results
         $this->dispatch('refresh-results');
@@ -272,47 +260,30 @@ class ManageOrderSimulator extends Page implements HasForms, HasTable
         $this->dispatch('$refresh');
     }
 
-    public function hideRow(string $compositeId): void
+    public function hideRow(string $variationId): void
     {
-        // Get the product name for the notification
-        $parts = explode('_', $compositeId);
-        if (count($parts) !== 2) {
+        // Get the variation and its product
+        $variation = PriceVariation::with('product')->find($variationId);
+        
+        if (!$variation || !$variation->product) {
             Notification::make()
                 ->title('Error')
                 ->danger()
-                ->body('Invalid row identifier format.')
+                ->body('Could not find the specified product variation.')
                 ->send();
             return;
         }
         
-        $productId = (int) $parts[0];
-        $variationId = (int) $parts[1];
+        $rowName = $variation->product->name . ' - ' . $variation->name;
         
-        $product = Product::find($productId);
-        $variation = PriceVariation::find($variationId);
-        
-        if (!$product || !$variation) {
-            Notification::make()
-                ->title('Error')
-                ->danger()
-                ->body('Could not find the specified product or variation.')
-                ->send();
-            return;
-        }
-        
-        $rowName = $product->name;
-        if ($variation) {
-            $rowName .= ' - ' . $variation->name;
-        }
-        
-        // Add to hidden rows
-        $this->hiddenRows[$compositeId] = [
+        // Add to hidden rows using variation_id as key
+        $this->hiddenRows[$variationId] = [
             'product_name' => $rowName,
             'hidden_at' => now()->toISOString(),
         ];
         
-        // Remove from quantities if it was set
-        unset($this->quantities[$compositeId]);
+        // Remove from quantities if it was set using variation_id as key
+        unset($this->quantities[$variationId]);
         
         // Update session
         Session::put('order_simulator_hidden_rows', $this->hiddenRows);
@@ -321,7 +292,7 @@ class ManageOrderSimulator extends Page implements HasForms, HasTable
         Notification::make()
             ->title('Row Hidden')
             ->success()
-            ->body("'{$rowName}' has been hidden from the list. (ID: {$compositeId})")
+            ->body("'{$rowName}' has been hidden from the list. (ID: {$variationId})")
             ->send();
         
         // Refresh the table to reflect changes
@@ -353,16 +324,16 @@ class ManageOrderSimulator extends Page implements HasForms, HasTable
         $this->dispatch('$refresh');
     }
 
-    public function showHiddenItem(string $compositeId): void
+    public function showHiddenItem(string $variationId): void
     {
-        if (!isset($this->hiddenRows[$compositeId])) {
+        if (!isset($this->hiddenRows[$variationId])) {
             return;
         }
         
-        $rowName = $this->hiddenRows[$compositeId]['product_name'];
+        $rowName = $this->hiddenRows[$variationId]['product_name'];
         
         // Remove from hidden rows
-        unset($this->hiddenRows[$compositeId]);
+        unset($this->hiddenRows[$variationId]);
         
         // Hide panel if no more hidden rows
         if (empty($this->hiddenRows)) {
@@ -403,7 +374,7 @@ class ManageOrderSimulator extends Page implements HasForms, HasTable
         }
 
         return [
-            TableAction::make('print')
+            PageAction::make('print')
                 ->label('Print')
                 ->icon('heroicon-o-printer')
                 ->color('primary')
@@ -428,13 +399,25 @@ class ManageOrderSimulator extends Page implements HasForms, HasTable
             return;
         }
 
-        // Dispatch event to open print dialog in JavaScript
-        $this->dispatch('open-print-dialog', [
+        // Generate the print data
+        $printData = [
             'results' => $results,
             'generated_at' => now()->toISOString(),
             'total_varieties' => $results['summary']['total_varieties'] ?? 0,
             'total_items' => $results['summary']['total_items'] ?? 0,
             'total_grams' => $results['summary']['total_grams'] ?? 0,
-        ]);
+        ];
+        
+        // Call the print function
+        $escapedData = addslashes(json_encode($printData));
+        $this->js("
+            if (typeof window.openPrintWindow === 'function') {
+                const data = JSON.parse('{$escapedData}');
+                window.openPrintWindow(data);
+            } else {
+                console.error('openPrintWindow function not found');
+                alert('Print function not available');
+            }
+        ");
     }
 }

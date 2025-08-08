@@ -8,6 +8,7 @@ use App\Models\ProductMix;
 use App\Models\MasterSeedCatalog;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class OrderCalculationService
 {
@@ -21,6 +22,7 @@ class OrderCalculationService
     {
         $varietyTotals = [];
         $itemBreakdown = collect();
+        $missingFillWeights = [];
 
         foreach ($orderItems as $item) {
             if (empty($item['product_id']) || empty($item['price_variation_id']) || empty($item['quantity'])) {
@@ -32,7 +34,14 @@ class OrderCalculationService
                 continue;
             }
 
-            $product = Product::with(['masterSeedCatalog.primaryCultivar', 'productMix.masterSeedCatalogs.primaryCultivar'])
+            $product = Product::with([
+                    'masterSeedCatalog.cultivar',
+                    'masterSeedCatalog.primaryCultivar', 
+                    'productMix',
+                    'productMix.masterSeedCatalogs',
+                    'productMix.masterSeedCatalogs.cultivar',
+                    'productMix.masterSeedCatalogs.primaryCultivar'
+                ])
                 ->find($item['product_id']);
             
             if (!$product) {
@@ -40,8 +49,36 @@ class OrderCalculationService
             }
 
             $quantity = (int) $item['quantity'];
-            $fillWeight = $priceVariation->fill_weight ?? 0;
+            $fillWeight = $priceVariation->fill_weight_grams ?? 0;
+            
+            // Check for missing fill weight
+            if ($fillWeight <= 0) {
+                $missingFillWeights[] = [
+                    'product_name' => $product->name,
+                    'variation_name' => $priceVariation->name,
+                    'variation_id' => $priceVariation->id,
+                    'quantity' => $quantity
+                ];
+                Log::warning('Missing fill weight for product variation', [
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'variation_id' => $priceVariation->id,
+                    'variation_name' => $priceVariation->name
+                ]);
+                continue; // Skip this item since we can't calculate without fill weight
+            }
+            
             $totalWeight = $quantity * $fillWeight;
+            
+            Log::info('Processing product', [
+                'product_id' => $product->id,
+                'product_name' => $product->name,
+                'has_master_seed_catalog_id' => !is_null($product->master_seed_catalog_id),
+                'has_product_mix_id' => !is_null($product->product_mix_id),
+                'quantity' => $quantity,
+                'fill_weight' => $fillWeight,
+                'total_weight' => $totalWeight
+            ]);
 
             // Handle single variety products
             if ($product->master_seed_catalog_id) {
@@ -90,10 +127,25 @@ class OrderCalculationService
             elseif ($product->product_mix_id && $product->productMix) {
                 $mixVarieties = [];
                 
+                Log::info('Processing mix product', [
+                    'product_name' => $product->name,
+                    'product_mix_id' => $product->product_mix_id,
+                    'has_productMix' => !is_null($product->productMix),
+                    'masterSeedCatalogs_count' => $product->productMix ? $product->productMix->masterSeedCatalogs->count() : 0,
+                    'total_weight' => $totalWeight
+                ]);
+                
                 foreach ($product->productMix->masterSeedCatalogs as $variety) {
                     if (!$variety) {
                         continue;
                     }
+
+                    Log::info('Processing variety in mix', [
+                        'variety_id' => $variety->id,
+                        'variety_name' => $variety->common_name,
+                        'has_pivot' => !is_null($variety->pivot),
+                        'pivot_percentage' => $variety->pivot ? $variety->pivot->percentage : null
+                    ]);
 
                     $percentage = $variety->pivot->percentage / 100; // Convert to decimal
                     $varietyWeight = $totalWeight * $percentage;
@@ -157,7 +209,9 @@ class OrderCalculationService
                 'total_varieties' => count($sortedTotals),
                 'total_items' => count($orderItems),
                 'total_grams' => collect($sortedTotals)->sum('total_grams')
-            ]
+            ],
+            'missing_fill_weights' => $missingFillWeights,
+            'has_errors' => !empty($missingFillWeights)
         ];
     }
 }

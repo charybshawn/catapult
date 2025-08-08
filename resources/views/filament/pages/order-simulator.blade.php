@@ -25,6 +25,31 @@
             @endphp
 
         @if (!empty($results))
+            {{-- Warning Banner for Missing Fill Weights --}}
+            @if (!empty($results['missing_fill_weights']))
+                <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mb-4">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <x-heroicon-s-exclamation-triangle class="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-amber-800 dark:text-amber-200">
+                                Missing Fill Weight Data
+                            </h3>
+                            <div class="mt-2 text-sm text-amber-700 dark:text-amber-300">
+                                <p>The following products were excluded from calculations due to missing fill weight data:</p>
+                                <ul class="mt-2 list-disc list-inside space-y-1">
+                                    @foreach($results['missing_fill_weights'] as $missing)
+                                        <li>{{ $missing['product_name'] }} - {{ $missing['variation_name'] }} (Qty: {{ $missing['quantity'] }})</li>
+                                    @endforeach
+                                </ul>
+                                <p class="mt-2 font-medium">Please update the fill weight (grams) for these product variations in the product settings.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            @endif
+            
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700" 
                  x-data="{ activeTab: 'totals' }"
                  wire:poll.5s="$refresh">
@@ -228,10 +253,10 @@
                     <!-- Panel Content -->
                     <div class="flex-1 overflow-y-auto overscroll-contain">
                         <div class="p-4 sm:p-6 space-y-4">
-                            @foreach ($this->hiddenRows as $compositeId => $hiddenItem)
+                            @foreach ($this->hiddenRows as $variationId => $hiddenItem)
                                 <div class="group bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg p-4 border border-gray-200 dark:border-gray-600 transition-all duration-200"
                                      wire:loading.class="opacity-50 pointer-events-none"
-                                     wire:target="showHiddenItem('{{ $compositeId }}')">
+                                     wire:target="showHiddenItem('{{ $variationId }}')">
                                     <div class="flex items-start justify-between gap-4">
                                         <div class="flex-1 min-w-0">
                                             <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-3 group-hover:text-gray-700 dark:group-hover:text-gray-200 transition-colors">
@@ -245,13 +270,13 @@
                                             </div>
                                         </div>
                                         <button 
-                                            wire:click="showHiddenItem('{{ $compositeId }}')"
+                                            wire:click="showHiddenItem('{{ $variationId }}')"
                                             class="shrink-0 inline-flex items-center px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 border border-blue-200 rounded-lg transition-all duration-200 dark:text-blue-400 dark:bg-blue-900/20 dark:border-blue-800 dark:hover:bg-blue-900/30 dark:focus:ring-blue-400"
                                             aria-label="Restore {{ $hiddenItem['product_name'] }}"
                                         >
                                             <x-heroicon-s-eye class="w-4 h-4 mr-2" />
-                                            <span wire:loading.remove wire:target="showHiddenItem('{{ $compositeId }}')">Restore</span>
-                                            <span wire:loading wire:target="showHiddenItem('{{ $compositeId }}')">
+                                            <span wire:loading.remove wire:target="showHiddenItem('{{ $variationId }}')">Restore</span>
+                                            <span wire:loading wire:target="showHiddenItem('{{ $variationId }}')">
                                                 <x-heroicon-s-arrow-path class="w-4 h-4 animate-spin" />
                                             </span>
                                         </button>
@@ -284,272 +309,134 @@
         @endif
     </div>
 
-    @push('scripts')
-        <script>
-            document.addEventListener('livewire:initialized', () => {
-                Livewire.on('refresh-results', () => {
-                    // Results will be refreshed automatically via wire:poll
-                });
-
-                // Handle print dialog event
-                Livewire.on('open-print-dialog', (data) => {
-                    const printData = data[0];
-                    openPrintWindow(printData);
-                });
-                
-                // Handle keyboard navigation for accessibility
-                document.addEventListener('keydown', (e) => {
-                    if (e.key === 'Escape') {
-                        // Close panel on Escape key if it's open
-                        const panelElement = document.querySelector('#hidden-items-panel');
-                        if (panelElement && panelElement.offsetParent !== null) {
-                            @this.set('showHiddenPanel', false);
-                        }
-                    }
-                });
-            });
-
-            function openPrintWindow(data) {
-                const printWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes');
-                
-                const printContent = `
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <title>Order Simulator Results</title>
-                        <style>
-                            @page {
-                                margin: 0.5in;
-                                size: letter;
-                            }
-                            
-                            @media print {
-                                body { -webkit-print-color-adjust: exact; }
-                                .no-print { display: none !important; }
-                            }
-                            
-                            body {
-                                font-family: Arial, sans-serif;
-                                font-size: 12px;
-                                line-height: 1.4;
-                                color: #333;
-                                margin: 20px;
-                                padding: 0;
-                            }
-                            
-                            .header {
-                                text-align: center;
-                                margin-bottom: 30px;
-                                border-bottom: 2px solid #e5e7eb;
-                                padding-bottom: 20px;
-                            }
-                            
-                            .header h1 {
-                                color: #1f2937;
-                                font-size: 24px;
-                                margin: 0 0 10px 0;
-                                font-weight: bold;
-                            }
-                            
-                            .header .subtitle {
-                                color: #6b7280;
-                                font-size: 14px;
-                                margin: 5px 0;
-                            }
-                            
-                            .summary-stats {
-                                display: flex;
-                                justify-content: space-between;
-                                margin-bottom: 30px;
-                                padding: 15px;
-                                background-color: #f9fafb;
-                                border: 1px solid #e5e7eb;
-                                border-radius: 4px;
-                            }
-                            
-                            .stat-item {
-                                text-align: center;
-                                flex: 1;
-                            }
-                            
-                            .stat-item .label {
-                                font-size: 11px;
-                                color: #6b7280;
-                                text-transform: uppercase;
-                                font-weight: bold;
-                                margin-bottom: 5px;
-                            }
-                            
-                            .stat-item .value {
-                                font-size: 18px;
-                                font-weight: bold;
-                                color: #1f2937;
-                            }
-                            
-                            .section {
-                                margin-bottom: 30px;
-                                break-inside: avoid;
-                            }
-                            
-                            .section-title {
-                                font-size: 18px;
-                                font-weight: bold;
-                                color: #1f2937;
-                                margin-bottom: 15px;
-                                padding-bottom: 8px;
-                                border-bottom: 1px solid #e5e7eb;
-                            }
-                            
-                            table {
-                                width: 100%;
-                                border-collapse: collapse;
-                                margin-bottom: 20px;
-                            }
-                            
-                            th, td {
-                                padding: 8px 12px;
-                                text-align: left;
-                                border-bottom: 1px solid #e5e7eb;
-                            }
-                            
-                            th {
-                                background-color: #f9fafb;
-                                font-weight: bold;
-                                color: #374151;
-                                font-size: 11px;
-                                text-transform: uppercase;
-                                letter-spacing: 0.5px;
-                            }
-                            
-                            .number {
-                                text-align: right;
-                                font-family: 'Courier New', monospace;
-                            }
-                            
-                            .total-row {
-                                border-top: 2px solid #374151;
-                                font-weight: bold;
-                                background-color: #f3f4f6;
-                            }
-                            
-                            .print-controls {
-                                margin: 20px 0;
-                                text-align: center;
-                            }
-                            
-                            .print-btn {
-                                background: #3b82f6;
-                                color: white;
-                                border: none;
-                                padding: 10px 20px;
-                                border-radius: 4px;
-                                cursor: pointer;
-                                font-size: 14px;
-                                margin: 0 10px;
-                            }
-                            
-                            .print-btn:hover {
-                                background: #2563eb;
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="print-controls no-print">
-                            <button class="print-btn" onclick="window.print()">🖨️ Print</button>
-                            <button class="print-btn" onclick="window.close()">✖️ Close</button>
-                        </div>
-                        
-                        <div class="header">
-                            <h1>Order Simulator Results</h1>
-                            <div class="subtitle">Generated on ${new Date(data.generated_at).toLocaleString()}</div>
-                        </div>
-
-                        <div class="summary-stats">
-                            <div class="stat-item">
-                                <div class="label">Total Items</div>
-                                <div class="value">${data.total_items}</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="label">Total Varieties</div>
-                                <div class="value">${data.total_varieties}</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="label">Total Weight</div>
-                                <div class="value">${parseFloat(data.total_grams).toFixed(2)}g</div>
-                            </div>
-                        </div>
-
-                        <div class="section">
-                            <h2 class="section-title">Variety Requirements Summary</h2>
-                            ${data.results.variety_totals && data.results.variety_totals.length > 0 ? `
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Variety</th>
-                                            <th class="number">Total Grams Required</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${data.results.variety_totals.map(variety => `
-                                            <tr>
-                                                <td>${variety.variety_name}</td>
-                                                <td class="number">${parseFloat(variety.total_grams).toFixed(2)}g</td>
-                                            </tr>
-                                        `).join('')}
-                                    </tbody>
-                                    <tfoot>
-                                        <tr class="total-row">
-                                            <td><strong>Total</strong></td>
-                                            <td class="number"><strong>${parseFloat(data.results.summary.total_grams).toFixed(2)}g</strong></td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
-                            ` : '<p>No variety totals available.</p>'}
-                        </div>
-
-                        <div class="section">
-                            <h2 class="section-title">Detailed Item Breakdown</h2>
-                            ${data.results.item_breakdown && data.results.item_breakdown.length > 0 ? `
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Product</th>
-                                            <th>Package Size</th>
-                                            <th class="number">Quantity</th>
-                                            <th class="number">Total Grams</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${data.results.item_breakdown.map(item => `
-                                            <tr>
-                                                <td>${item.product_name}</td>
-                                                <td>${item.package_size}</td>
-                                                <td class="number">${item.quantity}</td>
-                                                <td class="number">${parseFloat(item.total_grams).toFixed(2)}g</td>
-                                            </tr>
-                                        `).join('')}
-                                    </tbody>
-                                </table>
-                            ` : '<p>No item breakdown available.</p>'}
-                        </div>
-                    </body>
-                    </html>
-                `;
-                
-                printWindow.document.write(printContent);
-                printWindow.document.close();
-                
-                // Auto-focus the print window
-                printWindow.focus();
-                
-                // Optional: Auto-print after a brief delay
-                setTimeout(() => {
-                    printWindow.print();
-                }, 500);
+    <script>
+        // Define the print function globally so it's available immediately
+        window.openPrintWindow = function(data) {
+            console.log('Opening print window with data:', data);
+            
+            if (!data || !data.results) {
+                console.error('No data provided to print function');
+                alert('No data available to print');
+                return;
             }
-        </script>
+            
+            const printWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes');
+            
+            if (!printWindow) {
+                console.error('Could not open print window - popup blocked?');
+                alert('Print window was blocked. Please allow popups for this site.');
+                return;
+            }
+            
+            // Build the HTML content using DOM methods to avoid template literal issues
+            const html = document.createElement('html');
+            const head = document.createElement('head');
+            const title = document.createElement('title');
+            title.textContent = 'Order Simulator Results';
+            
+            const style = document.createElement('style');
+            style.textContent = `
+                @page { margin: 0.5in; size: letter; }
+                @media print { body { -webkit-print-color-adjust: exact; } .no-print { display: none !important; } }
+                body { font-family: Arial, sans-serif; font-size: 12px; line-height: 1.4; color: #333; margin: 20px; padding: 0; }
+                .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #e5e7eb; padding-bottom: 20px; }
+                .header h1 { color: #1f2937; font-size: 24px; margin: 0 0 10px 0; font-weight: bold; }
+                .header .subtitle { color: #6b7280; font-size: 14px; margin: 5px 0; }
+                .summary-stats { display: flex; justify-content: space-between; margin-bottom: 30px; padding: 15px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; }
+                .stat-item { text-align: center; flex: 1; }
+                .stat-item .label { font-size: 11px; color: #6b7280; text-transform: uppercase; font-weight: bold; margin-bottom: 5px; }
+                .stat-item .value { font-size: 18px; font-weight: bold; color: #1f2937; }
+                .section { margin-bottom: 30px; break-inside: avoid; }
+                .section-title { font-size: 18px; font-weight: bold; color: #1f2937; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+                th { background-color: #f9fafb; font-weight: bold; color: #374151; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+                .number { text-align: right; font-family: "Courier New", monospace; }
+                .total-row { border-top: 2px solid #374151; font-weight: bold; background-color: #f3f4f6; }
+                .print-controls { margin: 20px 0; text-align: center; }
+                .print-btn { background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; margin: 0 10px; }
+                .print-btn:hover { background: #2563eb; }
+            `;
+            
+            head.appendChild(title);
+            head.appendChild(style);
+            
+            const body = document.createElement('body');
+            body.innerHTML = `
+                <div class="print-controls no-print">
+                    <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+                    <button class="print-btn" onclick="window.close()">✖️ Close</button>
+                </div>
+                <div class="header">
+                    <h1>Order Simulator Results</h1>
+                    <div class="subtitle">Generated on ` + new Date(data.generated_at).toLocaleString() + `</div>
+                </div>
+                <div class="summary-stats">
+                    <div class="stat-item">
+                        <div class="label">Total Items</div>
+                        <div class="value">` + data.total_items + `</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="label">Total Varieties</div>
+                        <div class="value">` + data.total_varieties + `</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="label">Total Weight</div>
+                        <div class="value">` + parseFloat(data.total_grams).toFixed(2) + `g</div>
+                    </div>
+                </div>
+                <div class="section">
+                    <h2 class="section-title">Variety Requirements Summary</h2>
+                    ` + (data.results.variety_totals && data.results.variety_totals.length > 0 ? 
+                        '<table><thead><tr><th>Variety</th><th class="number">Total Grams Required</th></tr></thead><tbody>' +
+                        data.results.variety_totals.map(variety => 
+                            '<tr><td>' + variety.variety_name + '</td><td class="number">' + parseFloat(variety.total_grams).toFixed(2) + 'g</td></tr>'
+                        ).join('') +
+                        '</tbody><tfoot><tr class="total-row"><td><strong>Total</strong></td><td class="number"><strong>' + parseFloat(data.results.summary.total_grams).toFixed(2) + 'g</strong></td></tr></tfoot></table>'
+                        : '<p>No variety totals available.</p>'
+                    ) + `
+                </div>
+                <div class="section">
+                    <h2 class="section-title">Detailed Item Breakdown</h2>
+                    ` + (data.results.item_breakdown && data.results.item_breakdown.length > 0 ?
+                        '<table><thead><tr><th>Product</th><th>Package Size</th><th class="number">Quantity</th><th class="number">Total Grams</th></tr></thead><tbody>' +
+                        data.results.item_breakdown.map(item => 
+                            '<tr><td>' + item.product_name + '</td><td>' + item.package_size + '</td><td class="number">' + item.quantity + '</td><td class="number">' + parseFloat(item.total_grams).toFixed(2) + 'g</td></tr>'
+                        ).join('') +
+                        '</tbody></table>'
+                        : '<p>No item breakdown available.</p>'
+                    ) + `
+                </div>
+            `;
+            
+            html.appendChild(head);
+            html.appendChild(body);
+            
+            printWindow.document.write('<!DOCTYPE html>' + html.outerHTML);
+            printWindow.document.close();
+            
+            // Auto-focus the print window
+            printWindow.focus();
+            
+            // Optional: Auto-print after a brief delay
+            setTimeout(function() {
+                printWindow.print();
+            }, 500);
+        };
 
-        <style>
+        // Handle keyboard navigation for accessibility
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                // Close panel on Escape key if it's open
+                const panelElement = document.querySelector('#hidden-items-panel');
+                if (panelElement && panelElement.offsetParent !== null) {
+                    @this.set('showHiddenPanel', false);
+                }
+            }
+        });
+    </script>
+
+    <style>
             /* Line clamping for product names */
             .line-clamp-3 {
                 display: -webkit-box;
@@ -618,5 +505,4 @@
                 transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
             }
         </style>
-    @endpush
 </x-filament-panels::page>
