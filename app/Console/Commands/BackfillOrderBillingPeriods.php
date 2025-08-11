@@ -64,6 +64,12 @@ class BackfillOrderBillingPeriods extends Command
                     $periodEnd = $deliveryDate->copy()->endOfWeek()->toDateString();
                     break;
                     
+                case 'biweekly':
+                    $startOfWeek = $deliveryDate->copy()->startOfWeek();
+                    $periodStart = $startOfWeek->toDateString();
+                    $periodEnd = $startOfWeek->copy()->addWeeks(2)->subDay()->toDateString();
+                    break;
+                    
                 case 'monthly':
                     $periodStart = $deliveryDate->copy()->startOfMonth()->toDateString();
                     $periodEnd = $deliveryDate->copy()->endOfMonth()->toDateString();

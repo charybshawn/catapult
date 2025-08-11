@@ -167,6 +167,13 @@ class Order extends Model
                         $order->billing_period_end = $deliveryDate->copy()->endOfWeek()->toDateString();
                         break;
                         
+                    case 'biweekly':
+                        // Find the start of the bi-weekly period (Monday of the week)
+                        $startOfWeek = $deliveryDate->copy()->startOfWeek();
+                        $order->billing_period_start = $startOfWeek->toDateString();
+                        $order->billing_period_end = $startOfWeek->copy()->addWeeks(2)->subDay()->toDateString();
+                        break;
+                        
                     case 'monthly':
                         $order->billing_period_start = $deliveryDate->copy()->startOfMonth()->toDateString();
                         $order->billing_period_end = $deliveryDate->copy()->endOfMonth()->toDateString();
@@ -927,6 +934,7 @@ class Order extends Model
         return match($this->billing_frequency) {
             'immediate' => 'Immediate',
             'weekly' => 'Weekly',
+            'biweekly' => 'Bi-weekly',
             'monthly' => 'Monthly',
             'quarterly' => 'Quarterly',
             default => 'Immediate',

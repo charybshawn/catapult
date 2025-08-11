@@ -171,6 +171,7 @@ class OrderForm
                     ->options([
                         'immediate' => 'Immediate',
                         'weekly' => 'Weekly',
+                        'biweekly' => 'Bi-weekly',
                         'monthly' => 'Monthly',
                         'quarterly' => 'Quarterly',
                     ])

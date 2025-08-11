@@ -63,6 +63,9 @@ class InvoiceConsolidationService
                         $periodQuery->where('billing_frequency', 'weekly')
                             ->where('billing_period_end', '<=', $forDate);
                     })->orWhere(function ($periodQuery) use ($forDate) {
+                        $periodQuery->where('billing_frequency', 'biweekly')
+                            ->where('billing_period_end', '<=', $forDate);
+                    })->orWhere(function ($periodQuery) use ($forDate) {
                         $periodQuery->where('billing_frequency', 'monthly')
                             ->where('billing_period_end', '<=', $forDate);
                     })->orWhere(function ($periodQuery) use ($forDate) {
@@ -190,6 +193,12 @@ class InvoiceConsolidationService
             case 'weekly':
                 $periodStart = $deliveryDate->copy()->startOfWeek();
                 $periodEnd = $deliveryDate->copy()->endOfWeek();
+                break;
+                
+            case 'biweekly':
+                $startOfWeek = $deliveryDate->copy()->startOfWeek();
+                $periodStart = $startOfWeek;
+                $periodEnd = $startOfWeek->copy()->addWeeks(2)->subDay();
                 break;
                 
             case 'monthly':

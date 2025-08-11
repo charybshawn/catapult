@@ -146,7 +146,7 @@ class OrderResource extends BaseResource
                     Forms\Components\DateTimePicker::make('delivery_date')
                         ->label('Delivery Date')
                         ->required()
-                        ->live(onBlur: true)(onBlur: true)
+                        ->live(onBlur: true)
                         ->afterStateUpdated(function ($state, callable $set, callable $get) {
                             if ($state) {
                                 try {
@@ -292,6 +292,7 @@ class OrderResource extends BaseResource
                         ->options([
                             'immediate' => 'Immediate',
                             'weekly' => 'Weekly',
+                            'biweekly' => 'Bi-weekly',
                             'monthly' => 'Monthly',
                             'quarterly' => 'Quarterly',
                         ])
