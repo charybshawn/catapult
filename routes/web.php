@@ -42,6 +42,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/admin/dashboard/advance-crops', [\App\Filament\Pages\Dashboard::class, 'advanceCropsFromAlert'])->name('dashboard.advance-crops');
     Route::post('/admin/dashboard/rollback-crops', [\App\Filament\Pages\Dashboard::class, 'rollbackCropFromAlert'])->name('dashboard.rollback-crops');
     
+    // Simple upload for large SQL files (workaround for Filament upload issues)
+    Route::post('/admin/simple-upload', [\App\Http\Controllers\SimpleUploadController::class, 'upload'])->name('simple.upload');
+    
     
     // Admin-specific routes that need Filament middleware
     Route::middleware(['web'])->prefix('admin')->group(function () {
@@ -50,5 +53,6 @@ Route::middleware('auth')->group(function () {
     
     
 });
+
 
 require __DIR__.'/auth.php';

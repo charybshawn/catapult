@@ -236,6 +236,18 @@ class MasterSeedCatalogTableSeeder extends Seeder
                 'created_at' => '2025-07-03 09:20:54',
                 'updated_at' => '2025-07-03 09:20:54',
             ],
+            [
+                'id' => 19,
+                'common_name' => 'Kale',
+                'cultivar_id' => 14, // Red (first of multiple)
+                'category' => null,
+                'aliases' => null,
+                'growing_notes' => null,
+                'description' => null,
+                'is_active' => 1,
+                'created_at' => '2025-07-03 09:19:56',
+                'updated_at' => '2025-07-03 09:19:56',
+            ],
         ]);
 
         // Re-enable foreign key checks

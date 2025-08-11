@@ -619,4 +619,55 @@
             </div>
         </div>
     </div>
+    {{-- Custom Script for Upload Fix --}}
+    @push('scripts')
+        <script>
+            // Fix for Filament file upload validation
+            document.addEventListener('DOMContentLoaded', function() {
+                // Override FilePond default settings for larger files
+                if (window.FilePond) {
+                    window.FilePond.setOptions({
+                        maxFileSize: '200MB',
+                        maxTotalFileSize: '200MB',
+                        labelMaxFileSizeExceeded: 'File is too large',
+                        labelMaxFileSize: 'Maximum file size is {filesize}',
+                        allowFileSizeValidation: true,
+                        acceptedFileTypes: null, // Accept all file types
+                        fileValidateTypeDetectType: null // Disable type detection
+                    });
+                }
+                
+                // Patch Livewire upload validation
+                document.addEventListener('livewire:load', function () {
+                    window.Livewire.hook('message.processed', (message, component) => {
+                        // Re-initialize FilePond with correct settings after Livewire updates
+                        const filePondElements = document.querySelectorAll('.filepond');
+                        filePondElements.forEach(element => {
+                            if (element._pond) {
+                                element._pond.setOptions({
+                                    maxFileSize: '200MB',
+                                    maxTotalFileSize: '200MB'
+                                });
+                            }
+                        });
+                    });
+                });
+
+                // Add custom validation for file inputs
+                document.addEventListener('change', function(e) {
+                    if (e.target.type === 'file' && e.target.files.length > 0) {
+                        const file = e.target.files[0];
+                        const maxSize = 200 * 1024 * 1024; // 200MB
+                        
+                        if (file.size > maxSize) {
+                            console.error('File too large:', file.name, 'Size:', file.size);
+                            // Don't prevent default - let Filament handle it with corrected settings
+                        } else {
+                            console.log('File size OK:', file.name, 'Size:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+                        }
+                    }
+                });
+            });
+        </script>
+    @endpush
 </x-filament-panels::page>

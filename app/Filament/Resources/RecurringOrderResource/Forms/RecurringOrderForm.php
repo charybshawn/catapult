@@ -26,7 +26,7 @@ class RecurringOrderForm
             static::getScheduleDaysSection(),
             static::getOrderItemsSection(),
             static::getAdditionalInformationSection(),
-            static::getHiddenFields(),
+            ...static::getHiddenFields(),
         ];
     }
 

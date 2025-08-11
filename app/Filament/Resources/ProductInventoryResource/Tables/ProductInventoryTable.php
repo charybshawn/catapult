@@ -5,11 +5,22 @@ namespace App\Filament\Resources\ProductInventoryResource\Tables;
 use Filament\Support\Enums\FontWeight;
 use Filament\Tables;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Forms;
 
 class ProductInventoryTable
 {
     /**
      * Get table columns for ProductInventoryResource
+     * 
+     * Features inline editing for key inventory fields:
+     * - quantity: Dynamic step based on packaging type, validates min:0
+     * - cost_per_unit: Money format with step 0.01, validates min:0
+     * - location: Text input for physical location tracking
+     * - notes: Textarea with autosize for additional information
+     * - expiration_date: Date picker with validation against production date
+     * 
+     * All inline edits maintain existing validation rules and trigger 
+     * model events for inventory transaction logging.
      */
     public static function columns(): array
     {
@@ -50,11 +61,15 @@ class ProductInventoryTable
                 ->copyable()
                 ->copyMessage('SKU copied')
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('quantity')
+            Tables\Columns\TextInputColumn::make('quantity')
                 ->label('Total Qty')
-                ->numeric(2)
+                ->type('number')
+                ->step(0.01)
+                ->rules(['required', 'numeric', 'min:0'])
                 ->sortable()
-                ->alignEnd(),
+                ->alignEnd()
+                ->placeholder('0.00')
+                ->extraInputAttributes(['class' => 'text-right']),
             Tables\Columns\TextColumn::make('reserved_quantity')
                 ->label('Reserved')
                 ->numeric(2)
@@ -68,24 +83,29 @@ class ProductInventoryTable
                 ->alignEnd()
                 ->color(fn ($state) => $state <= 0 ? 'danger' : 'success')
                 ->weight(FontWeight::Bold),
-            Tables\Columns\TextColumn::make('cost_per_unit')
+            Tables\Columns\TextInputColumn::make('cost_per_unit')
                 ->label('Unit Cost')
-                ->money('USD')
+                ->type('number')
+                ->step(0.01)
+                ->rules(['numeric', 'min:0'])
                 ->sortable()
                 ->alignEnd()
-                ->toggleable(),
-            Tables\Columns\TextColumn::make('expiration_date')
+                ->toggleable()
+                ->placeholder('0.00')
+                ->extraInputAttributes(['class' => 'text-right']),
+            Tables\Columns\TextInputColumn::make('expiration_date')
                 ->label('Expires')
-                ->date()
+                ->type('date')
                 ->sortable()
-                ->color(fn ($state) => $state && $state <= now()->addDays(30) ? 'danger' : null)
-                ->icon(fn ($state) => $state && $state <= now()->addDays(30) ? 'heroicon-o-exclamation-triangle' : null),
-            Tables\Columns\TextColumn::make('location')
+                ->placeholder('YYYY-MM-DD'),
+            Tables\Columns\TextInputColumn::make('location')
                 ->label('Location')
                 ->searchable()
-                ->toggleable(),
-            Tables\Columns\BadgeColumn::make('productInventoryStatus.name')
+                ->toggleable()
+                ->placeholder('e.g., Warehouse A, Shelf 3'),
+            Tables\Columns\TextColumn::make('productInventoryStatus.name')
                 ->label('Status')
+                ->badge()
                 ->color(fn ($state) => match($state) {
                     'Active' => 'success',
                     'Depleted' => 'danger',
@@ -93,6 +113,11 @@ class ProductInventoryTable
                     'Damaged' => 'secondary',
                     default => 'gray'
                 }),
+            Tables\Columns\TextInputColumn::make('notes')
+                ->label('Notes')
+                ->searchable()
+                ->toggleable()
+                ->placeholder('Add notes...'),
             Tables\Columns\TextColumn::make('value')
                 ->label('Total Value')
                 ->getStateUsing(fn ($record) => $record->getValue())

@@ -21,7 +21,10 @@
       "mcp__context7__get-library-docs",
       "WebFetch(domain:uxdworld.com)",
       "Bash(mv:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(php:*)",
+      "Bash(chmod:*)",
+      "Bash(true)"
     ],
     "deny": []
   }

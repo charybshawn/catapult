@@ -52,6 +52,7 @@ class CropPlanningService
         
         // Get all valid actual orders (not recurring templates) in the date range
         $orders = Order::with([
+            'customer',
             'orderItems.product.productMix.masterSeedCatalogs',
             'orderItems.product.masterSeedCatalog',
             'orderItems.priceVariation.packagingType'
@@ -79,7 +80,7 @@ class CropPlanningService
         $allCropPlans = collect();
         
         // First, collect all variety requirements by harvest date
-        $varietyRequirements = collect();
+        $varietyRequirements = [];
         
         foreach ($orders as $order) {
             // Delete any existing draft and cancelled plans for this order to prevent duplicates
@@ -97,22 +98,22 @@ class CropPlanningService
                 $harvestDate = $order->harvest_date->format('Y-m-d');
                 $key = $varietyId . '_' . $harvestDate;
                 
-                if (!$varietyRequirements->has($key)) {
+                if (!isset($varietyRequirements[$key])) {
                     $varietyRequirements[$key] = [
                         'variety_id' => $varietyId,
                         'harvest_date' => $order->harvest_date,
                         'total_grams' => 0,
-                        'orders' => collect(),
+                        'orders' => [],
                         'recipe' => $requirement['recipe']
                     ];
                 }
                 
                 $varietyRequirements[$key]['total_grams'] += $requirement['grams_needed'];
-                $varietyRequirements[$key]['orders']->push([
+                $varietyRequirements[$key]['orders'][] = [
                     'order' => $order,
                     'product' => $requirement['product'],
                     'grams' => $requirement['grams_needed']
-                ]);
+                ];
             }
         }
         
@@ -257,7 +258,7 @@ class CropPlanningService
         $varietyId = $requirement['variety_id'];
         $harvestDate = $requirement['harvest_date'];
         $totalGrams = $requirement['total_grams'];
-        $orders = $requirement['orders'];
+        $orders = collect($requirement['orders']); // Convert array to Collection for method calls
         $recipe = $requirement['recipe'];
         
         // Get master seed catalog info
@@ -1556,7 +1557,7 @@ class CropPlanningService
             // For now, let's use the regular individual crop plan generation per order
             // This creates separate crop plans for each order, which can then be grouped in the UI
             foreach ($orderIds as $orderId) {
-                $order = Order::find($orderId);
+                $order = Order::with('customer')->find($orderId);
                 if ($order) {
                     // Generate individual crop plan for this order and variety combination
                     $individualPlans = $this->generatePlanFromOrder($order);

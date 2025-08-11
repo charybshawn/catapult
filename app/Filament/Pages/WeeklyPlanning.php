@@ -57,7 +57,7 @@ class WeeklyPlanning extends Page
                 DatePicker::make('selectedDate')
                     ->label('Select Week')
                     ->default(Carbon::now()->toDateString())
-                    ->live(onBlur: true)()
+                    ->live(onBlur: true)
                     ->afterStateUpdated(function ($state) {
                         $this->selectedDate = $state;
                     }),
@@ -101,7 +101,7 @@ class WeeklyPlanning extends Page
         $harvestedStage = \App\Models\CropStage::findByCode('harvested');
         $activeCrops = Crop::where('current_stage_id', '!=', $harvestedStage?->id)
             ->with(['recipe', 'order.user', 'currentStage'])
-            ->orderBy('planting_at', 'desc')
+            ->orderBy('germination_at', 'desc')
             ->get();
 
         // Calculate planting recommendations

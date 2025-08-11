@@ -397,7 +397,60 @@
                     </div>
                 </div>
                 <div class="section">
-                    <h2 class="section-title">Variety Requirements Summary</h2>
+                    <h2 class="section-title">Product Mix Breakdown</h2>
+                    ` + (data.results.item_breakdown && data.results.item_breakdown.length > 0 ?
+                        data.results.item_breakdown.map(item => {
+                            let html = '<div class="item-card">';
+                            
+                            if (item.type === 'mix' && item.varieties && item.varieties.length > 0) {
+                                // Enhanced mix product display - more prominent
+                                html += '<div class="item-header" style="background-color: #f0f9ff; padding: 12px; border-radius: 6px; border-left: 4px solid #0ea5e9;">';
+                                html += '<div class="item-title" style="font-size: 16px; color: #0369a1;"><strong>🍃 ' + item.product_name + ' (Mix Product)</strong></div>';
+                                html += '<div class="item-details" style="color: #0369a1;">' + item.package_size + ' - Make ' + item.quantity + ' package(s)</div>';
+                                html += '<div class="item-total" style="color: #0369a1;">' + parseFloat(item.total_grams).toFixed(2) + 'g total per mix</div>';
+                                html += '</div>';
+                                
+                                html += '<div class="mix-components" style="background-color: #fafafa; padding: 15px; border-radius: 6px; margin-top: 10px;">';
+                                html += '<div class="mix-label" style="font-size: 14px; font-weight: bold; color: #374151; margin-bottom: 12px;">📋 Mix Recipe (per package):</div>';
+                                html += '<div class="mix-table">';
+                                item.varieties.forEach(component => {
+                                    html += '<div class="mix-row" style="padding: 6px 0; border-bottom: 1px solid #e5e7eb;">';
+                                    html += '<span class="variety-name" style="font-weight: 500;">' + component.name + '</span>';
+                                    html += '<div style="text-align: right;"><span style="color: #6b7280;">' + component.percentage + '%</span> → <span class="variety-grams" style="font-weight: bold; color: #059669;">' + parseFloat(component.grams).toFixed(2) + 'g</span></div>';
+                                    html += '</div>';
+                                });
+                                html += '</div>';
+                                
+                                if (item.quantity > 1) {
+                                    html += '<div style="margin-top: 15px; padding: 12px; background-color: #ecfdf5; border-radius: 6px; border: 1px solid #a7f3d0;">';
+                                    html += '<div style="font-weight: bold; color: #065f46; margin-bottom: 8px;">📦 Total Varieties Needed (' + item.quantity + ' packages):</div>';
+                                    item.varieties.forEach(component => {
+                                        let totalGrams = parseFloat(component.grams) * item.quantity;
+                                        html += '<div style="display: flex; justify-content: space-between; padding: 3px 0;">';
+                                        html += '<span style="color: #065f46;">' + component.name + '</span>';
+                                        html += '<span style="font-weight: bold; color: #065f46;">' + totalGrams.toFixed(2) + 'g</span>';
+                                        html += '</div>';
+                                    });
+                                    html += '</div>';
+                                }
+                                html += '</div>';
+                            } else {
+                                // Single variety products - less prominent
+                                html += '<div class="item-header" style="background-color: #f9fafb; padding: 10px; border-radius: 4px; border-left: 3px solid #6b7280;">';
+                                html += '<div class="item-title" style="color: #374151;"><strong>🌱 ' + item.product_name + '</strong></div>';
+                                html += '<div class="item-details" style="color: #6b7280;">' + item.package_size + ' - Qty: ' + item.quantity + '</div>';
+                                html += '<div class="item-total" style="color: #374151;">' + parseFloat(item.total_grams).toFixed(2) + 'g total</div>';
+                                html += '</div>';
+                            }
+                            
+                            html += '</div>';
+                            return html;
+                        }).join('')
+                        : '<p>No products available.</p>'
+                    ) + `
+                </div>
+                <div class="section">
+                    <h2 class="section-title">Variety Totals Summary (for tray availability checking)</h2>
                     ` + (data.results.variety_totals && data.results.variety_totals.length > 0 ? 
                         '<table><thead><tr><th>Variety</th><th class="number">Total Grams Required</th></tr></thead><tbody>' +
                         data.results.variety_totals.map(variety => 
@@ -405,37 +458,6 @@
                         ).join('') +
                         '</tbody><tfoot><tr class="total-row"><td><strong>Total</strong></td><td class="number"><strong>' + parseFloat(data.results.summary.total_grams).toFixed(2) + 'g</strong></td></tr></tfoot></table>'
                         : '<p>No variety totals available.</p>'
-                    ) + `
-                </div>
-                <div class="section">
-                    <h2 class="section-title">Detailed Item Breakdown</h2>
-                    ` + (data.results.item_breakdown && data.results.item_breakdown.length > 0 ?
-                        data.results.item_breakdown.map(item => {
-                            let html = '<div class="item-card">';
-                            html += '<div class="item-header">';
-                            html += '<div class="item-title"><strong>' + item.product_name + '</strong></div>';
-                            html += '<div class="item-details">' + item.package_size + ' - Qty: ' + item.quantity + '</div>';
-                            html += '<div class="item-total">' + parseFloat(item.total_grams).toFixed(2) + 'g total</div>';
-                            html += '</div>';
-                            
-                            if (item.type === 'mix' && item.varieties && item.varieties.length > 0) {
-                                html += '<div class="mix-components">';
-                                html += '<div class="mix-label">Mix Components:</div>';
-                                html += '<div class="mix-table">';
-                                item.varieties.forEach(component => {
-                                    html += '<div class="mix-row">';
-                                    html += '<span class="variety-name">' + component.name + ' (' + component.percentage + '%)</span>';
-                                    html += '<span class="variety-grams">' + parseFloat(component.grams).toFixed(2) + 'g</span>';
-                                    html += '</div>';
-                                });
-                                html += '</div>';
-                                html += '</div>';
-                            }
-                            
-                            html += '</div>';
-                            return html;
-                        }).join('')
-                        : '<p>No item breakdown available.</p>'
                     ) + `
                 </div>
             `;

@@ -33,12 +33,17 @@ class MasterSeedCatalog extends Model
 
     public function cultivars(): HasMany
     {
-        return $this->hasMany(MasterCultivar::class);
+        return $this->hasMany(MasterCultivar::class, 'master_seed_catalog_id');
+    }
+
+    public function activeCultivars(): HasMany
+    {
+        return $this->hasMany(MasterCultivar::class, 'master_seed_catalog_id')->where('is_active', true);
     }
     
     public function primaryCultivar(): HasOne
     {
-        return $this->hasOne(MasterCultivar::class);
+        return $this->hasOne(MasterCultivar::class, 'master_seed_catalog_id');
     }
 
     public function consumables(): HasMany

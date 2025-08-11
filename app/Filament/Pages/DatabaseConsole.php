@@ -4,11 +4,11 @@ namespace App\Filament\Pages;
 
 use App\Services\SimpleBackupService;
 use Filament\Actions\Action;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Facades\Artisan;
@@ -18,31 +18,47 @@ use Illuminate\Support\Facades\Storage;
 
 class DatabaseConsole extends Page
 {
-
     protected static ?string $navigationIcon = 'heroicon-o-command-line';
+
     protected static ?string $navigationLabel = 'Database Console';
+
     protected static ?string $navigationGroup = 'System';
+
     protected static string $view = 'filament.pages.database-console';
+
+    protected $listeners = ['fileUploaded' => 'handleFileUpload'];
+
+    public function handleFileUpload($filename)
+    {
+        Notification::make()
+            ->success()
+            ->title('File Uploaded Successfully')
+            ->body("File {$filename} has been uploaded. You can now use 'Select Existing Backup' to restore it.")
+            ->persistent()
+            ->send();
+
+        $this->dispatch('refresh-backups');
+    }
 
     public function getBackups(): array
     {
         try {
-            $backupService = new SimpleBackupService();
+            $backupService = new SimpleBackupService;
             $backups = $backupService->listBackups()->toArray();
-            
+
             // Debug: Log backup directory and files found
             Log::info('Backup list debug', [
                 'backup_count' => count($backups),
                 'backup_files' => array_column($backups, 'name'),
             ]);
-            
+
             return $backups;
         } catch (\Exception $e) {
             Log::error('Failed to get backups', ['error' => $e->getMessage()]);
+
             return [];
         }
     }
-
 
     protected function getHeaderActions(): array
     {
@@ -58,29 +74,28 @@ class DatabaseConsole extends Page
                         ->reactive(),
                     TextInput::make('commit_message')
                         ->label('Git Commit Message (Optional)')
-                        ->placeholder('Safe backup: ' . now()->format('Y-m-d H:i:s'))
+                        ->placeholder('Safe backup: '.now()->format('Y-m-d H:i:s'))
                         ->helperText('Custom commit message for git')
-                        ->hidden(fn ($get) => !$get('safe_backup')),
+                        ->hidden(fn ($get) => ! $get('safe_backup')),
                     Toggle::make('no_push')
                         ->label('Skip Git Push')
                         ->helperText('Skip pushing changes to remote repository')
-                        ->hidden(fn ($get) => !$get('safe_backup')),
+                        ->hidden(fn ($get) => ! $get('safe_backup')),
                     Select::make('backup_type')
                         ->label('Backup Type')
                         ->options([
                             'full' => 'Full Backup (Schema + Data)',
                             'schema_only' => 'Schema Only',
-                            'data_only' => 'Data Only', 
-                            'separate' => 'Separate Files (Schema + Data)'
+                            'data_only' => 'Data Only',
+                            'separate' => 'Separate Files (Schema + Data)',
                         ])
                         ->default('full')
                         ->helperText('Choose what to include in the backup')
-                        ->hidden(fn ($get) => !$get('safe_backup')),
+                        ->hidden(fn ($get) => ! $get('safe_backup')),
                 ])
                 ->action(function (array $data) {
                     $this->createBackup($data);
                 }),
-
 
             Action::make('restoreBackup')
                 ->label('Restore Backup')
@@ -92,7 +107,7 @@ class DatabaseConsole extends Page
                         ->options([
                             'latest' => 'Use Latest Backup',
                             'existing' => 'Select Existing Backup',
-                            'upload' => 'Upload Backup File'
+                            'upload' => 'Upload Backup File',
                         ])
                         ->default('existing')
                         ->reactive()
@@ -103,22 +118,50 @@ class DatabaseConsole extends Page
                             $backups = $this->getBackups();
                             $options = [];
                             foreach ($backups as $backup) {
-                                $label = $backup['name'] . ' (' . $backup['size'] . ') - ' . $backup['created_at']->format('M j, Y g:i A');
+                                $label = $backup['name'].' ('.$backup['size'].') - '.$backup['created_at']->format('M j, Y g:i A');
                                 $options[$backup['name']] = $label;
                             }
+                            // Also check if the specific file exists
+                            $targetFile = 'data_only_backup_2025-08-08_11-37-44.sql';
+                            $targetPath = base_path('database/backups/'.$targetFile);
+                            if (file_exists($targetPath) && ! isset($options[$targetFile])) {
+                                $size = round(filesize($targetPath) / 1024 / 1024, 2).'MB';
+                                $date = date('M j, Y g:i A', filemtime($targetPath));
+                                $options[$targetFile] = $targetFile.' ('.$size.') - '.$date;
+                            }
+
                             return $options;
                         })
                         ->required(fn ($get) => $get('restore_source') === 'existing')
                         ->searchable()
-                        ->helperText('Select a backup file to restore from')
+                        ->helperText('Select a backup file to restore from - includes all files in database/backups/')
                         ->visible(fn ($get) => $get('restore_source') === 'existing'),
                     FileUpload::make('upload_file')
                         ->label('Upload Backup File')
-                        ->maxSize(10 * 1024) // 10MB max
-                        ->directory('temp-backups')
                         ->required(fn ($get) => $get('restore_source') === 'upload')
-                        ->helperText('Upload a .sql backup file (max 10MB)')
-                        ->visible(fn ($get) => $get('restore_source') === 'upload'),
+                        ->helperText('Upload a .sql backup file (max 200MB)')
+                        ->visible(fn ($get) => $get('restore_source') === 'upload')
+                        ->preserveFilenames()
+                        ->previewable(false)
+                        ->storeFileNamesIn('upload_file_names')
+                        ->multiple(false)
+                        ->removeUploadedFileButtonPosition('right')
+                        ->uploadButtonPosition('right')
+                        ->uploadProgressIndicatorPosition('right')
+                        // Accept common SQL file types
+                        ->acceptedFileTypes(['application/sql', 'application/x-sql', 'text/sql', 'text/plain', 'application/octet-stream', '.sql'])
+                        // Use validation messages
+                        ->validationMessages([
+                            'max' => 'The file must not be larger than 200MB.',
+                        ])
+                        ->afterStateUpdated(function ($state) {
+                            if ($state) {
+                                Log::info('File upload state updated', [
+                                    'state' => $state,
+                                    'type' => gettype($state),
+                                ]);
+                            }
+                        }),
                     Toggle::make('dry_run')
                         ->label('Dry Run Mode')
                         ->helperText('Test the restore without making any changes - shows potential errors first')
@@ -152,10 +195,21 @@ class DatabaseConsole extends Page
                 ->form([
                     FileUpload::make('schema_file')
                         ->label('Upload Schema File')
-                        ->maxSize(50 * 1024) // 50MB max for schema files
+                        ->maxSize(51200) // 50MB in KB
                         ->directory('temp-schema')
+                        ->disk('public')
                         ->required()
-                        ->helperText('Upload a .sql schema file to merge with the current database (data-only recommended) - accepts any file type'),
+                        ->helperText('Upload a .sql schema file to merge with the current database (data-only recommended)')
+                        ->validationAttribute('schema file')
+                        ->storeFileNamesIn('schema_file_names')
+                        ->multiple(false)
+                        ->previewable(false)
+                        ->removeUploadedFileButtonPosition('right')
+                        ->uploadButtonPosition('right')
+                        ->uploadProgressIndicatorPosition('right')
+                        // CRITICAL FIX: Override Filament Action validation rules
+                        ->rules(['file', 'max:51200'])
+                        ->acceptedFileTypes(['.sql', 'application/sql', 'text/plain', 'text/x-sql']),
                     Toggle::make('create_backup_first')
                         ->label('Create backup before merge')
                         ->helperText('Recommended: Create a safety backup before applying schema changes')
@@ -181,23 +235,23 @@ class DatabaseConsole extends Page
         $this->safeBackupRunning = true;
         $this->safeBackupSuccess = false;
         $this->showSafeBackupModal = true;
-        
+
         $this->dispatch('open-safe-backup-modal');
-        
+
         try {
             if ($data['safe_backup'] ?? false) {
                 // Use safe backup command via Artisan::call (works fine)
                 $command = 'safe:backup';
                 $parameters = [];
-                
-                if (!empty($data['commit_message'])) {
+
+                if (! empty($data['commit_message'])) {
                     $parameters['--commit-message'] = $data['commit_message'];
                 }
-                
+
                 if ($data['no_push'] ?? false) {
                     $parameters['--no-push'] = true;
                 }
-                
+
                 $backupType = $data['backup_type'] ?? 'full';
                 switch ($backupType) {
                     case 'schema_only':
@@ -216,17 +270,17 @@ class DatabaseConsole extends Page
 
                 $exitCode = Artisan::call($command, $parameters);
                 $output = Artisan::output();
-                
+
                 $this->safeBackupOutput = $output;
                 $this->safeBackupRunning = false;
                 $this->safeBackupSuccess = ($exitCode === 0);
             } else {
                 // Use backup service directly to avoid Artisan::call environment issues
-                $backupService = new \App\Services\SimpleBackupService();
+                $backupService = new \App\Services\SimpleBackupService;
                 $this->safeBackupOutput = "Creating database backup...\n";
-                
+
                 $filename = $backupService->createBackup();
-                
+
                 $this->safeBackupOutput .= "Backup created successfully!\n";
                 $this->safeBackupOutput .= "File: {$filename}\n";
                 $this->safeBackupRunning = false;
@@ -237,25 +291,31 @@ class DatabaseConsole extends Page
                 $this->dispatch('refresh-backups');
             }
         } catch (\Exception $e) {
-            $this->safeBackupOutput .= "\n\nError: " . $e->getMessage();
+            $this->safeBackupOutput .= "\n\nError: ".$e->getMessage();
             $this->safeBackupRunning = false;
             $this->safeBackupSuccess = false;
         }
     }
 
     public $safeBackupOutput = '';
+
     public $safeBackupRunning = false;
+
     public $safeBackupSuccess = false;
+
     public $showSafeBackupModal = false;
 
     public $restoreOutput = '';
+
     public $restoreRunning = false;
+
     public $restoreSuccess = false;
+
     public $showRestoreModal = false;
 
     public $showSchemaCheckModal = false;
-    public $schemaCheckData = null;
 
+    public $schemaCheckData = null;
 
     public function closeSafeBackupModal(): void
     {
@@ -276,9 +336,9 @@ class DatabaseConsole extends Page
     public function viewSchemaCheck(string $backupFileName): void
     {
         try {
-            $backupService = new SimpleBackupService();
+            $backupService = new SimpleBackupService;
             $schemaCheck = $backupService->getSchemaCheckResults($backupFileName);
-            
+
             if ($schemaCheck) {
                 $this->schemaCheckData = [
                     'backup_filename' => $backupFileName,
@@ -287,7 +347,7 @@ class DatabaseConsole extends Page
                     'formatted_report' => $schemaCheck['formatted_report'] ?? 'No report available',
                     'details' => [
                         'is_dynamic_check' => false, // This is a static check from backup time
-                    ]
+                    ],
                 ];
                 $this->showSchemaCheckModal = true;
             } else {
@@ -321,21 +381,21 @@ class DatabaseConsole extends Page
                 ->body('Creating temporary database and comparing schemas... This may take 5-15 seconds.')
                 ->duration(10000)
                 ->send();
-            
-            $backupService = new SimpleBackupService();
-            $backupPath = base_path('database/backups/' . $backupFileName);
-            
-            if (!file_exists($backupPath)) {
+
+            $backupService = new SimpleBackupService;
+            $backupPath = base_path('database/backups/'.$backupFileName);
+
+            if (! file_exists($backupPath)) {
                 throw new \Exception('Backup file not found');
             }
-            
+
             // Use full schema comparison service
-            $schemaComparison = new \App\Services\SchemaComparisonService();
+            $schemaComparison = new \App\Services\SchemaComparisonService;
             $differences = $schemaComparison->compareSchemas();
-            
+
             // Format the full schema comparison report
             $formattedReport = $schemaComparison->formatDifferences($differences);
-            
+
             // Save as dynamic check with full schema comparison results
             $schemaCheckPath = str_replace('.sql', '_dynamic_check.json', $backupPath);
             $schemaCheckData = [
@@ -347,10 +407,10 @@ class DatabaseConsole extends Page
                 'formatted_report' => $formattedReport,
                 'checked_at' => now()->toIso8601String(),
             ];
-            
+
             file_put_contents($schemaCheckPath, json_encode($schemaCheckData, JSON_PRETTY_PRINT));
-            
-            if (!$differences['has_issues']) {
+
+            if (! $differences['has_issues']) {
                 Notification::make()
                     ->success()
                     ->title('Schema Check Passed')
@@ -359,23 +419,23 @@ class DatabaseConsole extends Page
                     ->send();
             } else {
                 $issueCount = 0;
-                if (!empty($differences['extra_tables'])) {
+                if (! empty($differences['extra_tables'])) {
                     $issueCount += count($differences['extra_tables']);
                 }
-                if (!empty($differences['missing_tables'])) {
+                if (! empty($differences['missing_tables'])) {
                     $issueCount += count($differences['missing_tables']);
                 }
-                if (!empty($differences['column_differences'])) {
+                if (! empty($differences['column_differences'])) {
                     $issueCount += count($differences['column_differences']);
                 }
-                
+
                 Notification::make()
                     ->warning()
                     ->title('Schema Mismatches Found')
                     ->body($differences['summary'])
                     ->duration(8000)
                     ->send();
-                
+
                 // Always show modal when there are issues
                 $this->schemaCheckData = [
                     'backup_filename' => $backupFileName,
@@ -384,13 +444,13 @@ class DatabaseConsole extends Page
                     'formatted_report' => $formattedReport,
                     'details' => [
                         'is_dynamic_check' => true,
-                    ]
+                    ],
                 ];
                 $this->showSchemaCheckModal = true;
             }
-            
+
             $this->dispatch('refresh-backups');
-            
+
         } catch (\Exception $e) {
             Notification::make()
                 ->danger()
@@ -399,8 +459,6 @@ class DatabaseConsole extends Page
                 ->send();
         }
     }
-    
-
 
     protected function restoreBackup(array $data): void
     {
@@ -408,33 +466,33 @@ class DatabaseConsole extends Page
         $this->restoreRunning = true;
         $this->restoreSuccess = false;
         $this->showRestoreModal = true;
-        
+
         $this->dispatch('open-restore-modal');
-        
+
         try {
             $restoreSource = $data['restore_source'] ?? 'existing';
-            
+
             if ($restoreSource === 'upload') {
                 // Handle uploaded file
                 $uploadedFile = $data['upload_file'] ?? null;
                 if ($uploadedFile) {
                     $this->restoreOutput = "Processing uploaded file...\n";
-                    
+
                     // Get the actual file path - Filament stores files in temp-backups directory
                     $filePath = null;
                     if (is_string($uploadedFile)) {
                         $filePath = $uploadedFile;
-                    } elseif (is_array($uploadedFile) && !empty($uploadedFile)) {
+                    } elseif (is_array($uploadedFile) && ! empty($uploadedFile)) {
                         // Get the first uploaded file
                         $filePath = reset($uploadedFile);
                     }
-                    
-                    if (!$filePath) {
-                        throw new \Exception("No valid file path found in upload data: " . json_encode($uploadedFile));
+
+                    if (! $filePath) {
+                        throw new \Exception('No valid file path found in upload data: '.json_encode($uploadedFile));
                     }
-                    
+
                     $this->restoreOutput .= "File identifier: {$filePath}\n";
-                    
+
                     // Debug: Check what's actually in storage - check all directories
                     $this->restoreOutput .= "Debug: Checking storage directories:\n";
                     try {
@@ -443,8 +501,8 @@ class DatabaseConsole extends Page
                         foreach ($checkPaths as $checkPath) {
                             try {
                                 $files = Storage::files($checkPath);
-                                if (!empty($files)) {
-                                    $this->restoreOutput .= "Directory '{$checkPath}': " . count($files) . " files\n";
+                                if (! empty($files)) {
+                                    $this->restoreOutput .= "Directory '{$checkPath}': ".count($files)." files\n";
                                     foreach ($files as $file) {
                                         if (str_contains($file, $filePath) || str_contains($file, '.sql')) {
                                             $this->restoreOutput .= "  - Relevant: {$file}\n";
@@ -455,7 +513,7 @@ class DatabaseConsole extends Page
                                 // Skip directories that don't exist
                             }
                         }
-                        
+
                         // Also check if it's a temporary file with livewire naming
                         $this->restoreOutput .= "Checking for livewire-tmp files...\n";
                         $livewireTmpFiles = Storage::files('livewire-tmp');
@@ -463,21 +521,21 @@ class DatabaseConsole extends Page
                             $this->restoreOutput .= "  - Livewire tmp: {$tmpFile}\n";
                         }
                     } catch (\Exception $e) {
-                        $this->restoreOutput .= "- Error checking storage: " . $e->getMessage() . "\n";
+                        $this->restoreOutput .= '- Error checking storage: '.$e->getMessage()."\n";
                     }
-                    
+
                     // Try to get file contents using multiple approaches
                     $fileContents = null;
                     try {
                         // Approach 1: Try all possible storage paths based on actual filesystem
                         $possiblePaths = [
                             $filePath,                                    // Direct path as provided
-                            'public/' . $filePath,                       // Public disk (most likely)
-                            'private/' . $filePath,                      // Private disk
-                            'public/temp-backups/' . basename($filePath), // Public temp-backups with just filename
-                            'private/livewire-tmp/' . basename($filePath), // Livewire temp location
+                            'public/'.$filePath,                       // Public disk (most likely)
+                            'private/'.$filePath,                      // Private disk
+                            'public/temp-backups/'.basename($filePath), // Public temp-backups with just filename
+                            'private/livewire-tmp/'.basename($filePath), // Livewire temp location
                         ];
-                        
+
                         foreach ($possiblePaths as $testPath) {
                             $this->restoreOutput .= "Trying storage path: {$testPath}\n";
                             if (Storage::exists($testPath)) {
@@ -487,17 +545,17 @@ class DatabaseConsole extends Page
                                 break;
                             }
                         }
-                        
+
                         // Approach 2: If Storage doesn't work, try direct filesystem access
-                        if (!$fileContents) {
+                        if (! $fileContents) {
                             $this->restoreOutput .= "Storage approach failed, trying direct filesystem...\n";
                             $directPaths = [
-                                storage_path('app/' . $filePath),
-                                storage_path('app/public/' . $filePath),
-                                storage_path('app/public/temp-backups/' . basename($filePath)),
-                                storage_path('app/private/livewire-tmp/' . basename($filePath)),
+                                storage_path('app/'.$filePath),
+                                storage_path('app/public/'.$filePath),
+                                storage_path('app/public/temp-backups/'.basename($filePath)),
+                                storage_path('app/private/livewire-tmp/'.basename($filePath)),
                             ];
-                            
+
                             foreach ($directPaths as $directPath) {
                                 $this->restoreOutput .= "Trying filesystem path: {$directPath}\n";
                                 if (file_exists($directPath)) {
@@ -507,119 +565,121 @@ class DatabaseConsole extends Page
                                 }
                             }
                         }
-                        
-                        if (!$fileContents) {
-                            throw new \Exception("Could not locate uploaded file using Storage or direct filesystem access");
+
+                        if (! $fileContents) {
+                            throw new \Exception('Could not locate uploaded file using Storage or direct filesystem access');
                         }
-                        $this->restoreOutput .= "File size: " . strlen($fileContents) . " bytes\n";
-                        
+                        $this->restoreOutput .= 'File size: '.strlen($fileContents)." bytes\n";
+
                         if (strlen($fileContents) == 0) {
-                            throw new \Exception("File is empty - upload may have failed");
+                            throw new \Exception('File is empty - upload may have failed');
                         }
-                        
+
                         // Show first 200 characters for debugging
                         $preview = substr($fileContents, 0, 200);
-                        $this->restoreOutput .= "File preview: " . $preview . "...\n";
-                        
+                        $this->restoreOutput .= 'File preview: '.$preview."...\n";
+
                         // Create a temporary file in the temp directory (will be cleaned up after restore)
-                        $tempBackupName = 'uploaded_' . now()->format('Y-m-d_H-i-s') . '.sql';
+                        $tempBackupName = 'uploaded_'.now()->format('Y-m-d_H-i-s').'.sql';
                         $tempDir = storage_path('app/temp');
-                        
-                        if (!is_dir($tempDir)) {
+
+                        if (! is_dir($tempDir)) {
                             mkdir($tempDir, 0755, true);
                         }
-                        
-                        $tempBackupPath = $tempDir . '/' . $tempBackupName;
+
+                        $tempBackupPath = $tempDir.'/'.$tempBackupName;
                         file_put_contents($tempBackupPath, $fileContents);
-                        
+
                         $uploadedFilePath = $tempBackupPath;
-                        
+
                     } catch (\Exception $e) {
-                        throw new \Exception("Could not read uploaded file: " . $e->getMessage());
+                        throw new \Exception('Could not read uploaded file: '.$e->getMessage());
                     }
-                    
+
                     $this->restoreOutput .= "Analyzing backup file...\n";
-                    
+
                     // Check file contents to understand what type of backup this is
                     if (str_contains($fileContents, 'CREATE TABLE')) {
                         $this->restoreOutput .= "Contains schema (CREATE TABLE statements)\n";
                     } else {
                         $this->restoreOutput .= "Data-only backup (no CREATE TABLE statements)\n";
                     }
-                    
+
                     if (str_contains($fileContents, 'INSERT INTO')) {
                         $this->restoreOutput .= "Contains data (INSERT statements)\n";
                     } else {
                         $this->restoreOutput .= "No INSERT statements found\n";
                     }
-                    
+
                     $this->restoreOutput .= "Starting restore process...\n";
-                    
+
                     // Before restore - check what's currently in the database
                     $this->restoreOutput .= "Pre-restore counts:\n";
                     try {
                         $preCropCount = DB::table('crops')->count();
                         $preUserCount = DB::table('users')->count();
                         $preRecipeCount = DB::table('recipes')->count();
-                        
+
                         $this->restoreOutput .= "- Crops: {$preCropCount} records\n";
                         $this->restoreOutput .= "- Users: {$preUserCount} records\n";
                         $this->restoreOutput .= "- Recipes: {$preRecipeCount} records\n";
                     } catch (\Exception $e) {
-                        $this->restoreOutput .= "Could not get pre-restore counts: " . $e->getMessage() . "\n";
+                        $this->restoreOutput .= 'Could not get pre-restore counts: '.$e->getMessage()."\n";
                     }
-                    
+
                     // Use backup service to restore from uploaded file
-                    $backupService = new SimpleBackupService();
-                    
+                    $backupService = new SimpleBackupService;
+
                     try {
                         // Debug the dry_run value
-                        $this->restoreOutput .= "Debug: dry_run raw value = " . json_encode($data['dry_run'] ?? 'not set') . "\n";
-                        $this->restoreOutput .= "Debug: full data = " . json_encode($data) . "\n";
-                        
+                        $this->restoreOutput .= 'Debug: dry_run raw value = '.json_encode($data['dry_run'] ?? 'not set')."\n";
+                        $this->restoreOutput .= 'Debug: full data = '.json_encode($data)."\n";
+
                         $isDryRun = $data['dry_run'] ?? true;
-                        
+
                         // Extra safety check - ensure dry_run is truly boolean
                         if (is_string($isDryRun)) {
                             $isDryRun = $isDryRun === 'true' || $isDryRun === '1' || $isDryRun === true;
                         }
-                        
-                        $this->restoreOutput .= "Debug: isDryRun final value = " . ($isDryRun ? 'TRUE' : 'FALSE') . "\n\n";
-                        
+
+                        $this->restoreOutput .= 'Debug: isDryRun final value = '.($isDryRun ? 'TRUE' : 'FALSE')."\n\n";
+
                         if ($isDryRun) {
                             $this->restoreOutput .= "🧪 PERFORMING DRY RUN - No changes will be made...\n";
                         } else {
                             $this->restoreOutput .= "⚠️ PERFORMING ACTUAL RESTORE - Changes will be permanent...\n";
                         }
-                        
+
                         $result = $backupService->restoreFromFile($tempBackupPath, $isDryRun);
-                        
+
                         // Get dry run results or schema fixes
                         $restoreResults = $backupService->lastRestoreSchemaFixes ?? [];
-                        
+
                         if (isset($restoreResults['dry_run']) && $restoreResults['dry_run']) {
                             // Display dry run results
-                            $this->restoreOutput .= "\n" . ($restoreResults['summary'] ?? 'Dry run completed') . "\n";
-                            
+                            $this->restoreOutput .= "\n".($restoreResults['summary'] ?? 'Dry run completed')."\n";
+
                             if (isset($restoreResults['total_statements'])) {
-                                $this->restoreOutput .= "Total SQL statements: " . $restoreResults['total_statements'] . "\n";
-                                $this->restoreOutput .= "Would succeed: " . ($restoreResults['success_count'] ?? 0) . "\n";
-                                $this->restoreOutput .= "Would fail: " . ($restoreResults['fail_count'] ?? 0) . "\n\n";
+                                $this->restoreOutput .= 'Total SQL statements: '.$restoreResults['total_statements']."\n";
+                                $this->restoreOutput .= 'Would succeed: '.($restoreResults['success_count'] ?? 0)."\n";
+                                $this->restoreOutput .= 'Would fail: '.($restoreResults['fail_count'] ?? 0)."\n\n";
                             }
-                            
-                            if (!empty($restoreResults['warnings'])) {
+
+                            if (! empty($restoreResults['warnings'])) {
                                 $this->restoreOutput .= "⚠️ WARNINGS:\n";
                                 foreach ($restoreResults['warnings'] as $warning) {
                                     $this->restoreOutput .= "- {$warning}\n";
                                 }
                                 $this->restoreOutput .= "\n";
                             }
-                            
-                            if (!empty($restoreResults['errors'])) {
+
+                            if (! empty($restoreResults['errors'])) {
                                 $this->restoreOutput .= "❌ ERRORS (first 5):\n";
                                 $errorCount = 0;
                                 foreach ($restoreResults['errors'] as $error) {
-                                    if ($errorCount >= 5) break;
+                                    if ($errorCount >= 5) {
+                                        break;
+                                    }
                                     $this->restoreOutput .= "- {$error}\n";
                                     $errorCount++;
                                 }
@@ -629,7 +689,7 @@ class DatabaseConsole extends Page
                                 }
                                 $this->restoreOutput .= "\n";
                             }
-                            
+
                             if ($result) {
                                 $this->restoreOutput .= "✅ Dry run passed - restore should succeed\n";
                                 $this->restoreOutput .= "💡 Uncheck 'Dry Run Mode' to perform actual restore\n";
@@ -641,7 +701,7 @@ class DatabaseConsole extends Page
                             }
                         } else {
                             // Regular restore mode
-                            if (!empty($restoreResults)) {
+                            if (! empty($restoreResults)) {
                                 $this->restoreOutput .= "Schema fixes applied:\n";
                                 foreach ($restoreResults as $fix) {
                                     if (is_string($fix)) {
@@ -649,22 +709,21 @@ class DatabaseConsole extends Page
                                     }
                                 }
                             }
-                            
+
                             if ($result) {
                                 $this->restoreOutput .= "Backup service returned success - verifying data...\n";
-                            
-                            
+
                                 // Quick verification - check a few table row counts
                                 try {
                                     $cropCount = DB::table('crops')->count();
                                     $userCount = DB::table('users')->count();
                                     $recipeCount = DB::table('recipes')->count();
-                                    
+
                                     $this->restoreOutput .= "Post-restore verification:\n";
                                     $this->restoreOutput .= "- Crops: {$cropCount} records\n";
                                     $this->restoreOutput .= "- Users: {$userCount} records\n";
                                     $this->restoreOutput .= "- Recipes: {$recipeCount} records\n";
-                                    
+
                                     // Check if any data was actually restored
                                     $totalRestored = ($cropCount - $preCropCount) + ($userCount - $preUserCount) + ($recipeCount - $preRecipeCount);
                                     if ($totalRestored > 0) {
@@ -676,7 +735,7 @@ class DatabaseConsole extends Page
                                         $this->restoreOutput .= "Check the backup file format and database schema compatibility.\n";
                                     }
                                 } catch (\Exception $verifyException) {
-                                    $this->restoreOutput .= "Verification failed: " . $verifyException->getMessage() . "\n";
+                                    $this->restoreOutput .= 'Verification failed: '.$verifyException->getMessage()."\n";
                                     $this->restoreSuccess = false;
                                 }
                             } else {
@@ -685,16 +744,16 @@ class DatabaseConsole extends Page
                             }
                         }
                     } catch (\Exception $restoreException) {
-                        $this->restoreOutput .= "Restore exception: " . $restoreException->getMessage() . "\n";
+                        $this->restoreOutput .= 'Restore exception: '.$restoreException->getMessage()."\n";
                         $this->restoreSuccess = false;
                     }
-                    
+
                     // Clean up temp file
                     if (file_exists($uploadedFilePath)) {
                         unlink($uploadedFilePath);
                         $this->restoreOutput .= "Cleaned up temp file: {$tempBackupName}\n";
                     }
-                    
+
                     // Clean up the uploaded file from storage
                     try {
                         Storage::delete($filePath);
@@ -707,10 +766,10 @@ class DatabaseConsole extends Page
             } else {
                 // Handle existing backup files or latest
                 $parameters = [];
-                
+
                 // Always use force mode in web interface (no STDIN available)
                 $parameters['--force'] = true;
-                
+
                 // CRITICAL: Pass dry-run flag
                 $isDryRun = $data['dry_run'] ?? true;
                 if ($isDryRun) {
@@ -719,7 +778,7 @@ class DatabaseConsole extends Page
                 } else {
                     $this->restoreOutput = "⚠️ PERFORMING ACTUAL RESTORE - Changes will be permanent...\n\n";
                 }
-                
+
                 if ($restoreSource === 'latest') {
                     $parameters['--latest'] = true;
                 } else {
@@ -731,15 +790,15 @@ class DatabaseConsole extends Page
 
                 $exitCode = Artisan::call('db:restore', $parameters);
                 $output = Artisan::output();
-                
+
                 $this->restoreOutput .= $output;
                 $this->restoreSuccess = ($exitCode === 0);
             }
-            
+
             $this->restoreRunning = false;
 
         } catch (\Exception $e) {
-            $this->restoreOutput .= "\n\nError: " . $e->getMessage();
+            $this->restoreOutput .= "\n\nError: ".$e->getMessage();
             $this->restoreRunning = false;
             $this->restoreSuccess = false;
         }
@@ -748,15 +807,15 @@ class DatabaseConsole extends Page
     public function deleteBackup(string $filename): void
     {
         try {
-            $backupService = new SimpleBackupService();
+            $backupService = new SimpleBackupService;
             $backupService->deleteBackup($filename);
-            
+
             Notification::make()
                 ->success()
                 ->title('Backup Deleted')
                 ->body("Backup '{$filename}' has been deleted successfully.")
                 ->send();
-            
+
             $this->dispatch('refresh-backups');
         } catch (\Exception $e) {
             Notification::make()
@@ -775,6 +834,7 @@ class DatabaseConsole extends Page
                 ->title('No Backups Selected')
                 ->body('Please select at least one backup to delete.')
                 ->send();
+
             return;
         }
 
@@ -784,12 +844,12 @@ class DatabaseConsole extends Page
 
         foreach ($filenames as $filename) {
             try {
-                $backupService = new SimpleBackupService();
+                $backupService = new SimpleBackupService;
                 $backupService->deleteBackup($filename);
                 $successCount++;
             } catch (\Exception $e) {
                 $failCount++;
-                $errors[] = $filename . ': ' . $e->getMessage();
+                $errors[] = $filename.': '.$e->getMessage();
             }
         }
 
@@ -805,14 +865,14 @@ class DatabaseConsole extends Page
             Notification::make()
                 ->warning()
                 ->title('Partial Success')
-                ->body("{$successCount} deleted, {$failCount} failed. First error: " . ($errors[0] ?? 'Unknown error'))
+                ->body("{$successCount} deleted, {$failCount} failed. First error: ".($errors[0] ?? 'Unknown error'))
                 ->duration(8000)
                 ->send();
         } else {
             Notification::make()
                 ->danger()
                 ->title('Mass Delete Failed')
-                ->body("Failed to delete all {$failCount} backup(s). First error: " . ($errors[0] ?? 'Unknown error'))
+                ->body("Failed to delete all {$failCount} backup(s). First error: ".($errors[0] ?? 'Unknown error'))
                 ->duration(8000)
                 ->send();
         }
@@ -823,15 +883,15 @@ class DatabaseConsole extends Page
     public function archiveBackup(string $filename): void
     {
         try {
-            $backupService = new SimpleBackupService();
+            $backupService = new SimpleBackupService;
             $backupService->archiveBackup($filename);
-            
+
             Notification::make()
                 ->success()
                 ->title('Backup Archived')
                 ->body("Backup '{$filename}' has been moved to the archive.")
                 ->send();
-            
+
             $this->dispatch('refresh-backups');
         } catch (\Exception $e) {
             Notification::make()
@@ -850,6 +910,7 @@ class DatabaseConsole extends Page
                 ->title('No Backups Selected')
                 ->body('Please select at least one backup to archive.')
                 ->send();
+
             return;
         }
 
@@ -859,12 +920,12 @@ class DatabaseConsole extends Page
 
         foreach ($filenames as $filename) {
             try {
-                $backupService = new SimpleBackupService();
+                $backupService = new SimpleBackupService;
                 $backupService->archiveBackup($filename);
                 $successCount++;
             } catch (\Exception $e) {
                 $failCount++;
-                $errors[] = $filename . ': ' . $e->getMessage();
+                $errors[] = $filename.': '.$e->getMessage();
             }
         }
 
@@ -880,14 +941,14 @@ class DatabaseConsole extends Page
             Notification::make()
                 ->warning()
                 ->title('Partial Success')
-                ->body("{$successCount} archived, {$failCount} failed. First error: " . ($errors[0] ?? 'Unknown error'))
+                ->body("{$successCount} archived, {$failCount} failed. First error: ".($errors[0] ?? 'Unknown error'))
                 ->duration(8000)
                 ->send();
         } else {
             Notification::make()
                 ->danger()
                 ->title('Mass Archive Failed')
-                ->body("Failed to archive all {$failCount} backup(s). First error: " . ($errors[0] ?? 'Unknown error'))
+                ->body("Failed to archive all {$failCount} backup(s). First error: ".($errors[0] ?? 'Unknown error'))
                 ->duration(8000)
                 ->send();
         }
@@ -898,7 +959,8 @@ class DatabaseConsole extends Page
     public function downloadBackup(string $filename): mixed
     {
         try {
-            $backupService = new SimpleBackupService();
+            $backupService = new SimpleBackupService;
+
             return $backupService->downloadBackup($filename);
         } catch (\Exception $e) {
             Notification::make()
@@ -906,7 +968,7 @@ class DatabaseConsole extends Page
                 ->title('Download Failed')
                 ->body($e->getMessage())
                 ->send();
-            
+
             return null;
         }
     }
@@ -915,15 +977,15 @@ class DatabaseConsole extends Page
     {
         // Clean up the output for better display in notifications
         $output = trim($output);
-        
+
         // Remove ANSI color codes
         $output = preg_replace('/\x1b\[[0-9;]*m/', '', $output);
-        
+
         // Limit length for notification display
         if (strlen($output) > 300) {
-            $output = substr($output, 0, 300) . '...';
+            $output = substr($output, 0, 300).'...';
         }
-        
+
         return $output ?: 'Command executed successfully.';
     }
 
@@ -935,10 +997,10 @@ class DatabaseConsole extends Page
                 $this->dispatch('show-notification', [
                     'type' => 'info',
                     'title' => 'Creating Backup',
-                    'body' => 'Creating safety backup before schema merge...'
+                    'body' => 'Creating safety backup before schema merge...',
                 ]);
-                
-                $backupService = new SimpleBackupService();
+
+                $backupService = new SimpleBackupService;
                 $backupFilename = $backupService->createBackup('full');
             }
 
@@ -949,15 +1011,15 @@ class DatabaseConsole extends Page
                 $filePath = null;
                 if (is_string($uploadedFile)) {
                     $filePath = $uploadedFile;
-                } elseif (is_array($uploadedFile) && !empty($uploadedFile)) {
+                } elseif (is_array($uploadedFile) && ! empty($uploadedFile)) {
                     // Get the first uploaded file
                     $filePath = reset($uploadedFile);
                 }
-                
-                if (!$filePath) {
-                    throw new \Exception("No valid file path found in upload data: " . json_encode($uploadedFile));
+
+                if (! $filePath) {
+                    throw new \Exception('No valid file path found in upload data: '.json_encode($uploadedFile));
                 }
-                
+
                 // Debug: Check what's actually in storage - check all directories
                 $debugOutput = "Debug: File identifier: {$filePath}\n";
                 $debugOutput .= "Checking storage directories:\n";
@@ -967,8 +1029,8 @@ class DatabaseConsole extends Page
                     foreach ($checkPaths as $checkPath) {
                         try {
                             $files = Storage::files($checkPath);
-                            if (!empty($files)) {
-                                $debugOutput .= "Directory '{$checkPath}': " . count($files) . " files\n";
+                            if (! empty($files)) {
+                                $debugOutput .= "Directory '{$checkPath}': ".count($files)." files\n";
                                 foreach ($files as $file) {
                                     if (str_contains($file, $filePath) || str_contains($file, '.sql')) {
                                         $debugOutput .= "  - Relevant: {$file}\n";
@@ -979,7 +1041,7 @@ class DatabaseConsole extends Page
                             // Skip directories that don't exist
                         }
                     }
-                    
+
                     // Also check if it's a temporary file with livewire naming
                     $debugOutput .= "Checking for livewire-tmp files...\n";
                     try {
@@ -991,21 +1053,21 @@ class DatabaseConsole extends Page
                         $debugOutput .= "  - No livewire-tmp directory\n";
                     }
                 } catch (\Exception $e) {
-                    $debugOutput .= "- Error checking storage: " . $e->getMessage() . "\n";
+                    $debugOutput .= '- Error checking storage: '.$e->getMessage()."\n";
                 }
-                
+
                 // Try to get file contents using multiple approaches
                 $schemaContent = null;
                 try {
                     // Approach 1: Try all possible storage paths based on actual filesystem
                     $possiblePaths = [
                         $filePath,                                    // Direct path as provided
-                        'public/' . $filePath,                       // Public disk (most likely)
-                        'private/' . $filePath,                      // Private disk
-                        'public/temp-schema/' . basename($filePath), // Public temp-schema with just filename
-                        'private/livewire-tmp/' . basename($filePath), // Livewire temp location
+                        'public/'.$filePath,                       // Public disk (most likely)
+                        'private/'.$filePath,                      // Private disk
+                        'public/temp-schema/'.basename($filePath), // Public temp-schema with just filename
+                        'private/livewire-tmp/'.basename($filePath), // Livewire temp location
                     ];
-                    
+
                     foreach ($possiblePaths as $testPath) {
                         $debugOutput .= "Trying storage path: {$testPath}\n";
                         if (Storage::exists($testPath)) {
@@ -1015,17 +1077,17 @@ class DatabaseConsole extends Page
                             break;
                         }
                     }
-                    
+
                     // Approach 2: If Storage doesn't work, try direct filesystem access
-                    if (!$schemaContent) {
+                    if (! $schemaContent) {
                         $debugOutput .= "Storage approach failed, trying direct filesystem...\n";
                         $directPaths = [
-                            storage_path('app/' . $filePath),
-                            storage_path('app/public/' . $filePath),
-                            storage_path('app/public/temp-schema/' . basename($filePath)),
-                            storage_path('app/private/livewire-tmp/' . basename($filePath)),
+                            storage_path('app/'.$filePath),
+                            storage_path('app/public/'.$filePath),
+                            storage_path('app/public/temp-schema/'.basename($filePath)),
+                            storage_path('app/private/livewire-tmp/'.basename($filePath)),
                         ];
-                        
+
                         foreach ($directPaths as $directPath) {
                             $debugOutput .= "Trying filesystem path: {$directPath}\n";
                             if (file_exists($directPath)) {
@@ -1035,24 +1097,24 @@ class DatabaseConsole extends Page
                             }
                         }
                     }
-                    
-                    if (!$schemaContent) {
-                        throw new \Exception("Could not locate uploaded file using Storage or direct filesystem access\n\n" . $debugOutput);
+
+                    if (! $schemaContent) {
+                        throw new \Exception("Could not locate uploaded file using Storage or direct filesystem access\n\n".$debugOutput);
                     }
-                    
+
                     if (strlen($schemaContent) == 0) {
-                        throw new \Exception("File is empty - upload may have failed");
+                        throw new \Exception('File is empty - upload may have failed');
                     }
-                    
+
                 } catch (\Exception $e) {
-                    throw new \Exception("Could not read uploaded file: " . $e->getMessage() . "\n\n" . $debugOutput);
+                    throw new \Exception('Could not read uploaded file: '.$e->getMessage()."\n\n".$debugOutput);
                 }
             } else {
                 throw new \Exception('No schema file was uploaded');
             }
 
             // Validate it's a SQL file
-            if (!$this->isValidSqlContent($schemaContent)) {
+            if (! $this->isValidSqlContent($schemaContent)) {
                 throw new \Exception('Invalid SQL content detected');
             }
 
@@ -1073,53 +1135,53 @@ class DatabaseConsole extends Page
                 $pdo->exec('SET AUTOCOMMIT=0');
                 $pdo->exec('SET UNIQUE_CHECKS=0');
                 $pdo->exec('START TRANSACTION');
-                
+
                 // Split SQL into individual statements (same method as backup service)
                 $statements = $this->splitSqlStatements($schemaContent);
-                
+
                 $successCount = 0;
                 $failCount = 0;
                 $errors = [];
-                
+
                 foreach ($statements as $statement) {
                     $statement = trim($statement);
-                    if (!empty($statement) && $statement !== ';') {
+                    if (! empty($statement) && $statement !== ';') {
                         try {
                             // Convert INSERT statements to INSERT IGNORE to handle duplicates gracefully
                             if (str_starts_with(strtoupper($statement), 'INSERT INTO')) {
                                 $statement = preg_replace('/^INSERT INTO/i', 'INSERT IGNORE INTO', $statement);
                             }
-                            
+
                             $pdo->exec($statement);
                             $successCount++;
                         } catch (\Exception $e) {
                             $failCount++;
                             $errorMsg = $e->getMessage();
-                            $stmtPreview = substr($statement, 0, 200) . "...";
+                            $stmtPreview = substr($statement, 0, 200).'...';
                             $errors[] = "SQL Error: {$errorMsg} | Statement: {$stmtPreview}";
                         }
                     }
                 }
-                
+
                 // Commit transaction and re-enable checks
                 $pdo->exec('COMMIT');
                 $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
                 $pdo->exec('SET UNIQUE_CHECKS=1');
-                
+
                 // Check for significant failures (be more lenient for data merges)
                 if ($successCount === 0) {
-                    throw new \Exception("No SQL statements succeeded. First error: " . ($errors[0] ?? 'Unknown error'));
+                    throw new \Exception('No SQL statements succeeded. First error: '.($errors[0] ?? 'Unknown error'));
                 } elseif ($failCount > 0 && $successCount < ($failCount * 0.2)) {
                     // Only fail if less than 20% succeeded (most likely a real issue)
-                    throw new \Exception("Too many statements failed ({$failCount}) compared to succeeded ({$successCount}). First error: " . ($errors[0] ?? 'Unknown error'));
+                    throw new \Exception("Too many statements failed ({$failCount}) compared to succeeded ({$successCount}). First error: ".($errors[0] ?? 'Unknown error'));
                 }
-                
+
                 $returnCode = 0; // Success
                 $output = ["Schema merge completed: {$successCount} successful, {$failCount} failed statements"];
-                
+
             } catch (\Exception $e) {
                 $returnCode = 1; // Failure
-                $output = ["Schema merge failed: " . $e->getMessage()];
+                $output = ['Schema merge failed: '.$e->getMessage()];
             }
 
             // Clean up uploaded file
@@ -1132,7 +1194,7 @@ class DatabaseConsole extends Page
             }
 
             if ($returnCode !== 0) {
-                throw new \Exception('Schema merge failed: ' . implode("\n", $output));
+                throw new \Exception('Schema merge failed: '.implode("\n", $output));
             }
 
             // Log the merge activity
@@ -1147,7 +1209,7 @@ class DatabaseConsole extends Page
             Notification::make()
                 ->success()
                 ->title('Schema Merged Successfully')
-                ->body('The schema file has been merged with your database. ' . 
+                ->body('The schema file has been merged with your database. '.
                        ($data['create_backup_first'] ? "Backup created: {$backupFilename}" : ''))
                 ->duration(8000)
                 ->send();
@@ -1171,7 +1233,7 @@ class DatabaseConsole extends Page
     {
         // Basic validation for SQL content
         $content = trim(strtolower($content));
-        
+
         // Check for common SQL keywords that indicate valid schema content
         $validKeywords = [
             'create table',
@@ -1180,7 +1242,7 @@ class DatabaseConsole extends Page
             'create index',
             'create view',
             'create procedure',
-            'create function'
+            'create function',
         ];
 
         foreach ($validKeywords as $keyword) {
@@ -1201,41 +1263,42 @@ class DatabaseConsole extends Page
         // Remove comments and split by semicolons
         $sql = preg_replace('/--.*$/m', '', $sql); // Remove single-line comments
         $sql = preg_replace('/\/\*.*?\*\//s', '', $sql); // Remove multi-line comments
-        
+
         // Split by semicolons, but be careful with quoted strings
         $statements = [];
         $current = '';
         $inQuotes = false;
         $quoteChar = '';
-        
+
         for ($i = 0; $i < strlen($sql); $i++) {
             $char = $sql[$i];
-            
-            if (!$inQuotes && ($char === '"' || $char === "'")) {
+
+            if (! $inQuotes && ($char === '"' || $char === "'")) {
                 $inQuotes = true;
                 $quoteChar = $char;
             } elseif ($inQuotes && $char === $quoteChar) {
                 // Check if it's escaped
-                if ($i > 0 && $sql[$i-1] !== '\\') {
+                if ($i > 0 && $sql[$i - 1] !== '\\') {
                     $inQuotes = false;
                     $quoteChar = '';
                 }
-            } elseif (!$inQuotes && $char === ';') {
+            } elseif (! $inQuotes && $char === ';') {
                 $statements[] = trim($current);
                 $current = '';
+
                 continue;
             }
-            
+
             $current .= $char;
         }
-        
+
         // Add the last statement if it exists
-        if (!empty(trim($current))) {
+        if (! empty(trim($current))) {
             $statements[] = trim($current);
         }
-        
-        return array_filter($statements, function($stmt) {
-            return !empty(trim($stmt));
+
+        return array_filter($statements, function ($stmt) {
+            return ! empty(trim($stmt));
         });
     }
 }
