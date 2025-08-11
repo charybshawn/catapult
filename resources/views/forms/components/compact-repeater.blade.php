@@ -87,7 +87,7 @@
             </div>
         @elseif ($isCompact && count($containers) > 0)
             {{-- Compact Table View --}}
-            <div class="overflow-x-auto overflow-y-visible rounded-lg border border-gray-300 dark:border-gray-700" style="overflow-y: visible;">
+            <div class="compact-repeater-container relative overflow-x-auto overflow-y-visible rounded-lg border border-gray-300 dark:border-gray-700" style="overflow-y: visible !important; position: relative;">
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                     <thead class="bg-gray-50 dark:bg-gray-800">
                         <tr>

@@ -23,6 +23,13 @@ class CreateRecipe extends BaseCreateRecord
             Section::make('Basic Information')
                 ->description('Enter the basic recipe information')
                 ->schema([
+                    TextInput::make('name')
+                        ->label('Recipe Name')
+                        ->required()
+                        ->maxLength(255)
+                        ->helperText('Recipe name will be auto-generated from variety and lot if left blank')
+                        ->columnSpanFull(),
+
                     Select::make('seed_variety_helper')
                         ->label('Seed Variety')
                         ->options(function () {
@@ -48,9 +55,14 @@ class CreateRecipe extends BaseCreateRecord
                         ->searchable()
                         ->preload()
                         ->live(onBlur: true)
-                        ->afterStateUpdated(function (callable $set, $state) {
+                        ->afterStateUpdated(function (callable $set, $state, callable $get) {
                             // Clear lot number when variety changes
                             $set('lot_number', null);
+                            
+                            // Auto-generate recipe name if not manually set
+                            if ($state && !$get('name')) {
+                                $set('name', $state);
+                            }
                         })
                         ->helperText('Choose seed variety to see available lots')
                         ->columnSpan(1),
@@ -93,6 +105,13 @@ class CreateRecipe extends BaseCreateRecord
                         ->searchable()
                         ->preload()
                         ->live(onBlur: true)
+                        ->afterStateUpdated(function (callable $set, $state, callable $get) {
+                            // Auto-generate recipe name if not manually set
+                            $variety = $get('seed_variety_helper');
+                            if ($variety && $state && !$get('name')) {
+                                $set('name', "{$variety} - Lot {$state}");
+                            }
+                        })
                         ->helperText('Select specific lot (oldest shown first for FIFO)')
                         ->disabled(fn (callable $get) => ! $get('seed_variety_helper'))
                         ->required()
@@ -136,19 +155,11 @@ class CreateRecipe extends BaseCreateRecord
                         ->numeric()
                         ->minValue(0)
                         ->step(0.01)
-                        ->live(onBlur: true)
-                        ->afterStateUpdated(function (callable $set, $state) {
-                            // Sync with legacy seed_density field
-                            $set('seed_density', $state);
-                        })
+                        ->dehydrated(true)
                         ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
                         ->columnSpan(1),
 
                     // Hidden fields for legacy compatibility
-                    Forms\Components\Hidden::make('seed_density')
-                        ->default(0),
-
-
                     Forms\Components\Hidden::make('seed_consumable_id')
                         ->default(null),
 
@@ -285,5 +296,36 @@ class CreateRecipe extends BaseCreateRecord
                 ->collapsible(),
 
         ])->columns(null);
+    }
+
+    protected function mutateFormDataBeforeCreate(array $data): array
+    {
+        // If seed_variety_helper is selected, find the corresponding master_seed_catalog_id and master_cultivar_id
+        if (isset($data['seed_variety_helper']) && $data['seed_variety_helper']) {
+            // Find the consumable for the selected variety and lot
+            // We need to use the raw name from database since the computed name attribute causes issues
+            $consumable = Consumable::with(['masterSeedCatalog', 'masterCultivar', 'consumableType'])
+                ->whereHas('consumableType', function ($query) {
+                    $query->where('code', 'seed');
+                })
+                ->whereRaw('name = ?', [$data['seed_variety_helper']])
+                ->where('lot_no', $data['lot_number'] ?? null)
+                ->first();
+            
+            if ($consumable) {
+                $data['master_seed_catalog_id'] = $consumable->master_seed_catalog_id;
+                $data['master_cultivar_id'] = $consumable->master_cultivar_id;
+                $data['common_name'] = $consumable->masterSeedCatalog?->common_name;
+                $data['cultivar_name'] = $consumable->masterCultivar?->cultivar_name;
+                
+                // Set seed_consumable_id to the consumable that matches the lot
+                $data['seed_consumable_id'] = $consumable->id;
+            }
+        }
+        
+        // Remove the helper field as it's not a database column
+        unset($data['seed_variety_helper']);
+        
+        return $data;
     }
 }

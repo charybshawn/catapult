@@ -747,3 +747,122 @@ table td {
     border-bottom: 1px solid #1f2937 !important;
 }
 
+/* ===========================================
+   DROPDOWN FIXES FOR PRODUCT MIX
+   =========================================== */
+
+/* Fix dropdown background in dark mode */
+[data-popover-reference] + div[data-popover] {
+    z-index: 50 !important;
+}
+
+/* Select dropdown menu styling fixes */
+.fi-select-list,
+div[data-popover][role="listbox"] {
+    background-color: white !important;
+    border: 1px solid rgb(229 231 235) !important;
+    border-radius: 0.375rem !important;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important;
+    z-index: 50 !important;
+    max-height: 200px !important;
+    overflow-y: auto !important;
+}
+
+.dark .fi-select-list,
+.dark div[data-popover][role="listbox"] {
+    background-color: rgb(31 41 55) !important;
+    border: 1px solid rgb(75 85 99) !important;
+    color: white !important;
+}
+
+/* Select dropdown options */
+.fi-select-list-item,
+div[data-popover][role="listbox"] > div[role="option"] {
+    padding: 0.5rem 0.75rem !important;
+    cursor: pointer !important;
+    color: rgb(17 24 39) !important;
+}
+
+.dark .fi-select-list-item,
+.dark div[data-popover][role="listbox"] > div[role="option"] {
+    color: rgb(243 244 246) !important;
+}
+
+.fi-select-list-item:hover,
+div[data-popover][role="listbox"] > div[role="option"]:hover {
+    background-color: rgb(243 244 246) !important;
+}
+
+.dark .fi-select-list-item:hover,
+.dark div[data-popover][role="listbox"] > div[role="option"]:hover {
+    background-color: rgb(55 65 81) !important;
+}
+
+/* Fix dropdown positioning in tables */
+.compact-repeater-container {
+    position: relative !important;
+    overflow: visible !important;
+}
+
+.compact-repeater-container table {
+    overflow: visible !important;
+}
+
+.compact-repeater-container table td {
+    overflow: visible !important;
+    position: relative !important;
+}
+
+/* Specific fixes for select components in table cells */
+.compact-repeater-container td .fi-select-input {
+    position: relative !important;
+}
+
+.compact-repeater-container td div[data-headlessui-combobox] {
+    position: relative !important;
+}
+
+/* Force dropdown to position relative to its container, not teleport */
+.compact-repeater-container [data-headlessui-combobox-options] {
+    position: absolute !important;
+    z-index: 50 !important;
+    top: 100% !important;
+    left: 0 !important;
+    right: 0 !important;
+}
+
+/* Override the compact repeater overflow settings for dropdowns */
+.compact-repeater-container {
+    overflow: visible !important;
+}
+
+.compact-repeater-container .overflow-x-auto {
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+}
+
+/* Ensure dropdown portal renders properly */
+.fi-select-input + div[data-headlessui-portal] {
+    z-index: 999 !important;
+}
+
+/* Additional dropdown positioning fixes */
+[data-headlessui-combobox-options] {
+    z-index: 999 !important;
+    position: fixed !important;
+}
+
+div[role="listbox"][data-headlessui-combobox-options] {
+    z-index: 999 !important;
+    position: fixed !important;
+    background-color: white !important;
+    border: 1px solid rgb(229 231 235) !important;
+    border-radius: 0.375rem !important;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important;
+}
+
+.dark div[role="listbox"][data-headlessui-combobox-options] {
+    background-color: rgb(31 41 55) !important;
+    border: 1px solid rgb(75 85 99) !important;
+}
+

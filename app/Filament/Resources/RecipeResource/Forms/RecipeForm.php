@@ -43,9 +43,15 @@ class RecipeForm
     {
         return Forms\Components\Select::make('master_seed_catalog_id')
             ->label('Variety')
-            ->relationship('masterSeedCatalog', 'common_name')
+            ->options(function () {
+                return \App\Models\MasterSeedCatalog::query()
+                    ->where('is_active', true)
+                    ->orderBy('common_name')
+                    ->pluck('common_name', 'id');
+            })
             ->searchable()
             ->preload()
+            ->native(false)
             ->required()
             ->reactive()
             ->afterStateUpdated(function ($state, callable $set, ?Recipe $record) {
@@ -160,10 +166,14 @@ class RecipeForm
     {
         return Forms\Components\Select::make('seed_consumable_id')
             ->label('Seed Consumable')
-            ->relationship('seedConsumable', 'name', function ($query) {
-                return $query->whereHas('consumableType', function ($q) {
-                    $q->where('name', 'like', '%seed%');
-                });
+            ->options(function () {
+                return \App\Models\Consumable::query()
+                    ->whereHas('consumableType', function ($q) {
+                        $q->where('name', 'like', '%seed%');
+                    })
+                    ->where('is_active', true)
+                    ->orderBy('name')
+                    ->pluck('name', 'id');
             })
             ->searchable()
             ->preload()

@@ -242,17 +242,16 @@ class ProductMixForm
     {
         return Forms\Components\Select::make('recipe_id')
             ->label('Recipe (Optional)')
-            ->options(function () {
-                return \App\Models\Recipe::where('is_active', true)
+            ->options(
+                \App\Models\Recipe::where('is_active', true)
                     ->whereNull('lot_depleted_at')
                     ->orderBy('name')
                     ->pluck('name', 'id')
-                    ->toArray();
-            })
-            ->searchable()
+                    ->toArray()
+            )
             ->placeholder('Use default recipe')
             ->helperText('Leave empty to use the default recipe for this variety')
-            ->native(false)
+            ->native(true)
             ->suffixAction(
                 CreateRecipeAction::make()
                     ->fillForm(function (callable $get) {

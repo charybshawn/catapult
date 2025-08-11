@@ -307,14 +307,14 @@ class ConsumableForm
                 }),
 
             // Cultivar field - now uses proper relationships
-            Forms\Components\Select::make('cultivar')
+            Forms\Components\Select::make('master_cultivar_id')
                 ->label('Cultivar')
                 ->options(function (Get $get) {
                     $catalogId = $get('master_seed_catalog_id');
                     if ($catalogId) {
                         return \App\Models\MasterCultivar::where('master_seed_catalog_id', $catalogId)
                             ->where('is_active', true)
-                            ->pluck('cultivar_name', 'cultivar_name')
+                            ->pluck('cultivar_name', 'id')
                             ->toArray();
                     }
 
@@ -337,21 +337,17 @@ class ConsumableForm
                 ->afterStateUpdated(function ($state, Set $set, Get $get) {
                     // Generate name from common name and cultivar
                     $catalogId = $get('master_seed_catalog_id');
-                    $cultivar = $state;
+                    $cultivarId = $state;
 
-                    if ($catalogId && $cultivar) {
+                    if ($catalogId && $cultivarId) {
                         $masterCatalog = \App\Models\MasterSeedCatalog::find($catalogId);
-                        if ($masterCatalog) {
-                            $name = $masterCatalog->common_name.' ('.$cultivar.')';
+                        $masterCultivar = \App\Models\MasterCultivar::find($cultivarId);
+                        
+                        if ($masterCatalog && $masterCultivar) {
+                            $name = $masterCatalog->common_name.' ('.$masterCultivar->cultivar_name.')';
                             $set('name', $name);
-
-                            // Also set the master_cultivar_id
-                            $masterCultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $catalogId)
-                                ->where('cultivar_name', $cultivar)
-                                ->first();
-                            if ($masterCultivar) {
-                                $set('master_cultivar_id', $masterCultivar->id);
-                            }
+                            // Also set the cultivar string for backwards compatibility if needed
+                            $set('cultivar', $masterCultivar->cultivar_name);
                         }
                     }
                 })
@@ -365,30 +361,26 @@ class ConsumableForm
     protected static function handleSeedCatalogUpdate($masterCatalog, Set $set, Get $get): void
     {
         // Auto-select first cultivar if none selected
-        $cultivar = $get('cultivar');
-        if (! $cultivar) {
+        $cultivarId = $get('master_cultivar_id');
+        if (! $cultivarId) {
             // Get first active cultivar from the relationship
             $firstCultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $masterCatalog->id)
                 ->where('is_active', true)
                 ->first();
             
             if ($firstCultivar) {
+                $set('master_cultivar_id', $firstCultivar->id);
                 $set('cultivar', $firstCultivar->cultivar_name);
                 $name = $masterCatalog->common_name.' ('.$firstCultivar->cultivar_name.')';
                 $set('name', $name);
-                $set('master_cultivar_id', $firstCultivar->id);
             }
         } else {
             // Update name with existing cultivar
-            $name = $masterCatalog->common_name.' ('.$cultivar.')';
-            $set('name', $name);
-
-            // Set master_cultivar_id
-            $masterCultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $masterCatalog->id)
-                ->where('cultivar_name', $cultivar)
-                ->first();
+            $masterCultivar = \App\Models\MasterCultivar::find($cultivarId);
             if ($masterCultivar) {
-                $set('master_cultivar_id', $masterCultivar->id);
+                $name = $masterCatalog->common_name.' ('.$masterCultivar->cultivar_name.')';
+                $set('name', $name);
+                $set('cultivar', $masterCultivar->cultivar_name);
             }
         }
     }
