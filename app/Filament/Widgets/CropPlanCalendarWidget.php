@@ -131,10 +131,14 @@ class CropPlanCalendarWidget extends FullCalendarWidget
                     'status' => $dominantStatus,
                     'has_overdue_plans' => $hasOverduePlans,
                     'individual_plans' => $plans->map(function ($plan) {
+                        // Parse calculation details to get source products
+                        $calculationDetails = $plan->calculation_details ?? [];
+                        $aggregatedOrders = $calculationDetails['aggregated_orders'] ?? [];
+                        
                         return [
                             'id' => $plan->id,
                             'order_id' => $plan->order_id,
-                            'customer' => $plan->order?->customer?->contact_name ?? 'Unknown',
+                            'customer' => $plan->order?->customer?->business_name ?? 'Unknown',
                             'grams_needed' => $plan->grams_needed,
                             'trays_needed' => $plan->trays_needed,
                             'status' => $plan->status?->name ?? 'Unknown',
@@ -143,6 +147,16 @@ class CropPlanCalendarWidget extends FullCalendarWidget
                             'harvest_date' => $plan->expected_harvest_date?->format('Y-m-d'),
                             'days_to_maturity' => $plan->recipe?->days_to_maturity ?? null,
                             'is_overdue' => $plan->plant_by_date && $plan->plant_by_date->isPast(),
+                            'source_orders' => collect($aggregatedOrders)->map(function ($orderData) {
+                                $orderId = $orderData['order_id'] ?? null;
+                                if ($orderId) {
+                                    $order = \App\Models\Order::with('customer')->find($orderId);
+                                    if ($order && $order->customer) {
+                                        $orderData['customer'] = $order->customer->business_name ?: $order->customer->contact_name ?: 'Unknown';
+                                    }
+                                }
+                                return $orderData;
+                            })->toArray(), // Include source order/product breakdown
                         ];
                     })->toArray(),
                 ],
