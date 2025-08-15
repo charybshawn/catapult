@@ -4,7 +4,7 @@ namespace App\Filament\Resources\CropResource\Actions;
 
 use App\Models\Crop;
 use App\Models\CropStage;
-use App\Services\CropStageTransitionService;
+use App\Services\CropTaskManagementService;
 use App\Services\CropStageValidationService;
 use App\Services\CropStageCache;
 use Filament\Forms;
@@ -107,7 +107,7 @@ class StageTransitionActions
             })
             ->action(function ($record, array $data) {
                 try {
-                    $transitionService = app(CropStageTransitionService::class);
+                    $transitionService = app(CropTaskManagementService::class);
                     $validationService = app(CropStageValidationService::class);
                     
                     // Get the first real crop to use as target
@@ -209,7 +209,7 @@ class StageTransitionActions
             ])
             ->action(function ($record, array $data) {
                 try {
-                    $transitionService = app(CropStageTransitionService::class);
+                    $transitionService = app(CropTaskManagementService::class);
                     $validationService = app(CropStageValidationService::class);
                     
                     // Get the first real crop to use as target
@@ -314,7 +314,7 @@ class StageTransitionActions
             ])
             ->action(function ($record, array $data) {
                 try {
-                    $transitionService = app(CropStageTransitionService::class);
+                    $transitionService = app(CropTaskManagementService::class);
                     
                     // Get the first real crop to use as target
                     $targetCrop = self::getFirstCropForRecord($record);

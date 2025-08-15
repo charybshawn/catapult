@@ -2,13 +2,18 @@
 
 namespace App\Services;
 
+use App\Actions\Crops\RecordStageHistory;
 use App\Models\Crop;
+use App\Models\CropBatch;
 use App\Models\CropStage;
 use App\Models\NotificationSetting;
 use App\Models\TaskSchedule;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Validation\ValidationException;
 use App\Notifications\ResourceActionRequired;
 
 /**
@@ -211,62 +216,64 @@ class CropTaskManagementService
     /**
      * Advance a crop to the next stage in its lifecycle
      * IMPORTANT: This advances ALL crops in the batch to maintain batch integrity
+     * Records stage history and validates transitions properly
      */
     public function advanceStage(Crop $crop, ?Carbon $timestamp = null): void
     {
-        // Ensure currentStage and recipe are loaded
-        if (!$crop->relationLoaded('currentStage')) {
-            $crop->load('currentStage');
-        }
-        if (!$crop->relationLoaded('recipe')) {
-            $crop->load('recipe');
-        }
-
-        // Get the next viable stage based on recipe (skipping stages with 0 days)
-        $currentStageObject = $crop->getRelationValue('currentStage');
-        $nextStage = $currentStageObject?->getNextViableStage($crop->recipe);
+        $transitionTime = $timestamp ?? Carbon::now();
         
-        if (!$nextStage) {
-            Log::warning('Cannot advance crop beyond final stage', [
-                'crop_id' => $crop->id,
-                'current_stage_id' => $crop->current_stage_id,
-                'current_stage_code' => $currentStageObject?->code
-            ]);
-            return;
-        }
-
-        // Find ALL crops in this batch to maintain batch integrity
-        $batchCrops = $this->findBatchCrops($crop);
-
-        $advancementTime = $timestamp ?? Carbon::now();
-        $count = 0;
-        
-        // Advance all crops in the batch together
-        foreach ($batchCrops as $batchCrop) {
-            $batchCrop->current_stage_id = $nextStage->id;
+        try {
+            $result = $this->advanceStageWithHistory($crop, $transitionTime);
             
-            // Set stage-specific timestamps
-            match ($nextStage->code) {
-                'soaking' => $batchCrop->soaking_at = $advancementTime,
-                'germination' => $batchCrop->germination_at = $advancementTime,
-                'blackout' => $batchCrop->blackout_at = $advancementTime,
-                'light' => $batchCrop->light_at = $advancementTime,
-                'harvested' => $batchCrop->harvested_at = $advancementTime,
-                default => null
-            };
-
-            $batchCrop->save();
-            $count++;
+            Log::info('Crop stage advanced successfully', [
+                'crop_id' => $crop->id,
+                'batch_size' => $result['affected_count'] ?? 1,
+                'advanced' => $result['advanced'] ?? 0,
+                'failed' => $result['failed'] ?? 0
+            ]);
+            
+        } catch (ValidationException $e) {
+            Log::error('Crop stage advancement failed validation', [
+                'crop_id' => $crop->id,
+                'errors' => $e->errors()
+            ]);
+            throw $e;
+        } catch (\Exception $e) {
+            Log::error('Crop stage advancement failed', [
+                'crop_id' => $crop->id,
+                'error' => $e->getMessage()
+            ]);
+            throw $e;
         }
+    }
 
-        Log::info('Crop batch stage advanced', [
-            'initiating_crop_id' => $crop->id,
-            'batch_size' => $count,
-            'recipe_id' => $crop->recipe_id,
-            'germination_at' => $crop->germination_at,
-            'from_stage' => $currentStageObject?->code,
-            'to_stage' => $nextStage->code
-        ]);
+    /**
+     * Advance stage with full history recording and validation
+     */
+    public function advanceStageWithHistory($target, Carbon $transitionTime, array $options = []): array
+    {
+        return DB::transaction(function () use ($target, $transitionTime, $options) {
+            $crops = $this->getCropsForTransition($target);
+            
+            if ($crops->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'target' => 'No crops found for transition'
+                ]);
+            }
+
+            // Get current and next stage
+            $currentStage = $this->getCurrentStage($crops->first());
+            $nextStage = $this->getNextStage($currentStage);
+
+            if (!$nextStage) {
+                throw ValidationException::withMessages([
+                    'stage' => "Cannot advance from {$currentStage->name} - already at final stage"
+                ]);
+            }
+
+            // Perform the transition with history recording
+            return $this->performAdvancement($crops, $currentStage, $nextStage, $transitionTime, $options);
+        });
     }
 
     /**
@@ -957,5 +964,294 @@ class CropTaskManagementService
 
         $timestampField = $this->getStageTimestampField($crop->currentStage->code);
         return $crop->{$timestampField};
+    }
+
+    // ===== STAGE TRANSITION HELPER METHODS =====
+
+    /**
+     * Mapping of stage codes to their timestamp fields
+     */
+    private const STAGE_TIMESTAMP_MAP = [
+        'soaking' => 'soaking_at',
+        'germination' => 'germination_at',
+        'blackout' => 'blackout_at',
+        'light' => 'light_at',
+        'harvested' => 'harvested_at',
+    ];
+
+    /**
+     * Get crops for transition based on target type
+     */
+    private function getCropsForTransition($target): Collection
+    {
+        if ($target instanceof Crop) {
+            // If using batch_id, get all crops in batch
+            if ($target->crop_batch_id) {
+                return Crop::where('crop_batch_id', $target->crop_batch_id)
+                    ->with(['recipe', 'currentStage'])
+                    ->get();
+            }
+            
+            // Fall back to implicit batching
+            return Crop::where('recipe_id', $target->recipe_id)
+                ->where('germination_at', $target->germination_at)
+                ->where('current_stage_id', $target->current_stage_id)
+                ->with(['recipe', 'currentStage'])
+                ->get();
+        }
+
+        if ($target instanceof CropBatch) {
+            return $target->crops()->with(['recipe', 'currentStage'])->get();
+        }
+
+        throw new \InvalidArgumentException('Target must be Crop or CropBatch instance');
+    }
+
+    /**
+     * Get current stage for a crop
+     */
+    private function getCurrentStage(Crop $crop): CropStage
+    {
+        return $crop->currentStage ?? CropStage::find($crop->current_stage_id);
+    }
+
+    /**
+     * Get next stage in progression
+     */
+    private function getNextStage(CropStage $currentStage): ?CropStage
+    {
+        return CropStage::where('sort_order', '>', $currentStage->sort_order)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->first();
+    }
+
+    /**
+     * Perform the advancement with history recording
+     */
+    private function performAdvancement(Collection $crops, CropStage $currentStage, CropStage $nextStage, Carbon $transitionTime, array $options): array
+    {
+        $results = [
+            'advanced' => 0,
+            'failed' => 0,
+            'warnings' => [],
+            'crops' => [],
+            'affected_count' => 0,
+        ];
+
+        $timestampField = self::STAGE_TIMESTAMP_MAP[$nextStage->code] ?? null;
+        $recordStageHistory = app(RecordStageHistory::class);
+
+        foreach ($crops as $crop) {
+            try {
+                // Update tray number if advancing from soaking
+                if ($currentStage->code === 'soaking' && isset($options['tray_numbers'][$crop->id])) {
+                    $crop->tray_number = $options['tray_numbers'][$crop->id];
+                }
+
+                // Update stage
+                $crop->current_stage_id = $nextStage->id;
+                
+                // Update timestamp
+                if ($timestampField) {
+                    $crop->$timestampField = $transitionTime;
+                }
+
+                // Save and refresh
+                $crop->save();
+                $crop->refresh();
+
+                // Record stage transition in history
+                $recordStageHistory->execute($crop, $nextStage, $transitionTime, 'Stage automatically advanced');
+
+                $results['advanced']++;
+                $results['affected_count']++;
+                $results['crops'][] = [
+                    'id' => $crop->id,
+                    'tray_number' => $crop->tray_number,
+                    'status' => 'success'
+                ];
+
+            } catch (\Exception $e) {
+                Log::error("Failed to advance crop {$crop->id}", [
+                    'error' => $e->getMessage(),
+                    'crop_id' => $crop->id
+                ]);
+
+                $results['failed']++;
+                $results['warnings'][] = "Failed to advance crop {$crop->tray_number}: {$e->getMessage()}";
+                $results['crops'][] = [
+                    'id' => $crop->id,
+                    'tray_number' => $crop->tray_number,
+                    'status' => 'failed',
+                    'error' => $e->getMessage()
+                ];
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Fix missing stage timestamps for existing crops
+     */
+    public function fixMissingStageTimestamps(Crop $crop): bool
+    {
+        if (!$crop->relationLoaded('currentStage')) {
+            $crop->load('currentStage');
+        }
+        
+        if (!$crop->currentStage) {
+            return false;
+        }
+        
+        $stageCode = $crop->currentStage->code;
+        $fixed = false;
+        
+        // Check if current stage timestamp is missing
+        if (isset(self::STAGE_TIMESTAMP_MAP[$stageCode])) {
+            $timestampField = self::STAGE_TIMESTAMP_MAP[$stageCode];
+            
+            if (!$crop->$timestampField && $crop->germination_at) {
+                // Use germination_at as fallback timestamp
+                $crop->update([$timestampField => $crop->germination_at]);
+                $fixed = true;
+                
+                Log::info('Fixed missing stage timestamp', [
+                    'crop_id' => $crop->id,
+                    'stage' => $stageCode,
+                    'field' => $timestampField,
+                    'time' => $crop->germination_at->format('Y-m-d H:i:s')
+                ]);
+            }
+        }
+        
+        return $fixed;
+    }
+
+    /**
+     * Revert a single crop or batch to the previous stage
+     */
+    public function revertStage($target, ?string $reason = null): array
+    {
+        return DB::transaction(function () use ($target, $reason) {
+            $crops = $this->getCropsForTransition($target);
+            
+            if ($crops->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'target' => 'No crops found for transition'
+                ]);
+            }
+
+            // Get current and previous stage
+            $currentStage = $this->getCurrentStage($crops->first());
+            $previousStage = $this->getPreviousStage($currentStage);
+
+            if (!$previousStage) {
+                throw ValidationException::withMessages([
+                    'stage' => "Cannot revert from {$currentStage->name} - already at first stage"
+                ]);
+            }
+
+            // Perform the reversal
+            return $this->performReversal($crops, $currentStage, $previousStage, $reason);
+        });
+    }
+
+    /**
+     * Get previous stage in progression
+     */
+    private function getPreviousStage(CropStage $currentStage): ?CropStage
+    {
+        return CropStage::where('sort_order', '<', $currentStage->sort_order)
+            ->where('is_active', true)
+            ->orderBy('sort_order', 'desc')
+            ->first();
+    }
+
+    /**
+     * Perform the reversal
+     */
+    private function performReversal(Collection $crops, CropStage $currentStage, CropStage $previousStage, ?string $reason): array
+    {
+        $results = [
+            'reverted' => 0,
+            'failed' => 0,
+            'warnings' => [],
+            'crops' => [],
+            'affected_count' => 0,
+        ];
+
+        $currentTimestampField = self::STAGE_TIMESTAMP_MAP[$currentStage->code] ?? null;
+        $recordStageHistory = app(RecordStageHistory::class);
+
+        foreach ($crops as $crop) {
+            try {
+                // Clear current stage timestamp
+                if ($currentTimestampField) {
+                    $crop->$currentTimestampField = null;
+                }
+
+                // Also clear any future stage timestamps to maintain sequence integrity
+                $this->clearFutureTimestamps($crop, $previousStage);
+
+                // Update stage
+                $crop->current_stage_id = $previousStage->id;
+
+                // Save and refresh
+                $crop->save();
+                $crop->refresh();
+
+                // Remove the current stage from history
+                $recordStageHistory->removeStageEntry($crop, $currentStage);
+
+                $results['reverted']++;
+                $results['affected_count']++;
+                $results['crops'][] = [
+                    'id' => $crop->id,
+                    'tray_number' => $crop->tray_number,
+                    'status' => 'success'
+                ];
+
+            } catch (\Exception $e) {
+                Log::error("Failed to revert crop {$crop->id}", [
+                    'error' => $e->getMessage(),
+                    'crop_id' => $crop->id,
+                    'reason' => $reason
+                ]);
+
+                $results['failed']++;
+                $results['warnings'][] = "Failed to revert crop {$crop->tray_number}: {$e->getMessage()}";
+                $results['crops'][] = [
+                    'id' => $crop->id,
+                    'tray_number' => $crop->tray_number,
+                    'status' => 'failed',
+                    'error' => $e->getMessage()
+                ];
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Clear timestamps for stages after the given stage
+     */
+    private function clearFutureTimestamps(Crop $crop, CropStage $stage): void
+    {
+        $stageOrder = array_keys(self::STAGE_TIMESTAMP_MAP);
+        $currentIndex = array_search($stage->code, $stageOrder);
+
+        if ($currentIndex === false) {
+            return;
+        }
+
+        // Clear all timestamps after the current stage
+        for ($i = $currentIndex + 1; $i < count($stageOrder); $i++) {
+            $timestampField = self::STAGE_TIMESTAMP_MAP[$stageOrder[$i]] ?? null;
+            if ($timestampField && $crop->$timestampField !== null) {
+                $crop->$timestampField = null;
+            }
+        }
     }
 }

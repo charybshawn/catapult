@@ -9,7 +9,7 @@ use App\Models\Recipe;
 use App\Services\CropStageCache;
 use App\Filament\Resources\CropResource\Actions\StageTransitionActions;
 use App\Filament\Resources\CropResource\Actions\CropBatchDebugAction;
-use App\Services\CropStageTransitionService;
+use App\Services\CropTaskManagementService;
 use Filament\Forms;
 use Filament\Tables;
 use Filament\Tables\Actions\Action;
@@ -231,7 +231,7 @@ class CropBatchTable
                 $crops = \App\Models\Crop::where('crop_batch_id', $record->id)->get();
                 
                 foreach ($crops as $crop) {
-                    $fixed = app(\App\Services\CropStageTransitionService::class)->fixMissingStageTimestamps($crop);
+                    $fixed = app(\App\Services\CropTaskManagementService::class)->fixMissingStageTimestamps($crop);
                     if ($fixed) {
                         $fixedCount++;
                     }
@@ -353,7 +353,7 @@ class CropBatchTable
                     ->helperText('Specify the actual time when the stage advancement happened'),
             ])
             ->action(function ($records, array $data) {
-                $transitionService = app(\App\Services\CropStageTransitionService::class);
+                $transitionService = app(\App\Services\CropTaskManagementService::class);
                 $totalCount = 0;
                 $batchCount = 0;
                 $successfulBatches = 0;
@@ -439,7 +439,7 @@ class CropBatchTable
                     ->helperText('Provide a reason for rolling back these batches'),
             ])
             ->action(function ($records, array $data) {
-                $transitionService = app(\App\Services\CropStageTransitionService::class);
+                $transitionService = app(\App\Services\CropTaskManagementService::class);
                 $totalCount = 0;
                 $batchCount = 0;
                 $successfulBatches = 0;

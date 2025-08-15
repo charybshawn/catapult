@@ -154,42 +154,89 @@ class CropBatchInfolist
             return '<div class="text-gray-500 dark:text-gray-400">No crop data available</div>';
         }
         
+        // Load relationships if not loaded
+        if (!$firstCrop->relationLoaded('recipe')) {
+            $firstCrop->load('recipe');
+        }
+        if (!$firstCrop->relationLoaded('currentStage')) {
+            $firstCrop->load('currentStage');
+        }
+        
         // Get current stage info from the crop/batch 
-        $currentStageName = $firstCrop->currentStage?->name ?? 'Unknown';
         $currentStageCode = $firstCrop->currentStage?->code ?? 'unknown';
         
-        // Use existing stage age calculation from the model
-        $stageAge = $record->stage_age_display ?? '';
+        // Build timeline based on actual crop data
+        $timeline = [];
         
-        // Build simple timeline based on current stage
-        $timeline = [
-            'soaking' => ['name' => 'Soaking', 'status' => 'n/a'],
-            'germination' => ['name' => 'Germination', 'status' => 'TBD'],
-            'blackout' => ['name' => 'Blackout', 'status' => 'n/a'],
-            'light' => ['name' => 'Light', 'status' => 'TBD'],
-            'harvested' => ['name' => 'Harvested', 'status' => 'TBD']
-        ];
+        // Soaking stage (if recipe requires it)
+        if ($firstCrop->requires_soaking || ($firstCrop->recipe && $firstCrop->recipe->seed_soak_hours > 0)) {
+            $timeline['soaking'] = [
+                'name' => 'Soaking',
+                'status' => $firstCrop->soaking_at ? 
+                    ($currentStageCode === 'soaking' ? 'current' : 'completed') : 
+                    'pending'
+            ];
+        } else {
+            $timeline['soaking'] = ['name' => 'Soaking', 'status' => 'n/a'];
+        }
         
-        // Update based on current stage
-        switch($currentStageCode) {
-            case 'germination':
-                $timeline['germination']['status'] = 'current (' . $stageAge . ' elapsed)';
-                break;
-            case 'blackout':
-                $timeline['germination']['status'] = 'completed';
-                $timeline['blackout']['status'] = 'current (' . $stageAge . ' elapsed)';
-                break;
-            case 'light':
-                $timeline['germination']['status'] = 'completed';
-                $timeline['blackout']['status'] = 'completed';
-                $timeline['light']['status'] = 'current (' . $stageAge . ' elapsed)';
-                break;
-            case 'harvested':
-                $timeline['germination']['status'] = 'completed';
-                $timeline['blackout']['status'] = 'completed';
-                $timeline['light']['status'] = 'completed';
-                $timeline['harvested']['status'] = 'current (' . $stageAge . ' elapsed)';
-                break;
+        // Germination stage
+        if ($firstCrop->germination_at) {
+            $germStart = \Carbon\Carbon::parse($firstCrop->germination_at);
+            if ($currentStageCode === 'germination') {
+                $duration = $germStart->diffForHumans(now(), ['parts' => 2, 'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE]);
+                $timeline['germination'] = ['name' => 'Germination', 'status' => 'current (' . $duration . ')'];
+            } else {
+                $timeline['germination'] = ['name' => 'Germination', 'status' => 'completed'];
+            }
+        } else {
+            $timeline['germination'] = ['name' => 'Germination', 'status' => 'pending'];
+        }
+        
+        // Blackout stage (check if recipe uses blackout)
+        $hasBlackout = $firstCrop->recipe && $firstCrop->recipe->blackout_days > 0;
+        if ($hasBlackout) {
+            if ($firstCrop->blackout_at) {
+                $blackoutStart = \Carbon\Carbon::parse($firstCrop->blackout_at);
+                if ($currentStageCode === 'blackout') {
+                    $duration = $blackoutStart->diffForHumans(now(), ['parts' => 2, 'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE]);
+                    $timeline['blackout'] = ['name' => 'Blackout', 'status' => 'current (' . $duration . ')'];
+                } else if (in_array($currentStageCode, ['light', 'harvested'])) {
+                    $timeline['blackout'] = ['name' => 'Blackout', 'status' => 'completed'];
+                } else {
+                    $timeline['blackout'] = ['name' => 'Blackout', 'status' => 'pending'];
+                }
+            } else {
+                $timeline['blackout'] = ['name' => 'Blackout', 'status' => $currentStageCode === 'blackout' ? 'current' : 'pending'];
+            }
+        } else {
+            $timeline['blackout'] = ['name' => 'Blackout', 'status' => 'n/a'];
+        }
+        
+        // Light stage
+        if ($firstCrop->light_at || $currentStageCode === 'light') {
+            if ($currentStageCode === 'light') {
+                // Calculate duration from when light stage started
+                $lightStart = $firstCrop->blackout_at ? 
+                    \Carbon\Carbon::parse($firstCrop->blackout_at) : 
+                    \Carbon\Carbon::parse($firstCrop->germination_at);
+                $duration = $lightStart->diffForHumans(now(), ['parts' => 2, 'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE]);
+                $timeline['light'] = ['name' => 'Light', 'status' => 'current (' . $duration . ')'];
+            } else if ($currentStageCode === 'harvested') {
+                $timeline['light'] = ['name' => 'Light', 'status' => 'completed'];
+            } else {
+                $timeline['light'] = ['name' => 'Light', 'status' => 'pending'];
+            }
+        } else {
+            $timeline['light'] = ['name' => 'Light', 'status' => 'pending'];
+        }
+        
+        // Harvested stage
+        if ($firstCrop->harvested_at) {
+            $harvestTime = \Carbon\Carbon::parse($firstCrop->harvested_at);
+            $timeline['harvested'] = ['name' => 'Harvested', 'status' => 'completed (' . $harvestTime->format('M j') . ')'];
+        } else {
+            $timeline['harvested'] = ['name' => 'Harvested', 'status' => 'pending'];
         }
         
         return static::buildTimelineHtml($timeline);
@@ -226,11 +273,13 @@ class CropBatchInfolist
     {
         if (strpos($status, 'current') !== false) {
             return 'text-blue-600 dark:text-blue-400 font-medium';
-        } elseif ($status === 'completed') {
+        } elseif (strpos($status, 'completed') !== false) {
             return 'text-green-600 dark:text-green-400';
+        } elseif ($status === 'pending') {
+            return 'text-amber-600 dark:text-amber-400';
         }
         
-        // Default for n/a and TBD
+        // Default for n/a
         return 'text-gray-500 dark:text-gray-400';
     }
 

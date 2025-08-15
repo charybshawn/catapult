@@ -23,8 +23,25 @@ class CropBatchDebugAction
             ->icon('heroicon-o-code-bracket')
             ->tooltip('Debug Info')
             ->action(function ($record) {
-                $debugData = static::gatherDebugData($record);
-                $htmlOutput = static::formatDebugOutput($debugData);
+                // Get first crop for detailed information
+                $firstCrop = \App\Models\Crop::where('crop_batch_id', $record->id)->first();
+                
+                // Get recipe data
+                $recipe = Recipe::find($record->recipe_id);
+                
+                // Get stage history for the batch
+                $stageHistory = \App\Models\CropStageHistory::where('crop_batch_id', $record->id)
+                    ->with(['stage', 'createdBy'])
+                    ->orderBy('entered_at', 'asc')
+                    ->get();
+                
+                // Render the blade view with all the data
+                $htmlOutput = view('filament.actions.crop-batch-debug', [
+                    'record' => $record,
+                    'firstCrop' => $firstCrop,
+                    'recipe' => $recipe,
+                    'stageHistory' => $stageHistory,
+                ])->render();
 
                 Notification::make()
                     ->title('Crop Batch Debug Information')
