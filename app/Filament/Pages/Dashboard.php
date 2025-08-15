@@ -629,8 +629,7 @@ class Dashboard extends BaseDashboard
         $harvestedCrops = Crop::whereHas('currentStage', function ($query) {
             $query->where('code', 'harvested');
         })
-            ->whereNotNull('harvest_weight_grams')
-            ->where('harvest_weight_grams', '>', 0)
+            ->whereNotNull('harvested_at')
             ->whereHas('recipe.masterCultivar', function ($query) use ($varietyName) {
                 $query->where('cultivar_name', $varietyName);
             })

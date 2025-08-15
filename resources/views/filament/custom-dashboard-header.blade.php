@@ -732,7 +732,7 @@
                             <!-- Right Side: Timing & Planted Date -->
                             <div class="text-right space-y-1">
                                 <div class="text-orange-600 dark:text-orange-400 font-semibold text-lg">{{ $alert->time_until }}</div>
-                                <div class="text-xs text-gray-500 dark:text-gray-400">Planted: {{ $alert->planting_at ? \Carbon\Carbon::parse($alert->planting_at)->format('M j') : 'Unknown' }}</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">Planted: {{ $alert->germinating_at ? \Carbon\Carbon::parse($alert->germinating_at)->format('M j') : 'Unknown' }}</div>
                             </div>
                         </div>
                         
@@ -790,7 +790,7 @@
                                         
                                         <div>
                                             <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Planted Date</div>
-                                            <div class="text-gray-900 dark:text-white">{{ $alert->planting_at ? \Carbon\Carbon::parse($alert->planting_at)->format('M j, Y') : 'Unknown' }}</div>
+                                            <div class="text-gray-900 dark:text-white">{{ $alert->germinating_at ? \Carbon\Carbon::parse($alert->germinating_at)->format('M j, Y') : 'Unknown' }}</div>
                                         </div>
                                         
                                         <div>
@@ -997,7 +997,7 @@
                             <!-- Right Side: Timing & Planted Date -->
                             <div class="text-right space-y-1">
                                 <div class="text-blue-600 dark:text-blue-400 font-semibold text-lg">{{ $alert->time_until }}</div>
-                                <div class="text-xs text-gray-500 dark:text-gray-400">Planted: {{ $alert->planting_at ? \Carbon\Carbon::parse($alert->planting_at)->format('M j') : 'Unknown' }}</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">Planted: {{ $alert->germination_at ? \Carbon\Carbon::parse($alert->germination_at)->format('M j') : 'Unknown' }}</div>
                             </div>
                         </div>
                         
@@ -1061,7 +1061,7 @@
                                         
                                         <div>
                                             <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Planted Date</div>
-                                            <div class="text-gray-900 dark:text-white">{{ $alert->planting_at ? \Carbon\Carbon::parse($alert->planting_at)->format('M j, Y') : 'Unknown' }}</div>
+                                            <div class="text-gray-900 dark:text-white">{{ $alert->germination_at ? \Carbon\Carbon::parse($alert->germination_at)->format('M j, Y') : 'Unknown' }}</div>
                                         </div>
                                         
                                         <div>
@@ -1292,7 +1292,7 @@
                                     <div class="flex justify-between items-center">
                                         <div>
                                             <span class="font-medium text-red-900 dark:text-red-100">
-                                                {{ $plan->recipe->seedEntry->common_name }}
+                                                {{ $plan->recipe->common_name }}
                                             </span>
                                             <span class="text-sm text-red-700 dark:text-red-300 ml-2">
                                                 {{ $plan->trays_needed }} trays
