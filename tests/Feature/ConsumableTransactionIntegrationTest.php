@@ -9,7 +9,7 @@ use App\Models\ConsumableType;
 use App\Models\ConsumableUnit;
 use App\Models\ConsumableTransaction;
 use App\Models\User;
-use App\Services\InventoryService;
+use App\Services\InventoryManagementService;
 
 class ConsumableTransactionIntegrationTest extends TestCase
 {
@@ -60,7 +60,7 @@ class ConsumableTransactionIntegrationTest extends TestCase
             'restock_threshold' => 100.0,
         ]);
 
-        $inventoryService = app(InventoryService::class);
+        $inventoryService = app(InventoryManagementService::class);
 
         // Step 1: Initialize transaction tracking
         $initialTransaction = $inventoryService->initializeTransactionTracking($consumable);
@@ -156,7 +156,7 @@ class ConsumableTransactionIntegrationTest extends TestCase
             'consumed_quantity' => 200.0,
         ]);
 
-        $inventoryService = app(InventoryService::class);
+        $inventoryService = app(InventoryManagementService::class);
 
         // Should fall back to legacy calculation
         $currentStock = $inventoryService->getCurrentStockFromTransactions($consumable);
@@ -176,7 +176,7 @@ class ConsumableTransactionIntegrationTest extends TestCase
             'quantity_unit' => 'g',
         ]);
 
-        $inventoryService = app(InventoryService::class);
+        $inventoryService = app(InventoryManagementService::class);
         $inventoryService->initializeTransactionTracking($consumable);
 
         // Record consumption in different units
@@ -203,7 +203,7 @@ class ConsumableTransactionIntegrationTest extends TestCase
         $user = User::factory()->create();
         $consumable = Consumable::factory()->create(['total_quantity' => 1000.0]);
         
-        $inventoryService = app(InventoryService::class);
+        $inventoryService = app(InventoryManagementService::class);
         $inventoryService->initializeTransactionTracking($consumable);
 
         // Simulate concurrent transactions (in reality these would be separate requests)
@@ -237,7 +237,7 @@ class ConsumableTransactionIntegrationTest extends TestCase
         ]);
 
         // Run the migration logic (simulating the data migration)
-        $inventoryService = app(InventoryService::class);
+        $inventoryService = app(InventoryManagementService::class);
         
         // Only consumable1 should get transactions (has stock)
         $transaction1 = $inventoryService->initializeTransactionTracking($consumable1);

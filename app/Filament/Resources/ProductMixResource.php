@@ -35,7 +35,10 @@ class ProductMixResource extends BaseResource
             ->persistColumnSearchesInSession()
             ->persistSearchInSession()
             ->modifyQueryUsing(fn (Builder $query) => ProductMixTable::modifyQuery($query))
-            ->columns(ProductMixTable::columns())
+            ->columns([
+                static::getClickableNameColumn('Name'),
+                ...array_slice(ProductMixTable::columns(), 1), // Skip the first column (name) and use the rest
+            ])
             ->defaultSort('name', 'asc')
             ->filters(ProductMixTable::filters())
             ->actions(ProductMixTable::actions())

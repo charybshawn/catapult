@@ -23,8 +23,29 @@ class CropTimeCalculator
      */
     public function getTimeToNextStageDisplay(Crop $crop): string
     {
-        $minutes = $this->calculateTimeToNextStage($crop);
-        return $this->formatTimeDisplay($minutes);
+        // Ensure recipe is loaded to avoid lazy loading violations
+        if (!$crop->relationLoaded('recipe')) {
+            $crop->load('recipe');
+        }
+
+        if (!$crop->recipe || $crop->current_stage === 'harvested') {
+            return 'Calculating...';
+        }
+
+        $expectedTransitionTime = $this->getExpectedStageTransitionTime($crop);
+        
+        if (!$expectedTransitionTime) {
+            return 'Calculating...';
+        }
+
+        // Calculate minutes FROM now TO expected transition time (can be negative if overdue)
+        $minutesRemaining = Carbon::now()->diffInMinutes($expectedTransitionTime, false);
+        
+        if ($minutesRemaining <= 0) {
+            return 'Overdue';
+        }
+        
+        return $this->formatTimeDisplay((int) $minutesRemaining);
     }
     
     /**

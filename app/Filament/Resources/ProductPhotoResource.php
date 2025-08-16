@@ -7,13 +7,13 @@ use App\Filament\Resources\ProductPhotoResource\RelationManagers;
 use App\Models\ItemPhoto;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use App\Filament\Resources\Base\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
-class ProductPhotoResource extends Resource
+class ProductPhotoResource extends BaseResource
 {
     protected static ?string $model = ItemPhoto::class;
 

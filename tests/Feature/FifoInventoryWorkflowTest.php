@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use Tests\TestCase;
-use App\Services\InventoryService;
+use App\Services\InventoryManagementService;
 use App\Services\LotInventoryService;
 use App\Models\Consumable;
 use App\Models\ConsumableType;
@@ -41,7 +41,7 @@ class FifoInventoryWorkflowTest extends TestCase
         $user = User::factory()->create();
         $this->actingAs($user);
 
-        $inventoryService = app(InventoryService::class);
+        $inventoryService = app(InventoryManagementService::class);
         $lotInventoryService = app(LotInventoryService::class);
 
         // Step 1: Create multiple consumable entries for the same lot (simulating multiple deliveries)
@@ -209,7 +209,7 @@ class FifoInventoryWorkflowTest extends TestCase
     public function test_fifo_consumption_respects_lot_boundaries(): void
     {
         $user = User::factory()->create();
-        $inventoryService = app(InventoryService::class);
+        $inventoryService = app(InventoryManagementService::class);
 
         // Create consumables for different lots
         $lot1Entry = Consumable::factory()->create([
@@ -245,7 +245,7 @@ class FifoInventoryWorkflowTest extends TestCase
     public function test_fifo_consumption_handles_insufficient_stock_gracefully(): void
     {
         $user = User::factory()->create();
-        $inventoryService = app(InventoryService::class);
+        $inventoryService = app(InventoryManagementService::class);
 
         $consumable = Consumable::factory()->create([
             'type' => 'seed',
@@ -266,7 +266,7 @@ class FifoInventoryWorkflowTest extends TestCase
     public function test_fifo_consumption_with_recipe_integration(): void
     {
         $user = User::factory()->create();
-        $inventoryService = app(InventoryService::class);
+        $inventoryService = app(InventoryManagementService::class);
 
         $consumable = Consumable::factory()->create([
             'type' => 'seed',
@@ -309,7 +309,7 @@ class FifoInventoryWorkflowTest extends TestCase
 
     public function test_can_consume_from_lot_validation(): void
     {
-        $inventoryService = app(InventoryService::class);
+        $inventoryService = app(InventoryManagementService::class);
 
         // Create test consumables
         $consumable1 = Consumable::factory()->create([
@@ -339,7 +339,7 @@ class FifoInventoryWorkflowTest extends TestCase
 
     public function test_get_lot_consumption_plan(): void
     {
-        $inventoryService = app(InventoryService::class);
+        $inventoryService = app(InventoryManagementService::class);
 
         // Create entries with different ages
         $older = Consumable::factory()->create([

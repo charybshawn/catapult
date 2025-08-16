@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\PriceVariationResource\Forms;
 
+use App\Filament\Resources\BaseResource;
 use Filament\Forms;
 
 /**
@@ -80,10 +81,8 @@ class PriceVariationFormFields
      */
     public static function getNameField(): Forms\Components\TextInput
     {
-        return Forms\Components\TextInput::make('name')
-            ->label('Variation Name')
+        return BaseResource::getNameField('Variation Name')
             ->default('Auto-generated')
-            ->required()
             ->reactive()
             ->afterStateUpdated(function ($state, callable $set, callable $get) {
                 // Mark as manual if user manually edits the name

@@ -7,10 +7,10 @@ use App\Filament\Resources\CropPlanResource\Pages;
 use App\Filament\Resources\CropPlanResource\Tables\CropPlanTable;
 use App\Models\CropPlan;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use App\Filament\Resources\Base\BaseResource;
 use Filament\Tables\Table;
 
-class CropPlanResource extends Resource
+class CropPlanResource extends BaseResource
 {
     protected static ?string $model = CropPlan::class;
 

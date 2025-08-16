@@ -7,6 +7,8 @@ use App\Models\Order;
 use App\Models\CropPlan;
 use App\Models\Recipe;
 use App\Services\CropPlanCalculatorService;
+use App\Services\CropPlanDashboardService;
+use App\Services\CalendarEventService;
 use Filament\Resources\Pages\Page;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
@@ -25,48 +27,63 @@ class CropPlanningDashboard extends Page
     
     protected static ?string $slug = 'dashboard';
 
+    protected CropPlanDashboardService $dashboardService;
+    protected CalendarEventService $calendarService;
+
     public function mount(): void
     {
-        // Any initialization logic here
+        $this->dashboardService = app(CropPlanDashboardService::class);
+        $this->calendarService = app(CalendarEventService::class);
     }
 
+    /**
+     * Get crop plans that need urgent attention (next 7 days).
+     * 
+     * @return Collection
+     */
     public function getUrgentCrops(): Collection
     {
-        // Get crop plans that need to be planted soon (next 7 days)
-        return CropPlan::with(['recipe.seedEntry', 'order.customer'])
-            ->where('status', 'approved')
-            ->where('plant_by_date', '<=', now()->addDays(7))
-            ->where('plant_by_date', '>=', now())
-            ->orderBy('plant_by_date', 'asc')
-            ->get()
-            ->groupBy(function ($plan) {
-                return $plan->plant_by_date->format('Y-m-d');
-            });
+        return $this->dashboardService->getUrgentCrops();
     }
 
+    /**
+     * Get overdue crop plans.
+     * 
+     * @return Collection
+     */
     public function getOverdueCrops(): Collection
     {
-        // Get crop plans that should have been planted already
-        return CropPlan::with(['recipe.seedEntry', 'order.customer'])
-            ->where('status', 'approved')
-            ->where('plant_by_date', '<', now())
-            ->orderBy('plant_by_date', 'asc')
-            ->get();
+        return $this->dashboardService->getOverdueCrops();
     }
 
+    /**
+     * Get upcoming orders that need crop plans.
+     * 
+     * @return Collection
+     */
     public function getUpcomingOrders(): Collection
     {
-        // Get orders for the next 14 days that might need crop plans
-        return Order::with(['customer', 'orderItems.product'])
-            ->whereIn('status', ['pending', 'confirmed', 'processing'])
-            ->where('delivery_date', '>=', now())
-            ->where('delivery_date', '<=', now()->addDays(14))
-            ->orderBy('delivery_date', 'asc')
-            ->get()
-            ->filter(function ($order) {
-                // Only include orders that don't have crop plans yet
-                return $order->cropPlans->isEmpty();
-            });
+        return $this->dashboardService->getUpcomingOrders();
+    }
+
+    /**
+     * Get dashboard statistics.
+     * 
+     * @return array
+     */
+    public function getDashboardStats(): array
+    {
+        return $this->dashboardService->getDashboardStats();
+    }
+
+    /**
+     * Get calendar events for the dashboard.
+     * 
+     * @return array
+     */
+    public function getCalendarEvents(): array
+    {
+        return $this->calendarService->getCropPlanningEvents();
     }
 
     protected function getHeaderActions(): array
@@ -92,69 +109,5 @@ class CropPlanningDashboard extends Page
                         ->send();
                 }),
         ];
-    }
-
-    public function getCalendarEvents(): array
-    {
-        $events = [];
-        
-        // Add order delivery dates
-        $orders = Order::with(['customer'])
-            ->whereIn('status', ['pending', 'confirmed', 'processing'])
-            ->where('delivery_date', '>=', now()->subDays(30))
-            ->where('delivery_date', '<=', now()->addDays(60))
-            ->get();
-            
-        foreach ($orders as $order) {
-            if ($order->delivery_date) {
-                $events[] = [
-                    'id' => 'order-' . $order->id,
-                    'title' => "Delivery: Order #{$order->id}",
-                    'start' => $order->delivery_date->format('Y-m-d'),
-                    'backgroundColor' => '#10b981', // green
-                    'borderColor' => '#059669',
-                    'textColor' => '#ffffff',
-                    'extendedProps' => [
-                        'type' => 'delivery',
-                        'orderId' => $order->id,
-                        'customer' => $order->customer->contact_name ?? 'Unknown',
-                    ],
-                ];
-            }
-        }
-        
-        // Add crop planting dates
-        $cropPlans = CropPlan::with(['recipe.seedEntry', 'order'])
-            ->where('plant_by_date', '>=', now()->subDays(30))
-            ->where('plant_by_date', '<=', now()->addDays(60))
-            ->get();
-            
-        foreach ($cropPlans as $plan) {
-            $color = match($plan->status) {
-                'draft' => '#6b7280', // gray
-                'approved' => '#3b82f6', // blue
-                'completed' => '#10b981', // green
-                'overdue' => '#ef4444', // red
-                default => '#6b7280',
-            };
-            
-            $events[] = [
-                'id' => 'plant-' . $plan->id,
-                'title' => "Plant: {$plan->recipe->seedEntry->common_name}",
-                'start' => $plan->plant_by_date->format('Y-m-d'),
-                'backgroundColor' => $color,
-                'borderColor' => $color,
-                'textColor' => '#ffffff',
-                'extendedProps' => [
-                    'type' => 'planting',
-                    'planId' => $plan->id,
-                    'variety' => $plan->recipe->seedEntry->common_name,
-                    'trays' => $plan->trays_needed,
-                    'status' => $plan->status,
-                ],
-            ];
-        }
-        
-        return $events;
     }
 }

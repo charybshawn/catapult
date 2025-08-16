@@ -35,12 +35,34 @@ class CropBatchDebugAction
                     ->orderBy('entered_at', 'asc')
                     ->get();
                 
+                // Additional debugging: Check for stage history by crop_id instead of crop_batch_id
+                $stageHistoryByCrop = [];
+                if ($firstCrop) {
+                    $stageHistoryByCrop = \App\Models\CropStageHistory::where('crop_id', $firstCrop->id)
+                        ->with(['stage', 'createdBy'])
+                        ->orderBy('entered_at', 'asc')
+                        ->get();
+                }
+                
+                // Check all stage history records in the system to see if we can find any reference
+                $allStageHistoryForBatch = \App\Models\CropStageHistory::whereIn('crop_id', function($query) use ($record) {
+                    $query->select('id')
+                          ->from('crops')
+                          ->where('crop_batch_id', $record->id);
+                })->with(['stage', 'createdBy'])->get();
+                
+                // Get all crops in this batch for debugging
+                $allCropsInBatch = \App\Models\Crop::where('crop_batch_id', $record->id)->get();
+                
                 // Render the blade view with all the data
                 $htmlOutput = view('filament.actions.crop-batch-debug', [
                     'record' => $record,
                     'firstCrop' => $firstCrop,
                     'recipe' => $recipe,
                     'stageHistory' => $stageHistory,
+                    'stageHistoryByCrop' => $stageHistoryByCrop,
+                    'allStageHistoryForBatch' => $allStageHistoryForBatch,
+                    'allCropsInBatch' => $allCropsInBatch,
                 ])->render();
 
                 Notification::make()

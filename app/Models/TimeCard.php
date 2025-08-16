@@ -251,7 +251,7 @@ class TimeCard extends Model
     /**
      * Resolve the review flag (for managers)
      */
-    public function resolveReview(string $resolvedBy, string $notes = null): void
+    public function resolveReview(string $resolvedBy, ?string $notes = null): void
     {
         $this->update([
             'requires_review' => false,

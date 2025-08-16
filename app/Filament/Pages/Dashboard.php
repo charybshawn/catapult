@@ -741,7 +741,7 @@ class Dashboard extends BaseDashboard
     }
 
     /**
-     * Get planting recommendations based on upcoming orders
+     * Get 2 recommendations based on upcoming orders
      */
     protected function getPlantingRecommendations(): array
     {

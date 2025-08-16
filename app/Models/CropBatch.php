@@ -100,10 +100,6 @@ class CropBatch extends Model
         ->withCount('crops');
     }
     
-    /**
-     * Get all computed attributes as an array to avoid N+1 queries.
-     * Call this after eager loading relationships.
-     */
     public function getComputedAttributes(): array
     {
         // Return cache if already computed
@@ -115,7 +111,7 @@ class CropBatch extends Model
         
         if (!$firstCrop) {
             $this->computedAttributesCache = [
-                'planting_at' => null,
+                'germination_at' => null,
                 'tray_numbers' => [],
                 'tray_count' => 0,
                 'current_stage_id' => null,
@@ -137,8 +133,14 @@ class CropBatch extends Model
         }
         $stage = $stagesCache->get($firstCrop->current_stage_id);
         
+        // Calculate expected harvest date using germination_at as the primary date
+        $expectedHarvestAt = null;
+        if ($firstCrop->recipe && $firstCrop->recipe->days_to_maturity && $firstCrop->germination_at) {
+            $expectedHarvestAt = Carbon::parse($firstCrop->germination_at)->addDays($firstCrop->recipe->days_to_maturity);
+        }
+        
         $this->computedAttributesCache = [
-            'planting_at' => $firstCrop->planting_at ? Carbon::parse($firstCrop->planting_at) : null,
+            'germination_at' => $firstCrop->germination_at ? Carbon::parse($firstCrop->germination_at) : null,
             'tray_numbers' => $this->crops->pluck('tray_number')->sort()->values()->toArray(),
             'tray_count' => $this->crops_count ?? $this->crops->count(),
             'current_stage_id' => $firstCrop->current_stage_id,
@@ -146,25 +148,23 @@ class CropBatch extends Model
             'stage_age_display' => $calculator->getStageAgeDisplay($firstCrop),
             'time_to_next_stage_display' => $calculator->getTimeToNextStageDisplay($firstCrop),
             'total_age_display' => $calculator->getTotalAgeDisplay($firstCrop),
-            'expected_harvest_at' => $firstCrop->recipe && $firstCrop->recipe->days_to_maturity 
-                ? Carbon::parse($firstCrop->planting_at)->addDays($firstCrop->recipe->days_to_maturity)
-                : null,
+            'expected_harvest_at' => $expectedHarvestAt,
         ];
         
         return $this->computedAttributesCache;
     }
 
     /**
-     * Get the planting date from the first crop.
+     * Get the germination date from the first crop.
      */
-    public function getPlantingAtAttribute(): ?Carbon
+    public function getGerminationAtAttribute(): ?Carbon
     {
-        if ($this->computedAttributesCache !== null && isset($this->computedAttributesCache['planting_at'])) {
-            return $this->computedAttributesCache['planting_at'];
+        if ($this->computedAttributesCache !== null && isset($this->computedAttributesCache['germination_at'])) {
+            return $this->computedAttributesCache['germination_at'];
         }
         
         $firstCrop = $this->getFirstCrop();
-        return $firstCrop?->planting_at ? Carbon::parse($firstCrop->planting_at) : null;
+        return $firstCrop?->germination_at ? Carbon::parse($firstCrop->germination_at) : null;
     }
 
     /**
@@ -235,8 +235,7 @@ class CropBatch extends Model
         }
 
         $calculator = new CropTimeCalculator();
-        $timeToNextStage = $calculator->calculateTimeToNextStage($firstCrop);
-        return $calculator->formatTimeDisplay($timeToNextStage);
+        return $calculator->getTimeToNextStageDisplay($firstCrop);
     }
 
     /**
@@ -262,7 +261,7 @@ class CropBatch extends Model
     {
         $firstCrop = $this->getFirstCrop();
         
-        if (!$firstCrop || !$firstCrop->planting_at) {
+        if (!$firstCrop) {
             return null;
         }
 
@@ -274,7 +273,14 @@ class CropBatch extends Model
             return null;
         }
 
-        return Carbon::parse($firstCrop->planting_at)->addDays($firstCrop->recipe->days_to_maturity);
+        // Use planting_at if available, otherwise fall back to germination_at
+        $startDate = $firstCrop->planting_at ?: $firstCrop->germination_at;
+        
+        if (!$startDate) {
+            return null;
+        }
+
+        return Carbon::parse($startDate)->addDays($firstCrop->recipe->days_to_maturity);
     }
 
     /**

@@ -35,10 +35,7 @@ class SupplierResource extends BaseResource
         return $form
             ->schema([
                 static::getBasicInformationSection([
-                    Forms\Components\TextInput::make('name')
-                        ->label('Supplier Name')
-                        ->required()
-                        ->maxLength(255),
+                    static::getNameField('Supplier Name'),
                         
                     Forms\Components\Select::make('supplier_type_id')
                         ->label('Supplier Type')

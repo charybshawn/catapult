@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use App\Helpers\TimeFormatHelper;
+use App\Services\CropTimeCalculator;
 
 class CropStageHistory extends Model
 {
@@ -84,7 +84,7 @@ class CropStageHistory extends Model
             return null;
         }
 
-        return TimeFormatHelper::minutesToHumanReadable($minutes);
+        return app(CropTimeCalculator::class)->formatTimeDisplay($minutes);
     }
 
     /**

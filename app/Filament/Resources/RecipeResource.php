@@ -37,7 +37,10 @@ class RecipeResource extends BaseResource
         
         return static::configureTableDefaults($table)
             ->modifyQueryUsing(fn (Builder $query) => RecipeTable::modifyQuery($query))
-            ->columns(RecipeTable::columns())
+            ->columns([
+                static::getNameColumn(),
+                ...array_slice(RecipeTable::columns(), 1), // Skip the first column (name) and use the rest
+            ])
             ->defaultSort($defaultSortColumn, $defaultSortDirection)
             ->filters(RecipeTable::filters())
             ->actions(RecipeTable::actions())

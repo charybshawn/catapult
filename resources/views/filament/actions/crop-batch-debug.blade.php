@@ -113,30 +113,172 @@
     @endif
 
     {{-- Stage History Timeline --}}
-    @if($stageHistory && $stageHistory->count() > 0)
-        <div>
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-3">Stage History</h3>
-            <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-                <div class="space-y-3">
-                    @foreach($stageHistory as $history)
-                        <div class="flex items-start pb-3 {{ !$loop->last ? 'border-b border-gray-200 dark:border-gray-700' : '' }}">
-                            <div class="flex-shrink-0 mr-3">
-                                <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium
-                                    {{ $history->is_active ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' }}">
-                                    {{ $loop->iteration }}
+    <div>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-3">Stage History Debug</h3>
+        <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-4">
+            
+            {{-- Stage History Query Result --}}
+            <div>
+                <h4 class="font-medium text-gray-800 dark:text-gray-200 mb-2">Stage History Query (crop_batch_id = {{ $record->id }})</h4>
+                @if($stageHistory && $stageHistory->count() > 0)
+                    <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded p-3">
+                        <p class="text-green-800 dark:text-green-200 text-sm mb-2">Found {{ $stageHistory->count() }} stage history records:</p>
+                        <div class="space-y-2">
+                            @foreach($stageHistory as $history)
+                                <div class="text-xs bg-white dark:bg-gray-700 p-2 rounded border">
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <span><strong>ID:</strong> {{ $history->id }}</span>
+                                        <span><strong>Stage:</strong> {{ $history->stage->name ?? 'N/A' }}</span>
+                                        <span><strong>Crop ID:</strong> {{ $history->crop_id }}</span>
+                                        <span><strong>Batch ID:</strong> {{ $history->crop_batch_id }}</span>
+                                        <span><strong>Entered:</strong> {{ $history->entered_at }}</span>
+                                        <span><strong>Exited:</strong> {{ $history->exited_at ?? 'Current' }}</span>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @else
+                    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-3">
+                        <p class="text-red-800 dark:text-red-200 text-sm">❌ No stage history records found for crop_batch_id = {{ $record->id }}</p>
+                    </div>
+                @endif
+            </div>
+
+            {{-- Alternative Query by Crop ID --}}
+            @if($firstCrop)
+                <div>
+                    <h4 class="font-medium text-gray-800 dark:text-gray-200 mb-2">Alternative Query (crop_id = {{ $firstCrop->id }})</h4>
+                    @if($stageHistoryByCrop && $stageHistoryByCrop->count() > 0)
+                        <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded p-3">
+                            <p class="text-green-800 dark:text-green-200 text-sm mb-2">Found {{ $stageHistoryByCrop->count() }} stage history records by crop_id:</p>
+                            <div class="space-y-2">
+                                @foreach($stageHistoryByCrop as $history)
+                                    <div class="text-xs bg-white dark:bg-gray-700 p-2 rounded border">
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <span><strong>ID:</strong> {{ $history->id }}</span>
+                                            <span><strong>Stage:</strong> {{ $history->stage->name ?? 'N/A' }}</span>
+                                            <span><strong>Crop ID:</strong> {{ $history->crop_id }}</span>
+                                            <span><strong>Batch ID:</strong> {{ $history->crop_batch_id }}</span>
+                                            <span><strong>Entered:</strong> {{ $history->entered_at }}</span>
+                                            <span><strong>Exited:</strong> {{ $history->exited_at ?? 'Current' }}</span>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @else
+                        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-3">
+                            <p class="text-red-800 dark:text-red-200 text-sm">❌ No stage history records found for crop_id = {{ $firstCrop->id }}</p>
+                        </div>
+                    @endif
+                </div>
+            @endif
+
+            {{-- All Stage History for All Crops in Batch --}}
+            <div>
+                <h4 class="font-medium text-gray-800 dark:text-gray-200 mb-2">All Crops in Batch</h4>
+                @if($allCropsInBatch && $allCropsInBatch->count() > 0)
+                    <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded p-3">
+                        <p class="text-blue-800 dark:text-blue-200 text-sm mb-2">Found {{ $allCropsInBatch->count() }} crops in batch:</p>
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            @foreach($allCropsInBatch as $crop)
+                                <div class="bg-white dark:bg-gray-700 p-2 rounded">
+                                    <strong>Crop ID {{ $crop->id }}:</strong> Tray {{ $crop->tray_number }}
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+            </div>
+
+            {{-- Comprehensive Stage History Search --}}
+            <div>
+                <h4 class="font-medium text-gray-800 dark:text-gray-200 mb-2">All Stage History for Batch Crops</h4>
+                @if($allStageHistoryForBatch && $allStageHistoryForBatch->count() > 0)
+                    <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded p-3">
+                        <p class="text-green-800 dark:text-green-200 text-sm mb-2">Found {{ $allStageHistoryForBatch->count() }} stage history records for crops in this batch:</p>
+                        <div class="space-y-2 max-h-64 overflow-y-auto">
+                            @foreach($allStageHistoryForBatch as $history)
+                                <div class="text-xs bg-white dark:bg-gray-700 p-2 rounded border">
+                                    <div class="grid grid-cols-3 gap-2">
+                                        <span><strong>History ID:</strong> {{ $history->id }}</span>
+                                        <span><strong>Stage:</strong> {{ $history->stage->name ?? 'N/A' }}</span>
+                                        <span><strong>Active:</strong> {{ $history->is_active ? 'Yes' : 'No' }}</span>
+                                        <span><strong>Crop ID:</strong> {{ $history->crop_id }}</span>
+                                        <span><strong>Batch ID:</strong> {{ $history->crop_batch_id ?? 'NULL' }}</span>
+                                        <span><strong>Created By:</strong> {{ $history->createdBy->name ?? 'N/A' }}</span>
+                                        <span><strong>Entered:</strong> {{ $history->entered_at }}</span>
+                                        <span><strong>Exited:</strong> {{ $history->exited_at ?? 'NULL' }}</span>
+                                        <span><strong>Duration:</strong> {{ $history->duration_display ?? 'N/A' }}</span>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @else
+                    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-3">
+                        <p class="text-red-800 dark:text-red-200 text-sm">❌ No stage history records found for any crops in this batch</p>
+                        <p class="text-red-600 dark:text-red-300 text-xs mt-2">
+                            This suggests that stage history records are either:
+                            <br>• Not being created when crops advance stages
+                            <br>• Being stored with incorrect crop_batch_id values
+                            <br>• Being deleted or not persisted properly
+                        </p>
+                    </div>
+                @endif
+            </div>
+
+            {{-- Original Stage History Display (if found) --}}
+            @if($stageHistory && $stageHistory->count() > 0)
+                <div>
+                    <h4 class="font-medium text-gray-800 dark:text-gray-200 mb-2">Stage History Timeline</h4>
+                    <div class="space-y-3">
+                        @foreach($stageHistory as $history)
+                            <div class="flex items-start pb-3 {{ !$loop->last ? 'border-b border-gray-200 dark:border-gray-700' : '' }}">
+                                <div class="flex-shrink-0 mr-3">
+                                    <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium
+                                        {{ $history->is_active ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' }}">
+                                        {{ $loop->iteration }}
+                                    </div>
+                                </div>
+                                <div class="flex-grow">
+                                    <div class="flex items-start justify-between">
+                                        <div>
+                                            <h4 class="font-medium text-gray-900 dark:text-gray-100">{{ $history->stage->name }}</h4>
+                                            <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                                <span>Entered: {{ $history->entered_at->format('M j, Y g:i A') }}</span>
+                                                @if($history->exited_at)
+                                                    <span class="ml-3">Exited: {{ $history->exited_at->format('M j, Y g:i A') }}</span>
+                                                @else
+                                                    <span class="ml-3 text-blue-600 dark:text-blue-400">Current Stage</span>
+                                                @endif
+                                            </div>
+                                        </div>
+                                        <div class="text-right">
+                                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                {{ $history->duration_display ?? 'In Progress' }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    @if($history->notes)
+                                        <div class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                                            {{ $history->notes }}
+                                        </div>
+                                    @endif
+                                    @if($history->createdBy)
+                                        <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                            By: {{ $history->createdBy->name }}
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
-                            <div class="flex-grow">
-                                <div class="flex items-start justify-between">
-                                    <div>
-                                        <h4 class="font-medium text-gray-900 dark:text-gray-100">{{ $history->stage->name }}</h4>
-                                        <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                            <span>Entered: {{ $history->entered_at->format('M j, Y g:i A') }}</span>
-                                            @if($history->exited_at)
-                                                <span class="ml-3">Exited: {{ $history->exited_at->format('M j, Y g:i A') }}</span>
-                                            @else
-                                                <span class="ml-3 text-blue-600 dark:text-blue-400">Current Stage</span>
-                                            @endif
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+        </div>
+    </div>
                                         </div>
                                     </div>
                                     <div class="text-right">
@@ -288,4 +430,80 @@
             @endif
         </div>
     </div>
+
+    {{-- Database Queries for Troubleshooting --}}
+    <div>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-3">Database Troubleshooting</h3>
+        <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+            <div class="space-y-3 text-sm">
+                @php
+                    // Total stage history records in database
+                    $totalStageHistory = \App\Models\CropStageHistory::count();
+                    
+                    // Stage history records with our batch ID
+                    $batchStageHistory = \App\Models\CropStageHistory::where("crop_batch_id", $record->id)->count();
+                    
+                    // Null crop_batch_id records
+                    $nullBatchIdHistory = \App\Models\CropStageHistory::whereNull("crop_batch_id")->count();
+                    
+                    // Most recent stage history records (top 5)
+                    $recentHistory = \App\Models\CropStageHistory::with(["stage", "crop"])
+                        ->orderBy("created_at", "desc")
+                        ->limit(5)
+                        ->get();
+                        
+                    // Check if recipe name contains "Peas"
+                    $isTargetRecord = str_contains(strtolower($record->recipe_name ?? ""), "peas");
+                @endphp
+                
+                <div class="grid grid-cols-2 gap-6">
+                    <div>
+                        <h4 class="font-medium text-gray-800 dark:text-gray-200 mb-2">Database Statistics</h4>
+                        <ul class="space-y-1 text-sm">
+                            <li>• Total stage history records: <strong>{{ $totalStageHistory }}</strong></li>
+                            <li>• Records for this batch: <strong>{{ $batchStageHistory }}</strong></li>
+                            <li>• Records with NULL batch_id: <strong>{{ $nullBatchIdHistory }}</strong></li>
+                            <li class="{{ $isTargetRecord ? "text-red-600 font-bold" : "" }}">
+                                • Target "Peas" record: <strong>{{ $isTargetRecord ? "YES - This is it!" : "No" }}</strong>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h4 class="font-medium text-gray-800 dark:text-gray-200 mb-2">Recent Stage History (Last 5)</h4>
+                        <ul class="space-y-1 text-sm">
+                            @forelse($recentHistory as $recent)
+                                <li>• Crop {{ $recent->crop_id }} → {{ $recent->stage->name ?? "Unknown" }} 
+                                    <span class="text-gray-500">({{ $recent->created_at->diffForHumans() }})</span>
+                                </li>
+                            @empty
+                                <li>• No recent stage history found</li>
+                            @endforelse
+                        </ul>
+                    </div>
+                </div>
+                
+                @if($isTargetRecord && $batchStageHistory === 0)
+                    <div class="mt-4 p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded">
+                        <h5 class="font-bold text-red-800 dark:text-red-200">🎯 TARGET RECORD FOUND!</h5>
+                        <p class="text-red-700 dark:text-red-300 mt-1">
+                            This is the "Peas(Speckled) - 300g" record that has no stage history. 
+                            The crops in this batch may have been created before stage history tracking was implemented,
+                            or there was an issue during stage transitions.
+                        </p>
+                        <div class="mt-2 text-sm text-red-600 dark:text-red-400">
+                            <strong>Potential Solutions:</strong>
+                            <ul class="list-disc list-inside mt-1">
+                                <li>Check if crops have been advancing stages normally</li>
+                                <li>Verify stage history is being created on stage transitions</li>
+                                <li>Consider manually creating stage history records for this batch</li>
+                                <li>Run a migration to backfill stage history for existing crops</li>
+                            </ul>
+                        </div>
+                    </div>
+                @endif
+            </div>
+        </div>
+    </div>
+
 </div>

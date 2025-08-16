@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\ProductResource\Forms;
 
 use App\Filament\Resources\ProductResource\Pages;
+use App\Filament\Resources\BaseResource;
 use App\Models\Product;
 use Filament\Forms;
 use Filament\Forms\Components\Actions;
@@ -47,9 +48,7 @@ class ProductForm
             ->schema([
                 Forms\Components\Grid::make(3)
                     ->schema([
-                        Forms\Components\TextInput::make('name')
-                            ->required()
-                            ->maxLength(255)
+                        BaseResource::getUniqueNameField()
                             ->unique(
                                 table: 'products',
                                 column: 'name',
@@ -100,9 +99,7 @@ class ProductForm
                     ->searchable()
                     ->preload()
                     ->createOptionForm([
-                        Forms\Components\TextInput::make('name')
-                            ->required()
-                            ->maxLength(255),
+                        BaseResource::getNameField(),
                         Forms\Components\Textarea::make('description')
                             ->maxLength(65535),
                         Forms\Components\Toggle::make('is_active')

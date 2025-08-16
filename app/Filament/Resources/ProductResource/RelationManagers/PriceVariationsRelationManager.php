@@ -114,8 +114,7 @@ class PriceVariationsRelationManager extends RelationManager
         return $table
             ->recordTitleAttribute('name')
             ->columns([
-                Tables\Columns\TextColumn::make('name')
-                    ->searchable(),
+                \App\Filament\Resources\BaseResource::getNameColumn(),
                 Tables\Columns\TextColumn::make('packagingType.name')
                     ->label('Packaging Type')
                     ->sortable()

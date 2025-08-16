@@ -5,7 +5,7 @@ namespace App\Filament\Resources\RecipeResource\Tables;
 use App\Models\Recipe;
 use App\Models\RecipeOptimizedView;
 use App\Models\Consumable;
-use App\Filament\Resources\Consumables\SeedConsumableResource;
+use App\Filament\Resources\Consumables\SeedResource;
 use Filament\Forms;
 use Filament\Tables;
 use Filament\Notifications\Notification;
@@ -265,7 +265,7 @@ class RecipeTable
             ->tooltip('View the seed lot/consumable details')
             ->url(function ($record) {
                 if ($record->seed_consumable_id) {
-                    return SeedConsumableResource::getUrl('edit', ['record' => $record->seed_consumable_id]);
+                    return SeedResource::getUrl('edit', ['record' => $record->seed_consumable_id]);
                 }
                 
                 return null;

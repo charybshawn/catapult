@@ -99,9 +99,6 @@ trait ExtendedLogsActivity
         ]);
     }
 
-    /**
-     * Log a relationship change.
-     */
     public function logRelationshipChange(string $relation, $relatedModel, string $action): void
     {
         $this->logExtendedActivity("Relationship {$action}: {$relation}", [
@@ -111,5 +108,19 @@ trait ExtendedLogsActivity
             'related_id' => $relatedModel->getKey(),
             'action' => $action,
         ]);
+    }
+
+    /**
+     * Log activity with a custom event name and properties.
+     * This method provides compatibility with existing code that calls logActivity().
+     */
+    public function logActivity(string $event, array $properties = []): void
+    {
+        $description = $this->getDescriptionForEvent($event);
+        
+        $this->logExtendedActivity($description, array_merge([
+            'event_type' => 'custom',
+            'event_name' => $event,
+        ], $properties));
     }
 }

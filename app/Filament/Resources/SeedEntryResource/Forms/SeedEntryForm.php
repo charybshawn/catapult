@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\SeedEntryResource\Forms;
 
+use App\Filament\Resources\BaseResource;
 use Filament\Forms;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
@@ -65,10 +66,8 @@ class SeedEntryForm
             ->searchable()
             ->allowHtml()
             ->createOptionForm([
-                Forms\Components\TextInput::make('common_name')
-                    ->label('New Common Name')
-                    ->required()
-                    ->maxLength(255),
+                BaseResource::getNameField('New Common Name')
+                    ->statePath('common_name'),
             ])
             ->createOptionUsing(function (array $data): string {
                 return $data['common_name'];
@@ -103,10 +102,8 @@ class SeedEntryForm
             ->searchable()
             ->allowHtml()
             ->createOptionForm([
-                Forms\Components\TextInput::make('cultivar_name')
-                    ->label('New Cultivar Name')
-                    ->required()
-                    ->maxLength(255),
+                BaseResource::getNameField('New Cultivar Name')
+                    ->statePath('cultivar_name'),
             ])
             ->createOptionUsing(function (array $data): string {
                 return $data['cultivar_name'];
@@ -129,9 +126,7 @@ class SeedEntryForm
             ->searchable()
             ->preload()
             ->createOptionForm([
-                Forms\Components\TextInput::make('name')
-                    ->required()
-                    ->maxLength(255),
+                BaseResource::getNameField(),
                 Forms\Components\TextInput::make('website')
                     ->url()
                     ->maxLength(255),

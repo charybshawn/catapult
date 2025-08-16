@@ -7,7 +7,7 @@ use App\Filament\Resources\SeedVariationResource\RelationManagers;
 use App\Models\SeedVariation;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use App\Filament\Resources\Base\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -15,7 +15,7 @@ use Filament\Support\Enums\FontWeight;
 use Filament\Tables\Columns\Layout\Panel;
 use Filament\Tables\Columns\Layout\Stack;
 
-class SeedVariationResource extends Resource
+class SeedVariationResource extends BaseResource
 {
     protected static ?string $model = SeedVariation::class;
 

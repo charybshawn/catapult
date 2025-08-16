@@ -39,10 +39,7 @@ class UserResource extends BaseResource
                 Forms\Components\Section::make('Employee Information')
                     ->description('Basic employee details')
                     ->schema([
-                        Forms\Components\TextInput::make('name')
-                            ->label('Full Name')
-                            ->required()
-                            ->maxLength(255),
+                        static::getNameField('Full Name'),
                         Forms\Components\TextInput::make('email')
                             ->email()
                             ->required()
@@ -93,9 +90,7 @@ class UserResource extends BaseResource
         return $table
             ->modifyQueryUsing(fn (Builder $query) => $query->whereDoesntHave('roles', fn ($q) => $q->where('name', 'customer')))
             ->columns([
-                Tables\Columns\TextColumn::make('name')
-                    ->searchable()
-                    ->sortable(),
+                static::getNameColumn(),
                 Tables\Columns\TextColumn::make('email')
                     ->searchable()
                     ->sortable(),

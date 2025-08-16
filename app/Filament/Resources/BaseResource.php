@@ -338,6 +338,32 @@ abstract class BaseResource extends Resource
     }
 
     /**
+     * Get a standard name column (most common pattern)
+     */
+    protected static function getNameColumn(string $label = 'Name', bool $sortable = true, bool $searchable = true): TextColumn
+    {
+        return Tables\Columns\TextColumn::make('name')
+            ->label($label)
+            ->searchable($searchable)
+            ->sortable($sortable)
+            ->toggleable();
+    }
+    
+    /**
+     * Get a clickable name column that links to edit page
+     */
+    protected static function getClickableNameColumn(string $label = 'Name', string $color = 'primary'): TextColumn
+    {
+        return Tables\Columns\TextColumn::make('name')
+            ->label($label)
+            ->searchable()
+            ->sortable()
+            ->toggleable()
+            ->url(fn ($record): string => static::getUrl('edit', ['record' => $record]))
+            ->color($color);
+    }
+
+    /**
      * Get an active badge column
      */
     protected static function getActiveBadgeColumn(): IconColumn
@@ -486,6 +512,127 @@ abstract class BaseResource extends Resource
             ->rows(3)
             ->maxLength(65535)
             ->columnSpanFull();
+    }
+
+    
+    /**
+     * Get a standard name field with optional custom label
+     */
+    protected static function getNameField(string $label = 'Name', bool $required = true, int $maxLength = 255): Forms\Components\TextInput
+    {
+        return Forms\Components\TextInput::make('name')
+            ->label($label)
+            ->required($required)
+            ->maxLength($maxLength);
+    }
+    
+    /**
+     * Get a name field with uniqueness validation
+     */
+    protected static function getUniqueNameField(string $label = 'Name', bool $required = true, string $ignoreColumn = 'id'): Forms\Components\TextInput
+    {
+        return Forms\Components\TextInput::make('name')
+            ->label($label)
+            ->required($required)
+            ->maxLength(255)
+            ->unique(static::getModel(), 'name', ignoreRecord: true);
+    }
+    
+    /**
+     * Get supplier select field (commonly used across consumables)
+     */
+    protected static function getSupplierSelect(string $label = 'Supplier', bool $required = false): Forms\Components\Select
+    {
+        return Forms\Components\Select::make('supplier_id')
+            ->label($label)
+            ->relationship('supplier', 'name')
+            ->searchable()
+            ->preload()
+            ->required($required)
+            ->createOptionForm([
+                Forms\Components\TextInput::make('name')
+                    ->required()
+                    ->maxLength(255),
+                Forms\Components\TextInput::make('contact_email')
+                    ->email()
+                    ->maxLength(255),
+            ]);
+    }
+    
+    /**
+     * Get category select field
+     */
+    protected static function getCategorySelect(string $label = 'Category', bool $required = false): Forms\Components\Select
+    {
+        return Forms\Components\Select::make('category_id')
+            ->label($label)
+            ->relationship('category', 'name')
+            ->searchable()
+            ->preload()
+            ->required($required);
+    }
+    
+    /**
+     * Get email field
+     */
+    protected static function getEmailField(string $field = 'email', string $label = 'Email', bool $required = false): Forms\Components\TextInput
+    {
+        return Forms\Components\TextInput::make($field)
+            ->label($label)
+            ->email()
+            ->maxLength(255)
+            ->required($required);
+    }
+    
+    /**
+     * Get phone field
+     */
+    protected static function getPhoneField(string $field = 'phone', string $label = 'Phone', bool $required = false): Forms\Components\TextInput
+    {
+        return Forms\Components\TextInput::make($field)
+            ->label($label)
+            ->tel()
+            ->maxLength(255)
+            ->required($required);
+    }
+    
+    /**
+     * Get URL field
+     */
+    protected static function getUrlField(string $field = 'website', string $label = 'Website', bool $required = false): Forms\Components\TextInput
+    {
+        return Forms\Components\TextInput::make($field)
+            ->label($label)
+            ->url()
+            ->maxLength(255)
+            ->required($required);
+    }
+    
+    /**
+     * Get price field with currency formatting
+     */
+    protected static function getPriceField(string $field = 'price', string $label = 'Price', string $prefix = '$', bool $required = false): Forms\Components\TextInput
+    {
+        return Forms\Components\TextInput::make($field)
+            ->label($label)
+            ->numeric()
+            ->prefix($prefix)
+            ->minValue(0)
+            ->step(0.01)
+            ->required($required);
+    }
+    
+    /**
+     * Get quantity field
+     */
+    protected static function getQuantityField(string $field = 'quantity', string $label = 'Quantity', bool $required = true, float $step = 1): Forms\Components\TextInput
+    {
+        return Forms\Components\TextInput::make($field)
+            ->label($label)
+            ->numeric()
+            ->minValue(0)
+            ->step($step)
+            ->required($required);
     }
     
     /**

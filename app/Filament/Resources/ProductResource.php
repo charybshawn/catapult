@@ -34,7 +34,8 @@ class ProductResource extends BaseResource
         return static::configureTableDefaults($table)
             ->modifyQueryUsing(fn (Builder $query) => ProductTable::modifyQuery($query))
             ->columns([
-                ...ProductTable::columns(),
+                static::getNameColumn(),
+                ...array_slice(ProductTable::columns(), 1), // Skip the first column (name) and use the rest
                 ...static::getTimestampColumns(),
             ])
             ->filters(ProductTable::filters())

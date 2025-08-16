@@ -48,13 +48,9 @@ class PriceVariationTable
             ->placeholder('Global Template');
     }
 
-    /**
-     * Get name column
-     */
     protected static function getNameColumn(): Tables\Columns\TextColumn
     {
-        return Tables\Columns\TextColumn::make('name')
-            ->searchable();
+        return \App\Filament\Resources\BaseResource::getNameColumn();
     }
 
     /**

@@ -30,7 +30,7 @@ use Illuminate\Database\Eloquent\Builder;
  * Include this trait in Filament resource table classes that need
  * standardized consumable table functionality.
  *
- * @see \App\Filament\Resources\Consumables\SeedConsumableResource
+ * @see \App\Filament\Resources\Consumables\SeedResource
  * @see \App\Filament\Resources\ConsumableResource
  */
 trait ConsumableTableComponents
@@ -54,11 +54,7 @@ trait ConsumableTableComponents
     public static function getCommonTableColumns(): array
     {
         return [
-            Tables\Columns\TextColumn::make('name')
-                ->label('Name')
-                ->searchable()
-                ->sortable()
-                ->toggleable()
+            \App\Filament\Resources\BaseResource::getNameColumn('Name')
                 ->url(fn (Consumable $record): string => static::getUrl('edit', ['record' => $record]))
                 ->color('primary'),
             Tables\Columns\TextColumn::make('consumableType.name')

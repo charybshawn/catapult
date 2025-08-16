@@ -9,11 +9,11 @@ use App\Models\Setting;
 use Filament\Forms;
 use Filament\Forms\Components\Tabs;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use App\Filament\Resources\Base\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
 
-class SettingsResource extends Resource
+class SettingsResource extends BaseResource
 {
     protected static ?string $model = Setting::class;
 

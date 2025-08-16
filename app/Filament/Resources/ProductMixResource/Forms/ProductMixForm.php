@@ -5,6 +5,7 @@ namespace App\Filament\Resources\ProductMixResource\Forms;
 use App\Actions\ProductMix\ValidateProductMixAction;
 use App\Forms\Components\CompactRepeater;
 use App\Filament\Resources\ProductMixResource\Actions\CreateRecipeAction;
+use App\Filament\Resources\BaseResource;
 use Filament\Forms;
 use Filament\Forms\Components\Section;
 
@@ -28,10 +29,7 @@ class ProductMixForm
     {
         return Forms\Components\Section::make('Basic Information')
             ->schema([
-                Forms\Components\TextInput::make('name')
-                    ->label('Mix Name')
-                    ->required()
-                    ->maxLength(255),
+                BaseResource::getNameField('Mix Name'),
                     
                 Forms\Components\Textarea::make('description')
                     ->label('Description')

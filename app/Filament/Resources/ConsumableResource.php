@@ -40,7 +40,10 @@ class ConsumableResource extends BaseResource
     {
         return static::configureTableDefaults($table)
             ->modifyQueryUsing(fn (Builder $query) => ConsumableTable::modifyQuery($query))
-            ->columns(ConsumableTable::columns())
+            ->columns([
+                static::getNameColumn('Name'),
+                ...array_slice(ConsumableTable::columns(), 1), // Skip the first column (name) and use the rest
+            ])
             ->defaultSort(ConsumableTable::getDefaultSort())
             ->filters(ConsumableTable::filters())
             ->groups(ConsumableTable::groups())

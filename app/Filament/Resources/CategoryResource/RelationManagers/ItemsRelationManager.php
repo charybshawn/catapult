@@ -41,8 +41,7 @@ class ItemsRelationManager extends RelationManager
                 Tables\Columns\TextColumn::make('sku')
                     ->label('SKU/UPC Code')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('name')
-                    ->searchable(),
+                \App\Filament\Resources\BaseResource::getNameColumn(),
                 Tables\Columns\ImageColumn::make('default_photo')
                     ->label('Image')
                     ->circular(),

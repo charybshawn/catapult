@@ -7,14 +7,14 @@ use App\Filament\Resources\TimeCardResource\RelationManagers;
 use App\Models\TimeCard;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use App\Filament\Resources\Base\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Filament\Support\Enums\FontWeight;
 
-class TimeCardResource extends Resource
+class TimeCardResource extends BaseResource
 {
     protected static ?string $model = TimeCard::class;
 

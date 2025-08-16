@@ -53,10 +53,10 @@ class CropBatchInfolist
                     Components\TextEntry::make('total_age_display')
                         ->label('Total Age'),
                         
-                    Components\TextEntry::make('planting_at')
-                        ->label('Planted Date')
+                    Components\TextEntry::make('germination_at')
+                        ->label('Germination Date')
                         ->getStateUsing(function ($record) {
-                            return static::formatPlantingDate($record);
+                            return static::formatGerminationDate($record);
                         }),
                         
                     Components\TextEntry::make('expected_harvest_at')
@@ -66,16 +66,7 @@ class CropBatchInfolist
                         }),
                 ]),
                 
-            Components\Section::make('Stage Timeline')
-                ->schema([
-                    Components\TextEntry::make('stage_timeline')
-                        ->label('')
-                        ->html()
-                        ->getStateUsing(function ($record) {
-                            return static::generateStageTimeline($record);
-                        }),
-                ]),
-                
+
             Components\Section::make('Tray Numbers')
                 ->schema([
                     Components\TextEntry::make('tray_numbers')
@@ -94,8 +85,7 @@ class CropBatchInfolist
                         ->getStateUsing(function ($record) {
                             return static::generateStageHistory($record);
                         }),
-                ])
-                ->collapsed(),
+                ]),
         ];
     }
 
@@ -119,12 +109,12 @@ class CropBatchInfolist
     }
 
     /**
-     * Format planting date for display
+     * Format germination date for display
      */
-    protected static function formatPlantingDate($record): string
+    protected static function formatGerminationDate($record): string
     {
-        if ($record->planting_at) {
-            $date = is_string($record->planting_at) ? Carbon::parse($record->planting_at) : $record->planting_at;
+        if ($record->germination_at) {
+            $date = is_string($record->germination_at) ? Carbon::parse($record->germination_at) : $record->germination_at;
             return $date->format('M j, Y g:i A');
         }
         return 'Unknown';
@@ -307,7 +297,14 @@ class CropBatchInfolist
         $stageHistory = CropStageHistory::where('crop_batch_id', $record->id)
             ->with(['stage', 'createdBy'])
             ->orderBy('entered_at', 'asc')
-            ->get();
+            ->get()
+            ->filter(function ($history) {
+                // Skip cancelled stages (entered and exited at the same time)
+                if ($history->exited_at && $history->entered_at->equalTo($history->exited_at)) {
+                    return false;
+                }
+                return true;
+            });
             
         if ($stageHistory->isEmpty()) {
             return '<div class="text-gray-500 dark:text-gray-400">No stage history available</div>';
@@ -338,11 +335,7 @@ class CropBatchInfolist
             }
             $html .= '</div>';
             
-            if ($history->createdBy) {
-                $html .= '<div class="text-xs text-gray-500 dark:text-gray-500 mt-1">';
-                $html .= 'By: ' . htmlspecialchars($history->createdBy->name);
-                $html .= '</div>';
-            }
+            // Remove "By:" section for cleaner display
             $html .= '</div>';
             
             // Duration
@@ -354,7 +347,8 @@ class CropBatchInfolist
             
             $html .= '</div>';
             
-            if ($history->notes) {
+            // Skip notes for backfilled entries to keep display clean
+            if ($history->notes && !str_contains($history->notes, 'Batch-level stage history')) {
                 $html .= '<div class="text-sm text-gray-500 dark:text-gray-400 mt-2">';
                 $html .= htmlspecialchars($history->notes);
                 $html .= '</div>';

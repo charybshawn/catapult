@@ -9,13 +9,13 @@ use App\Models\PackagingTypeCategory;
 use App\Models\PackagingUnitType;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use App\Filament\Resources\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
-class PackagingTypeResource extends Resource
+class PackagingTypeResource extends BaseResource
 {
     protected static ?string $model = PackagingType::class;
 
@@ -33,10 +33,7 @@ class PackagingTypeResource extends Resource
             ->schema([
                 Forms\Components\Section::make('Packaging Details')
                     ->schema([
-                        Forms\Components\TextInput::make('name')
-                            ->label('Name')
-                            ->required()
-                            ->maxLength(255)
+                        static::getNameField()
                             ->helperText('Name of the packaging type (e.g., "Clamshell")'),
                             
                         Forms\Components\Select::make('type_category_id')
@@ -88,11 +85,9 @@ class PackagingTypeResource extends Resource
             ->persistFiltersInSession()
             ->persistSortInSession()
             ->persistColumnSearchesInSession()
-            ->persistSearchInSession()            ->columns([
-                Tables\Columns\TextColumn::make('name')
-                    ->label('Name')
-                    ->searchable()
-                    ->sortable(),
+            ->persistSearchInSession()
+            ->columns([
+                static::getNameColumn('Name'),
                     
                 Tables\Columns\TextColumn::make('typeCategory.name')
                     ->label('Category')

@@ -31,9 +31,7 @@ class CategoryResource extends BaseResource
         return $form
             ->schema([
                 static::getBasicInformationSection([
-                    Forms\Components\TextInput::make('name')
-                        ->required()
-                        ->maxLength(255),
+                    static::getNameField(),
                     static::getDescriptionField(),
                     static::getActiveToggleField(),
                 ])

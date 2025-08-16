@@ -5,11 +5,11 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\OrderSimulatorResource\Pages;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use App\Filament\Resources\Base\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
 
-class OrderSimulatorResource extends Resource
+class OrderSimulatorResource extends BaseResource
 {
     protected static ?string $model = null;
 
