@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\CropBatchResource\Pages;
 
 use App\Filament\Resources\CropBatchResource;
-use App\Http\Resources\CropBatchListResource;
 use App\Models\CropBatch;
 use App\Services\CropBatchDisplayService;
 use Filament\Actions;
@@ -46,14 +45,27 @@ class ListCropBatches extends ListRecords
      */
     public function getTableRecords(): Collection
     {
+        // Get the raw CropBatch models
         $cropBatches = $this->getTableQuery()->get();
         
-        $transformedData = app(CropBatchDisplayService::class)
-            ->transformForTable($cropBatches);
+        // Add transformed display data as attributes to each model
+        $displayService = app(CropBatchDisplayService::class);
         
-        // Convert to a collection that Filament can work with
-        return collect($transformedData->map(function ($data) {
-            return (object) $data;
-        }));
+        foreach ($cropBatches as $batch) {
+            $transformedData = $displayService->getCachedForBatch($batch->id);
+            if ($transformedData) {
+                // Add the transformed attributes to the model
+                $batch->setAttribute('stage_age_display', $transformedData->stage_age_display);
+                $batch->setAttribute('time_to_next_stage_display', $transformedData->time_to_next_stage_display);
+                $batch->setAttribute('total_age_display', $transformedData->total_age_display);
+                $batch->setAttribute('tray_numbers_formatted', $transformedData->tray_numbers_formatted);
+                $batch->setAttribute('current_stage_name', $transformedData->current_stage_name);
+                $batch->setAttribute('current_stage_code', $transformedData->current_stage_code);
+                $batch->setAttribute('germination_date_formatted', $transformedData->germination_date_formatted);
+                $batch->setAttribute('expected_harvest_formatted', $transformedData->expected_harvest_formatted);
+            }
+        }
+        
+        return $cropBatches;
     }
 }
