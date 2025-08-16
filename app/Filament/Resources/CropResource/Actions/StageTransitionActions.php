@@ -355,8 +355,8 @@ class StageTransitionActions
      */
     private static function getCropsForRecord($record)
     {
-        // If this is a CropBatchListView, use its ID as the crop_batch_id
-        if ($record instanceof \App\Models\CropBatchListView) {
+        // If this is a CropBatch, use its ID as the crop_batch_id
+        if ($record instanceof \App\Models\CropBatch) {
             return Crop::where('crop_batch_id', $record->id)
                 ->with(['recipe', 'currentStage'])
                 ->get();

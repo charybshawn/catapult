@@ -9,11 +9,11 @@ class CropTimeCalculator
 {
     /**
      * Update all time-related calculated fields for a crop
-     * @deprecated Use getTimeToNextStageDisplay() or access via CropBatchListView
+     * @deprecated Use getTimeToNextStageDisplay() or access via CropBatchDisplayService
      */
     public function updateTimeCalculations(Crop $crop): void
     {
-        // This method is deprecated as these fields are now in crop_batches_list_view
+        // This method is deprecated as these fields are now handled by CropBatchDisplayService
         // Keeping it empty to avoid breaking existing code
     }
     

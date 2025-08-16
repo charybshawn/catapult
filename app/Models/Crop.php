@@ -431,11 +431,12 @@ class Crop extends Model
      */
     public function timeToNextStage(): ?string
     {
-        // Get from the batch view if available
+        // Get from the display service if available
         if ($this->crop_batch_id) {
-            $batchView = CropBatchListView::where('id', $this->crop_batch_id)->first();
-            if ($batchView) {
-                return $batchView->time_to_next_stage_display;
+            $batchDisplayService = app(\App\Services\CropBatchDisplayService::class);
+            $batchResource = $batchDisplayService->getCachedForBatch($this->crop_batch_id);
+            if ($batchResource) {
+                return $batchResource->time_to_next_stage_display;
             }
         }
         

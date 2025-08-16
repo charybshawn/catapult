@@ -30,8 +30,8 @@ class CropObserver
         }
 
         // Note: Calculated columns like stage_age_minutes, time_to_next_stage_display, etc.
-        // have been moved to the crop_batches_list_view and are no longer stored on individual crops.
-        // These values can be accessed through the CropBatchListView when needed.
+        // are now handled by the CropBatchDisplayService and are no longer stored on individual crops.
+        // These values can be accessed through the CropBatchDisplayService when needed.
         
         // The only update we might still need is ensuring tray_count is set correctly
         // if it's still a column in the crops table

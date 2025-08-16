@@ -227,7 +227,7 @@ class CropBatchTable
             ->tooltip('Fix Missing Timestamps')
             ->action(function ($record) {
                 $fixedCount = 0;
-                // Since CropBatchListView is a view, we need to query crops directly
+                // Query crops directly for this batch
                 $crops = \App\Models\Crop::where('crop_batch_id', $record->id)->get();
                 
                 foreach ($crops as $crop) {
