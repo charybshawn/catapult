@@ -12,11 +12,13 @@ class CategoriesTableSeeder extends Seeder
      */
     public function run(): void
     {
-        \App\Models\Category::create([
-            'id' => 1,
-            'name' => 'microgreens',
-            'description' => 'Microgreens category for fresh produce',
-            'is_active' => true,
-        ]);
+        \App\Models\Category::firstOrCreate(
+            ['id' => 1],
+            [
+                'name' => 'microgreens',
+                'description' => 'Microgreens category for fresh produce',
+                'is_active' => true,
+            ]
+        );
     }
 }

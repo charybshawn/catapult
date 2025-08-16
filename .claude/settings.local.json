@@ -41,7 +41,10 @@
       "mcp__serena__onboarding",
       "mcp__serena__write_memory",
       "mcp__serena__think_about_task_adherence",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "mcp__serena__think_about_collected_information",
+      "mcp__serena__list_memories",
+      "mcp__serena__read_memory"
     ],
     "deny": []
   }

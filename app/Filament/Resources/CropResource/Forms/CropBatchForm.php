@@ -100,25 +100,7 @@ class CropBatchForm
                         ->helperText(fn (Get $get) => static::checkRecipeRequiresSoaking($get)
                             ? 'Auto-calculated from soaking start time + duration. You can override if needed.'
                             : 'When the crop will be planted'),
-                    Forms\Components\Select::make('current_stage_id')
-                        ->label('Current Stage')
-                        ->relationship('currentStage', 'name')
-                        ->required()
-                        ->default(function (Get $get) {
-                            $recipeId = $get('recipe_id');
-                            if ($recipeId) {
-                                $recipe = Recipe::find($recipeId);
-                                if ($recipe && $recipe->requiresSoaking()) {
-                                    $soakingStage = CropStageCache::findByCode('soaking');
-                                    if ($soakingStage) {
-                                        return $soakingStage->id;
-                                    }
-                                }
-                            }
-                            $germination = CropStageCache::findByCode('germination');
-                            return $germination ? $germination->id : null;
-                        })
-                        ->visible(fn ($livewire) => !($livewire instanceof \App\Filament\Resources\CropResource\Pages\CreateCrop)),
+                    
                     Forms\Components\Textarea::make('notes')
                         ->label('Notes')
                         ->rows(3)

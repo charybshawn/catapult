@@ -2,8 +2,6 @@
 
 namespace App\Filament\Resources\CropBatchResource\Forms;
 
-use App\Models\CropStage;
-use App\Services\CropStageCache;
 use Filament\Forms;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
@@ -15,9 +13,6 @@ use Filament\Forms\Set;
  */
 class CropBatchEditForm
 {
-    /**
-     * Returns Filament form schema for batch editing
-     */
     public static function schema(): array
     {
         return [
@@ -41,22 +36,6 @@ class CropBatchEditForm
             Forms\Components\Section::make('Batch-wide Updates')
                 ->description('These changes will be applied to ALL crops in this batch')
                 ->schema([
-                    Forms\Components\Select::make('current_stage_id')
-                        ->label('Current Stage')
-                        ->options(CropStage::pluck('name', 'id'))
-                        ->required()
-                        ->reactive()
-                        ->helperText('Change the growth stage for all crops in this batch')
-                        ->afterStateHydrated(function ($component, $record) {
-                            if ($record) {
-                                // Get the current stage from the first crop
-                                $firstCrop = $record->crops()->first();
-                                if ($firstCrop) {
-                                    $component->state($firstCrop->current_stage_id);
-                                }
-                            }
-                        }),
-
                     Forms\Components\Textarea::make('notes')
                         ->label('Batch Notes')
                         ->rows(3)
@@ -66,7 +45,7 @@ class CropBatchEditForm
                 ->columns(2),
 
             Forms\Components\Section::make('Growth Stage Timestamps')
-                ->description('Update stage timestamps for all crops in the batch')
+                ->description('Update stage timestamps for all crops in the batch. Current stage will be automatically determined based on completed timestamps.')
                 ->schema([
                     Forms\Components\Grid::make()
                         ->schema([

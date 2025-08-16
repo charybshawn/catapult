@@ -187,6 +187,10 @@ class Crop extends Model
     /**
      * Set the current_stage attribute for backward compatibility.
      * Maps the stage code to current_stage_id.
+     * 
+     * NOTE: The current_stage_id is now automatically calculated based on timestamps
+     * via the CropStageCalculator service. This method is maintained for backward
+     * compatibility but should be avoided in favor of setting appropriate timestamps.
      */
     public function setCurrentStageAttribute(string $value): void
     {

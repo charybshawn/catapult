@@ -1012,7 +1012,24 @@ class CropTaskManagementService
      */
     private function getCurrentStage(Crop $crop): CropStage
     {
-        return $crop->currentStage ?? CropStage::find($crop->current_stage_id);
+        // First try to get from loaded relationship
+        if ($crop->relationLoaded('currentStage')) {
+            $stage = $crop->getRelation('currentStage');
+            if ($stage instanceof CropStage) {
+                return $stage;
+            }
+        }
+        
+        // Fallback to direct query using the stage ID
+        if ($crop->current_stage_id) {
+            $stage = CropStage::find($crop->current_stage_id);
+            if ($stage) {
+                return $stage;
+            }
+        }
+        
+        // Final fallback - should not happen but prevents errors
+        throw new \Exception("Cannot determine current stage for crop {$crop->id}");
     }
 
     /**

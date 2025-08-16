@@ -50,6 +50,9 @@ class AppServiceProvider extends ServiceProvider
         // Register CropTimeCalculator as a singleton
         $this->app->singleton(\App\Services\CropTimeCalculator::class);
         
+        // Register CropStageCalculator as a singleton
+        $this->app->singleton(\App\Services\CropStageCalculator::class);
+        
         // Register ConsumableCalculatorService as a singleton
         $this->app->singleton(\App\Services\ConsumableCalculatorService::class);
         
@@ -101,6 +104,12 @@ class AppServiceProvider extends ServiceProvider
         // Note: Order-related observers moved to Filament Page hooks + Action classes
         // following the Filament Resource Architecture Guide patterns
         Payment::observe(PaymentObserver::class);
+        
+        // Register CropObserver for automatic stage calculation
+        \App\Models\Crop::observe(\App\Observers\CropObserver::class);
+        
+        // Register CropBatchObserver for cache management
+        \App\Models\CropBatch::observe(\App\Observers\CropBatchObserver::class);
 
         
         

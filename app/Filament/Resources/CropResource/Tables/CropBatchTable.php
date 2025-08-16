@@ -8,7 +8,6 @@ use App\Models\Order;
 use App\Models\Recipe;
 use App\Services\CropStageCache;
 use App\Filament\Resources\CropResource\Actions\StageTransitionActions;
-use App\Filament\Resources\CropResource\Actions\CropBatchDebugAction;
 use App\Services\CropTaskManagementService;
 use Filament\Forms;
 use Filament\Tables;
@@ -141,8 +140,6 @@ class CropBatchTable
                         'trayNumbers' => $trayNumbers,
                     ]);
                 }),
-            CropBatchDebugAction::make(),
-            static::getFixTimestampsAction(),
             
             StageTransitionActions::advanceStage(),
             StageTransitionActions::harvest(),

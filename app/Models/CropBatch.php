@@ -387,4 +387,14 @@ class CropBatch extends Model
     }
     
     protected $firstCropCache = null;
+    
+    /**
+     * Invalidate the first crop cache.
+     * This should be called when crops are updated to ensure the batch reflects current data.
+     */
+    public function invalidateFirstCropCache(): void
+    {
+        $this->firstCropCache = null;
+        $this->computedAttributesCache = null;
+    }
 }

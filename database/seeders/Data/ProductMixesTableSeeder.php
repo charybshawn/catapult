@@ -86,7 +86,7 @@ class ProductMixesTableSeeder extends Seeder
                 'updated_at' => '2025-07-08 19:15:47',
             ],
             [
-                'id' => 10,
+                'id' => 5,
                 'product_mix_id' => 1,
                 'master_seed_catalog_id' => 6,
                 'percentage' => 15.00000,
@@ -96,7 +96,7 @@ class ProductMixesTableSeeder extends Seeder
             ],
             // Spicy Mix components
             [
-                'id' => 5,
+                'id' => 6,
                 'product_mix_id' => 2,
                 'master_seed_catalog_id' => 14,
                 'percentage' => 28.00000,
@@ -105,7 +105,7 @@ class ProductMixesTableSeeder extends Seeder
                 'updated_at' => '2025-07-08 19:17:09',
             ],
             [
-                'id' => 6,
+                'id' => 7,
                 'product_mix_id' => 2,
                 'master_seed_catalog_id' => 2,
                 'percentage' => 18.00000,
@@ -114,7 +114,7 @@ class ProductMixesTableSeeder extends Seeder
                 'updated_at' => '2025-07-08 19:17:09',
             ],
             [
-                'id' => 7,
+                'id' => 8,
                 'product_mix_id' => 2,
                 'master_seed_catalog_id' => 12,
                 'percentage' => 9.00000,
@@ -123,7 +123,7 @@ class ProductMixesTableSeeder extends Seeder
                 'updated_at' => '2025-07-08 19:17:09',
             ],
             [
-                'id' => 8,
+                'id' => 9,
                 'product_mix_id' => 2,
                 'master_seed_catalog_id' => 16,
                 'percentage' => 35.00000,
@@ -132,7 +132,7 @@ class ProductMixesTableSeeder extends Seeder
                 'updated_at' => '2025-07-08 19:17:09',
             ],
             [
-                'id' => 9,
+                'id' => 10,
                 'product_mix_id' => 2,
                 'master_seed_catalog_id' => 7,
                 'percentage' => 10.00000,
@@ -142,7 +142,7 @@ class ProductMixesTableSeeder extends Seeder
             ],
             // Brassica Mix components
             [
-                'id' => 10,
+                'id' => 11,
                 'product_mix_id' => 3,
                 'master_seed_catalog_id' => 6,
                 'percentage' => 34.00000,
@@ -151,7 +151,7 @@ class ProductMixesTableSeeder extends Seeder
                 'updated_at' => '2025-07-08 19:17:09',
             ],
             [
-                'id' => 11,
+                'id' => 12,
                 'product_mix_id' => 3,
                 'master_seed_catalog_id' => 7,
                 'percentage' => 33.00000,
@@ -160,7 +160,7 @@ class ProductMixesTableSeeder extends Seeder
                 'updated_at' => '2025-07-08 19:17:09',
             ],
             [
-                'id' => 12,
+                'id' => 13,
                 'product_mix_id' => 3,
                 'master_seed_catalog_id' => 14,
                 'percentage' => 28.00000,

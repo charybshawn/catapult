@@ -95,35 +95,23 @@ class CropValidationService
         }
         
         
-        // Set stage-specific timestamps and current_stage based on recipe requirements
+        // Set initial timestamps based on recipe requirements
+        // Note: The CropStageCalculator will automatically set the current_stage_id
+        // based on which timestamps are present
         if ($crop->requires_soaking && $crop->recipe_id) {
-            // Start at soaking stage if recipe requires it
-            if (!$crop->current_stage_id) {
-                $soakingStage = \App\Models\CropStage::findByCode('soaking');
-                if ($soakingStage) {
-                    $crop->current_stage_id = $soakingStage->id;
-                }
-            }
-            
-            // Set soaking_at if not provided
+            // Set soaking_at if not provided (stage will be calculated automatically)
             if (!$crop->soaking_at) {
                 $crop->soaking_at = now();
             }
-            
         } else {
             // Set germination_at automatically to now for non-soaking crops
             if (!$crop->germination_at) {
                 $crop->germination_at = now();
             }
-            
-            // Always start at germination stage if not set
-            if (!$crop->current_stage_id) {
-                $germinationStage = \App\Models\CropStage::findByCode('germination');
-                if ($germinationStage) {
-                    $crop->current_stage_id = $germinationStage->id;
-                }
-            }
         }
+        
+        // Note: current_stage_id will be set automatically by the CropStageCalculator
+        // based on which timestamps are present
         
         // Note: Computed time fields have been moved to crop_batches_list_view
         // They are no longer stored on individual crop records

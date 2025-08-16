@@ -40,7 +40,6 @@ class RecipeFactory extends Factory
             'blackout_days' => fake()->numberBetween(0, 5),
             'light_days' => fake()->randomFloat(1, 3, 12),
             'days_to_maturity' => fake()->randomFloat(1, 7, 30),
-            'harvest_days' => fake()->numberBetween(7, 21),
             'expected_yield_grams' => fake()->randomFloat(2, 50, 500),
             'buffer_percentage' => fake()->randomFloat(2, 10, 20),
             'seed_density_grams_per_tray' => fake()->randomFloat(2, 5, 50),
