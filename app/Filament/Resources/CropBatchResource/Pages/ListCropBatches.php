@@ -55,6 +55,8 @@ class ListCropBatches extends ListRecords
             $transformedData = $displayService->getCachedForBatch($batch->id);
             if ($transformedData) {
                 // Add the transformed attributes to the model
+                $batch->setAttribute('recipe_name', $transformedData->recipe_name);
+                $batch->setAttribute('tray_numbers', $transformedData->tray_numbers);
                 $batch->setAttribute('stage_age_display', $transformedData->stage_age_display);
                 $batch->setAttribute('time_to_next_stage_display', $transformedData->time_to_next_stage_display);
                 $batch->setAttribute('total_age_display', $transformedData->total_age_display);
