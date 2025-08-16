@@ -25,7 +25,7 @@ class CropBatchDisplayService
     {
         return $cropBatches->map(function ($batch) {
             return $this->cache->remember(
-                "crop_batch_display_v3_{$batch->id}_{$batch->updated_at->timestamp}",
+                "crop_batch_display_v4_{$batch->id}_{$batch->updated_at->timestamp}",
                 300, // 5 minutes in seconds
                 fn() => $this->transformSingle($batch)
             );
@@ -56,8 +56,8 @@ class CropBatchDisplayService
             'stage_age_display' => $this->timeCalculator->getStageAgeDisplay($firstCrop),
             'time_to_next_stage_display' => $this->timeCalculator->getTimeToNextStageDisplay($firstCrop),
             'total_age_display' => $this->timeCalculator->getTotalAgeDisplay($firstCrop),
-            'germination_at' => $batch->earliest_germination,
-            'germination_date_formatted' => $this->formatGerminationDate($batch->earliest_germination),
+            'germination_at' => $batch->earliest_germination ?: $firstCrop?->germination_at,
+            'germination_date_formatted' => $this->formatGerminationDate($batch->earliest_germination ?: $firstCrop?->germination_at),
             'expected_harvest_at' => $this->calculateExpectedHarvest($batch, $firstCrop),
             'expected_harvest_formatted' => $this->formatExpectedHarvestDate($batch, $firstCrop),
             'created_at' => $batch->created_at,
@@ -74,7 +74,7 @@ class CropBatchDisplayService
             return null;
         }
 
-        $startDate = $batch->earliest_germination ?: $firstCrop->germination_at;
+        $startDate = $batch->earliest_germination ?: $firstCrop?->germination_at;
         
         if (!$startDate) {
             return null;
@@ -144,7 +144,7 @@ class CropBatchDisplayService
         }
         
         $cached = $this->cache->remember(
-            "crop_batch_display_v3_{$batch->id}_{$batch->updated_at->timestamp}",
+            "crop_batch_display_v4_{$batch->id}_{$batch->updated_at->timestamp}",
             300, // 5 minutes in seconds
             fn() => $this->transformSingle($batch)
         );
@@ -173,10 +173,6 @@ class CropBatchDisplayService
         $cultivarName = $batch->recipe->masterCultivar?->cultivar_name ?? 'Unknown';
         
         // Format as "Seed Name (Cultivar Name)"
-        if ($commonName === 'Unknown' && $cultivarName === 'Unknown') {
-            return $batch->recipe->name ?? 'Unknown Recipe';
-        }
-        
         return "{$commonName} ({$cultivarName})";
     }
 
