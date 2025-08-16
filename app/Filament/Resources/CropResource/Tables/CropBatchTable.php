@@ -42,9 +42,8 @@ class CropBatchTable
                 ->searchable()
                 ->sortable(false)
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('planting_at')
-                ->label('Planted')
-                ->date()
+            Tables\Columns\TextColumn::make('germination_date_formatted')
+                ->label('Started')
                 ->sortable()
                 ->toggleable(),
             Tables\Columns\TextColumn::make('current_stage_name')
@@ -207,9 +206,8 @@ class CropBatchTable
         return [
             Tables\Grouping\Group::make('recipe.name')
                 ->label('Recipe'),
-            Tables\Grouping\Group::make('planting_at')
-                ->label('Plant Date')
-                ->date(),
+            Tables\Grouping\Group::make('germination_date_formatted')
+                ->label('Start Date'),
             Tables\Grouping\Group::make('current_stage_name')
                 ->label('Growth Stage'),
         ];

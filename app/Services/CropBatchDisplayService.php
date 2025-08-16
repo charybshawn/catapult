@@ -25,7 +25,7 @@ class CropBatchDisplayService
     {
         return $cropBatches->map(function ($batch) {
             return $this->cache->remember(
-                "crop_batch_display_v2_{$batch->id}_{$batch->updated_at->timestamp}",
+                "crop_batch_display_v3_{$batch->id}_{$batch->updated_at->timestamp}",
                 300, // 5 minutes in seconds
                 fn() => $this->transformSingle($batch)
             );
@@ -144,7 +144,7 @@ class CropBatchDisplayService
         }
         
         $cached = $this->cache->remember(
-            "crop_batch_display_v2_{$batch->id}_{$batch->updated_at->timestamp}",
+            "crop_batch_display_v3_{$batch->id}_{$batch->updated_at->timestamp}",
             300, // 5 minutes in seconds
             fn() => $this->transformSingle($batch)
         );
@@ -161,10 +161,23 @@ class CropBatchDisplayService
             return 'Unknown Recipe';
         }
 
+        // Try to load relationships if not already loaded
+        if (!$batch->recipe->relationLoaded('masterSeedCatalog')) {
+            $batch->recipe->load('masterSeedCatalog');
+        }
+        if (!$batch->recipe->relationLoaded('masterCultivar')) {
+            $batch->recipe->load('masterCultivar');
+        }
+
         $commonName = $batch->recipe->masterSeedCatalog?->common_name ?? 'Unknown';
         $cultivarName = $batch->recipe->masterCultivar?->cultivar_name ?? 'Unknown';
         
-        return "{$commonName} - {$cultivarName}";
+        // Format as "Seed Name (Cultivar Name)"
+        if ($commonName === 'Unknown' && $cultivarName === 'Unknown') {
+            return $batch->recipe->name ?? 'Unknown Recipe';
+        }
+        
+        return "{$commonName} ({$cultivarName})";
     }
 
     /**
