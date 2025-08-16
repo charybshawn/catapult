@@ -136,8 +136,8 @@ class CropBatch extends Model
         
         // Calculate expected harvest date using germination_at as the primary date
         $expectedHarvestAt = null;
-        if ($firstCrop->recipe && $firstCrop->recipe->days_to_maturity && $firstCrop->germination_at) {
-            $expectedHarvestAt = Carbon::parse($firstCrop->germination_at)->addDays($firstCrop->recipe->days_to_maturity);
+        if ($this->recipe && $this->recipe->days_to_maturity && $firstCrop->germination_at) {
+            $expectedHarvestAt = Carbon::parse($firstCrop->germination_at)->addDays($this->recipe->days_to_maturity);
         }
         
         $this->computedAttributesCache = [
@@ -308,8 +308,9 @@ class CropBatch extends Model
     public function scopeForListDisplay(Builder $query): Builder
     {
         return $query->with([
-            'crops:id,crop_batch_id,current_stage_id,tray_number,germination_at,blackout_at,light_at,harvested_at',
+            'crops:id,crop_batch_id,current_stage_id,tray_number,germination_at,blackout_at,light_at,harvested_at,recipe_id',
             'crops.currentStage',
+            'crops.recipe:id,name,days_to_maturity,germination_days,blackout_days,light_days',
             'recipe:id,name,days_to_maturity,germination_days,blackout_days,light_days'
         ])
         ->withCount('crops')
