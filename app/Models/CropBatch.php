@@ -309,7 +309,7 @@ class CropBatch extends Model
     {
         return $query->with([
             'crops:id,crop_batch_id,current_stage_id,tray_number,germination_at,blackout_at,light_at,harvested_at',
-            'crops.currentStage:id,name,code',
+            'crops.currentStage',
             'recipe:id,name,days_to_maturity,germination_days,blackout_days,light_days'
         ])
         ->withCount('crops')

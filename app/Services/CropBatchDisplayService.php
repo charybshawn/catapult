@@ -4,7 +4,8 @@ namespace App\Services;
 
 use App\Models\CropBatch;
 use Carbon\Carbon;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Collection;
 
 /**
  * Service for transforming crop batch data for display purposes
@@ -20,12 +21,12 @@ class CropBatchDisplayService
     /**
      * Transform a collection of crop batches for table display
      */
-    public function transformForTable(Collection $cropBatches): Collection
+    public function transformForTable(EloquentCollection $cropBatches): Collection
     {
         return $cropBatches->map(function ($batch) {
             return $this->cache->remember(
                 "crop_batch_display_{$batch->id}_{$batch->updated_at->timestamp}",
-                now()->addMinutes(5),
+                300, // 5 minutes in seconds
                 fn() => $this->transformSingle($batch)
             );
         });
@@ -38,12 +39,18 @@ class CropBatchDisplayService
     {
         $firstCrop = $batch->crops->first();
         
+        // Get the current stage directly to avoid accessor conflicts
+        $currentStage = null;
+        if ($firstCrop && $firstCrop->current_stage_id) {
+            $currentStage = \App\Models\CropStage::find($firstCrop->current_stage_id);
+        }
+        
         return [
             'id' => $batch->id,
-            'recipe_name' => $batch->recipe->name ?? 'Unknown Recipe',
+            'recipe_name' => $batch->recipe?->name ?? 'Unknown Recipe',
             'crop_count' => $batch->crops_count ?? $batch->crops->count(),
-            'current_stage_name' => $firstCrop?->currentStage?->name,
-            'current_stage_code' => $firstCrop?->currentStage?->code,
+            'current_stage_name' => $currentStage?->name,
+            'current_stage_code' => $currentStage?->code,
             'tray_numbers' => $batch->crops->pluck('tray_number')->sort()->values()->toArray(),
             'tray_numbers_formatted' => $batch->crops->pluck('tray_number')->sort()->values()->implode(', '),
             'stage_age_display' => $this->timeCalculator->getStageAgeDisplay($firstCrop),
