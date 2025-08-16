@@ -79,7 +79,12 @@ class AdminPanelProvider extends PanelProvider
                 SeedPriceTrendsWidget::class,
                 SeedReorderAdvisorWidget::class,
             ])
-            ->userMenuItems([])
+            ->userMenuItems([
+                'settings' => \Filament\Navigation\MenuItem::make()
+                    ->label('System Settings')
+                    ->url('/admin/system-settings')
+                    ->icon('heroicon-o-cog-6-tooth'),
+            ])
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

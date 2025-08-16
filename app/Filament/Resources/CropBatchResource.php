@@ -79,7 +79,16 @@ class CropBatchResource extends BaseResource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->with(['recipe', 'crops.recipe', 'crops.currentStage']);
+            ->with([
+                'recipe.masterSeedCatalog', 
+                'recipe.masterCultivar',
+                'crops.recipe.masterSeedCatalog',
+                'crops.recipe.masterCultivar', 
+                'crops.currentStage',
+                'crops.recipe.soilConsumable',
+                'order',
+                'cropPlan'
+            ]);
     }
 
     public static function getPages(): array

@@ -26,6 +26,7 @@ class SystemSettings extends Page
             'site_name' => Setting::getValue('site_name', 'Catapult Microgreens'),
             'primary_color' => Setting::getValue('primary_color', '#4f46e5'),
             'auto_backup_before_cascade_delete' => Setting::getValue('auto_backup_before_cascade_delete', true),
+            'debug_mode_enabled' => Setting::getValue('debug_mode_enabled', false),
         ]);
     }
 
@@ -72,6 +73,30 @@ class SystemSettings extends Page
                                             ->helperText('Backup files are named: cascade_delete_[model]_[id]_[timestamp].sql'),
                                     ]),
                             ]),
+                        
+                        Forms\Components\Tabs\Tab::make('Development Settings')
+                            ->icon('heroicon-o-code-bracket')
+                            ->schema([
+                                Forms\Components\Section::make('Debug & Development')
+                                    ->description('Settings for development and debugging purposes.')
+                                    ->schema([
+                                        Forms\Components\Toggle::make('debug_mode_enabled')
+                                            ->label('Debug Mode')
+                                            ->helperText('Enable debug information in admin interface (debug panels, detailed error messages, etc.)')
+                                            ->inline(false),
+                                        
+                                        Forms\Components\Placeholder::make('debug_status')
+                                            ->label('Current Status')
+                                            ->content(function (Forms\Get $get) {
+                                                $enabled = $get('debug_mode_enabled') ?? Setting::getValue('debug_mode_enabled', false);
+                                                if ($enabled) {
+                                                    return '🟢 Debug mode is ENABLED - Debug panels and detailed information will be visible in crop batch actions';
+                                                } else {
+                                                    return '🔴 Debug mode is DISABLED - Only essential information will be shown';
+                                                }
+                                            }),
+                                    ]),
+                            ]),
                     ])
                     ->columnSpanFull(),
             ])
@@ -85,7 +110,7 @@ class SystemSettings extends Page
 
             foreach ($data as $key => $value) {
                 // Skip placeholder fields that aren't actual settings
-                if (in_array($key, ['critical_models', 'important_models', 'backup_location'])) {
+                if (in_array($key, ['critical_models', 'important_models', 'backup_location', 'debug_status'])) {
                     continue;
                 }
                 
@@ -93,6 +118,7 @@ class SystemSettings extends Page
                 $group = match($key) {
                     'site_name', 'primary_color' => 'general',
                     'auto_backup_before_cascade_delete' => 'backup',
+                    'debug_mode_enabled' => 'development',
                     default => 'general'
                 };
                 

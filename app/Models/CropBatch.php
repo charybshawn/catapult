@@ -76,6 +76,22 @@ class CropBatch extends Model
     }
 
     /**
+     * Get the order for this batch.
+     */
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Order::class);
+    }
+
+    /**
+     * Get the crop plan for this batch.
+     */
+    public function cropPlan(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\CropPlan::class);
+    }
+
+    /**
      * Get the current stage ID attribute from the first crop.
      */
     public function getCurrentStageIdAttribute(): ?int

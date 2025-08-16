@@ -4,6 +4,8 @@ namespace App\Filament\Resources\CropResource\Infolists;
 
 use App\Models\Recipe;
 use App\Models\CropStageHistory;
+use App\Models\Setting;
+use App\Models\Crop;
 use Filament\Infolists\Components;
 use Carbon\Carbon;
 
@@ -87,6 +89,9 @@ class CropBatchInfolist
                             return static::generateStageHistory($record);
                         }),
                 ]),
+            
+            // Debug section - only show when debug mode is enabled
+            ...static::getDebugSection(),
         ];
     }
 
@@ -222,6 +227,132 @@ class CropBatchInfolist
                 $html .= '<div class="text-sm text-gray-500 dark:text-gray-400 mt-2">';
                 $html .= htmlspecialchars($history->notes);
                 $html .= '</div>';
+            }
+            
+            $html .= '</div>';
+        }
+        
+        $html .= '</div>';
+        
+        return $html;
+    }
+
+    /**
+     * Get debug section components
+     */
+    protected static function getDebugSection(): array
+    {
+        // Only show debug section if debug mode is enabled
+        if (!Setting::getValue('debug_mode_enabled', false)) {
+            return [];
+        }
+
+        return [
+            Components\Section::make('🔧 Debug Information')
+                ->collapsed(true)
+                ->description('Raw database information and relationships (Debug Mode)')
+                ->schema([
+                    Components\TextEntry::make('debug_raw_data')
+                        ->label('')
+                        ->html()
+                        ->getStateUsing(function ($record) {
+                            return static::generateDebugData($record);
+                        }),
+                ]),
+        ];
+    }
+
+    /**
+     * Generate minimalist debug data display
+     */
+    protected static function generateDebugData($record): string
+    {
+        $html = '<div class="font-mono text-xs space-y-4">';
+        
+        // Raw CropBatch data
+        $html .= '<div>';
+        $html .= '<h4 class="font-bold text-sm mb-2 text-gray-800 dark:text-gray-200">crop_batches (ID: ' . $record->id . ')</h4>';
+        $html .= '<div class="bg-gray-50 dark:bg-gray-800 p-3 rounded border">';
+        $html .= static::formatTableData($record->toArray());
+        $html .= '</div>';
+        $html .= '</div>';
+
+        // Related Crops data
+        $crops = Crop::where('crop_batch_id', $record->id)->get();
+        if ($crops->isNotEmpty()) {
+            $html .= '<div>';
+            $html .= '<h4 class="font-bold text-sm mb-2 text-gray-800 dark:text-gray-200">crops (' . $crops->count() . ' records)</h4>';
+            foreach ($crops as $crop) {
+                $html .= '<div class="bg-gray-50 dark:bg-gray-800 p-3 rounded border mb-2">';
+                $html .= '<div class="text-xs text-blue-600 dark:text-blue-400 mb-1">ID: ' . $crop->id . '</div>';
+                $html .= static::formatTableData($crop->toArray());
+                $html .= '</div>';
+            }
+            $html .= '</div>';
+        }
+
+        // Recipe data
+        if ($record->recipe_id) {
+            $recipe = Recipe::find($record->recipe_id);
+            if ($recipe) {
+                $html .= '<div>';
+                $html .= '<h4 class="font-bold text-sm mb-2 text-gray-800 dark:text-gray-200">recipes (ID: ' . $recipe->id . ')</h4>';
+                $html .= '<div class="bg-gray-50 dark:bg-gray-800 p-3 rounded border">';
+                $html .= static::formatTableData($recipe->toArray());
+                $html .= '</div>';
+                $html .= '</div>';
+            }
+        }
+
+        // Stage History data
+        $stageHistory = CropStageHistory::where('crop_batch_id', $record->id)
+            ->with(['stage', 'createdBy'])
+            ->orderBy('entered_at', 'asc')
+            ->get();
+        
+        if ($stageHistory->isNotEmpty()) {
+            $html .= '<div>';
+            $html .= '<h4 class="font-bold text-sm mb-2 text-gray-800 dark:text-gray-200">crop_stage_history (' . $stageHistory->count() . ' records)</h4>';
+            foreach ($stageHistory as $history) {
+                $html .= '<div class="bg-gray-50 dark:bg-gray-800 p-3 rounded border mb-2">';
+                $html .= '<div class="text-xs text-blue-600 dark:text-blue-400 mb-1">ID: ' . $history->id . '</div>';
+                $html .= static::formatTableData($history->toArray());
+                $html .= '</div>';
+            }
+            $html .= '</div>';
+        }
+
+        $html .= '</div>';
+        
+        return $html;
+    }
+
+    /**
+     * Format table data as key-value pairs
+     */
+    protected static function formatTableData(array $data): string
+    {
+        $html = '<div class="space-y-1">';
+        
+        foreach ($data as $key => $value) {
+            // Skip large computed fields and relations
+            if (in_array($key, ['stage_age_display', 'time_to_next_stage_display', 'total_age_display', 
+                                 'tray_numbers_array', 'current_stage_name', 'current_stage_color'])) {
+                continue;
+            }
+            
+            $html .= '<div class="flex">';
+            $html .= '<span class="text-gray-600 dark:text-gray-400 w-40 flex-shrink-0">' . htmlspecialchars($key) . ':</span>';
+            
+            if (is_null($value)) {
+                $html .= '<span class="text-gray-400">NULL</span>';
+            } elseif (is_bool($value)) {
+                $html .= '<span class="text-blue-600">' . ($value ? 'true' : 'false') . '</span>';
+            } elseif (is_array($value) || is_object($value)) {
+                $html .= '<span class="text-purple-600">' . htmlspecialchars(json_encode($value)) . '</span>';
+            } else {
+                $displayValue = strlen((string)$value) > 50 ? substr((string)$value, 0, 50) . '...' : (string)$value;
+                $html .= '<span class="text-gray-800 dark:text-gray-200">' . htmlspecialchars($displayValue) . '</span>';
             }
             
             $html .= '</div>';

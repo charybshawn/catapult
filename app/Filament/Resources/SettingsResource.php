@@ -50,6 +50,33 @@ class SettingsResource extends BaseResource
                                     }),
                             ]),
 
+                        Tabs\Tab::make('Development Settings')
+                            ->icon('heroicon-o-code-bracket')
+                            ->schema([
+                                Forms\Components\Section::make('Debug & Development')
+                                    ->description('Settings for development and debugging purposes.')
+                                    ->schema([
+                                        Forms\Components\Toggle::make('debug_mode_enabled')
+                                            ->label('Debug Mode')
+                                            ->helperText('Enable debug information in admin interface (debug panels, detailed error messages, etc.)')
+                                            ->default(function () {
+                                                return Setting::getValue('debug_mode_enabled', false);
+                                            })
+                                            ->live(),
+                                        
+                                        Forms\Components\Placeholder::make('debug_status')
+                                            ->label('Current Status')
+                                            ->content(function (Forms\Get $get) {
+                                                $enabled = $get('debug_mode_enabled') ?? Setting::getValue('debug_mode_enabled', false);
+                                                if ($enabled) {
+                                                    return '🟢 Debug mode is ENABLED - Debug panels and detailed information will be visible';
+                                                } else {
+                                                    return '🔴 Debug mode is DISABLED - Only essential information will be shown';
+                                                }
+                                            }),
+                                    ]),
+                            ]),
+
                         Tabs\Tab::make('Recipe Changes')
                             ->icon('heroicon-o-arrow-path')
                             ->schema([
@@ -128,6 +155,18 @@ class SettingsResource extends BaseResource
                     ])
                     ->columnSpanFull(),
             ]);
+    }
+
+    /**
+     * Handle saving the form data to settings
+     */
+    public static function handleSave(array $data): void
+    {
+        foreach ($data as $key => $value) {
+            if ($value !== null) {
+                Setting::setValue($key, $value);
+            }
+        }
     }
 
     public static function table(Table $table): Table
