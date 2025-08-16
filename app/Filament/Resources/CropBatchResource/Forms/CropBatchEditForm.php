@@ -52,11 +52,10 @@ class CropBatchEditForm
                             Forms\Components\DateTimePicker::make('soaking_at')
                                 ->label('Soaking Started')
                                 ->helperText('When soaking stage began')
-                                ->seconds(false),
-                            Forms\Components\DateTimePicker::make('planting_at')
-                                ->label('Planting Date')
-                                ->helperText('When crops were planted')
-                                ->seconds(false),
+                                ->seconds(false)
+                                ->visible(function ($record) {
+                                    return $record && $record->recipe && $record->recipe->requiresSoaking();
+                                }),
                             Forms\Components\DateTimePicker::make('germination_at')
                                 ->label('Germination Started')
                                 ->helperText('When germination stage began')
@@ -80,14 +79,19 @@ class CropBatchEditForm
                                 // Get timestamps from the first crop
                                 $firstCrop = $record->crops()->first();
                                 if ($firstCrop) {
-                                    $component->fill([
-                                        'soaking_at' => $firstCrop->soaking_at,
-                                        'planting_at' => $firstCrop->planting_at,
+                                    $data = [
                                         'germination_at' => $firstCrop->germination_at,
                                         'blackout_at' => $firstCrop->blackout_at,
                                         'light_at' => $firstCrop->light_at,
                                         'harvested_at' => $firstCrop->harvested_at,
-                                    ]);
+                                    ];
+                                    
+                                    // Only include soaking_at if recipe requires soaking
+                                    if ($record->recipe && $record->recipe->requiresSoaking()) {
+                                        $data['soaking_at'] = $firstCrop->soaking_at;
+                                    }
+                                    
+                                    $component->fill($data);
                                 }
                             }
                         }),

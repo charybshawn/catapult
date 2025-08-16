@@ -283,6 +283,22 @@ class TimeCard extends Model
     }
 
     /**
+     * Scope to exclude time cards with deleted users
+     */
+    public function scopeWithValidUsers($query)
+    {
+        return $query->whereHas('user');
+    }
+
+    /**
+     * Scope to find orphaned time cards (without valid users)
+     */
+    public function scopeOrphaned($query)
+    {
+        return $query->whereDoesntHave('user');
+    }
+
+    /**
      * Get all activities related to this time card
      */
     public function getActivities()

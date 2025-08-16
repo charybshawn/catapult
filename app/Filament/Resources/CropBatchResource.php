@@ -111,7 +111,7 @@ class CropBatchResource extends BaseResource
             'recipe_name' => 'Recipe Name',
             'crop_count' => 'Tray Count',
             'current_stage_name' => 'Current Stage',
-            'planting_at' => 'Planted Date',
+            'germination_at' => 'Germination Date',
             'expected_harvest_at' => 'Expected Harvest',
             'stage_age_display' => 'Time in Stage',
             'total_age_display' => 'Total Age',

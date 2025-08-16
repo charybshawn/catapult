@@ -6,14 +6,17 @@ use App\Models\Crop;
 use App\Models\CropStage;
 use App\Models\Recipe;
 use Carbon\Carbon;
+use App\Actions\Crops\RecordStageHistory;
 
 class CreateCrop
 {
     protected StartSoaking $startSoaking;
+    protected RecordStageHistory $recordStageHistory;
     
-    public function __construct(StartSoaking $startSoaking)
+    public function __construct(StartSoaking $startSoaking, RecordStageHistory $recordStageHistory)
     {
         $this->startSoaking = $startSoaking;
+        $this->recordStageHistory = $recordStageHistory;
     }
     
     /**
@@ -54,7 +57,7 @@ class CreateCrop
         
         $crops = [];
         foreach ($trayNumbers as $trayNumber) {
-            $crops[] = Crop::create([
+            $crop = Crop::create([
                 'crop_batch_id' => $cropBatch->id,
                 'recipe_id' => $recipe->id,
                 'order_id' => $data['order_id'] ?? null,
@@ -66,6 +69,16 @@ class CreateCrop
                 'germination_at' => $now,
                 'notes' => $data['notes'] ?? null,
             ]);
+            
+            // Record stage history for the initial germination stage
+            $this->recordStageHistory->execute(
+                $crop,
+                $germinationStage,
+                $now,
+                'Crop created and entered germination stage'
+            );
+            
+            $crops[] = $crop;
         }
         
         $crop = $crops[0]; // Return first crop for compatibility

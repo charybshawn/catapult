@@ -374,7 +374,7 @@ class CropBatchTable
                         if (!$firstCrop) {
                             throw new \Exception('No crops found in batch');
                         }
-                        $result = $transitionService->advanceStage($firstCrop, $transitionTime);
+                        $result = $transitionService->advanceStageWithHistory($firstCrop, $transitionTime);
                         
                         $totalCount += $result['affected_count'];
                         $batchCount++;

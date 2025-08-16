@@ -92,9 +92,9 @@ class CropBatchForm
                             static::updatePlantingDate($set, $get);
                         }),
 
-                    Forms\Components\DateTimePicker::make('planting_at')
-                        ->label('Planting Date')
-                        ->required(fn (Get $get) => !static::checkRecipeRequiresSoaking($get))
+                    Forms\Components\DateTimePicker::make('germination_at')
+                        ->label('Germination Date')
+                        ->required()
                         ->default(now())
                         ->seconds(false)
                         ->helperText(fn (Get $get) => static::checkRecipeRequiresSoaking($get)
@@ -147,10 +147,6 @@ class CropBatchForm
                                 ->label('Soaking')
                                 ->helperText('When soaking stage began')
                                 ->seconds(false),
-                            Forms\Components\DateTimePicker::make('planting_at')
-                                ->label('Planting')
-                                ->helperText('Changes to planting date will adjust all stage timestamps proportionally')
-                                ->seconds(false),
                             Forms\Components\DateTimePicker::make('germination_at')
                                 ->label('Germination')
                                 ->helperText('When germination stage began')
@@ -189,7 +185,7 @@ class CropBatchForm
             if ($recipe && $recipe->seed_soak_hours > 0) {
                 $soakingStart = \Carbon\Carbon::parse($soakingAt);
                 $plantingDate = $soakingStart->copy()->addHours($recipe->seed_soak_hours);
-                $set('planting_at', $plantingDate);
+                $set('germination_at', $plantingDate);
             }
         }
     }

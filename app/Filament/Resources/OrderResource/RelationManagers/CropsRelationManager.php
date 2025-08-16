@@ -35,8 +35,8 @@ class CropsRelationManager extends RelationManager
                     ->label('Tray Number')
                     ->required()
                     ->integer(),
-                Forms\Components\DateTimePicker::make('planting_at')
-                    ->label('Planted At')
+                Forms\Components\DateTimePicker::make('germination_at')
+                    ->label('Germination At')
                     ->required()
                     ->default(now()),
                 Forms\Components\Select::make('current_stage')
@@ -73,7 +73,7 @@ class CropsRelationManager extends RelationManager
                 Tables\Columns\TextColumn::make('current_stage')
                     ->badge()
                     ->color(fn (string $state): string => app(ValidateCropDataAction::class)->getStageBadgeColor($state)),
-                Tables\Columns\TextColumn::make('planting_at')
+                Tables\Columns\TextColumn::make('germination_at')
                     ->dateTime()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('expectedHarvestDate')

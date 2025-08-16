@@ -800,9 +800,6 @@ class Dashboard extends BaseDashboard
         ];
     }
 
-    /**
-     * Get time cards summary for dashboard
-     */
     protected function getTimeCardsSummary(): array
     {
         $today = now()->startOfDay();
@@ -810,8 +807,8 @@ class Dashboard extends BaseDashboard
         $thisMonth = now()->startOfMonth();
 
         return [
-            'employees_clocked_in' => TimeCard::active()->count(),
-            'flagged_time_cards' => TimeCard::where('requires_review', true)->count(),
+            'employees_clocked_in' => TimeCard::active()->withValidUsers()->count(),
+            'flagged_time_cards' => TimeCard::where('requires_review', true)->withValidUsers()->count(),
             'total_hours_today' => $this->getTotalHoursForPeriod($today, now()),
             'total_hours_this_week' => $this->getTotalHoursForPeriod($thisWeek, now()),
             'total_hours_this_month' => $this->getTotalHoursForPeriod($thisMonth, now()),
@@ -819,12 +816,10 @@ class Dashboard extends BaseDashboard
         ];
     }
 
-    /**
-     * Get currently active employees
-     */
     protected function getActiveEmployees(): array
     {
         $activeTimeCards = TimeCard::active()
+            ->withValidUsers()
             ->with('user')
             ->orderBy('clock_in', 'asc')
             ->get();
@@ -842,12 +837,10 @@ class Dashboard extends BaseDashboard
         })->toArray();
     }
 
-    /**
-     * Get time cards that are flagged for review
-     */
     protected function getFlaggedTimeCards(): array
     {
         $flaggedCards = TimeCard::where('requires_review', true)
+            ->withValidUsers()
             ->with('user')
             ->orderBy('max_shift_exceeded_at', 'desc')
             ->take(10)

@@ -6,9 +6,17 @@ use App\Models\Crop;
 use App\Models\CropStage;
 use App\Models\Recipe;
 use Carbon\Carbon;
+use App\Actions\Crops\RecordStageHistory;
 
 class StartSoaking
 {
+    protected RecordStageHistory $recordStageHistory;
+    
+    public function __construct(RecordStageHistory $recordStageHistory)
+    {
+        $this->recordStageHistory = $recordStageHistory;
+    }
+    
     /**
      * Start the soaking process for a crop that requires it.
      *
@@ -43,7 +51,7 @@ class StartSoaking
         $crops = [];
         
         for ($i = 1; $i <= $trayCount; $i++) {
-            $crops[] = Crop::create([
+            $crop = Crop::create([
                 'crop_batch_id' => $cropBatch->id,
                 'recipe_id' => $recipe->id,
                 'order_id' => $data['order_id'] ?? null,
@@ -55,6 +63,16 @@ class StartSoaking
                 'soaking_at' => $soakingTime,
                 'notes' => $data['notes'] ?? null,
             ]);
+            
+            // Record stage history for the initial soaking stage
+            $this->recordStageHistory->execute(
+                $crop,
+                $soakingStage,
+                $soakingTime,
+                'Crop created and started soaking'
+            );
+            
+            $crops[] = $crop;
         }
         
         return $crops[0]; // Return first crop for compatibility
