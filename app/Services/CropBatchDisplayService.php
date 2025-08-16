@@ -25,7 +25,7 @@ class CropBatchDisplayService
     {
         return $cropBatches->map(function ($batch) {
             return $this->cache->remember(
-                "crop_batch_display_{$batch->id}_{$batch->updated_at->timestamp}",
+                "crop_batch_display_v2_{$batch->id}_{$batch->updated_at->timestamp}",
                 300, // 5 minutes in seconds
                 fn() => $this->transformSingle($batch)
             );
@@ -133,14 +133,18 @@ class CropBatchDisplayService
      */
     public function getCachedForBatch(int $batchId): ?object
     {
-        $batch = CropBatch::with(['crops', 'recipe'])->find($batchId);
+        $batch = CropBatch::with([
+            'crops',
+            'recipe.masterSeedCatalog:id,common_name',
+            'recipe.masterCultivar:id,cultivar_name'
+        ])->find($batchId);
         
         if (!$batch) {
             return null;
         }
         
         $cached = $this->cache->remember(
-            "crop_batch_display_{$batch->id}_{$batch->updated_at->timestamp}",
+            "crop_batch_display_v2_{$batch->id}_{$batch->updated_at->timestamp}",
             300, // 5 minutes in seconds
             fn() => $this->transformSingle($batch)
         );
