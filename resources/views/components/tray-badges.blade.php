@@ -1,6 +1,12 @@
 @if($getState())
     @php
-        $trayNumbers = explode(', ', $getState());
+        $state = $getState();
+        // Handle both array and string inputs
+        if (is_array($state)) {
+            $trayNumbers = $state;
+        } else {
+            $trayNumbers = explode(', ', $state);
+        }
     @endphp
     
     <div class="flex flex-wrap gap-1">
