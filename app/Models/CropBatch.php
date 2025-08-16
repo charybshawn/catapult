@@ -310,8 +310,12 @@ class CropBatch extends Model
         return $query->with([
             'crops:id,crop_batch_id,current_stage_id,tray_number,germination_at,blackout_at,light_at,harvested_at,recipe_id',
             'crops.currentStage',
-            'crops.recipe:id,name,days_to_maturity,germination_days,blackout_days,light_days',
-            'recipe:id,name,days_to_maturity,germination_days,blackout_days,light_days'
+            'crops.recipe:id,name,days_to_maturity,germination_days,blackout_days,light_days,master_seed_catalog_id,master_cultivar_id',
+            'crops.recipe.masterSeedCatalog:id,common_name',
+            'crops.recipe.masterCultivar:id,cultivar_name',
+            'recipe:id,name,days_to_maturity,germination_days,blackout_days,light_days,master_seed_catalog_id,master_cultivar_id',
+            'recipe.masterSeedCatalog:id,common_name',
+            'recipe.masterCultivar:id,cultivar_name'
         ])
         ->withCount('crops')
         ->selectRaw('crop_batches.*, 

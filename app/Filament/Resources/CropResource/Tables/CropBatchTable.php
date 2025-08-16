@@ -32,7 +32,7 @@ class CropBatchTable
     {
         return [
             Tables\Columns\TextColumn::make('recipe_name')
-                ->label('Recipe')
+                ->label('Variety')
                 ->weight('bold')
                 ->searchable()
                 ->sortable(),

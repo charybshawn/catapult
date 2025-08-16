@@ -47,7 +47,7 @@ class CropBatchDisplayService
         
         return [
             'id' => $batch->id,
-            'recipe_name' => $batch->recipe?->name ?? 'Unknown Recipe',
+            'recipe_name' => $this->formatSeedCatalogDisplay($batch),
             'crop_count' => $batch->crops_count ?? $batch->crops->count(),
             'current_stage_name' => $currentStage?->name,
             'current_stage_code' => $currentStage?->code,
@@ -146,6 +146,21 @@ class CropBatchDisplayService
         );
         
         return (object) $cached;
+    }
+
+    /**
+     * Format the seed catalog display name (common name + cultivar)
+     */
+    private function formatSeedCatalogDisplay(CropBatch $batch): string
+    {
+        if (!$batch->recipe) {
+            return 'Unknown Recipe';
+        }
+
+        $commonName = $batch->recipe->masterSeedCatalog?->common_name ?? 'Unknown';
+        $cultivarName = $batch->recipe->masterCultivar?->cultivar_name ?? 'Unknown';
+        
+        return "{$commonName} - {$cultivarName}";
     }
 
     /**
