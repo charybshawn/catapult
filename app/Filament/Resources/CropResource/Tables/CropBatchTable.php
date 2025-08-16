@@ -103,60 +103,33 @@ class CropBatchTable
         return [
             Tables\Actions\ActionGroup::make([
                 Tables\Actions\ViewAction::make()
-                ->record(function ($record) {
-                    // Reload the record with proper relationships for the infolist
-                    $freshRecord = \App\Models\CropBatch::with([
-                        'crops', 
-                        'recipe.masterSeedCatalog', 
-                        'recipe.masterCultivar'
-                    ])->find($record->id);
-                    
-                    // Get transformed data from display service
-                    $displayService = app(\App\Services\CropBatchDisplayService::class);
-                    $transformedData = $displayService->getCachedForBatch($freshRecord->id);
-                    
-                    if ($transformedData) {
-                        // Set additional attributes needed by the infolist
-                        $freshRecord->setAttribute('recipe_name', $transformedData->recipe_name);
-                        $freshRecord->setAttribute('tray_numbers_array', $transformedData->tray_numbers);
-                        $freshRecord->setAttribute('current_stage_color', 'gray');
-                        $freshRecord->setAttribute('current_stage_name', $transformedData->current_stage_name);
-                        $freshRecord->setAttribute('stage_age_display', $transformedData->stage_age_display);
-                        $freshRecord->setAttribute('time_to_next_stage_display', $transformedData->time_to_next_stage_display);
-                        $freshRecord->setAttribute('total_age_display', $transformedData->total_age_display);
-                    }
-                    
-                    return $freshRecord;
-                })
                 ->tooltip('View crop details')
                 ->modalHeading('Crop Details')
                 ->modalWidth('sm')
                 ->slideOver()
                 ->modalIcon('heroicon-o-eye')
-                ->extraModalFooterActions([
-                    Tables\Actions\Action::make('advance_stage')
-                        ->label('Advance Stage')
-                        ->icon('heroicon-o-chevron-double-right')
-                        ->color('success')
-                        ->visible(function ($record) {
-                            $stage = CropStageCache::find($record->current_stage_id);
-                            return $stage?->code !== 'harvested';
-                        })
-                        ->action(function ($record, $livewire) {
-                            // Close the view modal and trigger the main advance stage action
-                            $livewire->mountTableAction('advanceStage', $record->id);
-                        }),
-                    Tables\Actions\Action::make('edit_crop')
-                        ->label('Edit Crop')
-                        ->icon('heroicon-o-pencil-square')
-                        ->color('primary')
-                        ->url(fn ($record) => \App\Filament\Resources\CropResource::getUrl('edit', ['record' => $record])),
-                    Tables\Actions\Action::make('view_all_crops')
-                        ->label('View All Crops')
-                        ->icon('heroicon-o-list-bullet')
-                        ->color('gray')
-                        ->url(fn ($record) => \App\Filament\Resources\CropResource::getUrl('index')),
-                ]),
+                ->mutateRecordDataUsing(function (array $data, $record): array {
+                    // Ensure proper relationships are loaded
+                    if (!$record->relationLoaded('crops')) {
+                        $record->load(['crops', 'recipe.masterSeedCatalog', 'recipe.masterCultivar']);
+                    }
+                    
+                    // Get transformed data and set as attributes
+                    $displayService = app(\App\Services\CropBatchDisplayService::class);
+                    $transformedData = $displayService->getCachedForBatch($record->id);
+                    
+                    if ($transformedData) {
+                        $record->setAttribute('tray_numbers_array', $transformedData->tray_numbers);
+                        $record->setAttribute('current_stage_color', 'gray');
+                        $record->setAttribute('recipe_name', $transformedData->recipe_name);
+                        $record->setAttribute('current_stage_name', $transformedData->current_stage_name);
+                        $record->setAttribute('stage_age_display', $transformedData->stage_age_display);
+                        $record->setAttribute('time_to_next_stage_display', $transformedData->time_to_next_stage_display);
+                        $record->setAttribute('total_age_display', $transformedData->total_age_display);
+                    }
+                    
+                    return $data;
+                }),
             CropBatchDebugAction::make(),
             static::getFixTimestampsAction(),
             
