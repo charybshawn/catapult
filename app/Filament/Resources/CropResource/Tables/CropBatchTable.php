@@ -103,6 +103,31 @@ class CropBatchTable
         return [
             Tables\Actions\ActionGroup::make([
                 Tables\Actions\ViewAction::make()
+                ->record(function ($record) {
+                    // Reload the record with proper relationships for the infolist
+                    $freshRecord = \App\Models\CropBatch::with([
+                        'crops', 
+                        'recipe.masterSeedCatalog', 
+                        'recipe.masterCultivar'
+                    ])->find($record->id);
+                    
+                    // Get transformed data from display service
+                    $displayService = app(\App\Services\CropBatchDisplayService::class);
+                    $transformedData = $displayService->getCachedForBatch($freshRecord->id);
+                    
+                    if ($transformedData) {
+                        // Set additional attributes needed by the infolist
+                        $freshRecord->setAttribute('recipe_name', $transformedData->recipe_name);
+                        $freshRecord->setAttribute('tray_numbers_array', $transformedData->tray_numbers);
+                        $freshRecord->setAttribute('current_stage_color', 'gray');
+                        $freshRecord->setAttribute('current_stage_name', $transformedData->current_stage_name);
+                        $freshRecord->setAttribute('stage_age_display', $transformedData->stage_age_display);
+                        $freshRecord->setAttribute('time_to_next_stage_display', $transformedData->time_to_next_stage_display);
+                        $freshRecord->setAttribute('total_age_display', $transformedData->total_age_display);
+                    }
+                    
+                    return $freshRecord;
+                })
                 ->tooltip('View crop details')
                 ->modalHeading('Crop Details')
                 ->modalWidth('sm')

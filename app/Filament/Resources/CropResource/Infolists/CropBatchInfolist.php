@@ -78,6 +78,7 @@ class CropBatchInfolist
                 ]),
                 
             Components\Section::make('Stage History')
+                ->collapsed(false)
                 ->schema([
                     Components\TextEntry::make('stage_history')
                         ->label('')
@@ -132,153 +133,22 @@ class CropBatchInfolist
         return 'Not calculated';
     }
 
-    /**
-     * Generate stage timeline HTML
-     */
-    protected static function generateStageTimeline($record): string
-    {
-        // Get the first crop from the batch to get stage timings
-        $firstCrop = $record->crops()->first();
-            
-        if (!$firstCrop) {
-            return '<div class="text-gray-500 dark:text-gray-400">No crop data available</div>';
-        }
-        
-        // Load relationships if not loaded
-        if (!$firstCrop->relationLoaded('recipe')) {
-            $firstCrop->load('recipe');
-        }
-        if (!$firstCrop->relationLoaded('currentStage')) {
-            $firstCrop->load('currentStage');
-        }
-        
-        // Get current stage info from the crop/batch 
-        $currentStageCode = $firstCrop->currentStage?->code ?? 'unknown';
-        
-        // Build timeline based on actual crop data
-        $timeline = [];
-        
-        // Soaking stage (if recipe requires it)
-        if ($firstCrop->requires_soaking || ($firstCrop->recipe && $firstCrop->recipe->seed_soak_hours > 0)) {
-            $timeline['soaking'] = [
-                'name' => 'Soaking',
-                'status' => $firstCrop->soaking_at ? 
-                    ($currentStageCode === 'soaking' ? 'current' : 'completed') : 
-                    'pending'
-            ];
-        } else {
-            $timeline['soaking'] = ['name' => 'Soaking', 'status' => 'n/a'];
-        }
-        
-        // Germination stage
-        if ($firstCrop->germination_at) {
-            $germStart = \Carbon\Carbon::parse($firstCrop->germination_at);
-            if ($currentStageCode === 'germination') {
-                $duration = $germStart->diffForHumans(now(), ['parts' => 2, 'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE]);
-                $timeline['germination'] = ['name' => 'Germination', 'status' => 'current (' . $duration . ')'];
-            } else {
-                $timeline['germination'] = ['name' => 'Germination', 'status' => 'completed'];
-            }
-        } else {
-            $timeline['germination'] = ['name' => 'Germination', 'status' => 'pending'];
-        }
-        
-        // Blackout stage (check if recipe uses blackout)
-        $hasBlackout = $firstCrop->recipe && $firstCrop->recipe->blackout_days > 0;
-        if ($hasBlackout) {
-            if ($firstCrop->blackout_at) {
-                $blackoutStart = \Carbon\Carbon::parse($firstCrop->blackout_at);
-                if ($currentStageCode === 'blackout') {
-                    $duration = $blackoutStart->diffForHumans(now(), ['parts' => 2, 'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE]);
-                    $timeline['blackout'] = ['name' => 'Blackout', 'status' => 'current (' . $duration . ')'];
-                } else if (in_array($currentStageCode, ['light', 'harvested'])) {
-                    $timeline['blackout'] = ['name' => 'Blackout', 'status' => 'completed'];
-                } else {
-                    $timeline['blackout'] = ['name' => 'Blackout', 'status' => 'pending'];
-                }
-            } else {
-                $timeline['blackout'] = ['name' => 'Blackout', 'status' => $currentStageCode === 'blackout' ? 'current' : 'pending'];
-            }
-        } else {
-            $timeline['blackout'] = ['name' => 'Blackout', 'status' => 'n/a'];
-        }
-        
-        // Light stage
-        if ($firstCrop->light_at || $currentStageCode === 'light') {
-            if ($currentStageCode === 'light') {
-                // Calculate duration from when light stage started
-                $lightStart = $firstCrop->blackout_at ? 
-                    \Carbon\Carbon::parse($firstCrop->blackout_at) : 
-                    \Carbon\Carbon::parse($firstCrop->germination_at);
-                $duration = $lightStart->diffForHumans(now(), ['parts' => 2, 'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE]);
-                $timeline['light'] = ['name' => 'Light', 'status' => 'current (' . $duration . ')'];
-            } else if ($currentStageCode === 'harvested') {
-                $timeline['light'] = ['name' => 'Light', 'status' => 'completed'];
-            } else {
-                $timeline['light'] = ['name' => 'Light', 'status' => 'pending'];
-            }
-        } else {
-            $timeline['light'] = ['name' => 'Light', 'status' => 'pending'];
-        }
-        
-        // Harvested stage
-        if ($firstCrop->harvested_at) {
-            $harvestTime = \Carbon\Carbon::parse($firstCrop->harvested_at);
-            $timeline['harvested'] = ['name' => 'Harvested', 'status' => 'completed (' . $harvestTime->format('M j') . ')'];
-        } else {
-            $timeline['harvested'] = ['name' => 'Harvested', 'status' => 'pending'];
-        }
-        
-        return static::buildTimelineHtml($timeline);
-    }
 
-    /**
-     * Build the timeline HTML structure
-     */
-    protected static function buildTimelineHtml(array $timeline): string
-    {
-        $html = '<div class="space-y-1 text-sm">';
-        
-        foreach ($timeline as $stageCode => $stage) {
-            $html .= '<div class="flex items-center gap-2">';
-            
-            // Stage name
-            $html .= '<span class="font-medium text-gray-900 dark:text-gray-100 w-20">' . htmlspecialchars($stage['name']) . ':</span>';
-            
-            // Status with proper coloring
-            $statusClass = static::getStatusClass($stage['status']);
-            $html .= '<span class="' . $statusClass . '">' . htmlspecialchars($stage['status']) . '</span>';
-            $html .= '</div>';
-        }
-        
-        $html .= '</div>';
-        
-        return $html;
-    }
 
-    /**
-     * Get CSS class for stage status
-     */
-    protected static function getStatusClass(string $status): string
-    {
-        if (strpos($status, 'current') !== false) {
-            return 'text-blue-600 dark:text-blue-400 font-medium';
-        } elseif (strpos($status, 'completed') !== false) {
-            return 'text-green-600 dark:text-green-400';
-        } elseif ($status === 'pending') {
-            return 'text-amber-600 dark:text-amber-400';
-        }
-        
-        // Default for n/a
-        return 'text-gray-500 dark:text-gray-400';
-    }
+
 
     /**
      * Generate tray number badges HTML
      */
     protected static function generateTrayNumberBadges($record): string
     {
-        $trayNumbers = $record->tray_numbers_array;
+        // Handle both array and string formats
+        $trayNumbers = $record->tray_numbers ?? $record->tray_numbers_array ?? [];
+        
+        // Convert to array if it's a string
+        if (is_string($trayNumbers)) {
+            $trayNumbers = explode(', ', $trayNumbers);
+        }
         
         $html = '<div class="flex flex-wrap gap-1">';
         foreach ($trayNumbers as $tray) {
