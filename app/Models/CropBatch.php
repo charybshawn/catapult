@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 class CropBatch extends Model
 {
@@ -299,6 +300,46 @@ class CropBatch extends Model
     {
         $firstCrop = $this->crops()->with('currentStage')->first();
         return $firstCrop?->getRelation('currentStage')?->code === 'soaking';
+    }
+
+    /**
+     * Query scope for optimized list display with proper eager loading
+     */
+    public function scopeForListDisplay(Builder $query): Builder
+    {
+        return $query->with([
+            'crops:id,crop_batch_id,current_stage_id,tray_number,germination_at,blackout_at,light_at,harvested_at',
+            'crops.currentStage:id,name,code',
+            'recipe:id,name,days_to_maturity,germination_days,blackout_days,light_days'
+        ])
+        ->withCount('crops')
+        ->selectRaw('crop_batches.*, 
+            (SELECT MIN(germination_at) FROM crops WHERE crop_batch_id = crop_batches.id) as earliest_germination,
+            (SELECT current_stage_id FROM crops WHERE crop_batch_id = crop_batches.id LIMIT 1) as current_stage_id_raw');
+    }
+
+    /**
+     * Query scope to filter only active (non-harvested) crop batches
+     */
+    public function scopeActiveOnly(Builder $query): Builder
+    {
+        return $query->whereHas('crops', function($q) {
+            $q->whereHas('currentStage', function($stage) {
+                $stage->where('code', '!=', 'harvested');
+            });
+        });
+    }
+
+    /**
+     * Query scope to filter by stage
+     */
+    public function scopeByStage(Builder $query, string $stageCode): Builder
+    {
+        return $query->whereHas('crops', function($q) use ($stageCode) {
+            $q->whereHas('currentStage', function($stage) use ($stageCode) {
+                $stage->where('code', $stageCode);
+            });
+        });
     }
 
     /**

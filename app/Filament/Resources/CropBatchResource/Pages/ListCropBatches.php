@@ -3,10 +3,13 @@
 namespace App\Filament\Resources\CropBatchResource\Pages;
 
 use App\Filament\Resources\CropBatchResource;
-use App\Models\CropBatchListView;
+use App\Http\Resources\CropBatchListResource;
+use App\Models\CropBatch;
+use App\Services\CropBatchDisplayService;
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 
 class ListCropBatches extends ListRecords
 {
@@ -31,10 +34,26 @@ class ListCropBatches extends ListRecords
     }
 
     /**
-     * Override the table query to use CropBatchListView for performance
+     * Override the table query to use optimized CropBatch scopes
      */
     protected function getTableQuery(): ?Builder
     {
-        return CropBatchListView::query();
+        return CropBatch::forListDisplay()->activeOnly();
+    }
+
+    /**
+     * Transform records using the service layer for calculated fields
+     */
+    public function getTableRecords(): Collection
+    {
+        $cropBatches = $this->getTableQuery()->get();
+        
+        $transformedData = app(CropBatchDisplayService::class)
+            ->transformForTable($cropBatches);
+        
+        // Convert to a collection that Filament can work with
+        return collect($transformedData->map(function ($data) {
+            return (object) $data;
+        }));
     }
 }
