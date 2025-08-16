@@ -129,6 +129,26 @@ class CropBatchDisplayService
     }
 
     /**
+     * Get cached display data for a single batch
+     */
+    public function getCachedForBatch(int $batchId): ?object
+    {
+        $batch = CropBatch::with(['crops', 'recipe'])->find($batchId);
+        
+        if (!$batch) {
+            return null;
+        }
+        
+        $cached = $this->cache->remember(
+            "crop_batch_display_{$batch->id}_{$batch->updated_at->timestamp}",
+            300, // 5 minutes in seconds
+            fn() => $this->transformSingle($batch)
+        );
+        
+        return (object) $cached;
+    }
+
+    /**
      * Transform for single batch display (detailed view)
      */
     public function transformForDetail(CropBatch $batch): array
