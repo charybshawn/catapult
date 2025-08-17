@@ -133,7 +133,7 @@ class StageTransitionActions
                     }
                     
                     // Perform the transition
-                    $results = $transitionService->advanceStage(
+                    $results = $transitionService->advanceStageWithHistory(
                         $targetCrop,
                         $data['advancement_timestamp'],
                         $options
@@ -320,7 +320,7 @@ class StageTransitionActions
                     $targetCrop = self::getFirstCropForRecord($record);
                     
                     // Perform the transition to harvested
-                    $results = $transitionService->advanceStage(
+                    $results = $transitionService->advanceStageWithHistory(
                         $targetCrop,
                         $data['harvest_timestamp']
                     );
@@ -371,7 +371,7 @@ class StageTransitionActions
         
         // Fall back to implicit batching
         return Crop::where('recipe_id', $record->recipe_id)
-            ->where('planting_at', $record->planting_at)
+            ->where('germination_at', $record->germination_at)
             ->where('current_stage_id', $record->current_stage_id)
             ->with(['recipe', 'currentStage'])
             ->get();
