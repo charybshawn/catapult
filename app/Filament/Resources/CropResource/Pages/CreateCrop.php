@@ -39,9 +39,8 @@ class CreateCrop extends BaseCreateRecord
             // Get recipe info for notification
             $recipe = Recipe::find($data['recipe_id']);
             $recipeName = $recipe->name;
-            $varietyName = $recipe->seedEntry ? 
-                $recipe->seedEntry->common_name . ' - ' . $recipe->seedEntry->cultivar_name : 
-                'Unknown Variety';
+            $varietyService = app(\App\Services\RecipeVarietyService::class);
+            $varietyName = $varietyService->getFullVarietyName($recipe);
             
             // Show success notification
             $message = $recipe->requiresSoaking() ?

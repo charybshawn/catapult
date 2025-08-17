@@ -924,14 +924,8 @@ class CropTaskManagementService
      */
     protected function getVarietyName(Crop $crop): string
     {
-        if ($crop->recipe) {
-            if ($crop->recipe->seedEntry) {
-                return $crop->recipe->seedEntry->common_name . ' - ' . $crop->recipe->seedEntry->cultivar_name;
-            } else if ($crop->recipe->name) {
-                return $crop->recipe->name;
-            }
-        }
-        return 'Unknown';
+        $varietyService = app(\App\Services\RecipeVarietyService::class);
+        return $varietyService->getCropVarietyName($crop);
     }
 
     /**
