@@ -29,7 +29,9 @@ class CropBatchInfolist
                             ->weight('bold')
                             ->size('xl')
                             ->getStateUsing(function ($record) {
-                                return static::getVarietyName($record);
+                                $varietyService = app(\App\Services\RecipeVarietyService::class);
+                                $recipe = $record->recipe_id ? \App\Models\Recipe::find($record->recipe_id) : null;
+                                return $varietyService->getFullVarietyName($recipe);
                             }),
                         Components\TextEntry::make('recipe.name')
                             ->label('')
@@ -95,24 +97,6 @@ class CropBatchInfolist
         ];
     }
 
-    /**
-     * Get variety name from recipe
-     */
-    protected static function getVarietyName($record): string
-    {
-        if ($record->recipe_id) {
-            $recipe = Recipe::find($record->recipe_id);
-            if ($recipe) {
-                // Extract just the variety part (before the lot number)
-                $parts = explode(' - ', $recipe->name);
-                if (count($parts) >= 2) {
-                    return $parts[0] . ' - ' . $parts[1];
-                }
-                return $recipe->name;
-            }
-        }
-        return 'Unknown';
-    }
 
     /**
      * Format germination date for display

@@ -148,16 +148,8 @@ class Crop extends Model
      */
     public function getVarietyNameAttribute(): ?string
     {
-        // Ensure recipe relationship is loaded to avoid lazy loading
-        if (!$this->relationLoaded('recipe')) {
-            $this->load('recipe');
-        }
-        
-        if ($this->recipe) {
-            return $this->recipe->cultivar_name;
-        }
-        
-        return null;
+        $varietyService = app(\App\Services\RecipeVarietyService::class);
+        return $varietyService->getCropVarietyName($this);
     }
     
     /**

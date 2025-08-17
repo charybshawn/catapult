@@ -89,7 +89,7 @@ class ActiveSoaking extends Page
             'batch_id' => $firstCrop->recipe_id . '_' . $firstCrop->soaking_at->format('Y-m-d_H:i'),
             'recipe_id' => $firstCrop->recipe_id,
             'recipe_name' => $recipe->name ?? 'Unknown Recipe',
-            'variety_name' => $this->getVarietyName($recipe),
+            'variety_name' => app(\App\Services\RecipeVarietyService::class)->getFullVarietyName($recipe),
             'tray_count' => $trayCount,
             'tray_numbers' => $trayNumbers,
             'tray_numbers_formatted' => $this->formatTrayNumbers($trayNumbers),
@@ -108,20 +108,6 @@ class ActiveSoaking extends Page
             'progress_percentage' => $soakingDurationMinutes > 0 ? min(100, ($elapsedMinutes / $soakingDurationMinutes) * 100) : 0,
             'crop_ids' => $batchCrops->pluck('id')->toArray(),
         ];
-    }
-
-    /**
-     * Get variety name from recipe
-     */
-    private function getVarietyName($recipe): string
-    {
-        if (!$recipe) {
-            return 'Unknown Variety';
-        }
-        
-        // Try to build variety name from recipe relationships
-        $varietyService = app(\App\Services\RecipeVarietyService::class);
-        return $varietyService->getFullVarietyName($recipe);
     }
 
     /**

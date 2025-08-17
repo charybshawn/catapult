@@ -111,24 +111,6 @@ class CropBatchDisplayService
     }
 
     /**
-     * Get variety name from recipe for display
-     */
-    public function getVarietyName(CropBatch $batch): string
-    {
-        if (!$batch->recipe) {
-            return 'Unknown';
-        }
-
-        // Extract just the variety part (before the lot number)
-        $parts = explode(' - ', $batch->recipe->name);
-        if (count($parts) >= 2) {
-            return $parts[0] . ' - ' . $parts[1];
-        }
-        
-        return $batch->recipe->name;
-    }
-
-    /**
      * Get cached display data for a single batch
      */
     public function getCachedForBatch(int $batchId): ?object
@@ -184,7 +166,8 @@ class CropBatchDisplayService
         $transformed = $this->transformSingle($batch);
         
         // Add additional detail fields
-        $transformed['variety_name'] = $this->getVarietyName($batch);
+        $varietyService = app(\App\Services\RecipeVarietyService::class);
+        $transformed['variety_name'] = $varietyService->getFullVarietyName($batch->recipe);
         $transformed['tray_count'] = $transformed['crop_count'];
         
         return $transformed;
