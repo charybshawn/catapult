@@ -146,7 +146,8 @@ class CropBatchForm
                             Forms\Components\DateTimePicker::make('soaking_at')
                                 ->label('Soaking')
                                 ->helperText('When soaking stage began')
-                                ->seconds(false),
+                                ->seconds(false)
+                                ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get)),
                             Forms\Components\DateTimePicker::make('germination_at')
                                 ->label('Germination')
                                 ->helperText('When germination stage began')

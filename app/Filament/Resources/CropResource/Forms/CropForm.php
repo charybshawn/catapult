@@ -142,6 +142,7 @@ class CropForm
                 ->label('Soaking Start Time')
                 ->default(now())
                 ->required(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
+                ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
                 ->reactive(),
         ])
         ->columnSpanFull();
@@ -165,7 +166,8 @@ class CropForm
     {
         return [
             Forms\Components\DateTimePicker::make('soaking_at')
-                ->label('Soaking Date'),
+                ->label('Soaking Date')
+                ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get)),
             
             Forms\Components\DateTimePicker::make('germination_at')
                 ->label('Germination Date'),
