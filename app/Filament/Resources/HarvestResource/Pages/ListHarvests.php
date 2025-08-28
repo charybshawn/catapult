@@ -50,9 +50,6 @@ class ListHarvests extends ListRecords
                 ->icon('heroicon-o-plus')
                 ->modal()
                 ->modalWidth('2xl')
-                ->extraModalAttributes([
-                    'class' => 'dark:bg-gray-900',
-                ])
                 ->schema([
                     Section::make('Harvest Details')
                         ->schema([
