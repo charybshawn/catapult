@@ -5,7 +5,6 @@ namespace App\Filament\Resources;
 use Filament\Schemas\Schema;
 use App\Filament\Resources\HarvestResource\Pages\ListHarvests;
 use App\Filament\Resources\HarvestResource\Pages\EditHarvest;
-use App\Filament\Resources\HarvestResource\Pages\CreateHarvest;
 use App\Filament\Resources\HarvestResource\Forms\HarvestForm;
 use App\Filament\Resources\HarvestResource\Pages;
 use App\Filament\Resources\HarvestResource\Tables\HarvestTable;
@@ -175,7 +174,6 @@ class HarvestResource extends BaseResource
     {
         return [
             'index' => ListHarvests::route('/'),
-            'create' => CreateHarvest::route('/create'),
             'edit' => EditHarvest::route('/{record}/edit'),
         ];
     }
