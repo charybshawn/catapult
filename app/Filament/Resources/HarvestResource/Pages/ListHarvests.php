@@ -49,6 +49,10 @@ class ListHarvests extends ListRecords
                 ->label('Add Harvest')
                 ->icon('heroicon-o-plus')
                 ->modal()
+                ->modalWidth('2xl')
+                ->extraModalAttributes([
+                    'class' => 'dark:bg-gray-900',
+                ])
                 ->schema([
                     Section::make('Harvest Details')
                         ->schema([
@@ -57,7 +61,10 @@ class ListHarvests extends ListRecords
                                 ->required()
                                 ->default(now())
                                 ->maxDate(now())
-                                ->reactive(),
+                                ->reactive()
+                                ->extraInputAttributes([
+                                    'class' => 'dark:bg-gray-900 dark:border-gray-700 dark:text-white dark:placeholder-gray-400',
+                                ]),
                             Hidden::make('user_id')
                                 ->default(auth()->id()),
                         ])
@@ -84,13 +91,22 @@ class ListHarvests extends ListRecords
                                                 })
                                                 ->required()
                                                 ->searchable()
-                                                ->reactive(),
+                                                ->reactive()
+                                                ->extraAttributes([
+                                                    'class' => 'dark:bg-gray-900 dark:border-gray-700 dark:text-white',
+                                                ])
+                                                ->extraInputAttributes([
+                                                    'class' => 'dark:bg-gray-900 dark:border-gray-700 dark:text-white dark:placeholder-gray-400',
+                                                ]),
                                             TextInput::make('total_weight_grams')
                                                 ->label('Weight (g)')
                                                 ->required()
                                                 ->numeric()
                                                 ->minValue(0)
-                                                ->step(0.01),
+                                                ->step(0.01)
+                                                ->extraInputAttributes([
+                                                    'class' => 'dark:bg-gray-900 dark:border-gray-700 dark:text-white dark:placeholder-gray-400',
+                                                ]),
                                         ]),
                                 ])
                                 ->addActionLabel('Add Another Cultivar')
@@ -112,7 +128,10 @@ class ListHarvests extends ListRecords
                             Textarea::make('notes')
                                 ->label('General Notes')
                                 ->rows(3)
-                                ->columnSpanFull(),
+                                ->columnSpanFull()
+                                ->extraInputAttributes([
+                                    'class' => 'dark:bg-gray-900 dark:border-gray-700 dark:text-white dark:placeholder-gray-400',
+                                ]),
                         ])
                         ->columns(1),
                 ])
