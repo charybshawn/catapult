@@ -2,12 +2,23 @@
 
 namespace App\Filament\Resources\CropResource\Forms;
 
+use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\Select;
+use App\Filament\Resources\RecipeResource\Forms\RecipeForm;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\DateTimePicker;
+use App\Filament\Resources\CropResource\Pages\CreateCrop;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TagsInput;
+use Filament\Schemas\Components\Grid;
+use Carbon\Carbon;
 use App\Filament\Resources\RecipeResource;
 use App\Models\Recipe;
 use App\Services\CropStageCache;
 use Filament\Forms;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
 
 /**
  * Crop Batch Form Schema
@@ -21,16 +32,16 @@ class CropBatchForm
     public static function schema(): array
     {
         return [
-            Forms\Components\Section::make('Grow Details')
+            Section::make('Grow Details')
                 ->schema([
-                    Forms\Components\Select::make('recipe_id')
+                    Select::make('recipe_id')
                         ->label('Recipe')
                         ->options(Recipe::pluck('name', 'id'))
                         ->required()
                         ->searchable()
                         ->preload()
                         ->reactive()
-                        ->createOptionForm(\App\Filament\Resources\RecipeResource\Forms\RecipeForm::schema())
+                        ->createOptionForm(RecipeForm::schema())
                         ->afterStateUpdated(function ($state, Set $set, Get $get) {
                             // Update soaking information when recipe changes
                             if ($state) {
@@ -49,18 +60,18 @@ class CropBatchForm
                             }
                         }),
 
-                    Forms\Components\Section::make('Soaking Information')
+                    Section::make('Soaking Information')
                         ->schema([
-                            Forms\Components\Placeholder::make('soaking_required_info')
+                            Placeholder::make('soaking_required_info')
                                 ->label('')
                                 ->content(fn (Get $get) => static::getSoakingRequiredInfo($get))
                                 ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get)),
-                            Forms\Components\TextInput::make('soaking_duration_display')
+                            TextInput::make('soaking_duration_display')
                                 ->label('Soaking Duration')
                                 ->disabled()
                                 ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
                                 ->dehydrated(false),
-                            Forms\Components\TextInput::make('soaking_tray_count')
+                            TextInput::make('soaking_tray_count')
                                 ->label('Number of Trays to Soak')
                                 ->numeric()
                                 ->required(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
@@ -73,7 +84,7 @@ class CropBatchForm
                                 ->afterStateUpdated(function ($state, Set $set, Get $get) {
                                     static::updateSeedQuantityCalculation($set, $get);
                                 }),
-                            Forms\Components\Placeholder::make('seed_quantity_display')
+                            Placeholder::make('seed_quantity_display')
                                 ->label('Seed Quantity Required')
                                 ->content(fn (Get $get) => static::getSeedQuantityDisplay($get))
                                 ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get)),
@@ -81,7 +92,7 @@ class CropBatchForm
                         ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
                         ->compact(),
 
-                    Forms\Components\DateTimePicker::make('soaking_at')
+                    DateTimePicker::make('soaking_at')
                         ->label('Soaking Started At')
                         ->seconds(false)
                         ->default(now())
@@ -92,7 +103,7 @@ class CropBatchForm
                             static::updatePlantingDate($set, $get);
                         }),
 
-                    Forms\Components\DateTimePicker::make('planting_at')
+                    DateTimePicker::make('planting_at')
                         ->label('Planting Date')
                         ->required(fn (Get $get) => !static::checkRecipeRequiresSoaking($get))
                         ->default(now())
@@ -100,7 +111,7 @@ class CropBatchForm
                         ->helperText(fn (Get $get) => static::checkRecipeRequiresSoaking($get)
                             ? 'Auto-calculated from soaking start time + duration. You can override if needed.'
                             : 'When the crop will be planted'),
-                    Forms\Components\Select::make('current_stage_id')
+                    Select::make('current_stage_id')
                         ->label('Current Stage')
                         ->relationship('currentStage', 'name')
                         ->required()
@@ -118,17 +129,17 @@ class CropBatchForm
                             $germination = CropStageCache::findByCode('germination');
                             return $germination ? $germination->id : null;
                         })
-                        ->visible(fn ($livewire) => !($livewire instanceof \App\Filament\Resources\CropResource\Pages\CreateCrop)),
-                    Forms\Components\Textarea::make('notes')
+                        ->visible(fn ($livewire) => !($livewire instanceof CreateCrop)),
+                    Textarea::make('notes')
                         ->label('Notes')
                         ->rows(3)
                         ->columnSpanFull(),
                 ])
                 ->columns(2),
             
-            Forms\Components\Section::make('Tray Management')
+            Section::make('Tray Management')
                 ->schema([
-                    Forms\Components\TagsInput::make('tray_numbers')
+                    TagsInput::make('tray_numbers')
                         ->label('Tray Numbers')
                         ->placeholder('Add tray numbers')
                         ->separator(',')
@@ -139,16 +150,16 @@ class CropBatchForm
                             ? ['array'] 
                             : ['array', 'min:1'])
                         ->nestedRecursiveRules(['string', 'max:20'])
-                        ->visible(fn ($livewire) => $livewire instanceof \App\Filament\Resources\CropResource\Pages\CreateCrop),
+                        ->visible(fn ($livewire) => $livewire instanceof CreateCrop),
                     
-                    Forms\Components\TagsInput::make('tray_numbers')
+                    TagsInput::make('tray_numbers')
                         ->label('Tray Numbers')
                         ->placeholder('Edit tray numbers')
                         ->separator(',')
                         ->helperText('Edit the tray numbers or IDs for this grow batch (alphanumeric supported)')
                         ->rules(['array', 'min:1'])
                         ->nestedRecursiveRules(['string', 'max:20'])
-                        ->visible(fn ($livewire) => !($livewire instanceof \App\Filament\Resources\CropResource\Pages\CreateCrop))
+                        ->visible(fn ($livewire) => !($livewire instanceof CreateCrop))
                         ->afterStateHydrated(function ($component, $state) {
                             if (is_array($state)) {
                                 $component->state(array_values($state));
@@ -156,32 +167,32 @@ class CropBatchForm
                         }),
                 ]),
             
-            Forms\Components\Section::make('Growth Stage Timestamps')
+            Section::make('Growth Stage Timestamps')
                 ->description('Record of when each growth stage began')
                 ->schema([
-                    Forms\Components\Grid::make()
+                    Grid::make()
                         ->schema([
-                            Forms\Components\DateTimePicker::make('soaking_at')
+                            DateTimePicker::make('soaking_at')
                                 ->label('Soaking')
                                 ->helperText('When soaking stage began')
                                 ->seconds(false),
-                            Forms\Components\DateTimePicker::make('planting_at')
+                            DateTimePicker::make('planting_at')
                                 ->label('Planting')
                                 ->helperText('Changes to planting date will adjust all stage timestamps proportionally')
                                 ->seconds(false),
-                            Forms\Components\DateTimePicker::make('germination_at')
+                            DateTimePicker::make('germination_at')
                                 ->label('Germination')
                                 ->helperText('When germination stage began')
                                 ->seconds(false),
-                            Forms\Components\DateTimePicker::make('blackout_at')
+                            DateTimePicker::make('blackout_at')
                                 ->label('Blackout')
                                 ->helperText('When blackout stage began')
                                 ->seconds(false),
-                            Forms\Components\DateTimePicker::make('light_at')
+                            DateTimePicker::make('light_at')
                                 ->label('Light')
                                 ->helperText('When light stage began')
                                 ->seconds(false),
-                            Forms\Components\DateTimePicker::make('harvested_at')
+                            DateTimePicker::make('harvested_at')
                                 ->label('Harvested')
                                 ->helperText('When crop was harvested')
                                 ->seconds(false),
@@ -205,7 +216,7 @@ class CropBatchForm
         if ($soakingAt && $recipeId) {
             $recipe = Recipe::find($recipeId);
             if ($recipe && $recipe->seed_soak_hours > 0) {
-                $soakingStart = \Carbon\Carbon::parse($soakingAt);
+                $soakingStart = Carbon::parse($soakingAt);
                 $plantingDate = $soakingStart->copy()->addHours($recipe->seed_soak_hours);
                 $set('planting_at', $plantingDate);
             }

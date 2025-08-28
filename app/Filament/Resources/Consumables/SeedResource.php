@@ -2,12 +2,19 @@
 
 namespace App\Filament\Resources\Consumables;
 
+use Filament\Forms\Components\Select;
+use App\Models\MasterCultivar;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Forms\Components\Hidden;
+use Filament\Schemas\Components\Grid;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Forms\Components\Placeholder;
+use Filament\Tables\Filters\SelectFilter;
 use App\Filament\Forms\Components\Common as FormCommon;
 use App\Filament\Resources\ConsumableResourceBase;
 use App\Models\MasterSeedCatalog;
 use Filament\Forms;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
 use Filament\Tables;
 use Illuminate\Support\Facades\Log;
 
@@ -19,7 +26,7 @@ class SeedResource extends ConsumableResourceBase
 
     protected static ?string $modelLabel = 'Seed';
 
-    protected static ?string $navigationIcon = 'heroicon-o-sparkles';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-sparkles';
 
     protected static ?int $navigationSort = 2;
 
@@ -35,10 +42,10 @@ class SeedResource extends ConsumableResourceBase
             FormCommon::supplierSelect(),
 
             // Seed catalog and cultivar field - using proper relationships
-            Forms\Components\Select::make('master_cultivar_id')
+            Select::make('master_cultivar_id')
                 ->label('Seed Catalog & Cultivar')
                 ->options(function () {
-                    return \App\Models\MasterCultivar::query()
+                    return MasterCultivar::query()
                         ->with('masterSeedCatalog')
                         ->where('is_active', true)
                         ->whereHas('masterSeedCatalog', function ($query) {
@@ -57,7 +64,7 @@ class SeedResource extends ConsumableResourceBase
                 ->live(onBlur: true)
                 ->afterStateUpdated(function ($state, Set $set) {
                     if ($state) {
-                        $masterCultivar = \App\Models\MasterCultivar::with('masterSeedCatalog')->find($state);
+                        $masterCultivar = MasterCultivar::with('masterSeedCatalog')->find($state);
                         if ($masterCultivar && $masterCultivar->masterSeedCatalog) {
                             $commonName = ucwords(strtolower($masterCultivar->masterSeedCatalog->common_name));
                             $cultivarName = ucwords(strtolower($masterCultivar->cultivar_name));
@@ -70,8 +77,8 @@ class SeedResource extends ConsumableResourceBase
                 }),
 
             // Hidden fields - will be set from the master cultivar selection
-            Forms\Components\Hidden::make('name'),
-            Forms\Components\Hidden::make('cultivar'),
+            Hidden::make('name'),
+            Hidden::make('cultivar'),
         ];
     }
 
@@ -79,10 +86,10 @@ class SeedResource extends ConsumableResourceBase
     {
         return [
             // Grid for initial quantity and unit
-            Forms\Components\Grid::make(2)
+            Grid::make(2)
                 ->schema([
                     // Direct total quantity input for seeds
-                    Forms\Components\TextInput::make('total_quantity')
+                    TextInput::make('total_quantity')
                         ->label('Initial Quantity')
                         ->helperText('Total amount purchased/received')
                         ->numeric()
@@ -91,7 +98,7 @@ class SeedResource extends ConsumableResourceBase
                         ->default(0)
                         ->step(0.001)
                         ->reactive()
-                        ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                        ->afterStateUpdated(function ($state, Set $set, Get $get) {
                             // When initial quantity changes, update remaining if it hasn't been manually set
                             if (! $get('remaining_quantity') || $get('remaining_quantity') == 0) {
                                 $set('remaining_quantity', $state);
@@ -99,7 +106,7 @@ class SeedResource extends ConsumableResourceBase
                         }),
 
                     // Unit of measurement for seeds
-                    Forms\Components\Select::make('quantity_unit')
+                    Select::make('quantity_unit')
                         ->label('Unit')
                         ->options([
                             'g' => 'Grams (g)',
@@ -114,7 +121,7 @@ class SeedResource extends ConsumableResourceBase
                 ->columnSpan(2),
 
             // Remaining quantity for existing inventory
-            Forms\Components\TextInput::make('remaining_quantity')
+            TextInput::make('remaining_quantity')
                 ->label('Current Remaining')
                 ->helperText('Actual weight remaining (e.g., weighed out 498g from 1000g)')
                 ->numeric()
@@ -124,7 +131,7 @@ class SeedResource extends ConsumableResourceBase
                 })
                 ->step(0.001)
                 ->reactive()
-                ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
+                ->afterStateUpdated(function ($state, Get $get, Set $set) {
                     $total = (float) $get('total_quantity');
                     $remaining = (float) $state;
                     $consumed = max(0, $total - $remaining);
@@ -139,7 +146,7 @@ class SeedResource extends ConsumableResourceBase
                 }),
 
             // Consumed quantity display
-            Forms\Components\Placeholder::make('consumed_display')
+            Placeholder::make('consumed_display')
                 ->label('Amount Used')
                 ->content(function (Get $get) {
                     $total = (float) $get('total_quantity');
@@ -151,22 +158,22 @@ class SeedResource extends ConsumableResourceBase
                 }),
 
             // Lot/batch number for seeds
-            Forms\Components\TextInput::make('lot_no')
+            TextInput::make('lot_no')
                 ->label('Lot/Batch Number')
                 ->helperText('Optional: Batch identifier')
                 ->maxLength(100),
 
             // Hidden fields for compatibility
-            Forms\Components\Hidden::make('consumed_quantity')
+            Hidden::make('consumed_quantity')
                 ->default(0)
                 ->dehydrated(),
-            Forms\Components\Hidden::make('initial_stock')
+            Hidden::make('initial_stock')
                 ->default(1),
-            Forms\Components\Hidden::make('quantity_per_unit')
+            Hidden::make('quantity_per_unit')
                 ->default(1),
-            Forms\Components\Hidden::make('restock_threshold')
+            Hidden::make('restock_threshold')
                 ->default(0),
-            Forms\Components\Hidden::make('restock_quantity')
+            Hidden::make('restock_quantity')
                 ->default(0),
         ];
     }
@@ -179,7 +186,7 @@ class SeedResource extends ConsumableResourceBase
     protected static function getTypeSpecificFilters(): array
     {
         return [
-            Tables\Filters\SelectFilter::make('master_seed_catalog_id')
+            SelectFilter::make('master_seed_catalog_id')
                 ->label('Seed Catalog')
                 ->options(function () {
                     return MasterSeedCatalog::query()

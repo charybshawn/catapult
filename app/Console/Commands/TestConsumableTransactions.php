@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Models\ConsumableUnit;
+use Exception;
 use Illuminate\Console\Command;
 use App\Models\ConsumableTransaction;
 use App\Models\Consumable;
@@ -70,7 +72,7 @@ class TestConsumableTransactions extends Command
             }
 
             // Get or create a default consumable unit
-            $defaultUnit = \App\Models\ConsumableUnit::where('code', 'unit')->first();
+            $defaultUnit = ConsumableUnit::where('code', 'unit')->first();
             if (!$defaultUnit) {
                 $this->error('No default consumable unit found. Database may not be properly seeded.');
                 return 1;
@@ -183,7 +185,7 @@ class TestConsumableTransactions extends Command
 
             return 0;
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error('Test failed with error: ' . $e->getMessage());
             $this->error('Stack trace: ' . $e->getTraceAsString());
             return 1;

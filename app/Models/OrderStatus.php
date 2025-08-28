@@ -6,7 +6,52 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
+use Illuminate\Database\Eloquent\Builder;
 
+/**
+ * Order Status Management for Agricultural Production Workflow
+ *
+ * Represents comprehensive order status tracking throughout the complete microgreens
+ * agricultural production lifecycle from initial order placement through final
+ * delivery. Provides stage-based workflow management with business rule enforcement
+ * and transition validation for optimal agricultural operations.
+ *
+ * @property int $id Primary key identifier
+ * @property string $code Unique system code for status identification
+ * @property string $name Human-readable status name for display
+ * @property string|null $description Detailed status explanation and business rules
+ * @property string|null $color Primary display color for status visualization
+ * @property string|null $badge_color Alternative color for badges and UI elements
+ * @property string $stage Production stage grouping (pre_production, production, fulfillment, final)
+ * @property bool $requires_crops Whether status requires active crop production
+ * @property bool $is_active Whether status is currently available for use
+ * @property bool $is_final Whether status represents completed order lifecycle
+ * @property bool $allows_modifications Whether orders can be modified in this status
+ * @property int|null $sort_order Sequence order for status progression workflow
+ *
+ * @property-read string $stage_display Human-readable stage name
+ *
+ * @relationship orders HasMany Orders currently in this status
+ *
+ * @business_rule Final statuses prevent further order modifications and transitions
+ * @business_rule Stage groupings enforce logical agricultural production progression
+ * @business_rule Crop requirements determine agricultural resource allocation needs
+ * @business_rule Status transitions validated against agricultural production constraints
+ *
+ * @agricultural_context Order statuses mirror agricultural production workflow:
+ * - Pre-production: Order planning and agricultural resource allocation
+ * - Production: Active growing, harvesting, and agricultural processes  
+ * - Fulfillment: Packaging, quality control, and delivery preparation
+ * - Final: Completed delivery or cancellation with agricultural cleanup
+ *
+ * Each status enforces specific agricultural business rules around timing,
+ * resource utilization, and quality control to ensure optimal microgreens
+ * production efficiency and customer satisfaction.
+ *
+ * @package App\Models
+ * @author Catapult Development Team
+ * @version 1.0.0
+ */
 class OrderStatus extends Model
 {
     use HasFactory;

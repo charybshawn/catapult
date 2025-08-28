@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\MasterCultivar;
 use Illuminate\Console\Command;
 use App\Models\Consumable;
 use App\Models\MasterSeedCatalog;
@@ -58,7 +59,7 @@ class FixConsumableRelationships extends Command
                     $this->line("  Found master catalog: {$masterCatalog->common_name} (ID: {$masterCatalog->id})");
                     
                     // Check if the cultivar exists in the catalog
-                    $masterCultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $masterCatalog->id)
+                    $masterCultivar = MasterCultivar::where('master_seed_catalog_id', $masterCatalog->id)
                         ->whereRaw('LOWER(cultivar_name) = ?', [strtolower(trim($cultivar))])
                         ->first();
                     
@@ -76,7 +77,7 @@ class FixConsumableRelationships extends Command
                         $this->info("  ✓ Updated successfully");
                         $updated++;
                     } else {
-                        $availableCultivars = \App\Models\MasterCultivar::where('master_seed_catalog_id', $masterCatalog->id)
+                        $availableCultivars = MasterCultivar::where('master_seed_catalog_id', $masterCatalog->id)
                             ->where('is_active', true)
                             ->pluck('cultivar_name')
                             ->toArray();
@@ -84,7 +85,7 @@ class FixConsumableRelationships extends Command
                         $this->warn("  ✗ Cultivar '$cultivar' not found in catalog. Available: " . implode(', ', $availableCultivars));
                         
                         // Still update with supplier and catalog, use the first available cultivar
-                        $firstCultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $masterCatalog->id)
+                        $firstCultivar = MasterCultivar::where('master_seed_catalog_id', $masterCatalog->id)
                             ->where('is_active', true)
                             ->first();
                         

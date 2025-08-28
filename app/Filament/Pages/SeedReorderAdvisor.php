@@ -2,9 +2,17 @@
 
 namespace App\Filament\Pages;
 
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Grid;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\Filter;
+use Filament\Forms\Components\TextInput;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Actions\Action;
 use App\Models\SeedEntry;
 use App\Models\SeedVariation;
-use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
@@ -21,13 +29,13 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
     use InteractsWithForms;
     use InteractsWithTable;
 
-    protected static ?string $navigationIcon = 'heroicon-o-shopping-cart';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-shopping-cart';
 
-    protected static string $view = 'filament.pages.seed-reorder-advisor';
+    protected string $view = 'filament.pages.seed-reorder-advisor';
 
     protected static ?string $title = 'Seed Reorder Advisor';
 
-    protected static ?string $navigationGroup = 'Products & Inventory';
+    protected static string | \UnitEnum | null $navigationGroup = 'Products & Inventory';
 
     protected static ?int $navigationSort = 3;
 
@@ -44,10 +52,10 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
         $this->form->fill();
     }
 
-    public function form(\Filament\Forms\Form $form): \Filament\Forms\Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 Grid::make(4)->schema([
                     Select::make('selectedCommonName')
                         ->label('Filter by Common Name')
@@ -56,7 +64,7 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
                         })
                         ->searchable()
                         ->placeholder('Select Common Name')
-                        ->live(onBlur: true)()
+                        ->live(onBlur: true)
                         ->afterStateUpdated(function ($state) {
                             $this->selectedCultivars = []; // Reset cultivars when common name changes
                             $this->resetTable();
@@ -75,7 +83,7 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
                         ->searchable()
                         ->placeholder('Select Cultivars')
                         ->visible(fn () => ! empty($this->selectedCommonName))
-                        ->live(onBlur: true)()
+                        ->live(onBlur: true)
                         ->afterStateUpdated(function ($state) {
                             $this->resetTable();
                             $this->dispatch('filtersUpdated',
@@ -94,7 +102,7 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
                         ])
                         ->placeholder('Select Seed Size')
                         ->required()
-                        ->live(onBlur: true)()
+                        ->live(onBlur: true)
                         ->afterStateUpdated(function ($state) {
                             $this->resetTable();
                             $this->dispatch('filtersUpdated',
@@ -110,7 +118,7 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
                             'USD' => '🇺🇸 USD (US Dollar)',
                         ])
                         ->default('CAD')
-                        ->live(onBlur: true)()
+                        ->live(onBlur: true)
                         ->afterStateUpdated(function ($state) {
                             $this->resetTable();
                         }),
@@ -123,35 +131,35 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
         return $table
             ->query($this->getTableQuery())
             ->columns([
-                Tables\Columns\TextColumn::make('seedEntry.common_name')
+                TextColumn::make('seedEntry.common_name')
                     ->label('Common Name')
                     ->weight(FontWeight::Bold)
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('seedEntry.cultivar_name')
+                TextColumn::make('seedEntry.cultivar_name')
                     ->label('Cultivar')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('seedEntry.supplier.name')
+                TextColumn::make('seedEntry.supplier.name')
                     ->label('Supplier')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('size_description')
+                TextColumn::make('size_description')
                     ->label('Size')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('weight_kg')
+                TextColumn::make('weight_kg')
                     ->label('Weight (kg)')
                     ->numeric()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('current_price')
+                TextColumn::make('current_price')
                     ->label(fn () => 'Price ('.$this->displayCurrency.')')
                     ->getStateUsing(fn (SeedVariation $record): string => $this->displayCurrency === 'CAD'
                             ? $record->getFormattedPriceWithConversion('CAD')
                             : $record->getFormattedPriceWithConversion('USD')
                     )
                     ->sortable(),
-                Tables\Columns\TextColumn::make('price_per_kg')
+                TextColumn::make('price_per_kg')
                     ->label(fn () => 'Price per kg ('.$this->displayCurrency.')')
                     ->getStateUsing(function (SeedVariation $record): string {
                         $pricePerKg = $this->displayCurrency === 'CAD'
@@ -181,21 +189,21 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
                             );
                         }
                     }),
-                Tables\Columns\IconColumn::make('is_in_stock')
+                IconColumn::make('is_in_stock')
                     ->label('In Stock')
                     ->boolean()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('consumable.formatted_current_stock')
+                TextColumn::make('consumable.formatted_current_stock')
                     ->label('Current Stock')
                     ->placeholder('Not linked'),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('supplier')
+                SelectFilter::make('supplier')
                     ->relationship('seedEntry.supplier', 'name')
                     ->searchable()
                     ->preload()
                     ->label('Supplier'),
-                Tables\Filters\SelectFilter::make('size_description')
+                SelectFilter::make('size_description')
                     ->options(function () {
                         return SeedVariation::query()
                             ->whereNotNull('size_description')
@@ -206,15 +214,15 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
                     })
                     ->searchable()
                     ->label('Size'),
-                Tables\Filters\Filter::make('weight_range')
-                    ->form([
-                        \Filament\Forms\Components\Grid::make(2)
+                Filter::make('weight_range')
+                    ->schema([
+                        Grid::make(2)
                             ->schema([
-                                \Filament\Forms\Components\TextInput::make('weight_from')
+                                TextInput::make('weight_from')
                                     ->label('Weight From (kg)')
                                     ->numeric()
                                     ->placeholder('Min weight'),
-                                \Filament\Forms\Components\TextInput::make('weight_to')
+                                TextInput::make('weight_to')
                                     ->label('Weight To (kg)')
                                     ->numeric()
                                     ->placeholder('Max weight'),
@@ -242,7 +250,7 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
 
                         return $indicators;
                     }),
-                Tables\Filters\TernaryFilter::make('is_in_stock')
+                TernaryFilter::make('is_in_stock')
                     ->label('Stock Status')
                     ->placeholder('All items')
                     ->trueLabel('In Stock')
@@ -253,8 +261,8 @@ class SeedReorderAdvisor extends Page implements HasForms, HasTable
                         blank: fn (Builder $query) => $query,
                     ),
             ])
-            ->actions([
-                Tables\Actions\Action::make('view_details')
+            ->recordActions([
+                Action::make('view_details')
                     ->label('View Details')
                     ->url(fn (SeedVariation $record): string => route('filament.admin.resources.seed-variations.edit', ['record' => $record]))
                     ->icon('heroicon-o-eye'),

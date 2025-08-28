@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Exception;
 use App\Models\TimeCard;
 use Illuminate\Console\Command;
 
@@ -66,7 +67,7 @@ class FixTimeCardDurations extends Command
                     $fixedCount++;
                     $this->newLine();
                 }
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $this->error("Error processing time card ID {$timeCard->id}: " . $e->getMessage());
                 $errorCount++;
             }

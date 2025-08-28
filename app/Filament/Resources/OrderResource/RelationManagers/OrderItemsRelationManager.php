@@ -2,9 +2,17 @@
 
 namespace App\Filament\Resources\OrderResource\RelationManagers;
 
+use Filament\Schemas\Schema;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Actions\CreateAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
 use App\Models\Product;
 use Filament\Forms;
-use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -17,11 +25,11 @@ class OrderItemsRelationManager extends RelationManager
 
     protected static ?string $recordTitleAttribute = 'id';
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Select::make('product_id')
+        return $schema
+            ->components([
+                Select::make('product_id')
                     ->label('Product')
                     ->relationship('product', 'name')
                     ->searchable()
@@ -37,12 +45,12 @@ class OrderItemsRelationManager extends RelationManager
                         }
                     })
                     ->required(),
-                Forms\Components\TextInput::make('quantity')
+                TextInput::make('quantity')
                     ->numeric()
                     ->default(1)
                     ->minValue(1)
                     ->required(),
-                Forms\Components\TextInput::make('price')
+                TextInput::make('price')
                     ->label('Unit Price ($)')
                     ->numeric()
                     ->prefix('$')
@@ -54,15 +62,15 @@ class OrderItemsRelationManager extends RelationManager
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('product.name')
+                TextColumn::make('product.name')
                     ->label('Product')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('quantity')
+                TextColumn::make('quantity')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('price')
+                TextColumn::make('price')
                     ->money('USD')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('subtotal')
+                TextColumn::make('subtotal')
                     ->money('USD')
                     ->getStateUsing(fn ($record) => $record->subtotal()),
             ])
@@ -70,8 +78,8 @@ class OrderItemsRelationManager extends RelationManager
                 //
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make()
-                    ->mutateFormDataUsing(function (array $data): array {
+                CreateAction::make()
+                    ->mutateDataUsing(function (array $data): array {
                         $order = $this->getOwnerRecord();
                         $product = Product::find($data['product_id']);
                         
@@ -82,13 +90,13 @@ class OrderItemsRelationManager extends RelationManager
                         return $data;
                     }),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+            ->recordActions([
+                EditAction::make(),
+                DeleteAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

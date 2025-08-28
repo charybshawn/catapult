@@ -2,6 +2,9 @@
 
 namespace App\Actions\Recipe;
 
+use App\Observers\CropObserver;
+use InvalidArgumentException;
+use Carbon\Carbon;
 use App\Models\Recipe;
 use App\Models\Crop;
 use App\Models\CropStage;
@@ -16,7 +19,7 @@ use Illuminate\Support\Collection;
 class UpdateGrowsFromRecipe
 {
     public function __construct(
-        protected \App\Observers\CropObserver $cropObserver
+        protected CropObserver $cropObserver
     ) {}
     
     /**
@@ -25,7 +28,7 @@ class UpdateGrowsFromRecipe
     public function execute(Recipe $recipe, array $options): array
     {
         if (!($options['confirm_updates'] ?? false)) {
-            throw new \InvalidArgumentException('Confirmation required for updating grows');
+            throw new InvalidArgumentException('Confirmation required for updating grows');
         }
         
         return DB::transaction(function () use ($recipe, $options) {
@@ -145,7 +148,7 @@ class UpdateGrowsFromRecipe
      * Update stage end time calculations
      * @deprecated These fields are now calculated in crop_batches_list_view
      */
-    protected function updateStageEndTime(Crop $crop, \Carbon\Carbon $stageStart, float $stageDays): void
+    protected function updateStageEndTime(Crop $crop, Carbon $stageStart, float $stageDays): void
     {
         // These calculated fields have been moved to crop_batches_list_view
         // and are no longer stored on individual crop records

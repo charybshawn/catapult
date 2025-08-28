@@ -2,6 +2,11 @@
 
 namespace App\Filament\Resources\OrderResource\Tables;
 
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\Filter;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\TextInput;
 use App\Models\OrderStatus;
 use Filament\Forms;
 use Filament\Tables;
@@ -40,9 +45,9 @@ class OrderTableFilters
     /**
      * Status filter with searchable dropdown
      */
-    protected static function getStatusFilter(): Tables\Filters\SelectFilter
+    protected static function getStatusFilter(): SelectFilter
     {
-        return Tables\Filters\SelectFilter::make('status_id')
+        return SelectFilter::make('status_id')
             ->label('Status')
             ->options(function () {
                 return OrderStatus::getOptionsForDropdown(false, true);
@@ -53,9 +58,9 @@ class OrderTableFilters
     /**
      * Stage filter for high-level order phases
      */
-    protected static function getStageFilter(): Tables\Filters\SelectFilter
+    protected static function getStageFilter(): SelectFilter
     {
-        return Tables\Filters\SelectFilter::make('stage')
+        return SelectFilter::make('stage')
             ->label('Stage')
             ->options([
                 OrderStatus::STAGE_PRE_PRODUCTION => 'Pre-Production',
@@ -76,9 +81,9 @@ class OrderTableFilters
     /**
      * Ternary filter for orders requiring crop production
      */
-    protected static function getRequiresCropsFilter(): Tables\Filters\TernaryFilter
+    protected static function getRequiresCropsFilter(): TernaryFilter
     {
-        return Tables\Filters\TernaryFilter::make('requires_crops')
+        return TernaryFilter::make('requires_crops')
             ->label('Requires Crops')
             ->placeholder('All orders')
             ->trueLabel('Orders needing crops')
@@ -102,9 +107,9 @@ class OrderTableFilters
     /**
      * Payment status ternary filter
      */
-    protected static function getPaymentStatusFilter(): Tables\Filters\TernaryFilter
+    protected static function getPaymentStatusFilter(): TernaryFilter
     {
-        return Tables\Filters\TernaryFilter::make('payment_status')
+        return TernaryFilter::make('payment_status')
             ->label('Payment Status')
             ->placeholder('All orders')
             ->trueLabel('Paid orders')
@@ -128,9 +133,9 @@ class OrderTableFilters
     /**
      * Order source filter (recurring vs manual)
      */
-    protected static function getOrderSourceFilter(): Tables\Filters\TernaryFilter
+    protected static function getOrderSourceFilter(): TernaryFilter
     {
-        return Tables\Filters\TernaryFilter::make('parent_recurring_order_id')
+        return TernaryFilter::make('parent_recurring_order_id')
             ->label('Order Source')
             ->nullable()
             ->placeholder('All orders')
@@ -141,9 +146,9 @@ class OrderTableFilters
     /**
      * Customer type filter
      */
-    protected static function getCustomerTypeFilter(): Tables\Filters\SelectFilter
+    protected static function getCustomerTypeFilter(): SelectFilter
     {
-        return Tables\Filters\SelectFilter::make('customer_type')
+        return SelectFilter::make('customer_type')
             ->options([
                 'retail' => 'Retail',
                 'wholesale' => 'Wholesale',
@@ -153,12 +158,12 @@ class OrderTableFilters
     /**
      * Harvest date range filter
      */
-    protected static function getHarvestDateFilter(): Tables\Filters\Filter
+    protected static function getHarvestDateFilter(): Filter
     {
-        return Tables\Filters\Filter::make('harvest_date')
-            ->form([
-                Forms\Components\DatePicker::make('harvest_from'),
-                Forms\Components\DatePicker::make('harvest_until'),
+        return Filter::make('harvest_date')
+            ->schema([
+                DatePicker::make('harvest_from'),
+                DatePicker::make('harvest_until'),
             ])
             ->query(function (Builder $query, array $data): Builder {
                 return $query
@@ -177,13 +182,13 @@ class OrderTableFilters
      * Get additional delivery date filter (optional)
      * Can be added to the filters array if needed
      */
-    protected static function getDeliveryDateFilter(): Tables\Filters\Filter
+    protected static function getDeliveryDateFilter(): Filter
     {
-        return Tables\Filters\Filter::make('delivery_date')
-            ->form([
-                Forms\Components\DatePicker::make('delivery_from')
+        return Filter::make('delivery_date')
+            ->schema([
+                DatePicker::make('delivery_from')
                     ->label('Delivery From'),
-                Forms\Components\DatePicker::make('delivery_until')
+                DatePicker::make('delivery_until')
                     ->label('Delivery Until'),
             ])
             ->query(function (Builder $query, array $data): Builder {
@@ -203,15 +208,15 @@ class OrderTableFilters
      * Get order value range filter (optional)
      * Can be added to the filters array if needed
      */
-    protected static function getOrderValueFilter(): Tables\Filters\Filter
+    protected static function getOrderValueFilter(): Filter
     {
-        return Tables\Filters\Filter::make('order_value')
-            ->form([
-                Forms\Components\TextInput::make('min_value')
+        return Filter::make('order_value')
+            ->schema([
+                TextInput::make('min_value')
                     ->label('Minimum Value')
                     ->numeric()
                     ->prefix('$'),
-                Forms\Components\TextInput::make('max_value')
+                TextInput::make('max_value')
                     ->label('Maximum Value')
                     ->numeric()
                     ->prefix('$'),
@@ -235,9 +240,9 @@ class OrderTableFilters
      * Get customer filter (optional)
      * Can be added to the filters array if needed
      */
-    protected static function getCustomerFilter(): Tables\Filters\SelectFilter
+    protected static function getCustomerFilter(): SelectFilter
     {
-        return Tables\Filters\SelectFilter::make('customer_id')
+        return SelectFilter::make('customer_id')
             ->label('Customer')
             ->relationship('customer', 'contact_name')
             ->searchable()
@@ -253,9 +258,9 @@ class OrderTableFilters
      * Get order type filter (optional)
      * Can be added to the filters array if needed
      */
-    protected static function getOrderTypeFilter(): Tables\Filters\SelectFilter
+    protected static function getOrderTypeFilter(): SelectFilter
     {
-        return Tables\Filters\SelectFilter::make('order_type_id')
+        return SelectFilter::make('order_type_id')
             ->label('Order Type')
             ->relationship('orderType', 'name')
             ->searchable()
@@ -266,9 +271,9 @@ class OrderTableFilters
      * Get invoiced status filter (optional)
      * Can be added to the filters array if needed
      */
-    protected static function getInvoicedStatusFilter(): Tables\Filters\TernaryFilter
+    protected static function getInvoicedStatusFilter(): TernaryFilter
     {
-        return Tables\Filters\TernaryFilter::make('invoiced')
+        return TernaryFilter::make('invoiced')
             ->label('Invoiced Status')
             ->placeholder('All orders')
             ->trueLabel('Has invoice')

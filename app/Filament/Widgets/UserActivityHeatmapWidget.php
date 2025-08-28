@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 
 class UserActivityHeatmapWidget extends Widget
 {
-    protected static string $view = 'filament.widgets.user-activity-heatmap';
+    protected string $view = 'filament.widgets.user-activity-heatmap';
     
     protected static ?int $sort = 3;
     

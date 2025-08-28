@@ -2,6 +2,11 @@
 
 namespace App\Filament\Examples;
 
+use Filament\Actions\ViewAction;
+use Filament\Actions\Action;
+use Filament\Tables\Table;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
 use App\Filament\Support\SlideOverConfigurations;
 use App\Filament\Traits\HasConsistentSlideOvers;
 use Filament\Resources\Resource;
@@ -61,7 +66,7 @@ class ExampleResourceWithSlideOver extends Resource
     public static function tableActionsMixed(): array
     {
         $config = SlideOverConfigurations::user();
-        
+
         // Customize just the view action
         $config['viewConfig']['footerActions'][] = static::makeQuickAction('special_action', [
             'label' => 'Special Action',
@@ -74,7 +79,7 @@ class ExampleResourceWithSlideOver extends Resource
     }
 
     // Example 4: Individual action creation
-    public static function customViewAction(): Tables\Actions\ViewAction
+    public static function customViewAction(): ViewAction
     {
         return static::makeViewAction([
             'tooltip' => 'View this specific item',
@@ -82,7 +87,7 @@ class ExampleResourceWithSlideOver extends Resource
             'description' => fn($record) => 'Viewing item: ' . $record->name,
             'icon' => 'heroicon-o-document-magnifying-glass',
             'footerActions' => [
-                Tables\Actions\Action::make('print')
+                Action::make('print')
                     ->label('Print')
                     ->icon('heroicon-o-printer')
                     ->color('primary')
@@ -92,17 +97,17 @@ class ExampleResourceWithSlideOver extends Resource
     }
 
     // Example 5: Complete table configuration
-    public static function completeTableExample(): Tables\Table
+    public static function completeTableExample(): Table
     {
-        return Tables\Table::make()
+        return Table::make()
             ->columns([
                 // Your columns here
             ])
-            ->actions(static::getStandardTableActions(SlideOverConfigurations::product()))
+            ->recordActions(static::getStandardTableActions(SlideOverConfigurations::product()))
             ->headerActions(static::getStandardHeaderActions(SlideOverConfigurations::product()))
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

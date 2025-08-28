@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\CropBatchResource\Pages;
 
+use Filament\Actions\Action;
 use App\Filament\Resources\CropBatchResource;
 use App\Models\CropBatchListView;
 use Filament\Actions;
@@ -15,13 +16,13 @@ class ListCropBatches extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\Action::make('createCrop')
+            Action::make('createCrop')
                 ->label('New Crop')
                 ->icon('heroicon-o-plus')
                 ->color('primary')
                 ->url('/admin/crops/create')
                 ->button(),
-            Actions\Action::make('viewIndividual')
+            Action::make('viewIndividual')
                 ->label('View Individual Crops')
                 ->icon('heroicon-o-list-bullet')
                 ->color('info')

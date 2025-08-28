@@ -2,16 +2,38 @@
 
 namespace App\Services;
 
+use Exception;
+use PDO;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Collection;
 use Carbon\Carbon;
 use Symfony\Component\Process\Process;
 
+/**
+ * Comprehensive agricultural database backup and restore service.
+ * 
+ * Provides robust backup and restore functionality for agricultural database systems
+ * with advanced schema validation, compatibility checking, and automated repair capabilities.
+ * Supports both full backups (with schema) and data-only backups with column mapping
+ * for maximum flexibility during agricultural system maintenance and disaster recovery.
+ *
+ * @business_domain Agricultural database backup and disaster recovery
+ * @related_services SchemaComparisonService, LightweightSchemaChecker
+ * @used_by Database console, automated backup systems, disaster recovery procedures
+ * @backup_types Full backups (schema + data), Data-only backups (with column mapping)
+ * @agricultural_context Critical for protecting agricultural data during system maintenance
+ */
 class SimpleBackupService
 {
     private $backupPath;
     public $lastRestoreSchemaFixes = [];
 
+    /**
+     * Initialize backup service with standardized backup directory path.
+     * 
+     * Sets up service with consistent backup storage location for all
+     * agricultural database backup operations.
+     */
     public function __construct()
     {
         // ALWAYS use database/backups - no exceptions
@@ -19,14 +41,27 @@ class SimpleBackupService
     }
 
     /**
-     * Check for schema mismatches before backup
+     * Validate agricultural database schema integrity before backup creation.
+     * 
+     * Performs comprehensive schema validation to identify potential issues
+     * that could compromise backup integrity or restoration success.
+     * Essential for ensuring agricultural data protection during backup operations.
+     *
+     * @return array Schema validation results including:
+     *   - has_issues: Boolean indicating schema problems
+     *   - summary: Human-readable issue description
+     *   - error: Boolean indicating validation errors
+     *   - extra_tables: Tables in DB but not in migrations
+     *   - missing_tables: Tables in migrations but not in DB
+     *   - column_differences: Column mismatches per table
+     * @agricultural_context Prevents backup of corrupted agricultural database structures
      */
     public function checkSchemaBeforeBackup(): array
     {
         try {
             $comparisonService = new SchemaComparisonService();
             return $comparisonService->compareSchemas();
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return [
                 'has_issues' => true,
                 'summary' => 'Could not compare schemas: ' . $e->getMessage(),
@@ -39,8 +74,20 @@ class SimpleBackupService
     }
     
     /**
-     * Create a database backup using native mysqldump
-     * For data-only backups, views are always excluded since they're schema, not data
+     * Create comprehensive agricultural database backup using native mysqldump.
+     * 
+     * Generates full database backup including schema and data for agricultural
+     * systems with advanced validation and schema compatibility checking.
+     * Includes automatic view exclusion and comprehensive error handling
+     * to ensure reliable agricultural data protection.
+     *
+     * @param string|null $name Custom backup filename (auto-generated if null)
+     * @param bool $excludeViews Whether to exclude database views from backup
+     * @return string Generated backup filename
+     * @throws Exception If backup creation fails or schema issues prevent safe backup
+     * @agricultural_context Creates complete backup of crop, product, order, and inventory data
+     * @locking Uses file locking to prevent concurrent backup operations
+     * @validation Includes comprehensive schema validation and file integrity checking
      */
     public function createBackup(?string $name = null, bool $excludeViews = true): string
     {
@@ -68,7 +115,7 @@ class SimpleBackupService
             // Acquire exclusive lock to prevent concurrent backups
             $lockHandle = fopen($lockFile, 'w');
             if (!$lockHandle || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
-                throw new \Exception('Another backup operation is already in progress. Please wait and try again.');
+                throw new Exception('Another backup operation is already in progress. Please wait and try again.');
             }
             
             $timestamp = Carbon::now()->format('Y-m-d_H-i-s');
@@ -136,7 +183,7 @@ class SimpleBackupService
             $process->run();
             
             if (!$process->isSuccessful()) {
-                throw new \Exception('mysqldump failed: ' . $process->getErrorOutput());
+                throw new Exception('mysqldump failed: ' . $process->getErrorOutput());
             }
             
             $output = $process->getOutput();
@@ -153,12 +200,12 @@ class SimpleBackupService
             
             // Validate file was written correctly
             if (!file_exists($backupPath) || filesize($backupPath) === 0) {
-                throw new \Exception('Backup file was not created successfully');
+                throw new Exception('Backup file was not created successfully');
             }
             
             // Basic SQL validation
             if (!$this->validateBackupFile($backupPath)) {
-                throw new \Exception('Backup file appears to be corrupted or invalid');
+                throw new Exception('Backup file appears to be corrupted or invalid');
             }
             
             // Save schema check results
@@ -180,8 +227,8 @@ class SimpleBackupService
             
             return $filename;
             
-        } catch (\Exception $e) {
-            throw new \Exception("Backup failed: " . $e->getMessage());
+        } catch (Exception $e) {
+            throw new Exception("Backup failed: " . $e->getMessage());
         } finally {
             // Always release the lock
             if ($lockHandle) {
@@ -195,7 +242,17 @@ class SimpleBackupService
     }
 
     /**
-     * Restore database from backup
+     * Restore agricultural database from backup with automated schema repair.
+     * 
+     * Performs comprehensive database restoration with intelligent schema mismatch
+     * detection and automated repair capabilities. Essential for agricultural
+     * system disaster recovery and data migration scenarios.
+     *
+     * @param string $filename Backup filename in the backup directory
+     * @return bool Success status of restoration operation
+     * @throws Exception If backup file not found or restoration fails
+     * @agricultural_context Restores complete agricultural database including crops, orders, and inventory
+     * @schema_repair Automatically repairs column count mismatches during restoration
      */
     public function restoreBackup(string $filename): bool
     {
@@ -203,13 +260,13 @@ class SimpleBackupService
         $fullFilepath = base_path($this->backupPath . '/' . $filename);
         
         if (!file_exists($fullFilepath)) {
-            throw new \Exception("Backup file not found: {$filename}");
+            throw new Exception("Backup file not found: {$filename}");
         }
 
         $sqlContent = file_get_contents($fullFilepath);
         
         if (empty($sqlContent)) {
-            throw new \Exception("Backup file is empty or corrupted");
+            throw new Exception("Backup file is empty or corrupted");
         }
 
         // Use the shared restoration logic
@@ -217,18 +274,29 @@ class SimpleBackupService
     }
 
     /**
-     * Restore database from a file with full path (for temporary uploaded files)
+     * Restore agricultural database from uploaded backup file.
+     * 
+     * Enables restoration from temporary uploaded backup files with optional
+     * dry-run validation. Critical for importing agricultural data from
+     * external sources or testing backup compatibility before actual restoration.
+     *
+     * @param string $fullFilePath Full path to backup file to restore
+     * @param bool $dryRun Whether to perform validation-only dry run
+     * @return bool Success status or dry run validation result
+     * @throws Exception If file not found, corrupted, or restoration fails
+     * @agricultural_context Supports agricultural data migration and disaster recovery
+     * @dry_run Validates backup without making database changes
      */
     public function restoreFromFile(string $fullFilePath, bool $dryRun = false): bool
     {
         if (!file_exists($fullFilePath)) {
-            throw new \Exception("Backup file not found: {$fullFilePath}");
+            throw new Exception("Backup file not found: {$fullFilePath}");
         }
 
         $sqlContent = file_get_contents($fullFilePath);
         
         if (empty($sqlContent)) {
-            throw new \Exception("Backup file is empty or corrupted");
+            throw new Exception("Backup file is empty or corrupted");
         }
 
         // Use the same logic as restoreBackup but with direct file path
@@ -240,7 +308,19 @@ class SimpleBackupService
     }
 
     /**
-     * Perform a dry run of the restore to check for errors without making changes
+     * Validate agricultural backup restoration compatibility without database changes.
+     * 
+     * Performs comprehensive restoration simulation to identify potential issues
+     * without modifying agricultural database. Essential for validating backup
+     * compatibility before critical restoration operations during harvest or
+     * order fulfillment periods.
+     *
+     * @param string $sqlContent Raw SQL backup content to validate
+     * @return bool Whether restoration would likely succeed
+     * @throws Exception If validation fails or encounters fatal errors
+     * @agricultural_context Prevents agricultural data loss during restoration attempts
+     * @transaction_safety Uses transaction rollback to ensure no database modifications
+     * @validation Comprehensive SQL statement validation and error analysis
      */
     public function dryRunRestore(string $sqlContent): bool
     {
@@ -250,11 +330,11 @@ class SimpleBackupService
         try {
             // Get database connection
             $config = config('database.connections.mysql');
-            $pdo = new \PDO(
+            $pdo = new PDO(
                 "mysql:host={$config['host']};port={$config['port']};dbname={$config['database']};charset={$config['charset']}",
                 $config['username'],
                 $config['password'],
-                [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
             );
 
             // Configure for dry run - CRITICAL: Disable autocommit!
@@ -292,7 +372,7 @@ class SimpleBackupService
                             }
                             $successCount++;
                         }
-                    } catch (\Exception $e) {
+                    } catch (Exception $e) {
                         $failCount++;
                         $errorMsg = $e->getMessage();
                         $stmtPreview = substr($statement, 0, 150) . "...";
@@ -349,12 +429,12 @@ class SimpleBackupService
             // Return true if majority would succeed, false if too many failures
             return $failCount === 0 || ($successCount > $failCount * 2);
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->lastRestoreSchemaFixes = [
                 'dry_run' => true,
                 'fatal_error' => $e->getMessage()
             ];
-            throw new \Exception("Dry run failed: " . $e->getMessage());
+            throw new Exception("Dry run failed: " . $e->getMessage());
         }
     }
 
@@ -391,11 +471,11 @@ class SimpleBackupService
         try {
             // Get database connection
             $config = config('database.connections.mysql');
-            $pdo = new \PDO(
+            $pdo = new PDO(
                 "mysql:host={$config['host']};port={$config['port']};dbname={$config['database']};charset={$config['charset']}",
                 $config['username'],
                 $config['password'],
-                [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
             );
 
             // Disable foreign key checks and configure for restore
@@ -419,7 +499,7 @@ class SimpleBackupService
             foreach ($tablesToClear as $table) {
                 try {
                     $pdo->exec("DELETE FROM `{$table}`");
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     // Table might not exist, continue
                 }
             }
@@ -448,7 +528,7 @@ class SimpleBackupService
                         
                         $pdo->exec($statement);
                         $successCount++;
-                    } catch (\Exception $e) {
+                    } catch (Exception $e) {
                         // Check if it's a column count mismatch error
                         if (str_contains($e->getMessage(), 'Column count doesn\'t match')) {
                             try {
@@ -459,7 +539,7 @@ class SimpleBackupService
                                     $schemaFixes = array_merge($schemaFixes, $fixResult['fixes']);
                                 }
                                 continue;
-                            } catch (\Exception $e2) {
+                            } catch (Exception $e2) {
                                 $failCount++;
                                 $errorMsg = $e2->getMessage();
                                 $stmtPreview = substr($statement, 0, 200) . "...";
@@ -494,9 +574,9 @@ class SimpleBackupService
             
             // If there were significant failures, throw an exception with details
             if ($failCount > 0 && $successCount === 0) {
-                throw new \Exception("All SQL statements failed. First error: " . ($errors[0] ?? 'Unknown error'));
+                throw new Exception("All SQL statements failed. First error: " . ($errors[0] ?? 'Unknown error'));
             } elseif ($failCount > $successCount) {
-                throw new \Exception("More statements failed ({$failCount}) than succeeded ({$successCount}). First error: " . ($errors[0] ?? 'Unknown error'));
+                throw new Exception("More statements failed ({$failCount}) than succeeded ({$successCount}). First error: " . ($errors[0] ?? 'Unknown error'));
             }
             
             // Store schema fixes for later retrieval
@@ -506,8 +586,8 @@ class SimpleBackupService
             
             return true;
             
-        } catch (\Exception $e) {
-            throw new \Exception("Restore failed: " . $e->getMessage());
+        } catch (Exception $e) {
+            throw new Exception("Restore failed: " . $e->getMessage());
         }
     }
 
@@ -558,7 +638,22 @@ class SimpleBackupService
     }
 
     /**
-     * List all available backups
+     * List all available agricultural database backups with metadata.
+     * 
+     * Provides comprehensive backup inventory including file sizes,
+     * creation timestamps, and schema validation status. Essential
+     * for agricultural database management and backup selection.
+     *
+     * @return Collection Backup file collection with metadata:
+     *   - name: Backup filename
+     *   - path: Full file path
+     *   - size: Human-readable file size
+     *   - size_bytes: Raw file size in bytes
+     *   - created_at: Backup creation timestamp
+     *   - has_schema_check: Whether schema validation results exist
+     *   - schema_has_issues: Whether schema validation found problems
+     *   - schema_summary: Schema validation summary
+     * @agricultural_context Lists backups of crop, product, and order data
      */
     public function listBackups(): Collection
     {
@@ -600,7 +695,7 @@ class SimpleBackupService
                         $schemaData = json_decode(file_get_contents($activeCheckFile), true);
                         $schemaHasIssues = $schemaData['has_issues'] ?? false;
                         $schemaSummary = $schemaData['summary'] ?? '';
-                    } catch (\Exception $e) {
+                    } catch (Exception $e) {
                         // Ignore JSON parse errors
                     }
                 }
@@ -633,7 +728,7 @@ class SimpleBackupService
         if (file_exists($dynamicCheckFile)) {
             try {
                 return json_decode(file_get_contents($dynamicCheckFile), true);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 // Fall through to static check
             }
         }
@@ -641,7 +736,7 @@ class SimpleBackupService
         if (file_exists($schemaCheckFile)) {
             try {
                 return json_decode(file_get_contents($schemaCheckFile), true);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 return null;
             }
         }
@@ -672,7 +767,7 @@ class SimpleBackupService
         $filepath = base_path($this->backupPath . '/' . $filename);
         
         if (!file_exists($filepath)) {
-            throw new \Exception("Backup file not found: {$filename}");
+            throw new Exception("Backup file not found: {$filename}");
         }
 
         return response()->download($filepath);
@@ -702,7 +797,7 @@ class SimpleBackupService
             }
             
             return true;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return false;
         }
     }
@@ -763,7 +858,19 @@ class SimpleBackupService
     }
 
     /**
-     * Create a data-only backup (explicitly excludes all views and schema)
+     * Create data-only agricultural database backup with column mapping.
+     * 
+     * Generates data-only backup with explicit column mapping for maximum
+     * compatibility across different agricultural database schema versions.
+     * Critical for agricultural data migration and system upgrades where
+     * schema changes occur.
+     *
+     * @param string|null $name Custom backup filename (auto-generated if null)
+     * @return string Generated backup filename
+     * @throws Exception If backup creation fails or data extraction errors occur
+     * @agricultural_context Creates portable backup of agricultural data without schema dependencies
+     * @column_mapping Includes explicit column names for better compatibility
+     * @batch_processing Processes large agricultural datasets in chunks for memory efficiency
      */
     public function createDataOnlyBackup(?string $name = null): string
     {
@@ -797,11 +904,11 @@ class SimpleBackupService
         
         // Get database connection
         $config = config('database.connections.mysql');
-        $pdo = new \PDO(
+        $pdo = new PDO(
             "mysql:host={$config['host']};port={$config['port']};dbname={$config['database']};charset={$config['charset']}",
             $config['username'],
             $config['password'],
-            [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
         );
         
         // Get all tables (excluding views)
@@ -820,7 +927,7 @@ class SimpleBackupService
                 WHERE TABLE_NAME = '{$tableName}' AND TABLE_SCHEMA = DATABASE()
                 ORDER BY ORDINAL_POSITION
             ");
-            $columns = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+            $columns = $stmt->fetchAll(PDO::FETCH_COLUMN);
             
             if (empty($columns)) {
                 continue;
@@ -828,7 +935,7 @@ class SimpleBackupService
             
             // Get table data
             $stmt = $pdo->query("SELECT * FROM `{$tableName}`");
-            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             if (empty($rows)) {
                 continue;
@@ -874,7 +981,7 @@ class SimpleBackupService
         
         // Validate file was created
         if (!file_exists($filepath) || filesize($filepath) === 0) {
-            throw new \Exception('Backup file was not created successfully');
+            throw new Exception('Backup file was not created successfully');
         }
         
         // Save schema check results - CRITICAL for data-only backups!
@@ -909,24 +1016,24 @@ class SimpleBackupService
     {
         try {
             $config = config('database.connections.mysql');
-            $pdo = new \PDO(
+            $pdo = new PDO(
                 "mysql:host={$config['host']};port={$config['port']};dbname={$config['database']};charset={$config['charset']}",
                 $config['username'],
                 $config['password'],
-                [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
             );
 
             $stmt = $pdo->query("SHOW FULL TABLES WHERE Table_type = 'VIEW'");
             $views = [];
             
-            while ($row = $stmt->fetch(\PDO::FETCH_NUM)) {
+            while ($row = $stmt->fetch(PDO::FETCH_NUM)) {
                 $views[] = $row[0];
             }
             
             error_log("Found " . count($views) . " database views to exclude from backup: " . implode(', ', $views));
             return $views;
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // If we can't get views, be more comprehensive in our fallback
             error_log("Could not fetch database views, using fallback list: " . $e->getMessage());
             
@@ -945,7 +1052,7 @@ class SimpleBackupService
     /**
      * Fix column count mismatch by converting to column-specific INSERT
      */
-    private function fixColumnCountMismatch(string $statement, \PDO $pdo): array
+    private function fixColumnCountMismatch(string $statement, PDO $pdo): array
     {
         $fixes = [];
         
@@ -971,10 +1078,10 @@ class SimpleBackupService
                     WHERE TABLE_NAME = '{$tableName}' AND TABLE_SCHEMA = DATABASE()
                     ORDER BY ORDINAL_POSITION
                 ");
-                $currentColumns = $result->fetchAll(\PDO::FETCH_COLUMN);
+                $currentColumns = $result->fetchAll(PDO::FETCH_COLUMN);
                 
                 if (empty($currentColumns)) {
-                    throw new \Exception("Table '{$tableName}' not found in current schema");
+                    throw new Exception("Table '{$tableName}' not found in current schema");
                 }
                 
                 // For data-only backups, we need to map values to current columns
@@ -986,7 +1093,7 @@ class SimpleBackupService
                     $parsedRows = $this->parseInsertValues($valuesSection);
                     
                     if (empty($parsedRows)) {
-                        throw new \Exception("Could not parse values from INSERT statement");
+                        throw new Exception("Could not parse values from INSERT statement");
                     }
                     
                     // Check value count vs column count
@@ -1001,7 +1108,7 @@ class SimpleBackupService
                             $fixes[] = "Table '{$tableName}': Remapped {$valueCount} values to {$columnCount} columns";
                             return ['statement' => $mappedStatement, 'fixes' => $fixes];
                         } else {
-                            throw new \Exception("Cannot map {$valueCount} values to {$columnCount} columns");
+                            throw new Exception("Cannot map {$valueCount} values to {$columnCount} columns");
                         }
                     } else {
                         // Just add column names for clarity
@@ -1017,7 +1124,7 @@ class SimpleBackupService
                     }
                 }
                 
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 // If we can't fix it, log the error
                 $fixes[] = "Table '{$tableName}': Schema mismatch - {$e->getMessage()}";
                 
@@ -1224,7 +1331,7 @@ class SimpleBackupService
         $archivePath = base_path($this->backupPath . '/archived/' . $filename);
         
         if (!file_exists($sourcePath)) {
-            throw new \Exception("Backup file not found: {$filename}");
+            throw new Exception("Backup file not found: {$filename}");
         }
         
         // Ensure archived directory exists
@@ -1235,7 +1342,7 @@ class SimpleBackupService
         
         // Move the backup file
         if (!rename($sourcePath, $archivePath)) {
-            throw new \Exception("Failed to archive backup file: {$filename}");
+            throw new Exception("Failed to archive backup file: {$filename}");
         }
         
         // Also move any associated schema check files
@@ -1266,17 +1373,17 @@ class SimpleBackupService
         $destinationPath = base_path($this->backupPath . '/' . $filename);
         
         if (!file_exists($archivePath)) {
-            throw new \Exception("Archived backup file not found: {$filename}");
+            throw new Exception("Archived backup file not found: {$filename}");
         }
         
         // Check if file already exists in main directory
         if (file_exists($destinationPath)) {
-            throw new \Exception("A backup with this name already exists in the main directory: {$filename}");
+            throw new Exception("A backup with this name already exists in the main directory: {$filename}");
         }
         
         // Move the backup file back
         if (!rename($archivePath, $destinationPath)) {
-            throw new \Exception("Failed to unarchive backup file: {$filename}");
+            throw new Exception("Failed to unarchive backup file: {$filename}");
         }
         
         // Also move any associated schema check files
@@ -1335,7 +1442,7 @@ class SimpleBackupService
                         $schemaData = json_decode(file_get_contents($activeCheckFile), true);
                         $schemaHasIssues = $schemaData['has_issues'] ?? false;
                         $schemaSummary = $schemaData['summary'] ?? '';
-                    } catch (\Exception $e) {
+                    } catch (Exception $e) {
                         // Ignore JSON parse errors
                     }
                 }
@@ -1362,24 +1469,24 @@ class SimpleBackupService
     {
         try {
             $config = config('database.connections.mysql');
-            $pdo = new \PDO(
+            $pdo = new PDO(
                 "mysql:host={$config['host']};port={$config['port']};dbname={$config['database']};charset={$config['charset']}",
                 $config['username'],
                 $config['password'],
-                [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
             );
 
             $stmt = $pdo->query("SHOW FULL TABLES WHERE Table_type = 'BASE TABLE'");
             $tables = [];
             
-            while ($row = $stmt->fetch(\PDO::FETCH_NUM)) {
+            while ($row = $stmt->fetch(PDO::FETCH_NUM)) {
                 $tables[] = $row[0];
             }
             
             error_log("Found " . count($tables) . " database tables for backup: " . implode(', ', array_slice($tables, 0, 10)) . (count($tables) > 10 ? '...' : ''));
             return $tables;
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             error_log("Could not fetch database tables: " . $e->getMessage());
             return [];
         }

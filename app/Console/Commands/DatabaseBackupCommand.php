@@ -2,13 +2,27 @@
 
 namespace App\Console\Commands;
 
+use Exception;
 use App\Services\SimpleBackupService;
 use Illuminate\Console\Command;
 
+/**
+ * Database backup command for agricultural data protection and disaster recovery.
+ * Provides comprehensive backup capabilities for agricultural database including
+ * crop records, orders, inventory data, and operational information critical
+ * for farm management continuity and data security.
+ *
+ * @business_domain Agricultural data protection and farm management continuity
+ * @backup_scope Data-only backups with schema restoration via migrations
+ * @recovery_strategy Supports listing, creation, and deletion of backup files
+ * @agricultural_context Protects critical farm data including crops, orders, inventory
+ * @service_integration Uses SimpleBackupService for backup operations
+ */
 class DatabaseBackupCommand extends Command
 {
     /**
-     * The name and signature of the console command.
+     * The name and signature of the console command for agricultural database backup.
+     * Supports backup creation, listing, deletion, and optional view inclusion.
      *
      * @var string
      */
@@ -19,7 +33,7 @@ class DatabaseBackupCommand extends Command
                             {--include-views : Include views in backup (excluded by default to avoid permission issues)}';
 
     /**
-     * The console command description.
+     * The console command description for agricultural database backup operations.
      *
      * @var string
      */
@@ -75,7 +89,7 @@ class DatabaseBackupCommand extends Command
                 $backupPath = base_path('database/backups/' . $filename);
                 $this->copyToCustomPath($backupPath, $customPath);
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error("Backup failed: {$e->getMessage()}");
         }
     }
@@ -116,7 +130,7 @@ class DatabaseBackupCommand extends Command
         try {
             $this->backupService->deleteBackup($filename);
             $this->info("Backup '{$filename}' deleted successfully.");
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error("Failed to delete backup '{$filename}': {$e->getMessage()}");
         }
     }
@@ -133,7 +147,7 @@ class DatabaseBackupCommand extends Command
             } else {
                 $this->warn("Could not copy backup to custom path: {$customPath}");
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->warn("Error copying to custom path: {$e->getMessage()}");
         }
     }

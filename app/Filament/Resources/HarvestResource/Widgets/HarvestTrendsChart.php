@@ -8,17 +8,45 @@ use Carbon\Carbon;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Support\Collection;
 
+/**
+ * Agricultural harvest trends analytics widget for production performance tracking.
+ *
+ * Provides comprehensive visualization of microgreens harvest trends across varieties
+ * and time periods. Displays top-performing varieties by total harvest weight or
+ * individual variety performance over 8-week periods to support agricultural
+ * production planning and variety optimization decisions.
+ *
+ * @filament_widget Chart widget for harvest performance analytics
+ * @business_domain Agricultural harvest tracking and variety performance analysis
+ * @analytics_context 8-week trends with variety-specific or comparative displays
+ * @harvest_metrics Weight-based performance tracking in grams for precision
+ * @production_planning Supports variety selection and capacity planning decisions
+ */
 class HarvestTrendsChart extends ChartWidget
 {
-    protected static ?string $heading = 'Harvest Trends by Variety';
+    /** @var string Widget heading for harvest trends display */
+    protected ?string $heading = 'Harvest Trends by Variety';
     
+    /** @var array Responsive column span configuration */
     protected int | string | array $columnSpan = [
         'default' => 'full',
         'lg' => 1,
     ];
     
+    /** @var string|null Current variety filter selection */
     public ?string $filter = 'all';
     
+    /**
+     * Generate variety filter options for harvest trend analysis.
+     *
+     * Creates filter dropdown with all varieties that have harvest records
+     * plus an "All Varieties" option for comparative analysis. Uses full
+     * variety names including common name and cultivar for clear identification.
+     *
+     * @return array|null Filter options with variety IDs and display names
+     * @business_context Only includes varieties with actual harvest data
+     * @display_format Uses full variety names for user-friendly selection
+     */
     protected function getFilters(): ?array
     {
         $varieties = MasterCultivar::with('masterSeedCatalog')
@@ -32,6 +60,19 @@ class HarvestTrendsChart extends ChartWidget
         return ['all' => 'All Varieties'] + $varieties;
     }
     
+    /**
+     * Generate comprehensive harvest trend data for agricultural analytics.
+     *
+     * Creates 8-week trend visualization showing either top 5 varieties by
+     * total harvest (comparative mode) or individual variety performance
+     * (focused mode). Processes harvest data with weekly aggregation for
+     * strategic production planning and variety optimization.
+     *
+     * @return array Chart.js compatible dataset with harvest trend data
+     * @business_logic Top 5 varieties by total weight for comparative analysis
+     * @agricultural_analytics 8-week weekly aggregation for trend identification
+     * @production_metrics Weight-based performance tracking in grams
+     */
     protected function getData(): array
     {
         $weeks = collect();
@@ -100,6 +141,18 @@ class HarvestTrendsChart extends ChartWidget
         ];
     }
     
+    /**
+     * Extract weekly harvest data for specific variety trend analysis.
+     *
+     * Aggregates harvest weights by week for individual variety performance
+     * tracking. Provides granular weekly data points for trend visualization
+     * and production pattern analysis in microgreens operations.
+     *
+     * @param int $varietyId Master cultivar ID for data extraction
+     * @param Collection $weeks Collection of week periods for aggregation
+     * @return array Weekly harvest totals in grams for chart plotting
+     * @aggregation_logic Sums total_weight_grams within each week period
+     */
     protected function getWeeklyDataForVariety(int $varietyId, Collection $weeks): array
     {
         return $weeks->map(function ($week) use ($varietyId) {
@@ -109,11 +162,27 @@ class HarvestTrendsChart extends ChartWidget
         })->toArray();
     }
     
+    /**
+     * Get chart type for harvest trends visualization.
+     *
+     * @return string Chart.js chart type identifier for line chart display
+     */
     protected function getType(): string
     {
         return 'line';
     }
     
+    /**
+     * Configure chart display options for harvest trends visualization.
+     *
+     * Sets up comprehensive chart configuration with legend positioning,
+     * axis labeling for agricultural context (weight in grams, week periods),
+     * and interaction modes optimized for trend analysis and comparison.
+     *
+     * @return array Chart.js configuration options for harvest analytics
+     * @agricultural_context Y-axis shows weight in grams, X-axis shows weeks
+     * @interaction_features Index mode for multi-variety comparison support
+     */
     protected function getOptions(): array
     {
         return [

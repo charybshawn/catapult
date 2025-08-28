@@ -2,34 +2,41 @@
 
 namespace App\Filament\Resources\RecipeResource\Pages;
 
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Section;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Schemas\Components\Grid;
+use Filament\Infolists\Components\IconEntry;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Actions\EditAction;
 use App\Filament\Resources\RecipeResource;
 use App\Models\Recipe;
 use App\Models\Consumable;
 use Filament\Actions;
 use Filament\Infolists;
-use Filament\Infolists\Infolist;
 use Filament\Resources\Pages\ViewRecord;
 
 class ViewRecipe extends ViewRecord
 {
     protected static string $resource = RecipeResource::class;
     
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
         return $infolist
             ->schema([
-                Infolists\Components\Section::make('Recipe Information')
+                Section::make('Recipe Information')
                     ->schema([
-                        Infolists\Components\TextEntry::make('name')
+                        TextEntry::make('name')
                             ->label('Recipe Name'),
                             
-                        Infolists\Components\Grid::make()
+                        Grid::make()
                             ->schema([
-                                Infolists\Components\TextEntry::make('seedConsumable.name')
+                                TextEntry::make('seedConsumable.name')
                                     ->label('Seed')
                                     ->default('Not specified'),
                                 
-                                Infolists\Components\TextEntry::make('seedConsumable.details')
+                                TextEntry::make('seedConsumable.details')
                                     ->label('Seed Details')
                                     ->state(function ($record) {
                                         if ($record->seedConsumable) {
@@ -46,13 +53,13 @@ class ViewRecipe extends ViewRecord
                             ])
                             ->columns(1),
                             
-                        Infolists\Components\Grid::make()
+                        Grid::make()
                             ->schema([
-                                Infolists\Components\TextEntry::make('soilConsumable.name')
+                                TextEntry::make('soilConsumable.name')
                                     ->label('Soil')
                                     ->default('Not specified'),
                                 
-                                Infolists\Components\TextEntry::make('soilConsumable.details')
+                                TextEntry::make('soilConsumable.details')
                                     ->label('Soil Details')
                                     ->state(function ($record) {
                                         if ($record->soilConsumable) {
@@ -69,39 +76,39 @@ class ViewRecipe extends ViewRecord
                             ])
                             ->columns(1),
                             
-                        Infolists\Components\IconEntry::make('is_active')
+                        IconEntry::make('is_active')
                             ->label('Active')
                             ->boolean(),
                     ])
                     ->columns(2),
                     
-                Infolists\Components\Section::make('Growth Parameters')
+                Section::make('Growth Parameters')
                     ->schema([
-                        Infolists\Components\Grid::make(3)
+                        Grid::make(3)
                             ->schema([
-                                Infolists\Components\TextEntry::make('seed_soak_hours')
+                                TextEntry::make('seed_soak_hours')
                                     ->label('Seed Soak')
                                     ->formatStateUsing(fn ($state) => $state . ' hours'),
                                 
-                                Infolists\Components\TextEntry::make('germination_days')
+                                TextEntry::make('germination_days')
                                     ->label('Germination'),
                                     
-                                Infolists\Components\TextEntry::make('blackout_days')
+                                TextEntry::make('blackout_days')
                                     ->label('Blackout'),
                                     
-                                Infolists\Components\TextEntry::make('light_days')
+                                TextEntry::make('light_days')
                                     ->label('Light'),
                             ]),
                         
-                        Infolists\Components\Grid::make(2)
+                        Grid::make(2)
                             ->schema([
-                                Infolists\Components\TextEntry::make('totalDays')
+                                TextEntry::make('totalDays')
                                     ->label('Total Days')
                                     ->state(function (Recipe $record): int {
                                         return $record->totalDays();
                                     }),
                                 
-                                Infolists\Components\TextEntry::make('effectivelyTotalDays')
+                                TextEntry::make('effectivelyTotalDays')
                                     ->label('Days to Harvest')
                                     ->state(function (Recipe $record): float {
                                         return $record->effectiveTotalDays();
@@ -109,55 +116,55 @@ class ViewRecipe extends ViewRecord
                                     ->numeric(1),
                             ]),
                         
-                        Infolists\Components\Grid::make(2)
+                        Grid::make(2)
                             ->schema([
-                                Infolists\Components\TextEntry::make('seed_density_grams_per_tray')
+                                TextEntry::make('seed_density_grams_per_tray')
                                     ->label('Seed Density')
                                     ->suffix(' g/tray')
                                     ->numeric(1),
                                 
-                                Infolists\Components\TextEntry::make('expected_yield_grams')
+                                TextEntry::make('expected_yield_grams')
                                     ->label('Expected Yield')
                                     ->suffix(' g/tray')
                                     ->numeric(0),
                             ]),
                     ]),
                     
-                Infolists\Components\Section::make('Growth Phase Details')
+                Section::make('Growth Phase Details')
                     ->schema([
-                        Infolists\Components\Tabs::make('Growth Phases')
+                        Tabs::make('Growth Phases')
                             ->tabs([
-                                Infolists\Components\Tabs\Tab::make('Planting')
+                                Tab::make('Planting')
                                     ->schema([
-                                        Infolists\Components\TextEntry::make('planting_notes')
+                                        TextEntry::make('planting_notes')
                                             ->label('')
                                             ->columnSpanFull(),
                                     ]),
                                 
-                                Infolists\Components\Tabs\Tab::make('Germination')
+                                Tab::make('Germination')
                                     ->schema([
-                                        Infolists\Components\TextEntry::make('germination_notes')
+                                        TextEntry::make('germination_notes')
                                             ->label('')
                                             ->columnSpanFull(),
                                     ]),
                                 
-                                Infolists\Components\Tabs\Tab::make('Blackout')
+                                Tab::make('Blackout')
                                     ->schema([
-                                        Infolists\Components\TextEntry::make('blackout_notes')
+                                        TextEntry::make('blackout_notes')
                                             ->label('')
                                             ->columnSpanFull(),
                                     ]),
                                 
-                                Infolists\Components\Tabs\Tab::make('Light')
+                                Tab::make('Light')
                                     ->schema([
-                                        Infolists\Components\TextEntry::make('light_notes')
+                                        TextEntry::make('light_notes')
                                             ->label('')
                                             ->columnSpanFull(),
                                     ]),
                                 
-                                Infolists\Components\Tabs\Tab::make('Harvesting')
+                                Tab::make('Harvesting')
                                     ->schema([
-                                        Infolists\Components\TextEntry::make('harvesting_notes')
+                                        TextEntry::make('harvesting_notes')
                                             ->label('')
                                             ->columnSpanFull(),
                                     ]),
@@ -165,14 +172,14 @@ class ViewRecipe extends ViewRecord
                     ])
                     ->collapsible(),
                     
-                Infolists\Components\Section::make('Watering Schedule')
+                Section::make('Watering Schedule')
                     ->schema([
-                        Infolists\Components\TextEntry::make('watering_instructions')
+                        TextEntry::make('watering_instructions')
                             ->label('Instructions')
                             ->state('The watering schedule shows day-by-day water amounts for each growth phase.')
                             ->columnSpanFull(),
                         
-                        Infolists\Components\TextEntry::make('wateringSchedule')
+                        TextEntry::make('wateringSchedule')
                             ->label('Watering Schedule')
                             ->formatStateUsing(function ($record) {
                                 if (!$record->wateringSchedule || $record->wateringSchedule->isEmpty()) {
@@ -203,7 +210,7 @@ class ViewRecipe extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\EditAction::make(),
+            EditAction::make(),
         ];
     }
 } 

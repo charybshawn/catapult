@@ -2,6 +2,9 @@
 
 namespace App\Filament\Resources\ConsumableResource\Pages;
 
+use Illuminate\Support\Facades\Log;
+use App\Models\MasterSeedCatalog;
+use App\Models\MasterCultivar;
 use App\Filament\Resources\ConsumableResource;
 use App\Filament\Pages\Base\BaseCreateRecord;
 
@@ -26,7 +29,7 @@ class CreateConsumable extends BaseCreateRecord
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         // Debug logging
-        \Illuminate\Support\Facades\Log::debug('CreateConsumable mutateFormDataBeforeCreate', [
+        Log::debug('CreateConsumable mutateFormDataBeforeCreate', [
             'name' => $data['name'] ?? 'NULL',
             'cultivar' => $data['cultivar'] ?? 'NULL',
             'master_seed_catalog_id' => $data['master_seed_catalog_id'] ?? 'NULL',
@@ -46,12 +49,12 @@ class CreateConsumable extends BaseCreateRecord
             
             // Generate name if missing for seed consumables
             if (empty($data['name']) && !empty($data['master_seed_catalog_id']) && !empty($data['cultivar'])) {
-                $masterCatalog = \App\Models\MasterSeedCatalog::find($data['master_seed_catalog_id']);
+                $masterCatalog = MasterSeedCatalog::find($data['master_seed_catalog_id']);
                 if ($masterCatalog) {
                     $generatedName = $masterCatalog->common_name . ' (' . $data['cultivar'] . ')';
                     $data['name'] = $generatedName;
                     
-                    \Illuminate\Support\Facades\Log::debug('Generated name for seed consumable', [
+                    Log::debug('Generated name for seed consumable', [
                         'generated_name' => $generatedName,
                         'common_name' => $masterCatalog->common_name,
                         'cultivar' => $data['cultivar']
@@ -59,7 +62,7 @@ class CreateConsumable extends BaseCreateRecord
                     
                     // Also set master_cultivar_id if missing
                     if (empty($data['master_cultivar_id'])) {
-                        $masterCultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $data['master_seed_catalog_id'])
+                        $masterCultivar = MasterCultivar::where('master_seed_catalog_id', $data['master_seed_catalog_id'])
                             ->where('cultivar_name', $data['cultivar'])
                             ->first();
                         if ($masterCultivar) {

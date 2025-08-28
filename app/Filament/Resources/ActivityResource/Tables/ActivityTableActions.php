@@ -2,6 +2,13 @@
 
 namespace App\Filament\Resources\ActivityResource\Tables;
 
+use Filament\Actions\ViewAction;
+use Filament\Actions\Action;
+use App\Filament\Resources\ActivityResource;
+use Filament\Actions\BulkAction;
+use App\Actions\Activity\ExportActivityLogsAction;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\BulkActionGroup;
 use Filament\Tables;
 
 class ActivityTableActions
@@ -9,46 +16,46 @@ class ActivityTableActions
     /**
      * Get view action for activity records
      */
-    public static function getViewAction(): Tables\Actions\ViewAction
+    public static function getViewAction(): ViewAction
     {
-        return Tables\Actions\ViewAction::make()
+        return ViewAction::make()
             ->tooltip('View activity details');
     }
 
     /**
      * Get statistics header action
      */
-    public static function getStatisticsAction(): Tables\Actions\Action
+    public static function getStatisticsAction(): Action
     {
-        return Tables\Actions\Action::make('stats')
+        return Action::make('stats')
             ->label('View Statistics')
             ->icon('heroicon-o-chart-bar')
-            ->url(fn () => \App\Filament\Resources\ActivityResource::getUrl('stats'))
+            ->url(fn () => ActivityResource::getUrl('stats'))
             ->color('gray');
     }
 
     /**
      * Get timeline header action
      */
-    public static function getTimelineAction(): Tables\Actions\Action
+    public static function getTimelineAction(): Action
     {
-        return Tables\Actions\Action::make('timeline')
+        return Action::make('timeline')
             ->label('Timeline View')
             ->icon('heroicon-o-clock')
-            ->url(fn () => \App\Filament\Resources\ActivityResource::getUrl('timeline'))
+            ->url(fn () => ActivityResource::getUrl('timeline'))
             ->color('gray');
     }
 
     /**
      * Get export bulk action
      */
-    public static function getExportBulkAction(): Tables\Actions\BulkAction
+    public static function getExportBulkAction(): BulkAction
     {
-        return Tables\Actions\BulkAction::make('export')
+        return BulkAction::make('export')
             ->label('Export Selected')
             ->icon('heroicon-o-arrow-down-tray')
             ->action(function ($records) {
-                return app(\App\Actions\Activity\ExportActivityLogsAction::class)->execute($records);
+                return app(ExportActivityLogsAction::class)->execute($records);
             })
             ->deselectRecordsAfterCompletion();
     }
@@ -56,9 +63,9 @@ class ActivityTableActions
     /**
      * Get action group for table row actions
      */
-    public static function getActionGroup(): Tables\Actions\ActionGroup
+    public static function getActionGroup(): ActionGroup
     {
-        return Tables\Actions\ActionGroup::make([
+        return ActionGroup::make([
             static::getViewAction(),
         ])
         ->label('Actions')
@@ -71,9 +78,9 @@ class ActivityTableActions
     /**
      * Get bulk action group
      */
-    public static function getBulkActionGroup(): Tables\Actions\BulkActionGroup
+    public static function getBulkActionGroup(): BulkActionGroup
     {
-        return Tables\Actions\BulkActionGroup::make([
+        return BulkActionGroup::make([
             static::getExportBulkAction(),
         ]);
     }

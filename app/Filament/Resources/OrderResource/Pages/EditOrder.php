@@ -2,6 +2,10 @@
 
 namespace App\Filament\Resources\OrderResource\Pages;
 
+use Filament\Actions\DeleteAction;
+use App\Models\OrderStatus;
+use App\Actions\Order\HandleOrderItemUpdatesAction;
+use App\Actions\Order\HandleOrderStatusTransitionAction;
 use App\Filament\Resources\OrderResource;
 use App\Filament\Pages\Base\BaseEditRecord;
 use Filament\Actions;
@@ -14,7 +18,7 @@ class EditOrder extends BaseEditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            DeleteAction::make(),
         ];
     }
     
@@ -51,7 +55,7 @@ class EditOrder extends BaseEditRecord
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
         // Check if status is changing
-        $oldStatus = $record->status_id ? \App\Models\OrderStatus::find($record->status_id) : null;
+        $oldStatus = $record->status_id ? OrderStatus::find($record->status_id) : null;
         
         // Update the order record
         $order = parent::handleRecordUpdate($record, $data);
@@ -79,14 +83,14 @@ class EditOrder extends BaseEditRecord
         
         // Handle order item changes (crop plan updates)
         if (isset($this->orderItems)) {
-            app(\App\Actions\Order\HandleOrderItemUpdatesAction::class)->execute($order, $this);
+            app(HandleOrderItemUpdatesAction::class)->execute($order, $this);
         }
         
         // Handle status transition if status changed
         if ($order->wasChanged('status_id')) {
-            $newStatus = \App\Models\OrderStatus::find($order->status_id);
+            $newStatus = OrderStatus::find($order->status_id);
             if ($newStatus) {
-                app(\App\Actions\Order\HandleOrderStatusTransitionAction::class)
+                app(HandleOrderStatusTransitionAction::class)
                     ->execute($order, $oldStatus, $newStatus, $this);
             }
         }

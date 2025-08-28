@@ -2,6 +2,13 @@
 
 namespace App\Filament\Resources\Consumables\Components;
 
+use App\Filament\Resources\BaseResource;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Grouping\Group;
+use Filament\Actions\Action;
+use Filament\Tables\Columns\Column;
+use Filament\Tables\Filters\BaseFilter;
 use App\Filament\Traits\CsvExportAction;
 use App\Filament\Traits\HasActiveStatus;
 use App\Filament\Traits\HasInventoryStatus;
@@ -49,15 +56,15 @@ trait ConsumableTableComponents
      * including name, type, supplier, lot number, stock calculations, and status indicators.
      * Implements dynamic color coding based on consumable type and inventory levels.
      *
-     * @return array<\Filament\Tables\Columns\Column> Array of configured table columns
+     * @return array<Column> Array of configured table columns
      */
     public static function getCommonTableColumns(): array
     {
         return [
-            \App\Filament\Resources\BaseResource::getNameColumn('Name')
+            BaseResource::getNameColumn('Name')
                 ->url(fn (Consumable $record): string => static::getUrl('edit', ['record' => $record]))
                 ->color('primary'),
-            Tables\Columns\TextColumn::make('consumableType.name')
+            TextColumn::make('consumableType.name')
                 ->label('Type')
                 ->badge()
                 // Color-coded badges for different consumable types
@@ -76,17 +83,17 @@ trait ConsumableTableComponents
                     };
                 })
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('supplier.name')
+            TextColumn::make('supplier.name')
                 ->label('Supplier')
                 ->searchable()
                 ->sortable()
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('lot_no')
+            TextColumn::make('lot_no')
                 ->label('Lot/Batch#')
                 ->searchable()
                 ->sortable()
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('current_stock')
+            TextColumn::make('current_stock')
                 ->label('Available Quantity')
                 // Calculate remaining stock: initial purchase minus consumed amount
                 ->getStateUsing(fn ($record) => $record ? max(0, $record->initial_stock - $record->consumed_quantity) : 0)
@@ -126,13 +133,13 @@ trait ConsumableTableComponents
      * These columns use different calculation methods than standard consumables
      * due to seeds being measured in weight units rather than discrete quantities.
      *
-     * @return array<\Filament\Tables\Columns\Column> Array of seed-specific table columns
+     * @return array<Column> Array of seed-specific table columns
      */
     public static function getSeedSpecificColumns(): array
     {
         return [
 
-            Tables\Columns\TextColumn::make('remaining_seed')
+            TextColumn::make('remaining_seed')
                 ->label('Remaining Seed')
                 ->getStateUsing(function ($record) {
                     if (! $record || ! $record->consumableType || ! $record->consumableType->isSeed()) {
@@ -156,7 +163,7 @@ trait ConsumableTableComponents
                 )
                 ->size('sm')
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('percentage_remaining')
+            TextColumn::make('percentage_remaining')
                 ->label('% Remaining')
                 ->getStateUsing(function ($record) {
                     if (! $record || ! $record->consumableType || ! $record->consumableType->isSeed()) {
@@ -212,12 +219,12 @@ trait ConsumableTableComponents
      * capacity information and volume measurements specific to containers,
      * trays, and other packaging materials.
      *
-     * @return array<\Filament\Tables\Columns\Column> Array of packaging-specific table columns
+     * @return array<Column> Array of packaging-specific table columns
      */
     public static function getPackagingSpecificColumns(): array
     {
         return [
-            Tables\Columns\TextColumn::make('packagingType.capacity_volume')
+            TextColumn::make('packagingType.capacity_volume')
                 ->label('Capacity')
                 ->getStateUsing(function ($record) {
                     if ($record->packagingType) {
@@ -237,7 +244,7 @@ trait ConsumableTableComponents
      * Provides standard filtering options that apply to all consumable types,
      * including inventory status filters and active/inactive status toggles.
      *
-     * @return array<\Filament\Tables\Filters\BaseFilter> Array of common table filters
+     * @return array<BaseFilter> Array of common table filters
      */
     public static function getCommonFilters(): array
     {
@@ -254,36 +261,36 @@ trait ConsumableTableComponents
      * These filters allow users to quickly view specific categories of consumables
      * and can be combined with other filters for refined searches.
      *
-     * @return array<\Filament\Tables\Filters\Filter> Array of type-based toggle filters
+     * @return array<Filter> Array of type-based toggle filters
      */
     public static function getTypeFilterToggles(): array
     {
         return [
-            Tables\Filters\Filter::make('seeds')
+            Filter::make('seeds')
                 ->label('Seeds')
                 ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'seed')))
                 ->toggle()
                 ->indicateUsing(fn (array $data) => ($data['seeds'] ?? false) ? 'Seeds' : null),
 
-            Tables\Filters\Filter::make('soil')
+            Filter::make('soil')
                 ->label('Soil & Growing Media')
                 ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'soil')))
                 ->toggle()
                 ->indicateUsing(fn (array $data) => ($data['soil'] ?? false) ? 'Soil & Growing Media' : null),
 
-            Tables\Filters\Filter::make('packaging')
+            Filter::make('packaging')
                 ->label('Packaging')
                 ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'packaging')))
                 ->toggle()
                 ->indicateUsing(fn (array $data) => ($data['packaging'] ?? false) ? 'Packaging' : null),
 
-            Tables\Filters\Filter::make('labels')
+            Filter::make('labels')
                 ->label('Labels')
                 ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'label')))
                 ->toggle()
                 ->indicateUsing(fn (array $data) => ($data['labels'] ?? false) ? 'Labels' : null),
 
-            Tables\Filters\Filter::make('other')
+            Filter::make('other')
                 ->label('Other')
                 ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'other')))
                 ->toggle()
@@ -298,18 +305,18 @@ trait ConsumableTableComponents
      * by name, type, or supplier. All groups are collapsible to improve
      * table readability when dealing with large datasets.
      *
-     * @return array<\Filament\Tables\Grouping\Group> Array of table grouping options
+     * @return array<Group> Array of table grouping options
      */
     public static function getCommonGroups(): array
     {
         return [
-            Tables\Grouping\Group::make('name')
+            Group::make('name')
                 ->label('Name')
                 ->collapsible(),
-            Tables\Grouping\Group::make('consumableType.name')
+            Group::make('consumableType.name')
                 ->label('Type')
                 ->collapsible(),
-            Tables\Grouping\Group::make('supplier.name')
+            Group::make('supplier.name')
                 ->label('Supplier')
                 ->collapsible(),
         ];
@@ -322,14 +329,14 @@ trait ConsumableTableComponents
      * from HasStandardActions trait and sets up the column toggle trigger
      * with consistent styling and labeling.
      *
-     * @param  \Filament\Tables\Table  $table  The table instance to configure
-     * @return \Filament\Tables\Table  The configured table instance
+     * @param Table $table The table instance to configure
+     * @return Table The configured table instance
      */
     public static function configureCommonTable(Table $table): Table
     {
         return static::configureTableDefaults($table)
             ->toggleColumnsTriggerAction(
-                fn (Tables\Actions\Action $action) => $action
+                fn (Action $action) => $action
                     ->button()
                     ->label('Columns')
                     ->icon('heroicon-m-view-columns')

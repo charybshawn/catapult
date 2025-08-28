@@ -5,11 +5,67 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Builder;
 
+/**
+ * Payment Status Management for Agricultural Business Financial Workflows
+ *
+ * Represents different payment processing states in the microgreens agricultural
+ * business, controlling payment workflow progression and business rule enforcement.
+ * Essential for financial operations, cash flow management, and agricultural
+ * production timing based on payment confirmation.
+ *
+ * @property int $id Primary key identifier
+ * @property string $code Unique system code for status identification
+ * @property string $name Human-readable status name for display
+ * @property string|null $description Detailed status explanation and workflow rules
+ * @property string|null $color Display color for status visualization
+ * @property bool $is_active Whether status is available for use
+ * @property int|null $sort_order Status progression order
+ * @property bool $is_final Whether status represents completed payment workflow
+ * @property bool $allows_modifications Whether payments can be modified in this status
+ *
+ * @relationship payments HasMany Payments currently in this status
+ *
+ * @business_rule Final statuses prevent further payment modifications
+ * @business_rule Status transitions validated against agricultural business rules
+ * @business_rule Modification permissions control payment workflow flexibility
+ * @business_rule Active status controls availability in payment processing
+ *
+ * @agricultural_context Payment statuses drive agricultural production workflows:
+ * - pending: Payment processing in progress, agricultural production on hold
+ * - completed: Payment confirmed, agricultural production authorized to proceed
+ * - failed: Payment failed, agricultural production suspended pending resolution
+ * - refunded: Payment reversed, agricultural production cancelled or completed
+ *
+ * Payment status directly impacts agricultural resource allocation, cultivation
+ * scheduling, and customer delivery timing for optimal business operations.
+ *
+ * @usage_example
+ * // Check if payment enables agricultural production
+ * if ($payment->paymentStatus->isCompleted()) {
+ *     // Proceed with agricultural production planning
+ * }
+ *
+ * // Handle payment workflow progression
+ * $nextStatus = $paymentStatus->getNextStatus();
+ * if ($nextStatus && $payment->canBeModified()) {
+ *     // Update payment status
+ * }
+ *
+ * @package App\Models
+ * @author Catapult Development Team
+ * @version 1.0.0
+ */
 class PaymentStatus extends Model
 {
     use HasFactory;
 
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
     protected $fillable = [
         'code',
         'name',
@@ -21,6 +77,11 @@ class PaymentStatus extends Model
         'allows_modifications',
     ];
 
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
     protected $casts = [
         'is_active' => 'boolean',
         'is_final' => 'boolean',
@@ -28,7 +89,13 @@ class PaymentStatus extends Model
     ];
 
     /**
-     * Get payments with this status
+     * Get payments currently in this status.
+     *
+     * Relationship to all payments using this status for agricultural
+     * business financial tracking and workflow management. Essential
+     * for payment status analysis and workflow progression monitoring.
+     *
+     * @return HasMany<Payment> Payments in this status
      */
     public function payments(): HasMany
     {
@@ -73,7 +140,13 @@ class PaymentStatus extends Model
     }
 
     /**
-     * Check if this is a completed payment status
+     * Check if status represents successful payment completion.
+     *
+     * Determines if payment has been successfully processed and confirmed,
+     * enabling agricultural production to proceed with resource allocation
+     * and cultivation scheduling for microgreens orders.
+     *
+     * @return bool True if status is completed
      */
     public function isCompleted(): bool
     {
@@ -105,7 +178,13 @@ class PaymentStatus extends Model
     }
 
     /**
-     * Check if payment needs attention (failed or pending for too long)
+     * Check if payment status requires administrative attention.
+     *
+     * Determines if payment is in failed or pending state requiring
+     * intervention to resolve issues and enable agricultural production
+     * to proceed with customer orders.
+     *
+     * @return bool True if status needs attention
      */
     public function needsAttention(): bool
     {
@@ -129,7 +208,13 @@ class PaymentStatus extends Model
     }
 
     /**
-     * Get the next logical status for workflow progression
+     * Get the next logical status for agricultural payment workflow.
+     *
+     * Returns appropriate next status based on current payment state
+     * and agricultural business workflow rules. Used for automated
+     * payment processing and workflow progression.
+     *
+     * @return self|null Next appropriate payment status or null if final
      */
     public function getNextStatus(): ?self
     {

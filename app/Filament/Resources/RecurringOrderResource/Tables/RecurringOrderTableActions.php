@@ -2,6 +2,14 @@
 
 namespace App\Filament\Resources\RecurringOrderResource\Tables;
 
+use Filament\Actions\ActionGroup;
+use Filament\Actions\ViewAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\Action;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\BulkAction;
 use App\Actions\RecurringOrder\BulkGenerateOrdersAction;
 use App\Actions\RecurringOrder\GenerateRecurringOrdersAction;
 use App\Models\Order;
@@ -23,15 +31,15 @@ class RecurringOrderTableActions
     public static function actions(): array
     {
         return [
-            Tables\Actions\ActionGroup::make([
-                Tables\Actions\ViewAction::make()
+            ActionGroup::make([
+                ViewAction::make()
                     ->tooltip('View recurring order template'),
-                Tables\Actions\EditAction::make()
+                EditAction::make()
                     ->tooltip('Edit recurring order template'),
                 static::getGenerateNextAction(),
                 static::getPauseAction(),
                 static::getResumeAction(),
-                Tables\Actions\DeleteAction::make()
+                DeleteAction::make()
                     ->tooltip('Delete recurring order template'),
             ])
             ->label('Actions')
@@ -45,9 +53,9 @@ class RecurringOrderTableActions
     /**
      * Generate next order action
      */
-    protected static function getGenerateNextAction(): Tables\Actions\Action
+    protected static function getGenerateNextAction(): Action
     {
-        return Tables\Actions\Action::make('generate_next')
+        return Action::make('generate_next')
             ->label('Generate Orders')
             ->icon('heroicon-o-plus-circle')
             ->color('primary')
@@ -76,9 +84,9 @@ class RecurringOrderTableActions
     /**
      * Pause recurring order action
      */
-    protected static function getPauseAction(): Tables\Actions\Action
+    protected static function getPauseAction(): Action
     {
-        return Tables\Actions\Action::make('pause')
+        return Action::make('pause')
             ->label('Pause')
             ->icon('heroicon-o-pause')
             ->color('warning')
@@ -90,9 +98,9 @@ class RecurringOrderTableActions
     /**
      * Resume recurring order action
      */
-    protected static function getResumeAction(): Tables\Actions\Action
+    protected static function getResumeAction(): Action
     {
-        return Tables\Actions\Action::make('resume')
+        return Action::make('resume')
             ->label('Resume')
             ->icon('heroicon-o-play')
             ->color('success')
@@ -113,9 +121,9 @@ class RecurringOrderTableActions
     /**
      * Generate all due orders action
      */
-    protected static function getGenerateAllDueAction(): Tables\Actions\Action
+    protected static function getGenerateAllDueAction(): Action
     {
-        return Tables\Actions\Action::make('generate_all_due')
+        return Action::make('generate_all_due')
             ->label('Generate All Due Orders')
             ->icon('heroicon-o-plus-circle')
             ->color('primary')
@@ -141,8 +149,8 @@ class RecurringOrderTableActions
     public static function bulkActions(): array
     {
         return [
-            Tables\Actions\BulkActionGroup::make([
-                Tables\Actions\DeleteBulkAction::make(),
+            BulkActionGroup::make([
+                DeleteBulkAction::make(),
                 static::getGenerateSelectedAction(),
                 static::getPauseAllAction(),
                 static::getResumeAllAction(),
@@ -153,9 +161,9 @@ class RecurringOrderTableActions
     /**
      * Generate orders from selected templates
      */
-    protected static function getGenerateSelectedAction(): Tables\Actions\BulkAction
+    protected static function getGenerateSelectedAction(): BulkAction
     {
-        return Tables\Actions\BulkAction::make('generate_selected')
+        return BulkAction::make('generate_selected')
             ->label('Generate Orders from Selected')
             ->icon('heroicon-o-plus-circle')
             ->color('primary')
@@ -176,9 +184,9 @@ class RecurringOrderTableActions
     /**
      * Pause all selected templates
      */
-    protected static function getPauseAllAction(): Tables\Actions\BulkAction
+    protected static function getPauseAllAction(): BulkAction
     {
-        return Tables\Actions\BulkAction::make('pause_all')
+        return BulkAction::make('pause_all')
             ->label('Pause All')
             ->icon('heroicon-o-pause')
             ->color('warning')
@@ -190,9 +198,9 @@ class RecurringOrderTableActions
     /**
      * Resume all selected templates
      */
-    protected static function getResumeAllAction(): Tables\Actions\BulkAction
+    protected static function getResumeAllAction(): BulkAction
     {
-        return Tables\Actions\BulkAction::make('resume_all')
+        return BulkAction::make('resume_all')
             ->label('Resume All')
             ->icon('heroicon-o-play')
             ->color('success')

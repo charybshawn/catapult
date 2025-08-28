@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Exception;
 use App\Models\Recipe;
 use App\Models\User;
 use App\Notifications\ResourceActionRequired;
@@ -9,24 +10,46 @@ use App\Services\InventoryManagementService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Lot depletion monitoring command for agricultural inventory management.
+ * Monitors seed lot inventory levels, identifies depleted or low-stock conditions,
+ * and provides automated notifications to ensure continuous microgreens production
+ * without interruption due to insufficient raw materials.
+ *
+ * @business_domain Agricultural inventory management and seed lot monitoring
+ * @monitoring_scope Seed lot depletion, low stock alerts, automatic status updates
+ * @scheduling_context Runs daily at 7 AM and every 4 hours for continuous monitoring
+ * @notification_system Automated alerts to farm managers and inventory personnel
+ * @production_impact Prevents production delays by proactive inventory monitoring
+ */
 class CheckLotDepletion extends Command
 {
     /**
-     * The name and signature of the console command.
+     * The name and signature of the console command for lot depletion monitoring.
+     * Supports notification sending and automatic depletion marking options.
      *
      * @var string
      */
     protected $signature = 'app:check-lot-depletion {--notify : Send notifications about depleted lots} {--auto-mark : Automatically mark depleted lots}';
 
     /**
-     * The console command description.
+     * The console command description for agricultural lot depletion monitoring.
      *
      * @var string
      */
     protected $description = 'Check all active recipes for lot depletion and send notifications';
 
     /**
-     * Execute the console command.
+     * Execute comprehensive lot depletion monitoring for agricultural inventory.
+     * Analyzes seed lot levels, identifies depletion conditions, sends notifications,
+     * and optionally marks depleted lots to maintain continuous production capacity.
+     *
+     * @param InventoryManagementService $depletionService Service for inventory and depletion management
+     * @agricultural_monitoring Comprehensive seed lot status analysis and reporting
+     * @notification_logic Conditional notification sending based on depletion and low stock conditions
+     * @automatic_marking Optional automatic status updates for depleted lots
+     * @production_continuity Ensures uninterrupted microgreens production through proactive monitoring
+     * @return int Command exit status
      */
     public function handle(InventoryManagementService $depletionService)
     {
@@ -94,7 +117,7 @@ class CheckLotDepletion extends Command
             
             $this->info('Lot depletion check completed successfully.');
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error("Error during lot depletion check: {$e->getMessage()}");
             Log::error('Lot depletion check failed', [
                 'error' => $e->getMessage(),

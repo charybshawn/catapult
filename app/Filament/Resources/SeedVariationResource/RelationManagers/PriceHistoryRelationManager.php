@@ -2,8 +2,19 @@
 
 namespace App\Filament\Resources\SeedVariationResource\RelationManagers;
 
+use Filament\Schemas\Schema;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Actions\CreateAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
 use Filament\Forms;
-use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -14,16 +25,16 @@ class PriceHistoryRelationManager extends RelationManager
 {
     protected static string $relationship = 'priceHistory';
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\TextInput::make('price')
+        return $schema
+            ->components([
+                TextInput::make('price')
                     ->required()
                     ->numeric()
                     ->prefix('$')
                     ->columnSpan(1),
-                Forms\Components\Select::make('currency')
+                Select::make('currency')
                     ->options([
                         'USD' => 'USD',
                         'CAD' => 'CAD',
@@ -33,11 +44,11 @@ class PriceHistoryRelationManager extends RelationManager
                     ->default('USD')
                     ->required()
                     ->columnSpan(1),
-                Forms\Components\Toggle::make('is_in_stock')
+                Toggle::make('is_in_stock')
                     ->required()
                     ->default(true)
                     ->columnSpan(1),
-                Forms\Components\DateTimePicker::make('scraped_at')
+                DateTimePicker::make('scraped_at')
                     ->required()
                     ->default(now())
                     ->columnSpan(1),
@@ -49,18 +60,18 @@ class PriceHistoryRelationManager extends RelationManager
         return $table
             ->recordTitleAttribute('price')
             ->columns([
-                Tables\Columns\TextColumn::make('price')
+                TextColumn::make('price')
                     ->money(fn ($record) => $record->currency)
                     ->sortable(),
-                Tables\Columns\TextColumn::make('currency')
+                TextColumn::make('currency')
                     ->sortable(),
-                Tables\Columns\IconColumn::make('is_in_stock')
+                IconColumn::make('is_in_stock')
                     ->boolean()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('scraped_at')
+                TextColumn::make('scraped_at')
                     ->dateTime()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -69,15 +80,15 @@ class PriceHistoryRelationManager extends RelationManager
                 //
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make(),
+                CreateAction::make(),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+            ->recordActions([
+                EditAction::make(),
+                DeleteAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ])
             ->defaultSort('scraped_at', 'desc');

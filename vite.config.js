@@ -14,10 +14,11 @@ export default defineConfig({
     ],
     server: {
         hmr: {
-            host: 'catapult.roguespy.co',
+            host: 'catapult-dev.test',
         },
         host: '0.0.0.0',
         port: 5173,
+        https: true,
     },
     build: {
         // Ensure assets are built with the correct base URL

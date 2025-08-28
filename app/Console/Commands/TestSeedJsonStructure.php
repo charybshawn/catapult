@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Exception;
 use App\Models\SeedScrapeUpload;
 use App\Services\SeedScrapeImporter;
 use Illuminate\Console\Command;
@@ -96,7 +97,7 @@ class TestSeedJsonStructure extends Command
             }
             
             return Command::SUCCESS;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error('Error analyzing file: ' . $e->getMessage());
             return Command::FAILURE;
         }
@@ -156,7 +157,7 @@ class TestSeedJsonStructure extends Command
             $this->info('Import simulation completed');
             $this->info('Status: ' . $upload->status);
             $this->info('Notes: ' . $upload->notes);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error('Import simulation failed: ' . $e->getMessage());
         }
     }

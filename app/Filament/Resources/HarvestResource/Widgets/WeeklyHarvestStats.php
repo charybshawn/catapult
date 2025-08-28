@@ -8,10 +8,38 @@ use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Carbon;
 
+/**
+ * Weekly harvest performance statistics widget for agricultural operations monitoring.
+ *
+ * Provides comprehensive weekly harvest analytics including total weight harvested,
+ * tray counts, average yields per tray, week-over-week performance comparison,
+ * and top variety breakdown. Uses agricultural week definition (Wednesday to Tuesday)
+ * for operational alignment with microgreens production cycles.
+ *
+ * @filament_widget Stats overview widget for weekly harvest performance
+ * @business_domain Agricultural harvest tracking and production analytics
+ * @operational_context Wednesday-Tuesday agricultural week alignment
+ * @performance_metrics Total weight, tray counts, averages, variety breakdown
+ * @dashboard_updates Real-time polling every 10 seconds for current awareness
+ */
 class WeeklyHarvestStats extends BaseWidget
 {
-    protected static ?string $pollingInterval = '10s';
+    /** @var string Polling interval for real-time harvest monitoring */
+    protected ?string $pollingInterval = '10s';
 
+    /**
+     * Generate comprehensive weekly harvest statistics for agricultural operations.
+     *
+     * Calculates and displays weekly harvest performance including total weight,
+     * tray counts, average yields, week-over-week comparisons, and top variety
+     * contributions. Uses agricultural week definition (Wed-Tue) and provides
+     * detailed variety breakdown for production optimization.
+     *
+     * @return array Filament Stat components with harvest analytics and trends
+     * @business_logic Agricultural week (Wed-Tue) for operational alignment
+     * @performance_analysis Week-over-week comparison and variety rankings
+     * @operational_metrics Total weight (kg), tray counts, yield averages
+     */
     protected function getStats(): array
     {
         $currentWeekStart = Carbon::now()->startOfWeek(Carbon::WEDNESDAY);
@@ -97,6 +125,17 @@ class WeeklyHarvestStats extends BaseWidget
         return $stats;
     }
 
+    /**
+     * Generate weekly harvest trend data for sparkline chart visualization.
+     *
+     * Creates 7-week harvest trend data converted to kilograms for consistent
+     * display. Supports trend analysis and performance pattern identification
+     * in agricultural harvest operations.
+     *
+     * @return array Weekly harvest totals in kilograms for chart display
+     * @chart_data 7 weeks of historical data for trend visualization
+     * @agricultural_context Uses Wed-Tue agricultural week definition
+     */
     protected function getWeeklyChart(): array
     {
         $data = [];

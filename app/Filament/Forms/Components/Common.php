@@ -2,26 +2,61 @@
 
 namespace App\Filament\Forms\Components;
 
+use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Select;
+use Filament\Schemas\Components\Group;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms;
 
+/**
+ * Common Form Components
+ * 
+ * Reusable Filament form component library optimized for agricultural
+ * business workflows. Provides standardized form patterns for agricultural
+ * entities including suppliers, products, inventory, and measurements.
+ * 
+ * @filament_support Reusable form component patterns
+ * @agricultural_use Standardized form components for agricultural business entities
+ * @consistency Ensures uniform UI patterns across agricultural resources
+ * @business_context Agricultural measurements, supplier relationships, pricing patterns
+ * 
+ * Key features:
+ * - Agricultural measurement fields (weight, quantity with units)
+ * - Supplier relationship management with inline creation
+ * - Price and currency handling for agricultural products
+ * - Contact information patterns for agricultural business entities
+ * - Standardized basic information sections
+ * 
+ * @package App\Filament\Forms\Components
+ * @author Shawn
+ * @since 2024
+ */
 class Common
 {
     /**
-     * Create a basic information section with name and active toggle
+     * Create a basic information section with name and active toggle.
+     * 
+     * @agricultural_context Standard pattern for agricultural entities (products, suppliers, customers)
+     * @return Section Form section with name, active toggle, and description fields
+     * @ui_pattern Consistent basic information layout across agricultural resources
      */
-    public static function basicInformationSection(): Forms\Components\Section
+    public static function basicInformationSection(): Section
     {
-        return Forms\Components\Section::make('Basic Information')
+        return Section::make('Basic Information')
             ->schema([
-                Forms\Components\TextInput::make('name')
+                TextInput::make('name')
                     ->required()
                     ->maxLength(255)
                     ->columnSpanFull(),
-                Forms\Components\Toggle::make('is_active')
+                Toggle::make('is_active')
                     ->label('Active')
                     ->default(true)
                     ->inline(false),
-                Forms\Components\Textarea::make('description')
+                Textarea::make('description')
                     ->rows(3)
                     ->columnSpanFull(),
             ])
@@ -29,11 +64,16 @@ class Common
     }
 
     /**
-     * Create a supplier selection field with inline creation form
+     * Create a supplier selection field with inline creation form.
+     * 
+     * @agricultural_context Supplier selection for seeds, soil, packaging, and other agricultural supplies
+     * @return Select Relationship select with inline supplier creation capability
+     * @supplier_types Supports seed, soil, packaging, and other agricultural supplier types
+     * @inline_creation Allows creating new suppliers without leaving current form
      */
-    public static function supplierSelect(): Forms\Components\Select
+    public static function supplierSelect(): Select
     {
-        return Forms\Components\Select::make('supplier_id')
+        return Select::make('supplier_id')
             ->label('Supplier')
             ->relationship('supplier', 'name')
             ->searchable()
@@ -41,10 +81,10 @@ class Common
             ->required()
             ->dehydrated()
             ->createOptionForm([
-                Forms\Components\TextInput::make('name')
+                TextInput::make('name')
                     ->required()
                     ->maxLength(255),
-                Forms\Components\Select::make('type')
+                Select::make('type')
                     ->options([
                         'seed' => 'Seed Supplier',
                         'soil' => 'Soil Supplier', 
@@ -52,10 +92,10 @@ class Common
                         'other' => 'Other',
                     ])
                     ->default('other'),
-                Forms\Components\Textarea::make('contact_info')
+                Textarea::make('contact_info')
                     ->label('Contact Information')
                     ->rows(3),
-                Forms\Components\Toggle::make('is_active')
+                Toggle::make('is_active')
                     ->label('Active')
                     ->default(true),
             ]);
@@ -64,9 +104,9 @@ class Common
     /**
      * Create a price input field with currency
      */
-    public static function priceInput(string $field = 'price', string $label = 'Price'): Forms\Components\TextInput
+    public static function priceInput(string $field = 'price', string $label = 'Price'): TextInput
     {
-        return Forms\Components\TextInput::make($field)
+        return TextInput::make($field)
             ->label($label)
             ->numeric()
             ->prefix('$')
@@ -78,9 +118,9 @@ class Common
     /**
      * Create a currency selection field
      */
-    public static function currencySelect(): Forms\Components\Select
+    public static function currencySelect(): Select
     {
-        return Forms\Components\Select::make('currency')
+        return Select::make('currency')
             ->options([
                 'USD' => 'USD',
                 'CAD' => 'CAD', 
@@ -94,22 +134,22 @@ class Common
     /**
      * Create a contact information section
      */
-    public static function contactInformationSection(): Forms\Components\Section
+    public static function contactInformationSection(): Section
     {
-        return Forms\Components\Section::make('Contact Information')
+        return Section::make('Contact Information')
             ->schema([
-                Forms\Components\TextInput::make('contact_name')
+                TextInput::make('contact_name')
                     ->label('Contact Name')
                     ->maxLength(255),
-                Forms\Components\TextInput::make('contact_email')
+                TextInput::make('contact_email')
                     ->label('Contact Email')
                     ->email()
                     ->maxLength(255),
-                Forms\Components\TextInput::make('contact_phone')
+                TextInput::make('contact_phone')
                     ->label('Contact Phone')
                     ->tel()
                     ->maxLength(255),
-                Forms\Components\Textarea::make('address')
+                Textarea::make('address')
                     ->label('Address')
                     ->rows(3)
                     ->columnSpanFull(),
@@ -118,21 +158,28 @@ class Common
     }
 
     /**
-     * Create a weight measurement field with unit selection
+     * Create a weight measurement field with unit selection.
+     * 
+     * @agricultural_context Weight measurements for seeds, harvest yields, packaging
+     * @param string $weightField Field name for weight value
+     * @param string $unitField Field name for weight unit
+     * @param string $label Display label for weight field group
+     * @return Group Grouped weight and unit fields with agricultural units (grams, kg, oz, lb)
+     * @units Supports grams, kilograms, ounces, pounds for agricultural measurements
      */
     public static function weightMeasurementField(
         string $weightField = 'weight',
         string $unitField = 'weight_unit',
         string $label = 'Weight'
-    ): Forms\Components\Group {
-        return Forms\Components\Group::make([
-            Forms\Components\TextInput::make($weightField)
+    ): Group {
+        return Group::make([
+            TextInput::make($weightField)
                 ->label($label)
                 ->numeric()
                 ->step(0.001)
                 ->minValue(0)
                 ->required(),
-            Forms\Components\Select::make($unitField)
+            Select::make($unitField)
                 ->label('Unit')
                 ->options([
                     'g' => 'Grams',
@@ -146,21 +193,28 @@ class Common
     }
 
     /**
-     * Create a quantity measurement field with unit selection
+     * Create a quantity measurement field with unit selection.
+     * 
+     * @agricultural_context Quantity measurements for consumables, soil, liquids, packaging
+     * @param string $quantityField Field name for quantity value
+     * @param string $unitField Field name for quantity unit
+     * @param string $label Display label for quantity field group
+     * @return Group Grouped quantity and unit fields with diverse agricultural units
+     * @units Supports weight, volume, and count units for agricultural inventory management
      */
     public static function quantityMeasurementField(
         string $quantityField = 'quantity',
         string $unitField = 'quantity_unit',
         string $label = 'Quantity'
-    ): Forms\Components\Group {
-        return Forms\Components\Group::make([
-            Forms\Components\TextInput::make($quantityField)
+    ): Group {
+        return Group::make([
+            TextInput::make($quantityField)
                 ->label($label)
                 ->numeric()
                 ->step(0.1)
                 ->minValue(0)
                 ->required(),
-            Forms\Components\Select::make($unitField)
+            Select::make($unitField)
                 ->label('Unit')
                 ->options([
                     'g' => 'Grams',
@@ -178,11 +232,15 @@ class Common
     }
 
     /**
-     * Create a customer type selection field
+     * Create a customer type selection field.
+     * 
+     * @agricultural_context Customer type selection for agricultural product pricing (retail vs wholesale)
+     * @return Select Customer type dropdown with retail/wholesale options
+     * @pricing_context Used for applying appropriate price variations to agricultural orders
      */
-    public static function customerTypeSelect(): Forms\Components\Select
+    public static function customerTypeSelect(): Select
     {
-        return Forms\Components\Select::make('customer_type')
+        return Select::make('customer_type')
             ->label('Customer Type')
             ->options([
                 'retail' => 'Retail',
@@ -195,9 +253,9 @@ class Common
     /**
      * Create an active toggle field
      */
-    public static function activeToggle(): Forms\Components\Toggle
+    public static function activeToggle(): Toggle
     {
-        return Forms\Components\Toggle::make('is_active')
+        return Toggle::make('is_active')
             ->label('Active')
             ->helperText('Toggle right for active, left for inactive')
             ->default(true)
@@ -207,9 +265,9 @@ class Common
     /**
      * Create a notes/description textarea
      */
-    public static function notesTextarea(string $field = 'notes', string $label = 'Notes'): Forms\Components\Textarea
+    public static function notesTextarea(string $field = 'notes', string $label = 'Notes'): Textarea
     {
-        return Forms\Components\Textarea::make($field)
+        return Textarea::make($field)
             ->label($label)
             ->rows(3)
             ->columnSpanFull();
@@ -225,8 +283,8 @@ class Common
         float $step = 1,
         ?string $suffix = null,
         ?string $prefix = null
-    ): Forms\Components\TextInput {
-        $input = Forms\Components\TextInput::make($field)
+    ): TextInput {
+        $input = TextInput::make($field)
             ->label($label)
             ->numeric()
             ->minValue($min)
@@ -246,9 +304,9 @@ class Common
     /**
      * Create a date field
      */
-    public static function dateField(string $field, string $label): Forms\Components\DatePicker
+    public static function dateField(string $field, string $label): DatePicker
     {
-        return Forms\Components\DatePicker::make($field)
+        return DatePicker::make($field)
             ->label($label)
             ->required();
     }
@@ -256,9 +314,9 @@ class Common
     /**
      * Create a datetime field
      */
-    public static function datetimeField(string $field, string $label): Forms\Components\DateTimePicker
+    public static function datetimeField(string $field, string $label): DateTimePicker
     {
-        return Forms\Components\DateTimePicker::make($field)
+        return DateTimePicker::make($field)
             ->label($label)
             ->required();
     }

@@ -2,6 +2,21 @@
 
 namespace App\Filament\Resources\OrderResource\Tables;
 
+use Filament\Tables\Table;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\SelectColumn;
+use Closure;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\Filter;
+use Filament\Forms\Components\DatePicker;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\ViewAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
 use App\Filament\Resources\OrderResource\Actions\OrderActions;
 use App\Models\Order;
 use App\Models\OrderStatus;
@@ -15,7 +30,7 @@ class OrderTable
     /**
      * Configure the table with all columns, filters, and actions
      */
-    public static function configure(Tables\Table $table): Tables\Table
+    public static function configure(Table $table): Table
     {
         return $table
             ->modifyQueryUsing(fn ($query) => $query->with(['customer.customerType', 'orderItems', 'invoice', 'orderType', 'status']))
@@ -26,8 +41,8 @@ class OrderTable
             ->columns(static::getColumns())
             ->defaultSort('created_at', 'desc')
             ->filters(static::getFilters())
-            ->actions(static::getActions())
-            ->bulkActions(static::getBulkActions());
+            ->recordActions(static::getActions())
+            ->toolbarActions(static::getBulkActions());
     }
 
     /**
@@ -52,16 +67,16 @@ class OrderTable
         ];
     }
 
-    protected static function getOrderIdColumn(): Tables\Columns\TextColumn
+    protected static function getOrderIdColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('id')
+        return TextColumn::make('id')
             ->label('Order ID')
             ->sortable();
     }
 
-    protected static function getCustomerColumn(): Tables\Columns\TextColumn
+    protected static function getCustomerColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('customer.contact_name')
+        return TextColumn::make('customer.contact_name')
             ->label('Customer')
             ->formatStateUsing(function ($state, Order $record) {
                 if (!$record->customer) {
@@ -84,9 +99,9 @@ class OrderTable
             });
     }
 
-    protected static function getOrderTypeColumn(): Tables\Columns\TextColumn
+    protected static function getOrderTypeColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('order_type_display')
+        return TextColumn::make('order_type_display')
             ->label('Type')
             ->badge()
             ->color(fn (Order $record): string => match ($record->orderType?->code) {
@@ -97,9 +112,9 @@ class OrderTable
             });
     }
 
-    protected static function getStatusSelectColumn(): Tables\Columns\SelectColumn
+    protected static function getStatusSelectColumn(): SelectColumn
     {
-        return Tables\Columns\SelectColumn::make('status_id')
+        return SelectColumn::make('status_id')
             ->label('Status')
             ->options(function () {
                 return OrderStatus::getOptionsForDropdown(false, false);
@@ -109,7 +124,7 @@ class OrderTable
                 $record instanceof Order && ($record->status?->code === 'template' || $record->status?->is_final)
             )
             ->rules([
-                fn ($record): \Closure => function (string $attribute, $value, \Closure $fail) use ($record) {
+                fn ($record): Closure => function (string $attribute, $value, Closure $fail) use ($record) {
                     if (!($record instanceof Order) || !$record->status) {
                         return;
                     }
@@ -157,9 +172,9 @@ class OrderTable
             });
     }
 
-    protected static function getStatusBadgeColumn(): Tables\Columns\TextColumn
+    protected static function getStatusBadgeColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('status.name')
+        return TextColumn::make('status.name')
             ->label('Status')
             ->badge()
             ->color(fn (Order $record): string => $record->status?->badge_color ?? 'gray')
@@ -169,9 +184,9 @@ class OrderTable
             ->visible(false); // Hidden by default, can be toggled
     }
 
-    protected static function getRequiresCropsColumn(): Tables\Columns\IconColumn
+    protected static function getRequiresCropsColumn(): IconColumn
     {
-        return Tables\Columns\IconColumn::make('requiresCrops')
+        return IconColumn::make('requiresCrops')
             ->label('Needs Growing')
             ->boolean()
             ->getStateUsing(fn (Order $record) => $record->requiresCropProduction())
@@ -182,9 +197,9 @@ class OrderTable
             ->tooltip(fn (Order $record) => $record->requiresCropProduction() ? 'This order requires crop production' : 'No crops needed');
     }
 
-    protected static function getPaymentStatusColumn(): Tables\Columns\TextColumn
+    protected static function getPaymentStatusColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('paymentStatus')
+        return TextColumn::make('paymentStatus')
             ->label('Payment')
             ->badge()
             ->getStateUsing(fn (Order $record) => $record->isPaid() ? 'Paid' : 'Unpaid')
@@ -200,9 +215,9 @@ class OrderTable
             });
     }
 
-    protected static function getDaysUntilDeliveryColumn(): Tables\Columns\TextColumn
+    protected static function getDaysUntilDeliveryColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('daysUntilDelivery')
+        return TextColumn::make('daysUntilDelivery')
             ->label('Delivery In')
             ->getStateUsing(function (Order $record) {
                 if (!$record->delivery_date) {
@@ -240,9 +255,9 @@ class OrderTable
             });
     }
 
-    protected static function getParentTemplateColumn(): Tables\Columns\TextColumn
+    protected static function getParentTemplateColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('parent_template')
+        return TextColumn::make('parent_template')
             ->label('Template')
             ->getStateUsing(fn (Order $record) => $record->parent_recurring_order_id ? "Template #{$record->parent_recurring_order_id}" : null)
             ->placeholder('Regular Order')
@@ -251,31 +266,31 @@ class OrderTable
             ->toggleable(isToggledHiddenByDefault: true);
     }
 
-    protected static function getTotalAmountColumn(): Tables\Columns\TextColumn
+    protected static function getTotalAmountColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('totalAmount')
+        return TextColumn::make('totalAmount')
             ->label('Total')
             ->money('USD')
             ->getStateUsing(fn (Order $record) => $record->totalAmount());
     }
 
-    protected static function getHarvestDateColumn(): Tables\Columns\TextColumn
+    protected static function getHarvestDateColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('harvest_date')
+        return TextColumn::make('harvest_date')
             ->dateTime()
             ->sortable();
     }
 
-    protected static function getDeliveryDateColumn(): Tables\Columns\TextColumn
+    protected static function getDeliveryDateColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('delivery_date')
+        return TextColumn::make('delivery_date')
             ->dateTime()
             ->sortable();
     }
 
-    protected static function getCreatedAtColumn(): Tables\Columns\TextColumn
+    protected static function getCreatedAtColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('created_at')
+        return TextColumn::make('created_at')
             ->dateTime()
             ->sortable()
             ->toggleable(isToggledHiddenByDefault: true);
@@ -297,9 +312,9 @@ class OrderTable
         ];
     }
 
-    protected static function getStatusFilter(): Tables\Filters\SelectFilter
+    protected static function getStatusFilter(): SelectFilter
     {
-        return Tables\Filters\SelectFilter::make('status_id')
+        return SelectFilter::make('status_id')
             ->label('Status')
             ->options(function () {
                 return OrderStatus::getOptionsForDropdown(false, true);
@@ -307,9 +322,9 @@ class OrderTable
             ->searchable();
     }
 
-    protected static function getStageFilter(): Tables\Filters\SelectFilter
+    protected static function getStageFilter(): SelectFilter
     {
-        return Tables\Filters\SelectFilter::make('stage')
+        return SelectFilter::make('stage')
             ->label('Stage')
             ->options([
                 OrderStatus::STAGE_PRE_PRODUCTION => 'Pre-Production',
@@ -327,9 +342,9 @@ class OrderTable
             });
     }
 
-    protected static function getRequiresCropsFilter(): Tables\Filters\TernaryFilter
+    protected static function getRequiresCropsFilter(): TernaryFilter
     {
-        return Tables\Filters\TernaryFilter::make('requires_crops')
+        return TernaryFilter::make('requires_crops')
             ->label('Requires Crops')
             ->placeholder('All orders')
             ->trueLabel('Orders needing crops')
@@ -350,9 +365,9 @@ class OrderTable
             );
     }
 
-    protected static function getPaymentStatusFilter(): Tables\Filters\TernaryFilter
+    protected static function getPaymentStatusFilter(): TernaryFilter
     {
-        return Tables\Filters\TernaryFilter::make('payment_status')
+        return TernaryFilter::make('payment_status')
             ->label('Payment Status')
             ->placeholder('All orders')
             ->trueLabel('Paid orders')
@@ -373,9 +388,9 @@ class OrderTable
             );
     }
 
-    protected static function getParentRecurringFilter(): Tables\Filters\TernaryFilter
+    protected static function getParentRecurringFilter(): TernaryFilter
     {
-        return Tables\Filters\TernaryFilter::make('parent_recurring_order_id')
+        return TernaryFilter::make('parent_recurring_order_id')
             ->label('Order Source')
             ->nullable()
             ->placeholder('All orders')
@@ -383,21 +398,21 @@ class OrderTable
             ->falseLabel('Manual orders only');
     }
 
-    protected static function getCustomerTypeFilter(): Tables\Filters\SelectFilter
+    protected static function getCustomerTypeFilter(): SelectFilter
     {
-        return Tables\Filters\SelectFilter::make('customer_type')
+        return SelectFilter::make('customer_type')
             ->options([
                 'retail' => 'Retail',
                 'wholesale' => 'Wholesale',
             ]);
     }
 
-    protected static function getHarvestDateFilter(): Tables\Filters\Filter
+    protected static function getHarvestDateFilter(): Filter
     {
-        return Tables\Filters\Filter::make('harvest_date')
-            ->form([
-                Forms\Components\DatePicker::make('harvest_from'),
-                Forms\Components\DatePicker::make('harvest_until'),
+        return Filter::make('harvest_date')
+            ->schema([
+                DatePicker::make('harvest_from'),
+                DatePicker::make('harvest_until'),
             ])
             ->query(function (Builder $query, array $data): Builder {
                 return $query
@@ -418,13 +433,13 @@ class OrderTable
     public static function getActions(): array
     {
         return [
-            Tables\Actions\ActionGroup::make([
-                Tables\Actions\ViewAction::make()
+            ActionGroup::make([
+                ViewAction::make()
                     ->tooltip('View order details'),
-                Tables\Actions\EditAction::make()
+                EditAction::make()
                     ->tooltip('Edit order'),
                 ...OrderActions::getRowActions(),
-                Tables\Actions\DeleteAction::make()
+                DeleteAction::make()
                     ->tooltip('Delete order'),
             ])
             ->label('Actions')
@@ -441,9 +456,9 @@ class OrderTable
     public static function getBulkActions(): array
     {
         return [
-            Tables\Actions\BulkActionGroup::make([
+            BulkActionGroup::make([
                 ...OrderActions::getBulkActions(),
-                Tables\Actions\DeleteBulkAction::make(),
+                DeleteBulkAction::make(),
             ]),
         ];
     }

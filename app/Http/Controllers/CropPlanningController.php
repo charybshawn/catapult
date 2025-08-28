@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\HarvestYieldCalculator;
+use Exception;
 use App\Models\Order;
 use App\Models\CropPlan;
 use App\Models\Recipe;
@@ -55,7 +57,55 @@ class CropPlanningController extends Controller
     }
 
     /**
-     * Generate crop plans for a specific order
+     * Generate automated crop plans for agricultural order fulfillment.
+     * 
+     * Creates comprehensive crop plans for a specific agricultural order, calculating
+     * seed requirements, planting schedules, and resource allocation based on delivery
+     * date and product mix. Automatically generates approved crop plans with proper
+     * growing timelines for microgreens production.
+     * 
+     * @param Order $order Agricultural order requiring crop plan generation
+     * @return JsonResponse JSON response with creation status and plan details
+     * 
+     * @http_method POST
+     * @route_pattern /orders/{order}/generate-crop-plan
+     * @response_format JSON with success status, message, and plan data
+     * 
+     * @validation_checks
+     * - Order must not already have existing crop plans
+     * - Order must contain order items for planning
+     * - Order must have valid delivery date for scheduling
+     * - Products must be mappable to seed entries and recipes
+     * 
+     * @agricultural_calculations
+     * - Seed weight requirements by variety
+     * - Tray count calculations for greenhouse space
+     * - Planting date calculation (typically 14 days before delivery)
+     * - Harvest date scheduling (day before delivery)
+     * - Growing methodology selection from recipe database
+     * 
+     * @business_logic
+     * - Auto-approves generated plans for immediate use
+     * - Links order items to specific crop plans
+     * - Creates audit trail with generation metadata
+     * - Handles multiple seed varieties within single order
+     * 
+     * @error_handling
+     * - Returns 400 for business rule violations
+     * - Returns 500 for system/calculation errors
+     * - Comprehensive error logging for troubleshooting
+     * - Transaction rollback on partial failures
+     * 
+     * @response_success
+     * {
+     *   "success": true,
+     *   "message": "Crop plans generated successfully!",
+     *   "data": {
+     *     "plans_created": 3,
+     *     "order_id": 123,
+     *     "plan_ids": [456, 789, 012]
+     *   }
+     * }
      */
     public function generateCropPlan(Order $order): JsonResponse
     {
@@ -86,9 +136,9 @@ class CropPlanningController extends Controller
 
             // Calculate planting requirements
             try {
-                $calculator = new CropPlanCalculatorService(app(\App\Services\HarvestYieldCalculator::class));
+                $calculator = new CropPlanCalculatorService(app(HarvestYieldCalculator::class));
                 $orderDetails = $calculator->calculateForOrder($order);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Failed to calculate planting requirements: ' . $e->getMessage()
@@ -173,7 +223,7 @@ class CropPlanningController extends Controller
                 ]
             ]);
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Failed to generate crop plan for order ' . $order->id, [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),

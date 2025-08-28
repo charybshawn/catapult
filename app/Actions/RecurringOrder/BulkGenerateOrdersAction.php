@@ -2,6 +2,7 @@
 
 namespace App\Actions\RecurringOrder;
 
+use Exception;
 use App\Models\Order;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
@@ -63,7 +64,7 @@ class BulkGenerateOrdersAction
                     $customerName = $template->customer->contact_name ?? 'Unknown';
                     $errors[] = "Template #{$template->id} ({$customerName}): Generation returned null";
                 }
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $errorCount++;
                 $customerName = $template->customer->contact_name ?? 'Unknown';
                 $errors[] = "Template #{$template->id} ({$customerName}): {$e->getMessage()}";

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -62,7 +63,7 @@ class ListTables extends Command
                 try {
                     $count = DB::table($table)->count();
                     $row[] = number_format($count);
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     $row[] = 'Error';
                 }
             }

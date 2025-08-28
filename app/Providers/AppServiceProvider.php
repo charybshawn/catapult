@@ -2,6 +2,24 @@
 
 namespace App\Providers;
 
+use App\Services\CropTaskManagementService;
+use App\Services\InventoryManagementService;
+use App\Services\CropValidationService;
+use App\Services\RecipeService;
+use App\Services\CropTimeCalculator;
+use App\Services\ConsumableCalculatorService;
+use App\Services\StatusTransitionService;
+use App\Services\CropTaskService;
+use App\Services\CropLifecycleService;
+use App\Services\InventoryService;
+use App\Services\LotInventoryService;
+use App\Services\LotDepletionService;
+use App\Services\CropInventoryService;
+use App\Services\RecipeVarietyService;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Database\Migrations\Migrator;
+use RuntimeException;
+use Filament\Forms\Components\TextInput;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Foundation\AliasLoader;
 use App\Http\Livewire\ItemPriceCalculator;
@@ -15,84 +33,109 @@ use Filament\View\PanelsRenderHook;
 use App\Services\GitService;
 use Illuminate\Support\Facades\Blade;
 
+/**
+ * Main application service provider for the Catapult agricultural management system.
+ * Configures core business services for microgreens production, inventory management,
+ * and crop lifecycle operations.
+ *
+ * @business_domain Agricultural microgreens production and farm management
+ * @service_architecture Registers singleton services with dependency injection
+ * @ui_framework Configured for Filament admin panel with agricultural-specific customizations
+ * @security_features HTTPS enforcement, production migration protection, CSRF protection
+ */
 class AppServiceProvider extends ServiceProvider
 {
     /**
-     * Register any application services.
+     * Register agricultural business services and dependencies for microgreens production.
+     * Configures singleton services for crop management, inventory tracking, and recipe processing
+     * with proper dependency injection to support complex agricultural workflows.
+     *
+     * @agricultural_services Crop lifecycle, inventory management, recipe calculations
+     * @dependency_injection Services registered with proper constructor injection
+     * @service_aliases Legacy service aliases maintained for backward compatibility
+     * @return void
      */
     public function register(): void
     {
         // Register CropTaskManagementService as a singleton
-        $this->app->singleton(\App\Services\CropTaskManagementService::class);
+        $this->app->singleton(CropTaskManagementService::class);
         
         // Register the unified InventoryManagementService as a singleton with dependencies
-        $this->app->singleton(\App\Services\InventoryManagementService::class, function ($app) {
-            return new \App\Services\InventoryManagementService(
+        $this->app->singleton(InventoryManagementService::class, function ($app) {
+            return new InventoryManagementService(
                 $app->make('config')
             );
         });
         
         // Register CropValidationService as a singleton with dependencies
-        $this->app->singleton(\App\Services\CropValidationService::class, function ($app) {
-            return new \App\Services\CropValidationService(
-                $app->make(\App\Services\CropTaskManagementService::class),
-                $app->make(\App\Services\InventoryManagementService::class)
+        $this->app->singleton(CropValidationService::class, function ($app) {
+            return new CropValidationService(
+                $app->make(CropTaskManagementService::class),
+                $app->make(InventoryManagementService::class)
             );
         });
         
         // Register RecipeService as a singleton with dependencies
-        $this->app->singleton(\App\Services\RecipeService::class, function ($app) {
-            return new \App\Services\RecipeService(
-                $app->make(\App\Services\InventoryManagementService::class)
+        $this->app->singleton(RecipeService::class, function ($app) {
+            return new RecipeService(
+                $app->make(InventoryManagementService::class)
             );
         });
         
         // Register CropTimeCalculator as a singleton
-        $this->app->singleton(\App\Services\CropTimeCalculator::class);
+        $this->app->singleton(CropTimeCalculator::class);
         
         // Register ConsumableCalculatorService as a singleton
-        $this->app->singleton(\App\Services\ConsumableCalculatorService::class);
+        $this->app->singleton(ConsumableCalculatorService::class);
         
         // Register StatusTransitionService as a singleton
-        $this->app->singleton(\App\Services\StatusTransitionService::class);
+        $this->app->singleton(StatusTransitionService::class);
         
         // Register legacy service aliases for backward compatibility
-        $this->app->bind(\App\Services\CropTaskService::class, function ($app) {
-            return $app->make(\App\Services\CropTaskManagementService::class);
+        $this->app->bind(CropTaskService::class, function ($app) {
+            return $app->make(CropTaskManagementService::class);
         });
         
-        $this->app->bind(\App\Services\CropLifecycleService::class, function ($app) {
-            return $app->make(\App\Services\CropTaskManagementService::class);
+        $this->app->bind(CropLifecycleService::class, function ($app) {
+            return $app->make(CropTaskManagementService::class);
         });
 
-        $this->app->bind(\App\Services\InventoryService::class, function ($app) {
-            return $app->make(\App\Services\InventoryManagementService::class);
+        $this->app->bind(InventoryService::class, function ($app) {
+            return $app->make(InventoryManagementService::class);
         });
 
-        $this->app->bind(\App\Services\LotInventoryService::class, function ($app) {
-            return $app->make(\App\Services\InventoryManagementService::class);
+        $this->app->bind(LotInventoryService::class, function ($app) {
+            return $app->make(InventoryManagementService::class);
         });
 
-        $this->app->bind(\App\Services\LotDepletionService::class, function ($app) {
-            return $app->make(\App\Services\InventoryManagementService::class);
+        $this->app->bind(LotDepletionService::class, function ($app) {
+            return $app->make(InventoryManagementService::class);
         });
 
-        $this->app->bind(\App\Services\CropInventoryService::class, function ($app) {
-            return $app->make(\App\Services\InventoryManagementService::class);
+        $this->app->bind(CropInventoryService::class, function ($app) {
+            return $app->make(InventoryManagementService::class);
         });
         
-        $this->app->singleton(\App\Services\RecipeVarietyService::class, function ($app) {
-            return new \App\Services\RecipeVarietyService();
+        $this->app->singleton(RecipeVarietyService::class, function ($app) {
+            return new RecipeVarietyService();
         });
     }
 
     /**
-     * Bootstrap any application services.
+     * Bootstrap application configuration for agricultural production environment.
+     * Configures security settings, UI customizations for farm operations, Livewire components
+     * for real-time farm monitoring, and production safety measures for database migrations.
+     *
+     * @security_config HTTPS enforcement, production migration protection
+     * @ui_customizations Filament form optimizations, dropdown z-index fixes for complex forms
+     * @development_tools Git branch indicator, Livewire debouncing for numeric agricultural inputs
+     * @production_safety Migration blocking in production without explicit override
+     * @return void
      */
     public function boot(): void
     {
         // Force HTTPS for all environments
-        \Illuminate\Support\Facades\URL::forceScheme('https');
+        URL::forceScheme('https');
         
         // Register Livewire components
         Livewire::component('item-price-calculator', ItemPriceCalculator::class);
@@ -112,7 +155,7 @@ class AppServiceProvider extends ServiceProvider
 
         // Add git branch indicator to Filament admin panel topbar
         FilamentView::registerRenderHook(
-            PanelsRenderHook::TOPBAR_START,
+            PanelsRenderHook::TOPBAR_END,
             fn (): string => $this->renderGitBranchIndicator()
         );
         
@@ -165,10 +208,10 @@ class AppServiceProvider extends ServiceProvider
                 !config('app.allow_migrations_in_production', false)) {
                 // Disable migrations in production 
                 $this->app->bind('migrator', function ($app) {
-                    return new class($app['migration.repository'], $app['db'], $app['files'], $app['events']) extends \Illuminate\Database\Migrations\Migrator {
+                    return new class($app['migration.repository'], $app['db'], $app['files'], $app['events']) extends Migrator {
                         public function run($paths = [], array $options = [])
                         {
-                            throw new \RuntimeException(
+                            throw new RuntimeException(
                                 'Migrations are disabled in production for safety. ' .
                                 'To run migrations in production, set ALLOW_MIGRATIONS_IN_PRODUCTION=true in your .env file.'
                             );
@@ -180,19 +223,27 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Configure Filament Livewire debouncing to fix input issues
+     * Configure Filament Livewire debouncing for agricultural numeric inputs.
+     * Prevents character loss during rapid data entry of crop quantities, weights,
+     * and agricultural measurements commonly used in microgreens production.
+     *
+     * @agricultural_context Numeric inputs for weights, quantities, germination rates
+     * @ui_optimization Longer debounce times prevent data loss during fast entry
+     * @input_types Covers integer, decimal, numeric fields used in crop calculations
+     * @debounce_timing 500ms delay balances responsiveness with data integrity
+     * @return void
      */
     private function configureFilamentLivewireDebouncing(): void
     {
         // Set longer debounce for numeric inputs to prevent character loss
-        \Filament\Forms\Components\TextInput::configureUsing(function (\Filament\Forms\Components\TextInput $component): void {
+        TextInput::configureUsing(function (TextInput $component): void {
             if ($component->isNumeric()) {
                 $component->lazy(); // Use lazy evaluation instead of live for numeric inputs
             }
         });
         
         // Also configure for specific numeric field types
-        \Filament\Forms\Components\TextInput::configureUsing(function (\Filament\Forms\Components\TextInput $component): void {
+        TextInput::configureUsing(function (TextInput $component): void {
             $numericTypes = ['integer', 'decimal', 'numeric'];
             if (in_array($component->getType(), $numericTypes) || $component->isNumeric()) {
                 $component->debounce(500); // 500ms debounce for numeric fields
@@ -201,7 +252,15 @@ class AppServiceProvider extends ServiceProvider
     }
     
     /**
-     * Render the git branch indicator for Filament
+     * Render development git branch indicator for agricultural system administration.
+     * Displays current git branch in Filament admin panel to help track feature development
+     * and deployment status during agricultural system updates.
+     *
+     * @development_tool Visual indicator for system administrators and developers
+     * @ui_position Fixed position at top center of admin panel
+     * @git_integration Uses GitService to detect repository and current branch
+     * @styling Blade template with responsive dark mode support
+     * @return string Rendered HTML for git branch indicator or empty string if not git repo
      */
     private function renderGitBranchIndicator(): string
     {
@@ -212,10 +271,10 @@ class AppServiceProvider extends ServiceProvider
         $branch = GitService::getCurrentBranch();
         
         return Blade::render('
-            <div class="flex items-center mr-4">
+            <div style="position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); z-index: 50;">
                 <div class="inline-flex items-center px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded-md text-xs font-mono text-gray-600 dark:text-gray-300">
                     <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414L2.586 7a2 2 0 010-2.828l3.707-3.707a1 1 0 011.414 0z" clip-rule="evenodd" />
+                        <path fill-rule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 717 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414L2.586 7a2 2 0 010-2.828l3.707-3.707a1 1 0 011.414 0z" clip-rule="evenodd" />
                     </svg>
                     {{ $branch }}
                 </div>

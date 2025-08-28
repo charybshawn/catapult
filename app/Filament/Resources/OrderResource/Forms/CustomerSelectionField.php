@@ -2,23 +2,41 @@
 
 namespace App\Filament\Resources\OrderResource\Forms;
 
+use Filament\Forms\Components\Select;
+use Illuminate\Support\Collection;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Forms\Components\Textarea;
 use App\Models\Customer;
 use Filament\Forms;
 
 /**
- * Customer Selection Field for Orders - Handles customer selection with inline creation
- * Extracted from OrderResource lines 73-145
- * Following Filament Resource Architecture Guide patterns
+ * Customer selection field with inline creation for order management.
+ * 
+ * Provides comprehensive customer selection interface with ability to create
+ * new customers directly within order form. Handles both retail and wholesale
+ * customer types with appropriate pricing and business relationship setup.
+ * 
+ * @filament_field Advanced customer selection with inline creation
+ * @business_context Agricultural customer management with retail/wholesale distinction
+ * @customer_types Retail and wholesale customers with different pricing structures
  */
 class CustomerSelectionField
 {
     /**
-     * Get the customer selection field with inline creation form
-     * Max 100 lines per method requirement
+     * Create customer selection field with inline creation capability.
+     * 
+     * Returns configured Select component with searchable customer options,
+     * inline customer creation form, and proper business/contact name display.
+     * Supports immediate customer creation within order workflow.
+     * 
+     * @return Select Customer selection field with creation form
+     * @filament_usage Order form customer selection with inline creation
+     * @business_workflow Streamlined customer creation within order process
      */
-    public static function make(): Forms\Components\Select
+    public static function make(): Select
     {
-        return Forms\Components\Select::make('customer_id')
+        return Select::make('customer_id')
             ->label('Customer')
             ->options(function () {
                 return static::getCustomerOptions();
@@ -34,9 +52,17 @@ class CustomerSelectionField
     }
 
     /**
-     * Get formatted customer options for dropdown
+     * Get formatted customer options for selection dropdown.
+     * 
+     * Creates user-friendly display format combining business name and contact
+     * name for clear customer identification. Prioritizes business name when
+     * available for professional customer recognition.
+     * 
+     * @return Collection Formatted customer options for dropdown display
+     * @business_logic Business name prioritization with contact fallback
+     * @user_experience Clear customer identification in selection interface
      */
-    protected static function getCustomerOptions(): \Illuminate\Support\Collection
+    protected static function getCustomerOptions(): Collection
     {
         return Customer::all()
             ->mapWithKeys(function ($customer) {
@@ -48,33 +74,41 @@ class CustomerSelectionField
     }
 
     /**
-     * Get customer creation form schema
-     * TODO: Consider extracting to CustomerActions for complex business logic
+     * Get comprehensive customer creation form schema.
+     * 
+     * Provides complete customer onboarding form with business information,
+     * contact details, addressing, and customer type configuration. Handles
+     * wholesale discount setup and agricultural business relationship data.
+     * 
+     * @return array Complete customer creation form schema
+     * @business_onboarding Comprehensive customer setup with business context
+     * @customer_types Retail and wholesale customer configuration
+     * @agricultural_context Business relationships for agricultural products
      */
     protected static function getCustomerCreationForm(): array
     {
         return [
-            Forms\Components\TextInput::make('contact_name')
+            TextInput::make('contact_name')
                 ->label('Contact Name')
                 ->required()
                 ->maxLength(255),
-            Forms\Components\TextInput::make('business_name')
+            TextInput::make('business_name')
                 ->label('Business Name')
                 ->maxLength(255),
-            Forms\Components\TextInput::make('email')
+            TextInput::make('email')
                 ->label('Email Address')
                 ->email()
                 ->required()
                 ->unique(Customer::class, 'email'),
-            Forms\Components\TextInput::make('cc_email')
+            TextInput::make('cc_email')
                 ->label('CC Email Address')
                 ->email()
                 ->maxLength(255),
-            Forms\Components\TextInput::make('phone')
+            TextInput::make('phone')
                 ->label('Phone Number')
                 ->tel()
                 ->maxLength(20),
-            Forms\Components\Select::make('customer_type')
+            Select::make('customer_type')
                 ->label('Customer Type')
                 ->options([
                     'retail' => 'Retail',
@@ -83,27 +117,27 @@ class CustomerSelectionField
                 ->default('retail')
                 ->required()
                 ->reactive(),
-            Forms\Components\TextInput::make('wholesale_discount_percentage')
+            TextInput::make('wholesale_discount_percentage')
                 ->label('Wholesale Discount %')
                 ->numeric()
                 ->minValue(0)
                 ->maxValue(100)
                 ->step(0.01)
                 ->suffix('%')
-                ->visible(fn (Forms\Get $get) => $get('customer_type') === 'wholesale'),
-            Forms\Components\Textarea::make('address')
+                ->visible(fn (Get $get) => $get('customer_type') === 'wholesale'),
+            Textarea::make('address')
                 ->label('Address')
                 ->rows(3),
-            Forms\Components\TextInput::make('city')
+            TextInput::make('city')
                 ->label('City')
                 ->maxLength(255),
-            Forms\Components\TextInput::make('province')
+            TextInput::make('province')
                 ->label('Province')
                 ->maxLength(255),
-            Forms\Components\TextInput::make('postal_code')
+            TextInput::make('postal_code')
                 ->label('Postal Code')
                 ->maxLength(20),
-            Forms\Components\TextInput::make('country')
+            TextInput::make('country')
                 ->label('Country')
                 ->maxLength(255)
                 ->default('Canada'),

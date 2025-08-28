@@ -2,8 +2,10 @@
 
 namespace App\Filament\Traits;
 
+use Filament\Actions\Action;
+use Exception;
+use RuntimeException;
 use App\Services\CsvExportService;
-use Filament\Tables\Actions\Action;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\CheckboxList;
@@ -11,10 +13,37 @@ use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 
+/**
+ * CSV Export Action Trait
+ * 
+ * Reusable CSV export functionality for Filament resources managing agricultural
+ * data. Provides configurable export capabilities with column selection,
+ * relationship inclusion, and agricultural data formatting.
+ * 
+ * @filament_trait Reusable CSV export action for agricultural resources
+ * @agricultural_use Export agricultural data (products, crops, orders, inventory) to CSV
+ * @data_export Configurable column selection and relationship data inclusion
+ * @business_context Agricultural reporting and data analysis export capabilities
+ * 
+ * Key features:
+ * - Configurable column selection for agricultural data exports
+ * - Relationship data inclusion for comprehensive agricultural reports
+ * - Agricultural-specific column formatting and labeling
+ * - Integration with CsvExportService for consistent export handling
+ * - Table filter preservation for targeted agricultural data exports
+ * 
+ * @package App\Filament\Traits
+ * @author Shawn
+ * @since 2024
+ */
 trait CsvExportAction
 {
     /**
-     * Get the CSV export action for table header actions
+     * Get the CSV export action for agricultural resource table headers.
+     * 
+     * @agricultural_context Configurable CSV export for agricultural data analysis and reporting
+     * @return Action CSV export action with column selection, relationships, and filtering
+     * @export_features Column selection, relationship inclusion, filename customization
      */
     public static function getCsvExportAction(): Action
     {
@@ -22,7 +51,7 @@ trait CsvExportAction
             ->label('Export CSV')
             ->icon('heroicon-o-arrow-down-tray')
             ->color('success')
-            ->form([
+            ->schema([
                 TextInput::make('filename')
                     ->label('Filename (optional)')
                     ->placeholder('Leave empty for auto-generated name')
@@ -75,7 +104,7 @@ trait CsvExportAction
                         ->title('CSV Export Successful')
                         ->body("Exported {$query->count()} records to {$filename}")
                         ->actions([
-                            \Filament\Notifications\Actions\Action::make('download')
+                            Action::make('download')
                                 ->label('Download')
                                 ->url(route('csv.download', ['filename' => $filename]))
                                 ->openUrlInNewTab()
@@ -83,7 +112,7 @@ trait CsvExportAction
                         ->persistent()
                         ->send();
                         
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->danger()
                         ->title('Export Failed')
@@ -117,15 +146,19 @@ trait CsvExportAction
         }
         
         // If using in a Table class, override this method to return the model class
-        throw new \RuntimeException(
+        throw new RuntimeException(
             'You must override the getModelClass() method in ' . static::class . 
             ' to return the model class string (e.g., return PriceVariation::class;)'
         );
     }
     
     /**
-     * Define which columns are available for CSV export
-     * Override this method in your resource to customize available columns
+     * Define which columns are available for CSV export.
+     * 
+     * @agricultural_context Available columns for agricultural data export
+     * @return array Column options for CSV export selection
+     * @override Override in agricultural resources to customize exportable columns
+     * @format Returns ['column_name' => 'Display Label'] array
      */
     protected static function getCsvExportColumns(): array
     {
@@ -174,11 +207,12 @@ trait CsvExportAction
     }
     
     /**
-     * Define which relationships to include when exporting
-     * Override this method in your resource to define relationships
+     * Define which relationships to include when exporting agricultural data.
      * 
-     * Example:
-     * return ['category', 'user.profile', 'tags'];
+     * @agricultural_context Relationship data for comprehensive agricultural exports
+     * @return array Relationship names for eager loading during export
+     * @override Override to include relevant agricultural relationships
+     * @example ['masterSeedCatalog', 'supplier', 'priceVariations', 'cropPlans']
      */
     protected static function getCsvExportRelationships(): array
     {

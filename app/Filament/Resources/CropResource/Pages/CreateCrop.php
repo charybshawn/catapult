@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\CropResource\Pages;
 
+use Exception;
 use App\Actions\Crop\CreateCrop as CreateCropAction;
 use App\Filament\Resources\CropResource;
 use App\Models\Recipe;
@@ -56,7 +57,7 @@ class CreateCrop extends BaseCreateRecord
             
             return $crop;
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error creating crop', [
                 'error' => $e->getMessage(),
                 'data' => $data

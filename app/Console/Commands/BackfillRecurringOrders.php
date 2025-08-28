@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Exception;
 use App\Models\Order;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -85,7 +86,7 @@ class BackfillRecurringOrders extends Command
                     $this->line("- No missing orders for {$userName}");
                 }
                 
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $this->error("✗ Failed to process Order #{$template->id}: " . $e->getMessage());
                 $errors++;
             }

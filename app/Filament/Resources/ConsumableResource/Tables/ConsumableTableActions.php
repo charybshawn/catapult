@@ -2,6 +2,13 @@
 
 namespace App\Filament\Resources\ConsumableResource\Tables;
 
+use Filament\Actions\ActionGroup;
+use Filament\Actions\ViewAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\BulkAction;
 use Filament\Tables;
 
 class ConsumableTableActions
@@ -12,10 +19,10 @@ class ConsumableTableActions
     public static function actions(): array
     {
         return [
-            Tables\Actions\ActionGroup::make([
-                Tables\Actions\ViewAction::make()->tooltip('View record'),
-                Tables\Actions\EditAction::make()->tooltip('Edit record'),
-                Tables\Actions\DeleteAction::make()->tooltip('Delete record'),
+            ActionGroup::make([
+                ViewAction::make()->tooltip('View record'),
+                EditAction::make()->tooltip('Edit record'),
+                DeleteAction::make()->tooltip('Delete record'),
             ])
             ->label('Actions')
             ->icon('heroicon-m-ellipsis-vertical')
@@ -41,7 +48,7 @@ class ConsumableTableActions
     public static function bulkActions(): array
     {
         return [
-            Tables\Actions\BulkActionGroup::make([
+            BulkActionGroup::make([
                 ...static::getStandardBulkActions(),
                 ...static::getInventoryBulkActions(),
             ]),
@@ -54,8 +61,8 @@ class ConsumableTableActions
     protected static function getStandardBulkActions(): array
     {
         return [
-            Tables\Actions\DeleteBulkAction::make(),
-            Tables\Actions\BulkAction::make('activate')
+            DeleteBulkAction::make(),
+            BulkAction::make('activate')
                 ->label('Activate Selected')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
@@ -65,7 +72,7 @@ class ConsumableTableActions
                     });
                 })
                 ->deselectRecordsAfterCompletion(),
-            Tables\Actions\BulkAction::make('deactivate')
+            BulkAction::make('deactivate')
                 ->label('Deactivate Selected')
                 ->icon('heroicon-o-x-circle')
                 ->color('warning')
@@ -84,7 +91,7 @@ class ConsumableTableActions
     protected static function getInventoryBulkActions(): array
     {
         return [
-            Tables\Actions\BulkAction::make('mark_low_stock')
+            BulkAction::make('mark_low_stock')
                 ->label('Mark as Low Stock')
                 ->icon('heroicon-o-exclamation-triangle')
                 ->color('warning')

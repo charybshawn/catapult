@@ -2,12 +2,38 @@
 
 namespace App\Filament\Resources\ActivityResource\Forms;
 
+use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms;
 
+/**
+ * Activity log form builder for agricultural system monitoring and audit trails.
+ *
+ * Provides comprehensive form structure for viewing and analyzing system activity
+ * logs including user actions, model events, API requests, and agricultural
+ * operations. Features organized sections for basic information, activity details,
+ * and properties with JSON formatting for detailed audit trail inspection.
+ *
+ * @filament_form Form builder for activity log display and analysis
+ * @business_domain Agricultural system activity monitoring and audit compliance
+ * @security_context User action tracking and system event audit trails
+ * @form_sections Basic info, activity details, and formatted properties display
+ * @operational_monitoring Supports agricultural operations tracking and analysis
+ */
 class ActivityForm
 {
     /**
-     * Get the complete form schema for ActivityResource
+     * Generate complete form schema for comprehensive activity log display.
+     *
+     * Assembles organized form sections covering basic information, activity
+     * details, and properties for thorough activity log inspection and
+     * agricultural system monitoring analysis.
+     *
+     * @return array Complete Filament form schema for activity log display
+     * @form_structure Three sections: basic info, activity details, properties
+     * @audit_context Supports comprehensive system activity review and analysis
      */
     public static function schema(): array
     {
@@ -19,23 +45,31 @@ class ActivityForm
     }
 
     /**
-     * Basic information section
+     * Generate basic information section for core activity log details.
+     *
+     * Creates form section with essential activity log fields including log name,
+     * description, event type, and creation timestamp. All fields are disabled
+     * for view-only audit trail inspection in agricultural system monitoring.
+     *
+     * @return Section Filament form section with core activity information
+     * @audit_fields Log name, description, event type, creation timestamp
+     * @security_context Read-only access for audit trail integrity
      */
-    protected static function getBasicInformationSection(): Forms\Components\Section
+    protected static function getBasicInformationSection(): Section
     {
-        return Forms\Components\Section::make('Basic Information')
+        return Section::make('Basic Information')
             ->description('Core activity log details')
             ->schema([
-                Forms\Components\TextInput::make('log_name')
+                TextInput::make('log_name')
                     ->label('Log Name')
                     ->disabled(),
-                Forms\Components\TextInput::make('description')
+                TextInput::make('description')
                     ->label('Description')
                     ->disabled(),
-                Forms\Components\TextInput::make('event')
+                TextInput::make('event')
                     ->label('Event')
                     ->disabled(),
-                Forms\Components\DateTimePicker::make('created_at')
+                DateTimePicker::make('created_at')
                     ->label('Created At')
                     ->disabled(),
             ])
@@ -43,23 +77,32 @@ class ActivityForm
     }
 
     /**
-     * Activity details section
+     * Generate activity details section for subject and causer information.
+     *
+     * Creates form section displaying the entities involved in the activity
+     * including subject (what was affected) and causer (who/what triggered
+     * the activity). Essential for agricultural system audit trails and
+     * operational accountability tracking.
+     *
+     * @return Section Filament form section with activity relationship details
+     * @audit_relationships Subject type/ID and causer type/ID for activity context
+     * @agricultural_context Tracks user actions on crops, orders, inventory, etc.
      */
-    protected static function getActivityDetailsSection(): Forms\Components\Section
+    protected static function getActivityDetailsSection(): Section
     {
-        return Forms\Components\Section::make('Activity Details')
+        return Section::make('Activity Details')
             ->description('Subject and causer information')
             ->schema([
-                Forms\Components\TextInput::make('subject_type')
+                TextInput::make('subject_type')
                     ->label('Subject Type')
                     ->disabled(),
-                Forms\Components\TextInput::make('subject_id')
+                TextInput::make('subject_id')
                     ->label('Subject ID')
                     ->disabled(),
-                Forms\Components\TextInput::make('causer_type')
+                TextInput::make('causer_type')
                     ->label('Causer Type')
                     ->disabled(),
-                Forms\Components\TextInput::make('causer_id')
+                TextInput::make('causer_id')
                     ->label('Causer ID')
                     ->disabled(),
             ])
@@ -67,14 +110,23 @@ class ActivityForm
     }
 
     /**
-     * Properties section with JSON formatting
+     * Generate properties section with formatted JSON display for detailed data.
+     *
+     * Creates comprehensive properties section that formats JSON data for
+     * readable display of additional activity information, model changes,
+     * and contextual data. Supports detailed agricultural operations analysis
+     * and system event inspection.
+     *
+     * @return Section Filament form section with formatted properties display
+     * @data_formatting JSON pretty-printing for readable audit trail inspection
+     * @agricultural_context Detailed data for crop changes, inventory movements, etc.
      */
-    protected static function getPropertiesSection(): Forms\Components\Section
+    protected static function getPropertiesSection(): Section
     {
-        return Forms\Components\Section::make('Properties')
+        return Section::make('Properties')
             ->description('Additional data associated with this activity')
             ->schema([
-                Forms\Components\Textarea::make('properties')
+                Textarea::make('properties')
                     ->label('Properties')
                     ->rows(10)
                     ->disabled()

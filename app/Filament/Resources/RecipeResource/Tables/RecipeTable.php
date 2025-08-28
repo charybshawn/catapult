@@ -2,6 +2,17 @@
 
 namespace App\Filament\Resources\RecipeResource\Tables;
 
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\Filter;
+use Filament\Forms\Components\TextInput;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\ViewAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\Action;
+use Filament\Actions\DeleteAction;
 use App\Models\Recipe;
 use App\Models\RecipeOptimizedView;
 use App\Models\Consumable;
@@ -20,47 +31,47 @@ class RecipeTable
     public static function columns(): array
     {
         return [
-            Tables\Columns\TextColumn::make('name')
+            TextColumn::make('name')
                 ->searchable()->sortable()->toggleable(isToggledHiddenByDefault: false),
                 
-            Tables\Columns\TextColumn::make('seed_lot_display')
+            TextColumn::make('seed_lot_display')
                 ->label('Seed Lot')->searchable(['lot_number', 'seed_consumable_name'])->sortable(query: function (Builder $query, string $direction): Builder {
                     return $query->orderBy('lot_number', $direction);
                 })->toggleable(),
                 
-            Tables\Columns\TextColumn::make('soil_consumable_name')
+            TextColumn::make('soil_consumable_name')
                 ->label('Soil')->searchable()->sortable()->toggleable(),
                 
-            Tables\Columns\TextColumn::make('total_days')
+            TextColumn::make('total_days')
                 ->label('Total Days')->toggleable()
                 ->numeric(1)
                 ->sortable(),
                 
-            Tables\Columns\TextColumn::make('days_to_maturity')
+            TextColumn::make('days_to_maturity')
                 ->label('DTM')->numeric(1)->sortable()->toggleable(),
                 
-            Tables\Columns\TextColumn::make('seed_density_grams_per_tray')
+            TextColumn::make('seed_density_grams_per_tray')
                 ->label('Seed Density (g)')->numeric(1)->sortable()->toggleable(),
                 
-            Tables\Columns\TextColumn::make('expected_yield_grams')
+            TextColumn::make('expected_yield_grams')
                 ->label('Yield (g)')->numeric(0)->sortable()->toggleable(isToggledHiddenByDefault: true),
                 
-            Tables\Columns\TextColumn::make('germination_days')
+            TextColumn::make('germination_days')
                 ->label('Germ. Days')->numeric(1)->sortable()->toggleable(isToggledHiddenByDefault: true),
                 
-            Tables\Columns\TextColumn::make('blackout_days')
+            TextColumn::make('blackout_days')
                 ->label('Blackout Days')->numeric(1)->sortable()->toggleable(isToggledHiddenByDefault: true),
                 
-            Tables\Columns\TextColumn::make('light_days')
+            TextColumn::make('light_days')
                 ->label('Light Days')->numeric(1)->sortable()->toggleable(isToggledHiddenByDefault: true),
                 
-            Tables\Columns\IconColumn::make('is_active')
+            IconColumn::make('is_active')
                 ->label('Active')->boolean()->sortable()->toggleable(),
                 
-            Tables\Columns\TextColumn::make('created_at')
+            TextColumn::make('created_at')
                 ->dateTime()->sortable()->toggleable(isToggledHiddenByDefault: true),
                 
-            Tables\Columns\TextColumn::make('updated_at')
+            TextColumn::make('updated_at')
                 ->dateTime()->sortable()->toggleable(isToggledHiddenByDefault: true),
         ];
     }
@@ -71,13 +82,13 @@ class RecipeTable
     public static function filters(): array
     {
         return [
-            Tables\Filters\SelectFilter::make('is_active')
+            SelectFilter::make('is_active')
                 ->label('Status')
                 ->options(['1' => 'Active', 'unit' => 'Inactive']),
                 
-            Tables\Filters\Filter::make('lot_number')
-                ->form([
-                    Forms\Components\TextInput::make('lot_number')
+            Filter::make('lot_number')
+                ->schema([
+                    TextInput::make('lot_number')
                         ->label('Seed Lot')
                         ->placeholder('Enter lot number'),
                 ])
@@ -97,9 +108,9 @@ class RecipeTable
     public static function actions(): array
     {
         return [
-            Tables\Actions\ActionGroup::make([
-                Tables\Actions\ViewAction::make()->tooltip('View record'),
-                Tables\Actions\EditAction::make()->tooltip('Edit recipe'),
+            ActionGroup::make([
+                ViewAction::make()->tooltip('View record'),
+                EditAction::make()->tooltip('Edit recipe'),
                 static::getCloneAction(),
                 static::getUpdateGrowsAction(),
                 static::getViewSeedLotAction(),
@@ -118,7 +129,7 @@ class RecipeTable
     public static function getBulkActions(): array
     {
         return [
-            Tables\Actions\DeleteBulkAction::make()
+            DeleteBulkAction::make()
                 ->requiresConfirmation()
                 ->before(fn ($action, Collection $records) => static::validateBulkDeletion($action, $records)),
         ];
@@ -161,9 +172,9 @@ class RecipeTable
     
     // ===== ACTION DEFINITIONS =====
     
-    protected static function getCloneAction(): Tables\Actions\Action
+    protected static function getCloneAction(): Action
     {
-        return Tables\Actions\Action::make('clone')
+        return Action::make('clone')
             ->icon('heroicon-o-document-duplicate')->tooltip('Clone recipe')
             ->action(function ($record) {
                 // Need to get the actual Recipe model to clone
@@ -192,9 +203,9 @@ class RecipeTable
             });
     }
     
-    protected static function getUpdateGrowsAction(): Tables\Actions\Action
+    protected static function getUpdateGrowsAction(): Action
     {
-        return Tables\Actions\Action::make('updateGrows')
+        return Action::make('updateGrows')
             ->icon('heroicon-o-arrow-path')->label('Apply to Grows')
             ->tooltip('Apply recipe parameters to existing grows')->color('warning')
             ->action(function ($record) {
@@ -207,11 +218,11 @@ class RecipeTable
             });
     }
     
-    protected static function getDeleteAction(): Tables\Actions\Action
+    protected static function getDeleteAction(): Action
     {
-        return Tables\Actions\DeleteAction::make()
+        return DeleteAction::make()
             ->tooltip('Delete recipe')->requiresConfirmation()
-            ->before(function (Tables\Actions\DeleteAction $action, $record) {
+            ->before(function (DeleteAction $action, $record) {
                 // TODO: Extract to App\Actions\Recipe\ValidateRecipeDeletionAction
                 $activeCropsCount = $record->active_crops_count;
                 $totalCropsCount = $record->total_crops_count;
@@ -230,9 +241,9 @@ class RecipeTable
             });
     }
     
-    protected static function getDeactivateAction(): Tables\Actions\Action
+    protected static function getDeactivateAction(): Action
     {
-        return Tables\Actions\Action::make('deactivate')
+        return Action::make('deactivate')
             ->label('Deactivate')->icon('heroicon-o-eye-slash')->color('warning')->requiresConfirmation()
             ->action(function ($record) {
                 // TODO: Extract to App\Actions\Recipe\DeactivateRecipeAction
@@ -243,9 +254,9 @@ class RecipeTable
             ->visible(fn ($record) => $record->is_active ?? true);
     }
     
-    protected static function getActivateAction(): Tables\Actions\Action
+    protected static function getActivateAction(): Action
     {
-        return Tables\Actions\Action::make('activate')
+        return Action::make('activate')
             ->label('Activate')->icon('heroicon-o-eye')->color('success')
             ->action(function ($record) {
                 // TODO: Extract to App\Actions\Recipe\ActivateRecipeAction
@@ -256,9 +267,9 @@ class RecipeTable
             ->visible(fn ($record) => !($record->is_active ?? true));
     }
     
-    protected static function getViewSeedLotAction(): Tables\Actions\Action
+    protected static function getViewSeedLotAction(): Action
     {
-        return Tables\Actions\Action::make('view_seed_lot')
+        return Action::make('view_seed_lot')
             ->label('View Seed Lot')
             ->icon('heroicon-o-eye')
             ->color('info')

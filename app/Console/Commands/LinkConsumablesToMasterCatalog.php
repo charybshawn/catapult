@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\MasterCultivar;
 use Illuminate\Console\Command;
 use App\Models\Consumable;
 use App\Models\MasterSeedCatalog;
@@ -54,7 +55,7 @@ class LinkConsumablesToMasterCatalog extends Command
                 $this->info("  Parsed: Common='{$commonName}', Cultivar='{$cultivarName}'");
                 
                 // Try to find existing cultivar with this exact name
-                $masterCultivar = \App\Models\MasterCultivar::whereHas('masterSeedCatalog', function ($query) use ($commonName) {
+                $masterCultivar = MasterCultivar::whereHas('masterSeedCatalog', function ($query) use ($commonName) {
                         $query->where('common_name', $commonName);
                     })
                     ->whereRaw('LOWER(cultivar_name) = ?', [strtolower($cultivarName)])
@@ -78,7 +79,7 @@ class LinkConsumablesToMasterCatalog extends Command
                         // Create new cultivar for existing catalog
                         $this->warn("  Adding '{$cultivarName}' cultivar to existing '{$commonName}' catalog");
                         if (!$dryRun) {
-                            $newCultivar = \App\Models\MasterCultivar::create([
+                            $newCultivar = MasterCultivar::create([
                                 'master_seed_catalog_id' => $existingCatalog->id,
                                 'cultivar_name' => $cultivarName,
                                 'is_active' => true,
@@ -104,7 +105,7 @@ class LinkConsumablesToMasterCatalog extends Command
                             ]);
                             
                             // Create cultivar
-                            $newCultivar = \App\Models\MasterCultivar::create([
+                            $newCultivar = MasterCultivar::create([
                                 'master_seed_catalog_id' => $masterCatalog->id,
                                 'cultivar_name' => $cultivarName,
                                 'is_active' => true,

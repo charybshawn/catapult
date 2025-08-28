@@ -8,28 +8,49 @@ use App\Models\ConsumableType;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Service class for Recipe business logic
+ * Agricultural recipe management and calculation service.
+ * 
+ * Manages comprehensive recipe operations for agricultural microgreens production
+ * including recipe naming, inventory validation, growth calculations, and
+ * lot tracking. Integrates with inventory management to ensure accurate
+ * seed availability and automates recipe lifecycle management.
+ *
+ * @business_domain Agricultural recipe management and production planning
+ * @related_models Recipe, Consumable, ConsumableType
+ * @related_services InventoryManagementService
+ * @used_by Recipe resources, crop planning, production scheduling
+ * @agricultural_context Specialized for microgreens production recipes and calculations
  */
 class RecipeService
 {
     /**
-     * @var InventoryManagementService
+     * Inventory management service for seed and consumable tracking.
      */
     protected InventoryManagementService $inventoryService;
     
     /**
-     * Create a new service instance.
+     * Initialize recipe service with inventory management integration.
+     * 
+     * Establishes connection to inventory service for seed availability
+     * validation and lot tracking in recipe management.
+     *
+     * @param InventoryManagementService $inventoryService Service for inventory operations
      */
     public function __construct(InventoryManagementService $inventoryService)
     {
         $this->inventoryService = $inventoryService;
     }
     /**
-     * Generate recipe name from variety, cultivar, seed density, DTM, and lot number.
-     * Format: Variety (Cultivar) - Seed Density - DTM - LOT NO
+     * Generate standardized agricultural recipe name from production parameters.
      * 
-     * @param Recipe $recipe
-     * @return void
+     * Creates comprehensive recipe names following agricultural naming conventions:
+     * Format: Variety (Cultivar) - Seed Density - DTM - LOT NO
+     * Essential for recipe organization and production tracking.
+     *
+     * @param Recipe $recipe Recipe instance to generate name for
+     * @return void Updates recipe name, common_name, and cultivar_name fields
+     * @agricultural_context Uses agricultural variety and cultivar naming standards
+     * @naming_format Standardized format for production recipe identification
      */
     public function generateRecipeName(Recipe $recipe): void
     {
@@ -83,11 +104,16 @@ class RecipeService
     }
 
     /**
-     * Ensure the recipe name is unique by appending a number if necessary.
+     * Ensure agricultural recipe name uniqueness with automated versioning.
      * 
-     * @param Recipe $recipe
-     * @param string $baseName The base name to make unique
-     * @return string The unique name
+     * Prevents duplicate recipe names in agricultural production system
+     * by appending version numbers when necessary. Essential for
+     * maintaining clear recipe identification in production workflows.
+     *
+     * @param Recipe $recipe Recipe instance being named
+     * @param string $baseName Base recipe name to make unique
+     * @return string Unique recipe name with version number if needed
+     * @agricultural_context Ensures clear recipe identification in production
      */
     public function ensureUniqueRecipeName(Recipe $recipe, string $baseName): string
     {
@@ -123,10 +149,15 @@ class RecipeService
     }
 
     /**
-     * Calculate the total days from planting to harvest.
+     * Calculate total agricultural production cycle duration.
      * 
-     * @param Recipe $recipe
-     * @return float
+     * Computes complete growing cycle from planting to harvest for
+     * agricultural production planning. Uses either explicit days-to-maturity
+     * or sum of individual stage durations for accurate scheduling.
+     *
+     * @param Recipe $recipe Recipe with growth stage durations
+     * @return float Total days from planting to harvest
+     * @agricultural_context Essential for crop scheduling and harvest planning
      */
     public function calculateTotalDays(Recipe $recipe): float
     {
@@ -142,10 +173,14 @@ class RecipeService
     }
 
     /**
-     * Calculate days to harvest including seed soak time.
+     * Calculate effective agricultural production cycle including seed preparation.
      * 
-     * @param Recipe $recipe
-     * @return float
+     * Computes complete production timeline including seed soaking preparation
+     * time for accurate agricultural scheduling and resource planning.
+     *
+     * @param Recipe $recipe Recipe with soak time and growth durations
+     * @return float Total effective days including seed preparation
+     * @agricultural_context Includes pre-planting seed preparation in scheduling
      */
     public function calculateEffectiveTotalDays(Recipe $recipe): float
     {
@@ -154,10 +189,15 @@ class RecipeService
     }
 
     /**
-     * Mark the recipe's lot as depleted.
+     * Mark agricultural seed lot as depleted to prevent production errors.
      * 
-     * @param Recipe $recipe
-     * @return void
+     * Records when a recipe's seed lot is exhausted to prevent scheduling
+     * crops with unavailable seeds. Essential for accurate agricultural
+     * production planning and inventory management.
+     *
+     * @param Recipe $recipe Recipe with depleted seed lot
+     * @return void Updates recipe with depletion timestamp
+     * @agricultural_context Prevents production scheduling with unavailable seeds
      */
     public function markLotDepleted(Recipe $recipe): void
     {
@@ -172,11 +212,17 @@ class RecipeService
     }
 
     /**
-     * Check if a recipe can be executed with the required quantity.
+     * Validate agricultural recipe execution feasibility with inventory check.
      * 
-     * @param Recipe $recipe
-     * @param float $requiredQuantity
-     * @return bool
+     * Verifies recipe can be executed with required seed quantities by
+     * checking inventory availability and lot status. Prevents production
+     * failures due to insufficient seed supplies.
+     *
+     * @param Recipe $recipe Recipe to validate for execution
+     * @param float $requiredQuantity Required seed quantity in grams
+     * @return bool Whether recipe can be executed with required quantity
+     * @agricultural_context Prevents production scheduling without sufficient seeds
+     * @inventory_integration Real-time seed availability validation
      */
     public function canExecuteRecipe(Recipe $recipe, float $requiredQuantity): bool
     {
@@ -212,10 +258,16 @@ class RecipeService
     }
 
     /**
-     * Validate recipe data before saving.
+     * Validate agricultural recipe parameters for production feasibility.
      * 
-     * @param Recipe $recipe
-     * @return array Array of validation errors, empty if valid
+     * Performs comprehensive validation of recipe parameters including
+     * growth stages, seed density, yield expectations, and buffer percentages
+     * to ensure agricultural production viability.
+     *
+     * @param Recipe $recipe Recipe to validate
+     * @return array Array of validation errors (empty if valid)
+     * @agricultural_context Validates parameters for realistic agricultural production
+     * @validation_rules Ensures positive durations, realistic densities, and valid percentages
      */
     public function validateRecipe(Recipe $recipe): array
     {

@@ -2,9 +2,10 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Schemas\Schema;
+use App\Filament\Resources\OrderSimulatorResource\Pages\ManageOrderSimulator;
 use App\Filament\Resources\OrderSimulatorResource\Pages;
 use Filament\Forms;
-use Filament\Forms\Form;
 use App\Filament\Resources\Base\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -13,18 +14,18 @@ class OrderSimulatorResource extends BaseResource
 {
     protected static ?string $model = null;
 
-    protected static ?string $navigationIcon = 'heroicon-o-calculator';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-calculator';
 
-    protected static ?string $navigationGroup = 'Planning';
+    protected static string | \UnitEnum | null $navigationGroup = 'Planning';
 
     protected static ?string $navigationLabel = 'Order Simulator';
 
     protected static ?int $navigationSort = 100;
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 // Form will be handled in custom page
             ]);
     }
@@ -38,10 +39,10 @@ class OrderSimulatorResource extends BaseResource
             ->filters([
                 //
             ])
-            ->actions([
+            ->recordActions([
                 //
             ])
-            ->bulkActions([
+            ->toolbarActions([
                 //
             ]);
     }
@@ -56,7 +57,7 @@ class OrderSimulatorResource extends BaseResource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ManageOrderSimulator::route('/'),
+            'index' => ManageOrderSimulator::route('/'),
         ];
     }
 

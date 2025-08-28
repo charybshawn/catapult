@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Models\CropStage;
 use App\Models\Crop;
 use App\Services\RecipeVarietyService;
 use Filament\Widgets\Widget;
@@ -9,7 +10,7 @@ use Illuminate\Support\Carbon;
 
 class GroupedCropAlertsWidget extends Widget
 {
-    protected static string $view = 'filament.widgets.grouped-crop-alerts-widget';
+    protected string $view = 'filament.widgets.grouped-crop-alerts-widget';
     
     // Set the default widget positioning
     protected static ?int $sort = 1;
@@ -53,7 +54,7 @@ class GroupedCropAlertsWidget extends Widget
         ];
 
         // Get all active crops (not harvested) with their relationships
-        $harvestedStage = \App\Models\CropStage::findByCode('harvested');
+        $harvestedStage = CropStage::findByCode('harvested');
         $crops = Crop::where('current_stage_id', '!=', $harvestedStage?->id)
             ->with(['recipe.masterSeedCatalog', 'recipe.masterCultivar.masterSeedCatalog', 'recipe', 'currentStage'])
             ->get();

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -118,7 +119,7 @@ class OptimizeDatabase extends Command
             try {
                 DB::statement("ANALYZE TABLE `{$table}`");
                 $bar->advance();
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 Log::error("Failed to analyze table {$table}: " . $e->getMessage());
                 $this->newLine();
                 $this->error("Error analyzing table {$table}: " . $e->getMessage());
@@ -143,7 +144,7 @@ class OptimizeDatabase extends Command
             try {
                 DB::statement("OPTIMIZE TABLE `{$table}`");
                 $bar->advance();
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 Log::error("Failed to optimize table {$table}: " . $e->getMessage());
                 $this->newLine();
                 $this->error("Error optimizing table {$table}: " . $e->getMessage());

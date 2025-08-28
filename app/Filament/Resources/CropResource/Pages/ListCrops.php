@@ -2,6 +2,11 @@
 
 namespace App\Filament\Resources\CropResource\Pages;
 
+use Illuminate\Database\Eloquent\Builder;
+use App\Models\Recipe;
+use Filament\Actions\CreateAction;
+use App\Models\CropStage;
+use Filament\Actions\Action;
 use App\Filament\Resources\CropResource;
 use App\Models\CropBatch;
 use Filament\Actions;
@@ -17,7 +22,7 @@ class ListCrops extends ListRecords
 {
     protected static string $resource = CropResource::class;
 
-    protected static string $view = 'filament.resources.crop-resource.pages.list-crops';
+    protected string $view = 'filament.resources.crop-resource.pages.list-crops';
 
     // Set default sort for the page - use batch_date for grouped view
     protected function getDefaultTableSortColumn(): ?string
@@ -46,13 +51,13 @@ class ListCrops extends ListRecords
         return [10, 25, 50, 100];
     }
 
-    protected function getTableQuery(): \Illuminate\Database\Eloquent\Builder
+    protected function getTableQuery(): Builder
     {
         $query = parent::getTableQuery();
 
         // Add additional logging for debugging
         Log::info('Recipe and Seed Entry Data:', [
-            'recipes' => \App\Models\Recipe::with('masterSeedCatalog', 'masterCultivar')->get()->map(function ($recipe) {
+            'recipes' => Recipe::with('masterSeedCatalog', 'masterCultivar')->get()->map(function ($recipe) {
                 return [
                     'id' => $recipe->id,
                     'name' => $recipe->name,
@@ -86,7 +91,7 @@ class ListCrops extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            CreateAction::make(),
             $this->getActiveSoakingButton(),
             ...parent::getHeaderActions(),
         ];
@@ -103,7 +108,7 @@ class ListCrops extends ListRecords
      */
     protected function getActiveSoakingCount(): int
     {
-        $soakingStage = \App\Models\CropStage::findByCode('soaking');
+        $soakingStage = CropStage::findByCode('soaking');
 
         if (! $soakingStage) {
             return 0;
@@ -122,7 +127,7 @@ class ListCrops extends ListRecords
      */
     protected function hasOverdueSoaking(): bool
     {
-        $soakingStage = \App\Models\CropStage::findByCode('soaking');
+        $soakingStage = CropStage::findByCode('soaking');
 
         if (! $soakingStage) {
             return false;
@@ -150,12 +155,12 @@ class ListCrops extends ListRecords
     /**
      * Get the Active Soaking button for the header
      */
-    protected function getActiveSoakingButton(): Actions\Action
+    protected function getActiveSoakingButton(): Action
     {
         $count = $this->getActiveSoakingCount();
         $hasOverdue = $this->hasOverdueSoaking();
 
-        return Actions\Action::make('activeSoaking')
+        return Action::make('activeSoaking')
             ->label($count > 0 ? "Active Soaking ({$count})" : 'Active Soaking')
             ->icon('heroicon-o-beaker')
             ->color($count > 0 ? ($hasOverdue ? 'danger' : 'success') : 'gray')

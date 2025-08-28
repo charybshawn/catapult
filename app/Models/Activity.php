@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Collection;
 use Spatie\Activitylog\Models\Activity as SpatieActivity;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -307,7 +308,7 @@ class Activity extends SpatieActivity
     /**
      * Get recent activities with eager loading.
      */
-    public static function getRecentActivities(int $limit = 50, array $with = []): \Illuminate\Database\Eloquent\Collection
+    public static function getRecentActivities(int $limit = 50, array $with = []): Collection
     {
         return static::query()
             ->with(array_merge(['causer', 'subject'], $with))

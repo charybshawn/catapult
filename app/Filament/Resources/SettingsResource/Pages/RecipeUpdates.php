@@ -2,12 +2,20 @@
 
 namespace App\Filament\Resources\SettingsResource\Pages;
 
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\Select;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Forms\Components\Placeholder;
+use Filament\Schemas\Components\Utilities\Get;
+use App\Models\CropStage;
+use Filament\Forms\Components\Checkbox;
+use Exception;
 use App\Filament\Resources\SettingsResource;
 use App\Models\Crop;
 use App\Models\Recipe;
 use Filament\Actions\Action;
 use Filament\Forms;
-use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Page;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +24,7 @@ class RecipeUpdates extends Page
 {
     protected static string $resource = SettingsResource::class;
 
-    protected static string $view = 'filament.resources.settings-resource.pages.recipe-updates';
+    protected string $view = 'filament.resources.settings-resource.pages.recipe-updates';
 
     public ?array $data = [];
 
@@ -25,22 +33,22 @@ class RecipeUpdates extends Page
         $this->form->fill();
     }
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Update Existing Grows with Recipe Changes')
+        return $schema
+            ->components([
+                Section::make('Update Existing Grows with Recipe Changes')
                     ->description('This tool allows you to update existing grows with changes from their recipes. Use with caution as this will modify existing data.')
                     ->schema([
-                        Forms\Components\Select::make('recipe_id')
+                        Select::make('recipe_id')
                             ->label('Recipe')
                             ->options(Recipe::pluck('name', 'id'))
                             ->searchable()
                             ->required()
-                            ->live(onBlur: true)()
-                            ->afterStateUpdated(fn (Forms\Set $set) => $set('affected_grows_count', null)),
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(fn (Set $set) => $set('affected_grows_count', null)),
 
-                        Forms\Components\Select::make('current_stage')
+                        Select::make('current_stage')
                             ->label('Current Stage Filter')
                             ->options([
                                 'all' => 'All Stages',
@@ -50,12 +58,12 @@ class RecipeUpdates extends Page
                             ])
                             ->default('all')
                             ->required()
-                            ->live(onBlur: true)()
-                            ->afterStateUpdated(fn (Forms\Set $set) => $set('affected_grows_count', null)),
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(fn (Set $set) => $set('affected_grows_count', null)),
 
-                        Forms\Components\Placeholder::make('affected_grows_count')
+                        Placeholder::make('affected_grows_count')
                             ->label('Affected Grows')
-                            ->content(function (Forms\Get $get, Forms\Set $set) {
+                            ->content(function (Get $get, Set $set) {
                                 $recipeId = $get('recipe_id');
                                 $stage = $get('current_stage');
 
@@ -63,12 +71,12 @@ class RecipeUpdates extends Page
                                     return 'Please select a recipe';
                                 }
 
-                                $harvestedStage = \App\Models\CropStage::findByCode('harvested');
+                                $harvestedStage = CropStage::findByCode('harvested');
                                 $query = Crop::where('recipe_id', $recipeId)
                                     ->where('current_stage_id', '!=', $harvestedStage?->id);
 
                                 if ($stage !== 'all') {
-                                    $stageRecord = \App\Models\CropStage::findByCode($stage);
+                                    $stageRecord = CropStage::findByCode($stage);
                                     if ($stageRecord) {
                                         $query->where('current_stage_id', $stageRecord->id);
                                     }
@@ -84,23 +92,23 @@ class RecipeUpdates extends Page
                                 return "{$count} grows will be affected for recipe: {$recipe->name}";
                             }),
 
-                        Forms\Components\Checkbox::make('update_germination_days')
+                        Checkbox::make('update_germination_days')
                             ->label('Update Germination Days'),
 
-                        Forms\Components\Checkbox::make('update_blackout_days')
+                        Checkbox::make('update_blackout_days')
                             ->label('Update Blackout Days'),
 
-                        Forms\Components\Checkbox::make('update_light_days')
+                        Checkbox::make('update_light_days')
                             ->label('Update Light Days'),
 
-                        Forms\Components\Checkbox::make('update_days_to_maturity')
+                        Checkbox::make('update_days_to_maturity')
                             ->label('Update Days to Maturity'),
 
-                        Forms\Components\Checkbox::make('update_expected_harvest_dates')
+                        Checkbox::make('update_expected_harvest_dates')
                             ->label('Update Expected Harvest Dates')
                             ->helperText('This will recalculate harvest dates based on the recipe settings'),
 
-                        Forms\Components\Checkbox::make('confirm_updates')
+                        Checkbox::make('confirm_updates')
                             ->label('I understand this will modify existing grows')
                             ->required()
                             ->helperText('This action cannot be undone. Please back up your data before proceeding.'),
@@ -150,12 +158,12 @@ class RecipeUpdates extends Page
         }
 
         // Build the query for crops to update
-        $harvestedStage = \App\Models\CropStage::findByCode('harvested');
+        $harvestedStage = CropStage::findByCode('harvested');
         $query = Crop::where('recipe_id', $recipe->id)
             ->where('current_stage_id', '!=', $harvestedStage?->id);
 
         if ($data['current_stage'] !== 'all') {
-            $stageRecord = \App\Models\CropStage::findByCode($data['current_stage']);
+            $stageRecord = CropStage::findByCode($data['current_stage']);
             if ($stageRecord) {
                 $query->where('current_stage_id', $stageRecord->id);
             }
@@ -225,7 +233,7 @@ class RecipeUpdates extends Page
                 ->success()
                 ->send();
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Rollback the transaction on error
             DB::rollBack();
 

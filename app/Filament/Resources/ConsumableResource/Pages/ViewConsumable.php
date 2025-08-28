@@ -2,12 +2,19 @@
 
 namespace App\Filament\Resources\ConsumableResource\Pages;
 
+use Filament\Actions\EditAction;
+use Filament\Actions\Action;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Section;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Components\IconEntry;
+use Filament\Schemas\Components\Group;
 use App\Filament\Resources\ConsumableResource;
 use App\Models\Consumable;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Infolists;
-use Filament\Infolists\Infolist;
 use Filament\Resources\Pages\ViewRecord;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Log;
@@ -19,12 +26,12 @@ class ViewConsumable extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\EditAction::make(),
-            Actions\Action::make('restock')
+            EditAction::make(),
+            Action::make('restock')
                 ->label('Restock')
                 ->icon('heroicon-o-plus')
-                ->form([
-                    Forms\Components\TextInput::make('amount')
+                ->schema([
+                    TextInput::make('amount')
                         ->label('Amount to Add')
                         ->numeric()
                         ->required()
@@ -38,11 +45,11 @@ class ViewConsumable extends ViewRecord
                         'total_quantity',
                     ]);
                 }),
-            Actions\Action::make('deduct')
+            Action::make('deduct')
                 ->label('Deduct')
                 ->icon('heroicon-o-minus')
-                ->form([
-                    Forms\Components\TextInput::make('amount')
+                ->schema([
+                    TextInput::make('amount')
                         ->label('Amount to Deduct')
                         ->numeric()
                         ->required()
@@ -100,13 +107,13 @@ class ViewConsumable extends ViewRecord
     
     /**
      * Helper method to format quantity display
-     * 
+     *
      * @param float $quantity The quantity to format
-     * @param \App\Models\Consumable $record The consumable record
+     * @param Consumable $record The consumable record
      * @param bool $showTotal Whether to show total quantity (for initial and consumed)
      * @return string The formatted quantity string
      */
-    protected function formatQuantity(float $quantity, \App\Models\Consumable $record, bool $showTotal = false): string
+    protected function formatQuantity(float $quantity, Consumable $record, bool $showTotal = false): string
     {
         // Debug information
         Log::debug("Formatting quantity for consumable {$record->id} ({$record->name}):", [
@@ -165,15 +172,15 @@ class ViewConsumable extends ViewRecord
         return $formatNumber($quantity) . " {$displayUnit}";
     }
     
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
         return $infolist
             ->schema([
-                Infolists\Components\Section::make('Consumable Information')
+                Section::make('Consumable Information')
                     ->schema([
-                        Infolists\Components\TextEntry::make('name')
+                        TextEntry::make('name')
                             ->label('Name'),
-                        Infolists\Components\TextEntry::make('consumableType.name')
+                        TextEntry::make('consumableType.name')
                             ->label('Type')
                             ->badge()
                             ->color(fn ($record): string => match ($record->consumableType?->code) {
@@ -184,28 +191,28 @@ class ViewConsumable extends ViewRecord
                                 'other' => 'gray',
                                 default => 'secondary',
                             }),
-                        Infolists\Components\TextEntry::make('supplier.name')
+                        TextEntry::make('supplier.name')
                             ->label('Supplier'),
-                        Infolists\Components\TextEntry::make('packagingType')
+                        TextEntry::make('packagingType')
                             ->label('Packaging Type')
                             ->formatStateUsing(fn ($record) => $record->packagingType?->display_name)
                             ->visible(fn ($record) => $record->consumableType?->code === 'packaging'),
-                        Infolists\Components\IconEntry::make('is_active')
+                        IconEntry::make('is_active')
                             ->label('Active')
                             ->boolean(),
                     ])
                     ->columns(2),
                     
-                Infolists\Components\Section::make('Stock Information')
+                Section::make('Stock Information')
                     ->schema([
-                        Infolists\Components\Group::make([
-                            Infolists\Components\TextEntry::make('initial_stock')
+                        Group::make([
+                            TextEntry::make('initial_stock')
                                 ->label('Initial Quantity')
                                 ->formatStateUsing(fn ($state, $record) => $this->formatQuantity($state, $record, true)),
-                            Infolists\Components\TextEntry::make('consumed_quantity')
+                            TextEntry::make('consumed_quantity')
                                 ->label('Consumed Quantity')
                                 ->formatStateUsing(fn ($state, $record) => $this->formatQuantity($state, $record, true)),
-                            Infolists\Components\TextEntry::make('current_stock')
+                            TextEntry::make('current_stock')
                                 ->label('Available Quantity')
                                 ->formatStateUsing(function ($state, $record) {
                                     // Calculate current stock
@@ -253,7 +260,7 @@ class ViewConsumable extends ViewRecord
                                     $displayUnit = $unitMap[$record->unit] ?? $record->unit;
                                     return $formatNumber($currentStock) . " {$displayUnit}";
                                 }),
-                            Infolists\Components\TextEntry::make('unit')
+                            TextEntry::make('unit')
                                 ->label('Unit Type')
                                 ->formatStateUsing(function ($state) {
                                     // Map unit codes to their full names
@@ -270,18 +277,18 @@ class ViewConsumable extends ViewRecord
                         ])->columnSpanFull()
                             ->columns(4),
                             
-                        Infolists\Components\Group::make([
-                            Infolists\Components\TextEntry::make('restock_threshold')
+                        Group::make([
+                            TextEntry::make('restock_threshold')
                                 ->label('Restock Threshold')
                                 ->formatStateUsing(fn ($state, $record) => $this->formatQuantity($state, $record, false)),
-                            Infolists\Components\TextEntry::make('restock_quantity')
+                            TextEntry::make('restock_quantity')
                                 ->label('Restock Quantity')
                                 ->formatStateUsing(fn ($state, $record) => $this->formatQuantity($state, $record, false)),
                         ])->columnSpanFull()
                             ->columns(2),
                             
-                        Infolists\Components\Group::make([
-                            Infolists\Components\TextEntry::make('status')
+                        Group::make([
+                            TextEntry::make('status')
                                 ->state(function ($record) {
                                     if ($record->current_stock <= 0) {
                                         return 'Out of Stock';
@@ -305,9 +312,9 @@ class ViewConsumable extends ViewRecord
                             ->columns(1),
                     ]),
                     
-                Infolists\Components\Section::make('Additional Information')
+                Section::make('Additional Information')
                     ->schema([
-                        Infolists\Components\TextEntry::make('notes')
+                        TextEntry::make('notes')
                             ->columnSpanFull(),
                     ])
                     ->collapsible()

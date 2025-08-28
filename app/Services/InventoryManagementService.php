@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Exception;
 use App\Models\Consumable;
 use App\Models\ConsumableTransaction;
 use App\Models\ConsumableType;
@@ -654,29 +655,28 @@ class InventoryManagementService
     // ===================================================================
     // FIFO Lot Consumption Methods
     // ===================================================================
-
     /**
      * Consume specified amount from a lot using FIFO (oldest entries first).
-     * 
+     *
      * @param string $lotNumber The lot number to consume from
      * @param float $amount The amount to consume
      * @param Recipe|null $recipe Optional recipe reference
      * @param User|null $user Optional user performing the consumption
      * @return array Array with consumed amounts per consumable entry
-     * @throws \Exception If lot doesn't exist or insufficient stock
+     * @throws Exception If lot doesn't exist or insufficient stock
      */
     public function consumeFromLot(string $lotNumber, float $amount, ?Recipe $recipe = null, ?User $user = null): array
     {
         return DB::transaction(function () use ($lotNumber, $amount, $recipe, $user) {
             // Validate lot exists
             if (!$this->lotExists($lotNumber)) {
-                throw new \Exception("Lot '{$lotNumber}' does not exist");
+                throw new Exception("Lot '{$lotNumber}' does not exist");
             }
             
             // Check if sufficient stock is available
             if (!$this->canConsumeFromLot($lotNumber, $amount)) {
                 $available = $this->getLotQuantity($lotNumber);
-                throw new \Exception("Insufficient stock in lot '{$lotNumber}'. Requested: {$amount}, Available: {$available}");
+                throw new Exception("Insufficient stock in lot '{$lotNumber}'. Requested: {$amount}, Available: {$available}");
             }
             
             $consumedAmounts = [];
@@ -765,23 +765,23 @@ class InventoryManagementService
 
     /**
      * Get detailed plan showing which entries will be consumed and how much.
-     * 
+     *
      * @param string $lotNumber The lot number to plan for
      * @param float $amount The amount to plan consumption for
      * @return array Array with consumption plan details
-     * @throws \Exception If lot doesn't exist or insufficient stock
+     * @throws Exception If lot doesn't exist or insufficient stock
      */
     public function getLotConsumptionPlan(string $lotNumber, float $amount): array
     {
         // Validate lot exists
         if (!$this->lotExists($lotNumber)) {
-            throw new \Exception("Lot '{$lotNumber}' does not exist");
+            throw new Exception("Lot '{$lotNumber}' does not exist");
         }
         
         // Check if sufficient stock is available
         if (!$this->canConsumeFromLot($lotNumber, $amount)) {
             $available = $this->getLotQuantity($lotNumber);
-            throw new \Exception("Insufficient stock in lot '{$lotNumber}'. Requested: {$amount}, Available: {$available}");
+            throw new Exception("Insufficient stock in lot '{$lotNumber}'. Requested: {$amount}, Available: {$available}");
         }
         
         $consumptionPlan = [];
@@ -1480,7 +1480,7 @@ class InventoryManagementService
             ]);
             
             return true;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error deducting seed from lot', [
                 'crop_id' => $crop->id,
                 'lot_number' => $lotNumber,
@@ -1540,7 +1540,7 @@ class InventoryManagementService
             ]);
             
             return true;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error deducting seed inventory for new crop', [
                 'crop_id' => $crop->id,
                 'recipe_id' => $crop->recipe_id,

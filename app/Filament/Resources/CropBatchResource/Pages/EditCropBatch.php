@@ -2,6 +2,10 @@
 
 namespace App\Filament\Resources\CropBatchResource\Pages;
 
+use Filament\Actions\ViewAction;
+use Filament\Actions\DeleteAction;
+use Exception;
+use App\Filament\Resources\CropBatchResource\Forms\CropBatchEditForm;
 use App\Filament\Resources\CropBatchResource;
 use App\Models\CropBatch;
 use Filament\Actions;
@@ -18,8 +22,8 @@ class EditCropBatch extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\ViewAction::make(),
-            Actions\DeleteAction::make()
+            ViewAction::make(),
+            DeleteAction::make()
                 ->before(function (CropBatch $record) {
                     // Delete all crops in the batch
                     $record->crops()->delete();
@@ -90,14 +94,14 @@ class EditCropBatch extends EditRecord
             if (isset($data['tray_numbers']) && is_array($data['tray_numbers'])) {
                 $newTrayNumbers = array_values($data['tray_numbers']); // Ensure sequential array
                 $existingCrops = $crops->sortBy('tray_number')->values();
-                
+
                 // Update existing crops with new tray numbers
                 foreach ($existingCrops as $index => $crop) {
                     if (isset($newTrayNumbers[$index])) {
                         $crop->update(['tray_number' => $newTrayNumbers[$index]]);
                     }
                 }
-                
+
                 // If there are more tray numbers than crops, we might need to handle that
                 // For now, we'll just update existing crops
             }
@@ -112,7 +116,7 @@ class EditCropBatch extends EditRecord
             
             return $record;
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             DB::rollBack();
             
             Log::error('Failed to update crop batch', [
@@ -137,6 +141,6 @@ class EditCropBatch extends EditRecord
      */
     protected function getFormSchema(): array
     {
-        return \App\Filament\Resources\CropBatchResource\Forms\CropBatchEditForm::schema();
+        return CropBatchEditForm::schema();
     }
 }

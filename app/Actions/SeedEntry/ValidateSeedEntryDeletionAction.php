@@ -2,6 +2,10 @@
 
 namespace App\Actions\SeedEntry;
 
+use App\Models\Recipe;
+use App\Models\CropStage;
+use App\Models\Crop;
+use App\Models\Consumable;
 use App\Models\SeedEntry;
 
 /**
@@ -20,11 +24,11 @@ class ValidateSeedEntryDeletionAction
         $issues = [];
         
         // Check for recipes using this seed entry
-        $recipesCount = \App\Models\Recipe::where('seed_entry_id', $seedEntry->id)->count();
+        $recipesCount = Recipe::where('seed_entry_id', $seedEntry->id)->count();
         if ($recipesCount > 0) {
             // Check if any of these recipes have active crops
-            $harvestedStage = \App\Models\CropStage::findByCode('harvested');
-            $activeCropsCount = \App\Models\Crop::whereHas('recipe', function($query) use ($seedEntry) {
+            $harvestedStage = CropStage::findByCode('harvested');
+            $activeCropsCount = Crop::whereHas('recipe', function($query) use ($seedEntry) {
                 $query->where('seed_entry_id', $seedEntry->id);
             })->where('current_stage_id', '!=', $harvestedStage?->id)->count();
             
@@ -36,7 +40,7 @@ class ValidateSeedEntryDeletionAction
         }
         
         // Check for consumables linked to this seed entry
-        $consumablesCount = \App\Models\Consumable::where('seed_entry_id', $seedEntry->id)
+        $consumablesCount = Consumable::where('seed_entry_id', $seedEntry->id)
             ->where('is_active', true)
             ->count();
         if ($consumablesCount > 0) {

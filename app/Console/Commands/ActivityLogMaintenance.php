@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Exception;
 use Illuminate\Console\Command;
 use App\Services\RetentionService;
 use App\Models\Activity;
@@ -9,10 +10,23 @@ use App\Models\ActivityLogStatistic;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
+/**
+ * Activity log maintenance command for agricultural operation audit trail management.
+ * Performs comprehensive maintenance including archival of old farm activity logs,
+ * cleanup of orphaned records, database optimization, and statistics generation
+ * to maintain performance while preserving important agricultural audit data.
+ *
+ * @business_domain Agricultural operation audit trail and farm activity tracking
+ * @maintenance_scope Log archival, orphaned record cleanup, database optimization
+ * @scheduling_context Runs monthly via console scheduler for automated maintenance
+ * @performance_optimization Table optimization and data retention for large farm datasets
+ * @data_integrity Cleanup of orphaned user references and invalid activity records
+ */
 class ActivityLogMaintenance extends Command
 {
     /**
      * The name and signature of the console command.
+     * Supports selective maintenance operations for agricultural activity logs.
      *
      * @var string
      */
@@ -22,7 +36,7 @@ class ActivityLogMaintenance extends Command
                             {--cleanup : Clean up orphaned records}';
 
     /**
-     * The console command description.
+     * The console command description for farm activity log maintenance.
      *
      * @var string
      */
@@ -31,7 +45,9 @@ class ActivityLogMaintenance extends Command
     protected RetentionService $retentionService;
 
     /**
-     * Create a new command instance.
+     * Create new activity log maintenance command with retention service dependency.
+     *
+     * @param RetentionService $retentionService Service for data retention and archival operations
      */
     public function __construct(RetentionService $retentionService)
     {
@@ -40,7 +56,15 @@ class ActivityLogMaintenance extends Command
     }
 
     /**
-     * Execute the console command.
+     * Execute comprehensive maintenance of agricultural activity logs.
+     * Performs archival, cleanup, optimization, and statistics generation
+     * to maintain audit trail performance and data integrity for farm operations.
+     *
+     * @agricultural_context Maintains comprehensive audit trail for farm operations
+     * @maintenance_tasks Archive old logs, cleanup orphaned records, optimize tables, generate statistics
+     * @performance_focus Ensures activity logging system remains efficient for ongoing farm operations
+     * @data_retention Preserves important agricultural audit data while managing system performance
+     * @return int Command exit status
      */
     public function handle(): int
     {
@@ -226,7 +250,7 @@ class ActivityLogMaintenance extends Command
                 try {
                     DB::statement("OPTIMIZE TABLE {$table}");
                     $this->info("Optimized table: {$table}");
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     $this->warn("Could not optimize table {$table}: " . $e->getMessage());
                 }
             }

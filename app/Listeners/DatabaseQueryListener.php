@@ -2,21 +2,56 @@
 
 namespace App\Listeners;
 
+use Exception;
 use App\Services\QueryLogService;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Database query monitoring and performance analysis listener for agricultural system.
+ * 
+ * Monitors all database queries executed in the agricultural microgreens management
+ * system for performance analysis, optimization opportunities, and critical slow
+ * query detection. Provides detailed logging of query patterns, execution times,
+ * and model associations for system optimization and troubleshooting.
+ * 
+ * @business_domain Database performance monitoring for agricultural operations
+ * @performance_monitoring Query execution time tracking and slow query detection
+ * @agricultural_context Monitors crop, order, inventory database performance
+ * @optimization_support Identifies N+1 queries and performance bottlenecks
+ */
 class DatabaseQueryListener
 {
+    /**
+     * Service for structured database query logging and analysis.
+     * 
+     * @var QueryLogService Service managing query performance data and analytics
+     */
     protected QueryLogService $queryLogService;
 
+    /**
+     * Initialize database query listener with logging service.
+     * 
+     * @param QueryLogService $queryLogService Service for query logging and analysis
+     */
     public function __construct(QueryLogService $queryLogService)
     {
         $this->queryLogService = $queryLogService;
     }
 
     /**
-     * Handle the query executed event.
+     * Handle database query execution event with performance monitoring.
+     * 
+     * Processes database queries for logging, performance analysis, and critical
+     * slow query detection. Extracts model context for agricultural business
+     * query categorization and monitors system performance patterns.
+     * 
+     * @param QueryExecuted $event Laravel query event with SQL and timing data
+     * @return void
+     * 
+     * @performance_monitoring Query execution time and frequency tracking
+     * @agricultural_analysis Categorizes queries by agricultural model types
+     * @critical_alerting Logs exceptionally slow queries for immediate attention
      */
     public function handle(QueryExecuted $event): void
     {
@@ -48,7 +83,7 @@ class DatabaseQueryListener
                     'connection' => $event->connectionName,
                 ]);
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Failed to log database query', [
                 'error' => $e->getMessage(),
                 'sql' => $event->sql,
@@ -57,7 +92,17 @@ class DatabaseQueryListener
     }
 
     /**
-     * Extract model information from the query.
+     * Extract agricultural model information from database query for categorization.
+     * 
+     * Analyzes SQL queries to determine which agricultural model is being accessed
+     * (crops, orders, products, etc.) for better query categorization and
+     * performance monitoring by business domain.
+     * 
+     * @param QueryExecuted $event Query event containing SQL and binding data
+     * @return string|null Fully qualified model class name or null if not determinable
+     * 
+     * @sql_analysis Pattern matching to identify table and corresponding model
+     * @agricultural_context Maps database tables to agricultural business models
      */
     protected function extractModelFromQuery(QueryExecuted $event): ?string
     {
@@ -84,7 +129,16 @@ class DatabaseQueryListener
     }
 
     /**
-     * Determine if events should be logged.
+     * Determine if database queries should be logged based on environment and configuration.
+     * 
+     * Applies environment-specific logging rules to prevent overwhelming logs in
+     * testing environments while maintaining production monitoring capabilities
+     * for agricultural system performance analysis.
+     * 
+     * @return bool True if query logging is enabled, false to skip
+     * 
+     * @environment_aware Different logging behavior for testing vs production
+     * @configuration_driven Respects system settings for query logging preferences
      */
     public function shouldLog(): bool
     {

@@ -2,6 +2,7 @@
 
 namespace App\Actions\Order;
 
+use App\Models\CropStage;
 use App\Models\Order;
 use App\Models\OrderStatus;
 use App\Events\OrderPacked;
@@ -10,11 +11,57 @@ use Filament\Resources\Pages\EditRecord;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Handle business logic when order status changes through Filament
- * Extracted from OrderStatusObserver to work WITH Filament patterns
+ * Manages comprehensive order status transitions for agricultural operations.
+ * 
+ * Handles complete status change workflows including timestamp updates,
+ * business logic execution, related record updates, event triggering,
+ * and user notifications. Ensures proper agricultural order lifecycle
+ * management with crop integration and invoice coordination.
+ * 
+ * @business_domain Agricultural Order Lifecycle and Status Management
+ * @status_workflow Complete transition handling with business rule enforcement
+ * @production_integration Coordinates order status with crop cultivation stages
+ * 
+ * @architecture Extracted from OrderStatusObserver to work WITH Filament patterns
+ * @filament_integration Designed for EditRecord page context integration
+ * 
+ * @author Catapult System
+ * @since 1.0.0
  */
 class HandleOrderStatusTransitionAction
 {
+    /**
+     * Execute comprehensive order status transition with complete workflow management.
+     * 
+     * Orchestrates multi-step status change process including timestamp updates,
+     * status-specific business logic, related record synchronization, event
+     * triggering, audit logging, and user notification. Ensures agricultural
+     * order transitions maintain data consistency and business rule compliance.
+     * 
+     * @business_process Complete Order Status Transition Workflow
+     * @agricultural_context Status transitions integrated with crop production stages
+     * @coordination_management Synchronizes orders, crops, invoices, and notifications
+     * 
+     * @param Order $order The agricultural order undergoing status transition
+     * @param OrderStatus|null $oldStatus Previous order status (null for new orders)
+     * @param OrderStatus $newStatus Target status for the transition
+     * @param EditRecord|null $page Optional Filament page context for user notifications
+     * 
+     * @workflow_steps:
+     *   1. Update status-specific timestamps (confirmed_at, cancelled_at, delivered_at)
+     *   2. Execute status-specific business logic (cancellation, delivery handling)
+     *   3. Update related records (crops, invoices, associated data)
+     *   4. Trigger appropriate system events (OrderPacked, etc.)
+     *   5. Log status change for audit trail
+     *   6. Send Filament notification if page context available
+     * 
+     * @business_rules Status-specific logic for cancellation cleanup and delivery completion
+     * @event_integration Triggers system events for status-dependent workflows
+     * @audit_logging Comprehensive logging of status changes with user attribution
+     * 
+     * @usage Called from OrderResource EditRecord hooks during status updates
+     * @notification_system Contextual user feedback through Filament interface
+     */
     public function execute(Order $order, ?OrderStatus $oldStatus, OrderStatus $newStatus, ?EditRecord $page = null): void
     {
         // Update status timestamps
@@ -77,7 +124,7 @@ class HandleOrderStatusTransitionAction
     private function handleOrderCancellation(Order $order): void
     {
         // Cancel any pending crops
-        $harvestedStage = \App\Models\CropStage::findByCode('harvested');
+        $harvestedStage = CropStage::findByCode('harvested');
         $order->crops()->where('current_stage_id', '!=', $harvestedStage?->id)->update([
             'cancelled_at' => now(),
             'cancellation_reason' => 'Order cancelled'
@@ -104,8 +151,8 @@ class HandleOrderStatusTransitionAction
     {
         // Update crop stages if moving to harvesting
         if ($newStatus->code === OrderStatus::STATUS_HARVESTING) {
-            $harvestedStage = \App\Models\CropStage::findByCode('harvested');
-            $harvestingStage = \App\Models\CropStage::findByCode('harvesting');
+            $harvestedStage = CropStage::findByCode('harvested');
+            $harvestingStage = CropStage::findByCode('harvesting');
             
             $order->crops()->where('current_stage_id', '!=', $harvestedStage?->id)->each(function ($crop) use ($harvestingStage) {
                 // Only update if crop is ready to harvest

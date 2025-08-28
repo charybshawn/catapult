@@ -2,8 +2,28 @@
 
 namespace App\Filament\Resources\ProductResource\RelationManagers;
 
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Grid;
+use Filament\Forms\Components\TextInput;
+use Filament\Actions\Action;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Toggle;
+use App\Filament\Resources\BaseResource;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Actions\CreateAction;
+use App\Models\PriceVariation;
+use Filament\Forms\Components\Placeholder;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\BulkAction;
+use App\Models\PackagingType;
 use Filament\Forms;
-use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -18,13 +38,13 @@ class PriceVariationsRelationManager extends RelationManager
     
     protected static ?string $title = 'Price Variations';
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Grid::make(2)
+        return $schema
+            ->components([
+                Grid::make(2)
                     ->schema([
-                        Forms\Components\TextInput::make('name')
+                        TextInput::make('name')
                             ->label('Variation Name')
                             ->required()
                             ->maxLength(255)
@@ -36,7 +56,7 @@ class PriceVariationsRelationManager extends RelationManager
                                 }
                             })
                             ->suffixAction(
-                                Forms\Components\Actions\Action::make('reset_to_auto')
+                                Action::make('reset_to_auto')
                                     ->icon('heroicon-o-arrow-path')
                                     ->tooltip('Reset to auto-generated name')
                                     ->action(function (callable $set, callable $get) {
@@ -45,11 +65,11 @@ class PriceVariationsRelationManager extends RelationManager
                                     })
                             ),
                         
-                        Forms\Components\Hidden::make('is_name_manual')
+                        Hidden::make('is_name_manual')
                             ->default(false),
                         
-                        Forms\Components\Hidden::make('generated_name'),
-                        Forms\Components\Select::make('packaging_type_id')
+                        Hidden::make('generated_name'),
+                        Select::make('packaging_type_id')
                             ->relationship('packagingType', 'name')
                             ->label('Packaging Type')
                             ->searchable()
@@ -64,20 +84,20 @@ class PriceVariationsRelationManager extends RelationManager
                             }),
                     ]),
                     
-                Forms\Components\Grid::make(3)
+                Grid::make(3)
                     ->schema([
-                        Forms\Components\TextInput::make('sku')
+                        TextInput::make('sku')
                             ->label('SKU/UPC Code')
                             ->maxLength(255)
                             ->columnSpan(1),
-                        Forms\Components\TextInput::make('fill_weight')
+                        TextInput::make('fill_weight')
                             ->label('Fill Weight / Quantity')
                             ->numeric()
                             ->minValue(0)
                             ->suffix('g / trays')
                             ->helperText('Fill weight in grams (packaged) or quantity (live trays, bulk by weight)')
                             ->columnSpan(1),
-                        Forms\Components\TextInput::make('price')
+                        TextInput::make('price')
                             ->required()
                             ->numeric()
                             ->prefix('$')
@@ -91,17 +111,17 @@ class PriceVariationsRelationManager extends RelationManager
                             }),
                     ]),
 
-                Forms\Components\Grid::make(3)
+                Grid::make(3)
                     ->schema([
-                        Forms\Components\Toggle::make('is_default')
+                        Toggle::make('is_default')
                             ->label('Default Price')
                             ->helperText('Only one variation can be the default.')
                             ->default(false),
-                        Forms\Components\Toggle::make('is_active')
+                        Toggle::make('is_active')
                             ->label('Active')
                             ->helperText('Inactive variations won\'t be used for pricing.')
                             ->default(true),
-                        Forms\Components\Toggle::make('is_global')
+                        Toggle::make('is_global')
                             ->label('Make Global')
                             ->helperText('When enabled, this price variation template will be available for all products')
                             ->default(false),
@@ -114,16 +134,16 @@ class PriceVariationsRelationManager extends RelationManager
         return $table
             ->recordTitleAttribute('name')
             ->columns([
-                \App\Filament\Resources\BaseResource::getNameColumn(),
-                Tables\Columns\TextColumn::make('packagingType.name')
+                BaseResource::getNameColumn(),
+                TextColumn::make('packagingType.name')
                     ->label('Packaging Type')
                     ->sortable()
                     ->placeholder('N/A'),
-                Tables\Columns\TextColumn::make('sku')
+                TextColumn::make('sku')
                     ->label('SKU/UPC')
                     ->searchable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('fill_weight')
+                TextColumn::make('fill_weight')
                     ->label('Weight/Qty')
                     ->formatStateUsing(function ($state, $record) {
                         if (!$state) {
@@ -144,34 +164,34 @@ class PriceVariationsRelationManager extends RelationManager
                     })
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('price')
+                TextColumn::make('price')
                     ->money('USD')
                     ->sortable(),
-                Tables\Columns\IconColumn::make('is_default')
+                IconColumn::make('is_default')
                     ->label('Default')
                     ->boolean(),
-                Tables\Columns\IconColumn::make('is_global')
+                IconColumn::make('is_global')
                     ->label('Global')
                     ->boolean(),
-                Tables\Columns\IconColumn::make('is_active')
+                IconColumn::make('is_active')
                     ->label('Active')
                     ->boolean(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('packagingType')
+                SelectFilter::make('packagingType')
                     ->relationship('packagingType', 'name')
                     ->searchable()
                     ->preload()
                     ->label('Packaging Type'),
-                Tables\Filters\TernaryFilter::make('is_default')
+                TernaryFilter::make('is_default')
                     ->label('Default Price'),
-                Tables\Filters\TernaryFilter::make('is_global')
+                TernaryFilter::make('is_global')
                     ->label('Global Templates'),
-                Tables\Filters\TernaryFilter::make('is_active'),
+                TernaryFilter::make('is_active'),
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make()
-                    ->mutateFormDataUsing(function (array $data) {
+                CreateAction::make()
+                    ->mutateDataUsing(function (array $data) {
                         // Set the product_id to the owner record
                         $data['product_id'] = $this->ownerRecord->id;
                         
@@ -194,15 +214,15 @@ class PriceVariationsRelationManager extends RelationManager
                                 ->update(['is_default' => false]);
                         }
                     }),
-                Tables\Actions\Action::make('apply_template')
+                Action::make('apply_template')
                     ->label('Apply Template')
                     ->icon('heroicon-o-document-duplicate')
                     ->color('info')
-                    ->form([
-                        Forms\Components\Select::make('template_id')
+                    ->schema([
+                        Select::make('template_id')
                             ->label('Choose Template')
                             ->options(function () {
-                                return \App\Models\PriceVariation::where('is_global', true)
+                                return PriceVariation::where('is_global', true)
                                     ->where('is_active', true)
                                     ->with('packagingType')
                                     ->get()
@@ -220,7 +240,7 @@ class PriceVariationsRelationManager extends RelationManager
                             ->reactive()
                             ->afterStateUpdated(function ($state, callable $set) {
                                 if ($state) {
-                                    $template = \App\Models\PriceVariation::find($state);
+                                    $template = PriceVariation::find($state);
                                     if ($template) {
                                         $set('name', $template->name);
                                         $set('sku', $template->sku);
@@ -229,46 +249,46 @@ class PriceVariationsRelationManager extends RelationManager
                                     }
                                 }
                             }),
-                        Forms\Components\TextInput::make('name')
+                        TextInput::make('name')
                             ->label('Variation Name')
                             ->required()
                             ->maxLength(255),
-                        Forms\Components\TextInput::make('fill_weight')
+                        TextInput::make('fill_weight')
                             ->label('Fill Weight (grams)')
                             ->numeric()
                             ->minValue(0)
                             ->suffix('g')
                             ->helperText('Specify the actual fill weight for this product')
                             ->required(),
-                        Forms\Components\TextInput::make('sku')
+                        TextInput::make('sku')
                             ->label('SKU/UPC Code')
                             ->maxLength(255),
-                        Forms\Components\Grid::make(2)
+                        Grid::make(2)
                             ->schema([
-                                Forms\Components\TextInput::make('price')
+                                TextInput::make('price')
                                     ->label('Custom Price')
                                     ->numeric()
                                     ->prefix('$')
                                     ->minValue(0)
                                     ->required()
                                     ->helperText('Enter custom price or leave as template default'),
-                                Forms\Components\Placeholder::make('template_price_info')
+                                Placeholder::make('template_price_info')
                                     ->label('Template Info')
                                     ->content('Template price will be shown here when a template is selected')
                                     ->reactive(),
                             ]),
-                        Forms\Components\Toggle::make('is_default')
+                        Toggle::make('is_default')
                             ->label('Make this the default price for the product')
                             ->default(false),
-                        Forms\Components\Toggle::make('is_active')
+                        Toggle::make('is_active')
                             ->label('Active')
                             ->default(true),
                     ])
                     ->action(function (array $data, RelationManager $livewire) {
-                        $template = \App\Models\PriceVariation::find($data['template_id']);
+                        $template = PriceVariation::find($data['template_id']);
                         
                         // Create a new product-specific variation based on the template
-                        \App\Models\PriceVariation::create([
+                        PriceVariation::create([
                             'product_id' => $livewire->ownerRecord->id,
                             'packaging_type_id' => $template->packaging_type_id,
                             'name' => $data['name'],
@@ -288,9 +308,9 @@ class PriceVariationsRelationManager extends RelationManager
                     })
                     ->tooltip('Apply a global pricing template to this product'),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\Action::make('set_default')
+            ->recordActions([
+                EditAction::make(),
+                Action::make('set_default')
                     ->label('Set as Default')
                     ->icon('heroicon-o-star')
                     ->hidden(fn ($record) => $record->is_default)
@@ -311,20 +331,20 @@ class PriceVariationsRelationManager extends RelationManager
                             ->success()
                             ->send();
                     }),
-                Tables\Actions\DeleteAction::make()
+                DeleteAction::make()
                     ->requiresConfirmation()
                     ->modalHeading('Delete Price Variation')
                     ->modalDescription('Are you sure you want to delete this price variation? This action cannot be undone.')
                     ->modalSubmitActionLabel('Yes, delete it'),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make()
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make()
                         ->requiresConfirmation()
                         ->modalHeading('Delete Price Variations')
                         ->modalDescription('Are you sure you want to delete the selected price variations? This action cannot be undone.')
                         ->modalSubmitActionLabel('Yes, delete them'),
-                    Tables\Actions\BulkAction::make('activate')
+                    BulkAction::make('activate')
                         ->label('Activate')
                         ->icon('heroicon-o-check')
                         ->requiresConfirmation()
@@ -340,7 +360,7 @@ class PriceVariationsRelationManager extends RelationManager
                                 ->success()
                                 ->send();
                         }),
-                    Tables\Actions\BulkAction::make('deactivate')
+                    BulkAction::make('deactivate')
                         ->label('Deactivate')
                         ->icon('heroicon-o-x-mark')
                         ->color('danger')
@@ -374,7 +394,7 @@ class PriceVariationsRelationManager extends RelationManager
             ->emptyStateHeading('No price variations')
             ->emptyStateDescription('Create price variations to set different prices based on packaging, customer type, or quantity.')
             ->emptyStateActions([
-                Tables\Actions\CreateAction::make()
+                CreateAction::make()
                     ->label('Create First Price Variation'),
             ]);
     }
@@ -413,7 +433,7 @@ class PriceVariationsRelationManager extends RelationManager
         
         // 2. Add packaging information
         if ($packagingId) {
-            $packaging = \App\Models\PackagingType::find($packagingId);
+            $packaging = PackagingType::find($packagingId);
             if ($packaging) {
                 $packagingPart = $packaging->name;
                 

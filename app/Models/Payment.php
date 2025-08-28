@@ -8,6 +8,59 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
+/**
+ * Payment Management for Agricultural Product Sales
+ *
+ * Represents individual payment transactions for agricultural microgreens orders,
+ * tracking payment methods, amounts, statuses, and processing details. Essential
+ * for financial management and revenue tracking in agricultural business operations.
+ *
+ * @property int $id Primary key identifier
+ * @property int $order_id Associated order being paid for
+ * @property float $amount Payment amount in base currency
+ * @property int $payment_method_id Payment processing method used
+ * @property int $status_id Current payment status
+ * @property string|null $transaction_id External payment processor transaction ID
+ * @property \DateTime|null $paid_at Timestamp when payment was completed
+ * @property string|null $notes Additional payment notes or processing details
+ *
+ * @relationship order BelongsTo Order being paid for
+ * @relationship paymentMethod BelongsTo Payment processing method and configuration
+ * @relationship paymentStatus BelongsTo Current payment status and workflow state
+ *
+ * @business_rule Payment amounts must match order totals for complete payment
+ * @business_rule Transaction IDs required for online payment processing
+ * @business_rule Status transitions follow payment workflow validation
+ * @business_rule Activity logging tracks all payment modifications for auditing
+ *
+ * @agricultural_context Payments fund agricultural production and operations:
+ * - Completed payments trigger agricultural production planning and resource allocation
+ * - Payment timing affects agricultural workflow scheduling and delivery planning
+ * - Payment methods determine processing workflows for different customer types
+ * - Revenue tracking enables agricultural business profitability analysis
+ *
+ * Each payment directly impacts agricultural production cash flow and resource
+ * allocation for microgreens cultivation and customer fulfillment.
+ *
+ * @usage_example
+ * // Create payment for order
+ * $payment = Payment::create([
+ *     'order_id' => $order->id,
+ *     'amount' => 45.99,
+ *     'payment_method_id' => PaymentMethod::findByCode('stripe')->id,
+ *     'status_id' => PaymentStatus::findByCode('pending')->id,
+ *     'transaction_id' => 'pi_stripe_transaction_id'
+ * ]);
+ *
+ * // Process payment completion
+ * if ($payment->isStripePayment()) {
+ *     $payment->markAsCompleted();
+ * }
+ *
+ * @package App\Models
+ * @author Catapult Development Team
+ * @version 1.0.0
+ */
 class Payment extends Model
 {
     use HasFactory, LogsActivity;
@@ -38,7 +91,13 @@ class Payment extends Model
     ];
     
     /**
-     * Get the order for this payment.
+     * Get the agricultural order being paid for.
+     *
+     * Relationship to the order that this payment settles. Essential for
+     * linking agricultural production planning to financial transactions
+     * and enabling cash flow management for microgreens operations.
+     *
+     * @return BelongsTo<Order> Order being paid for
      */
     public function order(): BelongsTo
     {
@@ -46,7 +105,13 @@ class Payment extends Model
     }
 
     /**
-     * Get the payment method for this payment.
+     * Get the payment processing method and configuration.
+     *
+     * Relationship to payment method that defines processing requirements,
+     * fees, and workflow for this transaction. Used for agricultural
+     * business payment processing and customer payment options.
+     *
+     * @return BelongsTo<PaymentMethod> Payment processing method
      */
     public function paymentMethod(): BelongsTo
     {
@@ -54,7 +119,13 @@ class Payment extends Model
     }
 
     /**
-     * Get the payment status for this payment.
+     * Get the current payment status and workflow state.
+     *
+     * Relationship to payment status that controls workflow progression
+     * and business rule enforcement. Essential for agricultural business
+     * financial operations and payment processing automation.
+     *
+     * @return BelongsTo<PaymentStatus> Current payment status
      */
     public function paymentStatus(): BelongsTo
     {
@@ -62,7 +133,13 @@ class Payment extends Model
     }
     
     /**
-     * Check if the payment is completed.
+     * Check if payment has been successfully completed.
+     *
+     * Determines if payment has been processed and funds received,
+     * enabling agricultural production to proceed and resources to
+     * be allocated for microgreens cultivation and delivery.
+     *
+     * @return bool True if payment is completed
      */
     public function isCompleted(): bool
     {
@@ -70,7 +147,13 @@ class Payment extends Model
     }
     
     /**
-     * Check if the payment is pending.
+     * Check if payment is pending processing.
+     *
+     * Determines if payment is awaiting processing, requiring agricultural
+     * production to wait for payment confirmation before proceeding with
+     * resource allocation and cultivation scheduling.
+     *
+     * @return bool True if payment is pending
      */
     public function isPending(): bool
     {
@@ -78,7 +161,13 @@ class Payment extends Model
     }
     
     /**
-     * Check if the payment has failed.
+     * Check if payment processing has failed.
+     *
+     * Determines if payment has failed, requiring agricultural production
+     * to be paused and customer notification for alternative payment
+     * arrangement before proceeding with cultivation.
+     *
+     * @return bool True if payment has failed
      */
     public function hasFailed(): bool
     {
@@ -110,7 +199,13 @@ class Payment extends Model
     }
     
     /**
-     * Mark the payment as completed.
+     * Mark payment as completed and trigger agricultural production.
+     *
+     * Updates payment status to completed and records payment timestamp,
+     * enabling agricultural production planning and resource allocation
+     * for microgreens cultivation to proceed.
+     *
+     * @return void
      */
     public function markAsCompleted(): void
     {

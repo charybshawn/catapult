@@ -10,6 +10,39 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * Agricultural crop batch management model for synchronized production operations.
+ * 
+ * Manages groups of crops grown together using the same recipe and timing,
+ * enabling efficient batch-based agricultural operations including synchronized
+ * stage transitions, watering schedules, and harvest coordination.
+ * 
+ * @property int $id Primary key identifier
+ * @property int $recipe_id Recipe used for this batch production
+ * @property \Illuminate\Support\Carbon $created_at Creation timestamp
+ * @property \Illuminate\Support\Carbon $updated_at Last update timestamp
+ * @property-read \App\Models\Recipe $recipe Production recipe for this batch
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Crop> $crops
+ * @property-read int|null $crops_count
+ * @property-read int|null $current_stage_id Current growth stage from first crop
+ * @property-read \Illuminate\Support\Carbon|null $germination_at Germination date from first crop
+ * @property-read array $tray_numbers Sorted array of tray numbers in batch
+ * @property-read int $tray_count Number of trays (crops) in batch
+ * @property-read string|null $current_stage_name Current stage name for display
+ * @property-read string|null $stage_age_display Formatted stage age
+ * @property-read string|null $time_to_next_stage_display Time until next stage
+ * @property-read string|null $total_age_display Total batch age
+ * @property-read \Illuminate\Support\Carbon|null $expected_harvest_at Expected harvest date
+ * @property-read int $crop_count Total number of crops in batch
+ * 
+ * @agricultural_context Enables synchronized production of microgreens and related crops
+ * @business_rules All crops in batch share same recipe and follow synchronized timing
+ * @performance_optimization Uses computed attribute caching to prevent N+1 queries
+ * 
+ * @package App\Models
+ * @author Catapult Development Team
+ * @since 1.0.0
+ */
 class CropBatch extends Model
 {
     use HasFactory;
@@ -59,7 +92,14 @@ class CropBatch extends Model
     ];
 
     /**
-     * Get the recipe for this batch.
+     * Get the production recipe associated with this batch.
+     * 
+     * Retrieves the recipe that defines growing parameters, stage transitions,
+     * and timing for all crops within this synchronized batch.
+     * 
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\Recipe>
+     * @agricultural_context Recipe defines variety, growing medium, timing for batch production
+     * @business_usage Used for stage calculations, harvest planning, and production standardization
      */
     public function recipe(): BelongsTo
     {
@@ -67,7 +107,14 @@ class CropBatch extends Model
     }
 
     /**
-     * Get the crops in this batch.
+     * Get all crops belonging to this synchronized batch.
+     * 
+     * Retrieves individual crop instances that are managed together in this batch,
+     * enabling coordinated agricultural operations and monitoring.
+     * 
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\Crop>
+     * @agricultural_context Returns individual tray crops managed as synchronized group
+     * @business_usage Used for batch operations, stage transitions, and harvest coordination
      */
     public function crops(): HasMany
     {
@@ -75,7 +122,14 @@ class CropBatch extends Model
     }
 
     /**
-     * Get the current stage ID attribute from the first crop.
+     * Get the current stage ID from the first crop in the batch.
+     * 
+     * Returns the current growth stage identifier from the representative first crop,
+     * as all crops in a batch maintain synchronized stages.
+     * 
+     * @return int|null Current stage ID or null if no crops exist
+     * @agricultural_context All batch crops maintain same stage through synchronized transitions
+     * @business_logic Uses first crop as representative since all crops synchronized
      */
     public function getCurrentStageIdAttribute(): ?int
     {
@@ -85,6 +139,14 @@ class CropBatch extends Model
 
     /**
      * Scope to eager load all necessary relationships for optimal performance.
+     * 
+     * Loads complete batch information including crops, recipes, and catalog data
+     * with optimized queries to prevent N+1 performance issues.
+     * 
+     * @param \Illuminate\Database\Eloquent\Builder $query Query builder instance
+     * @return \Illuminate\Database\Eloquent\Builder Modified query with eager loading
+     * @performance_optimization Prevents N+1 queries for batch listing operations
+     * @agricultural_context Loads variety information and production recipes
      */
     public function scopeWithFullDetails(Builder $query): Builder
     {
@@ -100,6 +162,17 @@ class CropBatch extends Model
         ->withCount('crops');
     }
     
+    /**
+     * Compute and cache all batch attributes for optimal performance.
+     * 
+     * Calculates timing, stage, and production attributes once and caches results
+     * to prevent repeated computations and N+1 query issues.
+     * 
+     * @return array Computed attributes for batch display and operations
+     * @performance_optimization Caches expensive calculations to prevent repeated queries
+     * @agricultural_context Computes stage timing, harvest dates, and batch metrics
+     * @business_logic Uses first crop as representative for synchronized batch data
+     */
     public function getComputedAttributes(): array
     {
         // Return cache if already computed
@@ -129,7 +202,7 @@ class CropBatch extends Model
         // Use cached stages if available
         static $stagesCache = null;
         if ($stagesCache === null) {
-            $stagesCache = \App\Models\CropStage::all()->keyBy('id');
+            $stagesCache = CropStage::all()->keyBy('id');
         }
         $stage = $stagesCache->get($firstCrop->current_stage_id);
         
@@ -200,7 +273,7 @@ class CropBatch extends Model
         // Use cached stages to avoid queries
         static $stagesCache = null;
         if ($stagesCache === null) {
-            $stagesCache = \App\Models\CropStage::all()->keyBy('id');
+            $stagesCache = CropStage::all()->keyBy('id');
         }
         
         $stage = $stagesCache->get($firstCrop->current_stage_id);
@@ -293,7 +366,14 @@ class CropBatch extends Model
 
 
     /**
-     * Check if this batch is in soaking stage.
+     * Check if this batch is currently in soaking stage.
+     * 
+     * Determines if the batch is in the soaking stage of production,
+     * which requires different handling than other growth stages.
+     * 
+     * @return bool True if batch is in soaking stage
+     * @agricultural_context Soaking stage requires special monitoring and timing
+     * @business_logic All crops in batch maintain synchronized stages
      */
     public function isInSoaking(): bool
     {

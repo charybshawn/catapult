@@ -19,9 +19,9 @@ class CropPlanningDashboard extends Page
 {
     protected static string $resource = CropPlanResource::class;
 
-    protected static string $view = 'filament.resources.crop-plan-resource.pages.crop-planning-dashboard';
+    protected string $view = 'filament.resources.crop-plan-resource.pages.crop-planning-dashboard';
     
-    protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-calendar-days';
     
     protected static ?string $title = 'Crop Planning Dashboard';
     

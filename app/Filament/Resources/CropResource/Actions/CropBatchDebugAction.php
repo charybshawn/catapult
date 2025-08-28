@@ -2,19 +2,62 @@
 
 namespace App\Filament\Resources\CropResource\Actions;
 
+use Filament\Actions\Action;
+use App\Models\Crop;
+use App\Models\CropStageHistory;
+use App\Services\CropStageTimelineService;
 use App\Models\Recipe;
 use Carbon\Carbon;
 use Filament\Notifications\Notification;
-use Filament\Tables\Actions\Action;
 
 /**
- * Crop Batch Debug Action
- * Dedicated action class for crop batch debugging functionality
+ * Crop Batch Debug Action for comprehensive agricultural production troubleshooting.
+ * 
+ * Provides detailed debugging information for crop batch lifecycle issues, timing
+ * calculations, stage progression problems, and recipe compliance verification.
+ * Essential tool for diagnosing production irregularities and optimizing crop
+ * management workflows in microgreens operations.
+ *
+ * @package App\Filament\Resources\CropResource\Actions
+ * @uses CropStageTimelineService For stage progression analysis
+ * @uses CropStageHistory For historical stage tracking validation
+ * 
+ * **Debugging Categories:**
+ * - **Batch Information**: ID, count, trays, recipe relationships
+ * - **Stage Timestamps**: All growth stage entry and timing data
+ * - **Recipe Compliance**: Expected vs. actual growth characteristics
+ * - **Timeline Analysis**: Stage progression and timing calculations
+ * - **Historical Validation**: Stage history records and transitions
+ * 
+ * **Agricultural Applications:**
+ * - **Production Issues**: Diagnosing delayed or irregular crop development
+ * - **Recipe Optimization**: Validating timing expectations vs. reality
+ * - **Stage Problems**: Troubleshooting stage transition failures
+ * - **Batch Coordination**: Verifying consistent batch behavior
+ * - **Quality Control**: Identifying crops deviating from standards
+ * 
+ * **Technical Features:**
+ * - Comprehensive data aggregation from multiple crop and recipe sources
+ * - Stage history analysis with user attribution tracking
+ * - Timeline service integration for progression visualization
+ * - HTML-formatted output for detailed inspection
+ * - Persistent notification display for extended analysis
  */
 class CropBatchDebugAction
 {
     /**
-     * Create the debug action
+     * Create comprehensive debug action for crop batch analysis.
+     * 
+     * Constructs a Filament action that gathers extensive debugging information
+     * about crop batches including stage timing, recipe compliance, historical
+     * records, and timeline analysis. Presents data in a structured notification
+     * for immediate troubleshooting and analysis.
+     * 
+     * @return Action Configured Filament action with comprehensive debug functionality
+     * 
+     * @debugging_tool Primary interface for crop production troubleshooting
+     * @agricultural_analysis Detailed examination of crop development patterns
+     * @production_quality Essential for maintaining consistent crop standards
      */
     public static function make(): Action
     {
@@ -24,13 +67,13 @@ class CropBatchDebugAction
             ->tooltip('Debug Info')
             ->action(function ($record) {
                 // Get first crop for detailed information
-                $firstCrop = \App\Models\Crop::where('crop_batch_id', $record->id)->first();
+                $firstCrop = Crop::where('crop_batch_id', $record->id)->first();
                 
                 // Get recipe data
                 $recipe = Recipe::find($record->recipe_id);
                 
                 // Get stage history for the batch
-                $stageHistory = \App\Models\CropStageHistory::where('crop_batch_id', $record->id)
+                $stageHistory = CropStageHistory::where('crop_batch_id', $record->id)
                     ->with(['stage', 'createdBy'])
                     ->orderBy('entered_at', 'asc')
                     ->get();
@@ -38,21 +81,21 @@ class CropBatchDebugAction
                 // Additional debugging: Check for stage history by crop_id instead of crop_batch_id
                 $stageHistoryByCrop = [];
                 if ($firstCrop) {
-                    $stageHistoryByCrop = \App\Models\CropStageHistory::where('crop_id', $firstCrop->id)
+                    $stageHistoryByCrop = CropStageHistory::where('crop_id', $firstCrop->id)
                         ->with(['stage', 'createdBy'])
                         ->orderBy('entered_at', 'asc')
                         ->get();
                 }
                 
                 // Check all stage history records in the system to see if we can find any reference
-                $allStageHistoryForBatch = \App\Models\CropStageHistory::whereIn('crop_id', function($query) use ($record) {
+                $allStageHistoryForBatch = CropStageHistory::whereIn('crop_id', function($query) use ($record) {
                     $query->select('id')
                           ->from('crops')
                           ->where('crop_batch_id', $record->id);
                 })->with(['stage', 'createdBy'])->get();
                 
                 // Get all crops in this batch for debugging
-                $allCropsInBatch = \App\Models\Crop::where('crop_batch_id', $record->id)->get();
+                $allCropsInBatch = Crop::where('crop_batch_id', $record->id)->get();
                 
                 // Render the blade view with all the data
                 $htmlOutput = view('filament.actions.crop-batch-debug', [
@@ -70,7 +113,7 @@ class CropBatchDebugAction
                     ->body($htmlOutput)
                     ->persistent()
                     ->actions([
-                        \Filament\Notifications\Actions\Action::make('close')
+                        Action::make('close')
                             ->label('Close')
                             ->color('gray'),
                     ])
@@ -79,14 +122,31 @@ class CropBatchDebugAction
     }
 
     /**
-     * Gather all debug data for a crop batch record
+     * Aggregate comprehensive debugging data for agricultural crop batch analysis.
+     * 
+     * Collects detailed information across multiple categories to provide complete
+     * insight into crop batch behavior, timing compliance, and production metrics.
+     * Combines real-time calculations with historical data for thorough analysis.
+     * 
+     * **Data Collection Areas:**
+     * - Batch metadata and current status information
+     * - Stage timing validation against recipe expectations
+     * - Recipe compliance and agricultural characteristic verification
+     * - Timeline calculations and progression analysis
+     * 
+     * @param mixed $record Crop batch record for debugging analysis
+     * @return array Structured debugging data organized by category
+     * 
+     * @agricultural_diagnostics Comprehensive data for production troubleshooting
+     * @debug_integration Combines multiple data sources for complete analysis
+     * @quality_assurance Essential for maintaining production standards
      */
     protected static function gatherDebugData($record): array
     {
         $now = now();
 
         // Get first crop for detailed information
-        $firstCrop = \App\Models\Crop::where('crop_batch_id', $record->id)->first();
+        $firstCrop = Crop::where('crop_batch_id', $record->id)->first();
 
         return [
             'batch' => static::getBatchData($record, $now),
@@ -170,7 +230,26 @@ class CropBatchDebugAction
     }
 
     /**
-     * Get time calculations and timeline data
+     * Calculate comprehensive timing metrics for agricultural crop development analysis.
+     * 
+     * Performs detailed timing analysis including stage age calculations, progression
+     * predictions, and timeline validation against recipe expectations. Critical for
+     * identifying timing irregularities and optimizing production schedules.
+     * 
+     * **Timing Analysis Components:**
+     * - Current stage age and duration tracking
+     * - Time remaining until next stage transition
+     * - Total crop lifecycle age calculations
+     * - Stage timeline service integration for progression visualization
+     * - Next stage prediction based on current development
+     * 
+     * @param mixed $record Crop batch record for timing analysis
+     * @param Crop|null $firstCrop Representative crop from batch for detailed calculations
+     * @return array Comprehensive timing data organized by calculation category
+     * 
+     * @agricultural_timing Essential for production scheduling and quality control
+     * @development_analysis Tracks crop progression against expected timelines
+     * @production_optimization Identifies timing inefficiencies and bottlenecks
      */
     protected static function getTimeCalculations($record, $firstCrop): array
     {
@@ -196,7 +275,7 @@ class CropBatchDebugAction
 
         // Add stage timeline using service
         if ($firstCrop) {
-            $timelineService = app(\App\Services\CropStageTimelineService::class);
+            $timelineService = app(CropStageTimelineService::class);
             $timeline = $timelineService->generateTimeline($firstCrop);
 
             $timeCalculations['Stage Timeline'] = [];

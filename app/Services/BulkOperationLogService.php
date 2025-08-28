@@ -6,6 +6,45 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
+/**
+ * Agricultural bulk operation logging service for production efficiency tracking.
+ * 
+ * Provides comprehensive logging and monitoring for batch agricultural operations
+ * including bulk crop transitions, mass harvest processing, batch planting
+ * operations, and large-scale agricultural data updates. Essential for
+ * operational oversight and performance optimization in microgreens production.
+ * 
+ * @business_domain Agricultural operation monitoring and performance analytics
+ * @agricultural_focus Bulk operations in crop management and production workflows
+ * @operational_efficiency Tracks batch processing performance and identifies bottlenecks
+ * 
+ * @bulk_operations
+ * - Mass crop stage transitions (batch advancement through growing phases)
+ * - Bulk harvest processing (multiple crop harvesting and recording)
+ * - Batch planting operations (simultaneous tray planting workflows)
+ * - Agricultural data imports (seed catalogs, recipe updates, inventory)
+ * - Production reporting aggregations (weekly summaries, yield calculations)
+ * 
+ * @business_benefits
+ * - Performance monitoring for agricultural batch operations
+ * - Error tracking and operational troubleshooting
+ * - Efficiency metrics for production optimization
+ * - Audit trails for agricultural compliance and quality control
+ * 
+ * @example
+ * // Log bulk crop stage advancement
+ * $logger = new BulkOperationLogService();
+ * $operationId = Str::uuid();
+ * 
+ * $logger->logOperationStart($operationId, 'stage_advancement', 'Crop', $cropCount, [
+ *     'from_stage' => 'germination',
+ *     'to_stage' => 'light',
+ *     'batch_id' => $batchId
+ * ]);
+ * 
+ * @see ActivityLogService For individual operation logging
+ * @see CropStageTransitionService For single crop transitions
+ */
 class BulkOperationLogService
 {
     /**

@@ -2,6 +2,13 @@
 
 namespace App\Models;
 
+use Exception;
+use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Validator;
+use Throwable;
+use App\Services\DebugService;
+use App\Actions\Product\ValidateProductDeletionAction;
+use App\Actions\Product\CloneProductAction;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,6 +24,74 @@ use App\Traits\HasActiveStatus;
 use App\Traits\HasCostInformation;
 use App\Traits\HasTimestamps;
 
+/**
+ * Agricultural Product Model for Catapult Microgreens Management System
+ *
+ * Represents individual agricultural products in the microgreens catalog, supporting both
+ * single-variety seeds and complex seed mixes. Products form the foundation of the
+ * agricultural business workflow, linking seed varieties to growing recipes, inventory
+ * tracking, and customer pricing structures.
+ *
+ * @property int $id Primary key identifier
+ * @property string $name Product name (unique across active products)
+ * @property string|null $description Marketing and agricultural description
+ * @property string|null $sku Stock Keeping Unit for inventory tracking
+ * @property bool $active Product availability status
+ * @property string|null $image Legacy image field (deprecated - use photos relationship)
+ * @property int|null $category_id Category classification for product organization
+ * @property bool $is_visible_in_store Customer-facing store visibility
+ * @property int|null $product_mix_id Foreign key to ProductMix for complex variety blends
+ * @property int|null $master_seed_catalog_id Foreign key to single seed variety
+ * @property int|null $recipe_id Growing recipe instructions and parameters
+ * @property float $total_stock Total inventory quantity across all batches
+ * @property float $reserved_stock Inventory reserved for confirmed orders
+ * @property float $reorder_threshold Minimum stock level triggering reorder alerts
+ * @property bool $track_inventory Enable/disable inventory management
+ * @property int|null $stock_status_id Current inventory status (in_stock, low_stock, out_of_stock)
+ * @property float|null $wholesale_discount_percentage Default wholesale discount rate
+ *
+ * @property-read float $available_stock Computed available inventory (total - reserved)
+ * @property-read Collection<MasterSeedCatalog> $varieties Seed varieties (single or mix)
+ * @property-read ProductPhoto|null $default_photo Primary product image
+ *
+ * @relationship category BelongsTo Category classification for product organization
+ * @relationship productMix BelongsTo ProductMix for complex variety combinations
+ * @relationship masterSeedCatalog BelongsTo MasterSeedCatalog for single varieties
+ * @relationship recipe BelongsTo Recipe growing instructions and parameters
+ * @relationship priceVariations HasMany PriceVariation different packaging/pricing options
+ * @relationship inventories HasMany ProductInventory batch tracking and stock management
+ * @relationship photos HasMany ProductPhoto product image gallery
+ * @relationship orderItems HasMany OrderItem customer order line items
+ *
+ * @business_rule Products must have either master_seed_catalog_id OR product_mix_id, never both
+ * @business_rule Product names must be unique across active (non-deleted) products
+ * @business_rule Inventory tracking is optional but affects stock management workflows
+ * @business_rule Price variations provide flexible pricing for different customer types
+ *
+ * @agricultural_context Microgreens products represent either single seed varieties
+ * (like Pea Shoots) or complex mixes (like Spicy Mix with multiple varieties).
+ * Growing recipes define agricultural parameters like germination time, harvest timing,
+ * and yield expectations specific to each product type.
+ *
+ * @usage_example
+ * // Create single variety product
+ * $product = Product::create([
+ *     'name' => 'Pea Shoots',
+ *     'master_seed_catalog_id' => $peaSeedCatalog->id,
+ *     'recipe_id' => $peaRecipe->id
+ * ]);
+ *
+ * // Create complex mix product
+ * $spicyMix = Product::create([
+ *     'name' => 'Spicy Mix',
+ *     'product_mix_id' => $spicyMixDefinition->id,
+ *     'recipe_id' => $mixRecipe->id
+ * ]);
+ *
+ * @package App\Models
+ * @author Catapult Development Team
+ * @version 1.0.0
+ */
 class Product extends Model
 {
     use HasFactory, ExtendedLogsActivity, SoftDeletes, HasActiveStatus, HasCostInformation, HasTimestamps;
@@ -73,6 +148,12 @@ class Product extends Model
 
     /**
      * Get the relationships that should be logged with this model.
+     *
+     * Defines which related models should be included in activity logging
+     * when this product is created, updated, or deleted. Essential for
+     * audit trails in agricultural inventory management.
+     *
+     * @return array<string> Array of relationship method names to log
      */
     public function getLoggedRelationships(): array
     {
@@ -81,6 +162,12 @@ class Product extends Model
 
     /**
      * Get specific attributes to include from related models.
+     *
+     * Specifies which attributes from related models should be captured
+     * in activity logs. Prevents logging of sensitive data while maintaining
+     * comprehensive audit trails for agricultural business operations.
+     *
+     * @return array<string, array<string>> Relationship => [attributes] mapping
      */
     public function getRelationshipAttributesToLog(): array
     {
@@ -95,7 +182,12 @@ class Product extends Model
     /**
      * Get the validation rules for the model.
      *
-     * @return array<string, mixed>
+     * Provides comprehensive validation rules for agricultural product data,
+     * including business-specific constraints like unique product names and
+     * mutual exclusivity of single varieties vs. product mixes.
+     *
+     * @param int|null $id Product ID for update validation (excludes self from uniqueness)
+     * @return array<string, mixed> Laravel validation rules array
      */
     public static function rules($id = null): array
     {
@@ -122,12 +214,26 @@ class Product extends Model
         ];
     }
     
+    /**
+     * Configure model event listeners for agricultural business logic.
+     *
+     * Implements critical business rules and automated workflows:
+     * - Enforces mutual exclusivity between single varieties and mixes
+     * - Validates unique product names across active products
+     * - Manages inventory cleanup during soft deletes
+     * - Automatically creates/updates price variations based on legacy price fields
+     * - Handles default photo assignment logic
+     *
+     * @return void
+     * @throws Exception When business rules are violated
+     * @throws ValidationException When validation fails
+     */
     protected static function booted()
     {
         // Validate mutual exclusivity of master_seed_catalog_id and product_mix_id
         static::saving(function ($product) {
             if ($product->master_seed_catalog_id && $product->product_mix_id) {
-                throw new \Exception('A product cannot have both a single variety and a product mix assigned.');
+                throw new Exception('A product cannot have both a single variety and a product mix assigned.');
             }
             
             // Validate unique product name
@@ -139,8 +245,8 @@ class Product extends Model
             }
             
             if ($query->exists()) {
-                throw new \Illuminate\Validation\ValidationException(
-                    \Illuminate\Support\Facades\Validator::make(
+                throw new ValidationException(
+                    Validator::make(
                         ['name' => $product->name],
                         ['name' => 'unique:products,name'],
                         ['name.unique' => 'A product with this name already exists. Please choose a different name.']
@@ -245,6 +351,12 @@ class Product extends Model
     
     /**
      * Get the order items for this product.
+     *
+     * Relationship to customer order line items that reference this product.
+     * Essential for tracking product demand, sales history, and agricultural
+     * planning based on order patterns.
+     *
+     * @return HasMany<OrderItem> Customer order line items
      */
     public function orderItems(): HasMany
     {
@@ -253,6 +365,12 @@ class Product extends Model
 
     /**
      * Get the price variations for the product.
+     *
+     * Relationship to different pricing structures (retail, wholesale, bulk)
+     * and packaging options. Supports flexible agricultural pricing based on
+     * customer type, quantity, and packaging requirements.
+     *
+     * @return HasMany<PriceVariation> Pricing and packaging variations
      */
     public function priceVariations(): HasMany
     {
@@ -261,6 +379,12 @@ class Product extends Model
 
     /**
      * Get the default price variation for the product.
+     *
+     * Retrieves the primary pricing option, typically retail pricing.
+     * Uses eager loading when available to prevent N+1 query issues
+     * in agricultural order processing workflows.
+     *
+     * @return PriceVariation|null Default pricing variation or null if none exists
      */
     public function defaultPriceVariation(): ?PriceVariation
     {
@@ -274,6 +398,12 @@ class Product extends Model
 
     /**
      * Get the active price variations for the product.
+     *
+     * Retrieves all currently available pricing options, filtering out
+     * disabled variations. Optimized for performance with eager loading
+     * support for high-volume agricultural order processing.
+     *
+     * @return Collection<PriceVariation> Collection of active price variations
      */
     public function activePriceVariations(): Collection
     {
@@ -287,6 +417,15 @@ class Product extends Model
 
     /**
      * Get the price for a given packaging type or default.
+     *
+     * Agricultural pricing logic with fallback hierarchy:
+     * 1. Match specific packaging type (e.g., 4oz container vs 1lb bag)
+     * 2. Use default price variation if no packaging match
+     * 3. Use cheapest active variation as final fallback
+     *
+     * @param int|null $packagingTypeId Specific packaging type ID for pricing
+     * @param float $quantity Order quantity (reserved for future quantity-based pricing)
+     * @return float Product price for the specified packaging or default
      */
     public function getPrice(?int $packagingTypeId = null, float $quantity = 1): float
     {
@@ -347,21 +486,37 @@ class Product extends Model
 
     /**
      * Get global price variations available for use with any product.
+     *
+     * Retrieves system-wide pricing templates that can be applied to any
+     * agricultural product. Used for standardizing pricing structures
+     * across the entire microgreens catalog.
+     *
+     * @return Collection<PriceVariation> Global price variation templates
      */
     public static function getGlobalPriceVariations()
     {
-        return \App\Models\PriceVariation::where('is_global', true)
+        return PriceVariation::where('is_global', true)
             ->where('is_active', true)
             ->get();
     }
 
     /**
      * Get the price based on customer type.
+     *
+     * Agricultural business pricing logic supporting different customer segments:
+     * - Retail customers: Standard pricing
+     * - Wholesale customers: Discounted pricing based on customer type
+     * - Bulk customers: Volume-based pricing
+     * - Special customers: Custom pricing arrangements
+     *
+     * @param string $customerType Customer type code (retail, wholesale, bulk, special)
+     * @param int $quantity Order quantity for volume-based calculations
+     * @return float Appropriate price for the customer type
      */
     public function getPriceForCustomerType(string $customerType, int $quantity = 1): float
     {
         // Handle lookup by customer type code
-        $customerTypeModel = \App\Models\CustomerType::findByCode(strtolower($customerType));
+        $customerTypeModel = CustomerType::findByCode(strtolower($customerType));
         
         if ($customerTypeModel?->qualifiesForWholesalePricing()) {
             $variation = $this->getPriceVariationByName('Wholesale');
@@ -385,6 +540,13 @@ class Product extends Model
 
     /**
      * Get a price variation by name.
+     *
+     * Searches for a specific pricing variation by name (e.g., 'Wholesale', 'Bulk').
+     * Uses eager loading optimization when relationship is already loaded
+     * to prevent additional database queries in agricultural order workflows.
+     *
+     * @param string $name Price variation name to search for
+     * @return PriceVariation|null Matching price variation or null if not found
      */
     public function getPriceVariationByName(string $name): ?PriceVariation
     {
@@ -404,6 +566,14 @@ class Product extends Model
 
     /**
      * Get the retail price for a price variation (base price).
+     *
+     * Retrieves standard retail pricing for agricultural products, supporting
+     * specific price variation selection or packaging-based pricing.
+     * Used as the foundation for wholesale discount calculations.
+     *
+     * @param int|null $priceVariationId Specific price variation to use
+     * @param int|null $packagingTypeId Packaging type for pricing lookup
+     * @return float Retail price for the specified variation or default
      */
     public function getRetailPrice(?int $priceVariationId = null, ?int $packagingTypeId = null): float
     {
@@ -417,6 +587,18 @@ class Product extends Model
 
     /**
      * Get the wholesale price for a price variation (with discount applied).
+     *
+     * Calculates wholesale pricing for agricultural products with discount hierarchy:
+     * 1. Customer-specific wholesale discount percentage
+     * 2. Product default wholesale discount percentage
+     * 3. No discount (retail price) if no wholesale rates configured
+     *
+     * Includes safeguards preventing negative prices from excessive discounts.
+     *
+     * @param int|null $priceVariationId Specific price variation to discount
+     * @param int|null $packagingTypeId Packaging type for base price calculation
+     * @param Customer|null $customer Customer for individual discount rates
+     * @return float Wholesale price with appropriate discounts applied
      */
     public function getWholesalePrice(?int $priceVariationId = null, ?int $packagingTypeId = null, ?Customer $customer = null): float
     {
@@ -447,11 +629,21 @@ class Product extends Model
 
     /**
      * Get price for customer type using new wholesale discount system.
+     *
+     * Unified pricing method supporting the agricultural business model with
+     * customer type classification and individual discount structures.
+     * Automatically applies appropriate pricing based on customer classification.
+     *
+     * @param string $customerType Customer type code (defaults to 'retail')
+     * @param int|null $priceVariationId Specific price variation selection
+     * @param int|null $packagingTypeId Packaging type for pricing
+     * @param User|null $customer Individual customer for personalized pricing
+     * @return float Final price with customer-appropriate discounts
      */
     public function getPriceForCustomer(string $customerType = 'retail', ?int $priceVariationId = null, ?int $packagingTypeId = null, ?User $customer = null): float
     {
         // Handle lookup by customer type code
-        $customerTypeModel = \App\Models\CustomerType::findByCode(strtolower($customerType));
+        $customerTypeModel = CustomerType::findByCode(strtolower($customerType));
         
         if ($customerTypeModel?->qualifiesForWholesalePricing()) {
             return $this->getWholesalePrice($priceVariationId, $packagingTypeId, $customer);
@@ -462,6 +654,15 @@ class Product extends Model
 
     /**
      * Get price for a specific customer, considering their type and individual discount.
+     *
+     * Customer-specific pricing method that considers both customer type
+     * classification and individual discount agreements. Essential for
+     * agricultural B2B relationships with custom pricing arrangements.
+     *
+     * @param Customer $customer Customer model with type and discount information
+     * @param int|null $priceVariationId Specific price variation to use
+     * @param int|null $packagingTypeId Packaging type for pricing calculations
+     * @return float Personalized price based on customer relationship
      */
     public function getPriceForSpecificCustomer(Customer $customer, ?int $priceVariationId = null, ?int $packagingTypeId = null): float
     {
@@ -474,6 +675,13 @@ class Product extends Model
 
     /**
      * Get the wholesale discount amount for a given price.
+     *
+     * Calculates the monetary discount amount based on product's wholesale
+     * discount percentage. Used for pricing transparency and financial reporting
+     * in agricultural wholesale operations.
+     *
+     * @param float $retailPrice Base retail price for discount calculation
+     * @return float Dollar amount of wholesale discount
      */
     public function getWholesaleDiscountAmount(float $retailPrice): float
     {
@@ -486,9 +694,12 @@ class Product extends Model
 
     /**
      * Override the active field name from HasActiveStatus trait.
-     * Product model uses 'active' instead of 'is_active'.
      *
-     * @return string
+     * Product model uses 'active' instead of 'is_active' for historical
+     * compatibility with existing agricultural product data. This override
+     * ensures the HasActiveStatus trait works correctly with our schema.
+     *
+     * @return string Field name for active status ('active')
      */
     public function getActiveFieldName(): string
     {
@@ -497,6 +708,12 @@ class Product extends Model
 
     /**
      * Configure the activity log options for this model.
+     *
+     * Defines comprehensive activity logging for agricultural product changes.
+     * Tracks all significant product modifications for audit trails, regulatory
+     * compliance, and agricultural business intelligence.
+     *
+     * @return LogOptions Configured activity logging options
      */
     public function getActivitylogOptions(): LogOptions
     {
@@ -523,7 +740,11 @@ class Product extends Model
     /**
      * Get the is_active attribute.
      *
-     * @return bool
+     * Provides compatibility accessor for the is_active attribute by mapping
+     * to the actual 'active' field. Ensures consistent API across different
+     * trait implementations in the agricultural management system.
+     *
+     * @return bool Product active status
      */
     public function getIsActiveAttribute(): bool
     {
@@ -533,7 +754,11 @@ class Product extends Model
     /**
      * Set the is_active attribute.
      *
-     * @param bool $value
+     * Provides compatibility mutator for the is_active attribute by mapping
+     * to the actual 'active' field. Maintains API consistency while using
+     * the agricultural product schema's 'active' column.
+     *
+     * @param bool $value New active status value
      * @return void
      */
     public function setIsActiveAttribute(bool $value): void
@@ -543,6 +768,12 @@ class Product extends Model
 
     /**
      * Get the category that owns the product.
+     *
+     * Relationship to product categorization system for agricultural inventory
+     * organization. Categories help group related products (e.g., 'Microgreens',
+     * 'Herbs', 'Sprouts') for better catalog management and customer browsing.
+     *
+     * @return BelongsTo<Category> Product category relationship
      */
     public function category(): BelongsTo
     {
@@ -551,6 +782,12 @@ class Product extends Model
 
     /**
      * Get the photos for the product.
+     *
+     * Relationship to product image gallery supporting multiple photos per product.
+     * Images are ordered by display order for consistent presentation in
+     * agricultural product catalogs and customer-facing interfaces.
+     *
+     * @return HasMany<ProductPhoto> Product photo gallery
      */
     public function photos(): HasMany
     {
@@ -559,6 +796,12 @@ class Product extends Model
 
     /**
      * Get the default photo for this product.
+     *
+     * Relationship to the primary product image with automatic fallback logic.
+     * If no photo is marked as default, automatically promotes the first available
+     * photo to default status. Essential for consistent product presentation.
+     *
+     * @return HasOne<ProductPhoto> Default product photo with fallback behavior
      */
     public function defaultPhoto(): HasOne
     {
@@ -579,8 +822,15 @@ class Product extends Model
 
     /**
      * Get the default photo attribute.
-     * This provides a fallback mechanism using the legacy image field
-     * if no photos exist.
+     *
+     * Accessor providing fallback mechanism for product images:
+     * 1. Use default photo from photos relationship
+     * 2. Fall back to legacy image field for backwards compatibility
+     * 3. Return null if no images available
+     *
+     * Supports migration from legacy image system to new photo gallery.
+     *
+     * @return string|null Default photo URL or null if no images
      */
     public function getDefaultPhotoAttribute()
     {
@@ -596,6 +846,16 @@ class Product extends Model
 
     /**
      * Get the product mix for this product.
+     *
+     * Relationship to ProductMix for complex agricultural products containing
+     * multiple seed varieties with specific percentage blends (e.g., Spicy Mix
+     * with 40% Radish, 30% Mustard, 30% Arugula).
+     *
+     * Includes debug logging for troubleshooting mix-related issues in
+     * agricultural variety calculations.
+     *
+     * @return BelongsTo<ProductMix> Product mix definition with variety percentages
+     * @throws Throwable When relationship loading fails (logged for debugging)
      */
     public function productMix(): BelongsTo
     {
@@ -607,9 +867,9 @@ class Product extends Model
             ]);
             
             return $this->belongsTo(ProductMix::class);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             // Log any errors
-            \App\Services\DebugService::logError($e, 'Product::productMix');
+            DebugService::logError($e, 'Product::productMix');
             
             // We have to return a relationship, so re-throw after logging
             throw $e;
@@ -618,6 +878,12 @@ class Product extends Model
 
     /**
      * Get the master seed catalog entry for single-variety products.
+     *
+     * Relationship to the seed catalog for products containing only one variety.
+     * Master seed catalog entries contain agricultural data like germination rates,
+     * growing parameters, and supplier information essential for agricultural planning.
+     *
+     * @return BelongsTo<MasterSeedCatalog> Single seed variety information
      */
     public function masterSeedCatalog(): BelongsTo
     {
@@ -626,6 +892,12 @@ class Product extends Model
 
     /**
      * Get the recipe for this product.
+     *
+     * Relationship to growing instructions and agricultural parameters specific
+     * to this product. Recipes define growing stages, watering schedules,
+     * environmental conditions, and harvest timing for successful production.
+     *
+     * @return BelongsTo<Recipe> Growing recipe and agricultural parameters
      */
     public function recipe(): BelongsTo
     {
@@ -634,6 +906,12 @@ class Product extends Model
 
     /**
      * Get the stock status for this product.
+     *
+     * Relationship to inventory status lookup (in_stock, low_stock, out_of_stock).
+     * Automatically updated based on inventory levels and reorder thresholds
+     * to support agricultural inventory management and customer communication.
+     *
+     * @return BelongsTo<ProductStockStatus> Current inventory status
      */
     public function stockStatus(): BelongsTo
     {
@@ -642,6 +920,16 @@ class Product extends Model
 
     /**
      * Get the varieties associated with this product (either direct or through mix).
+     *
+     * Unified accessor for seed varieties regardless of product structure:
+     * - Single variety products: Returns collection with one MasterSeedCatalog
+     * - Mix products: Returns collection of all varieties in the mix
+     * - Handles eager loading optimization to prevent N+1 queries
+     *
+     * Essential for agricultural calculations like seed quantity requirements,
+     * growing space allocation, and variety-specific growing parameters.
+     *
+     * @return Collection<MasterSeedCatalog> All seed varieties for this product
      */
     public function getVarietiesAttribute()
     {
@@ -668,9 +956,13 @@ class Product extends Model
 
     /**
      * Create a default price variation for this product.
-     * 
+     *
+     * Creates the primary pricing entry for new agricultural products.
+     * Default variations serve as the foundation for retail pricing and
+     * the basis for wholesale discount calculations.
+     *
      * @param array $attributes Optional attributes to override defaults
-     * @return \App\Models\PriceVariation
+     * @return PriceVariation Created default price variation
      */
     public function createDefaultPriceVariation(array $attributes = [])
     {
@@ -686,9 +978,13 @@ class Product extends Model
     
     /**
      * Create a wholesale price variation for this product.
-     * 
+     *
+     * Creates wholesale pricing tier for agricultural B2B customers.
+     * Uses product's wholesale_price field or falls back to base_price
+     * if no wholesale pricing is configured.
+     *
      * @param float|null $price Optional price to override the default wholesale price
-     * @return \App\Models\PriceVariation
+     * @return PriceVariation Created wholesale price variation
      */
     public function createWholesalePriceVariation(?float $price = null)
     {
@@ -702,9 +998,13 @@ class Product extends Model
     
     /**
      * Create a bulk price variation for this product.
-     * 
+     *
+     * Creates volume-based pricing for large agricultural orders.
+     * Typically used for restaurant chains or food service customers
+     * requiring significant quantities of microgreens.
+     *
      * @param float|null $price Optional price to override the default bulk price
-     * @return \App\Models\PriceVariation
+     * @return PriceVariation Created bulk price variation
      */
     public function createBulkPriceVariation(?float $price = null)
     {
@@ -718,9 +1018,12 @@ class Product extends Model
     
     /**
      * Create a special price variation for this product.
-     * 
+     *
+     * Creates custom pricing tier for special circumstances like promotional
+     * pricing, contract rates, or seasonal adjustments in agricultural markets.
+     *
      * @param float|null $price Optional price to override the default special price
-     * @return \App\Models\PriceVariation
+     * @return PriceVariation Created special price variation
      */
     public function createSpecialPriceVariation(?float $price = null)
     {
@@ -734,12 +1037,16 @@ class Product extends Model
     
     /**
      * Create a custom price variation for this product.
-     * 
+     *
+     * Creates flexible pricing variations for specific agricultural business needs.
+     * Supports packaging-specific pricing (e.g., different prices for 2oz vs 4oz containers)
+     * and custom attributes for specialized pricing structures.
+     *
      * @param string $name Name of the price variation
      * @param float $price Price for this variation
-     * @param int|null $packagingTypeId Packaging type ID (optional)
+     * @param int|null $packagingTypeId Packaging type ID for package-specific pricing
      * @param array $additionalAttributes Additional attributes to set
-     * @return \App\Models\PriceVariation
+     * @return PriceVariation Created custom price variation
      */
     public function createCustomPriceVariation(string $name, float $price, ?int $packagingTypeId = null, array $additionalAttributes = [])
     {
@@ -756,9 +1063,13 @@ class Product extends Model
     
     /**
      * Create all standard price variations for this product.
-     * 
-     * @param array $prices Optional array of prices to use
-     * @return array Array of created price variations
+     *
+     * Bulk creation method for setting up complete pricing structure
+     * for new agricultural products. Creates default, wholesale, bulk,
+     * and special variations based on provided prices or model attributes.
+     *
+     * @param array $prices Optional array of prices to use (overrides model attributes)
+     * @return array<string, PriceVariation> Array of created price variations keyed by type
      */
     public function createAllStandardPriceVariations(array $prices = [])
     {
@@ -799,8 +1110,13 @@ class Product extends Model
 
     /**
      * Get the base price attribute.
-     * 
-     * @deprecated Use price variations instead
+     *
+     * Backwards compatibility accessor for legacy pricing fields.
+     * Retrieves price from default price variation if available,
+     * otherwise returns the legacy base_price attribute.
+     *
+     * @deprecated Use price variations instead for new development
+     * @return float|null Base price from default variation or legacy field
      */
     public function getBasePriceAttribute(): ?float
     {
@@ -814,9 +1130,13 @@ class Product extends Model
     
     /**
      * Get the wholesale price attribute.
-     * 
-     * @deprecated Use price variations instead
-     * @return float|null
+     *
+     * Backwards compatibility accessor for legacy wholesale pricing.
+     * Retrieves price from wholesale price variation if available,
+     * otherwise returns the legacy wholesale_price attribute.
+     *
+     * @deprecated Use price variations instead for new development
+     * @return float|null Wholesale price from variation or legacy field
      */
     public function getWholesalePriceAttribute()
     {
@@ -830,9 +1150,13 @@ class Product extends Model
     
     /**
      * Get the bulk price attribute.
-     * 
-     * @deprecated Use price variations instead
-     * @return float|null
+     *
+     * Backwards compatibility accessor for legacy bulk pricing.
+     * Retrieves price from bulk price variation if available,
+     * otherwise returns the legacy bulk_price attribute.
+     *
+     * @deprecated Use price variations instead for new development
+     * @return float|null Bulk price from variation or legacy field
      */
     public function getBulkPriceAttribute()
     {
@@ -846,9 +1170,13 @@ class Product extends Model
     
     /**
      * Get the special price attribute.
-     * 
-     * @deprecated Use price variations instead
-     * @return float|null
+     *
+     * Backwards compatibility accessor for legacy special pricing.
+     * Retrieves price from special price variation if available,
+     * otherwise returns the legacy special_price attribute.
+     *
+     * @deprecated Use price variations instead for new development
+     * @return float|null Special price from variation or legacy field
      */
     public function getSpecialPriceAttribute()
     {
@@ -862,6 +1190,12 @@ class Product extends Model
 
     /**
      * Get the inventory batches for this product.
+     *
+     * Relationship to inventory batch tracking system supporting lot-based
+     * inventory management for agricultural products. Each batch tracks
+     * production dates, expiration dates, and quantity for food safety compliance.
+     *
+     * @return HasMany<ProductInventory> Inventory batches for this product
      */
     public function inventories(): HasMany
     {
@@ -870,6 +1204,12 @@ class Product extends Model
 
     /**
      * Get active inventory batches.
+     *
+     * Filtered relationship to inventory batches with 'active' status.
+     * Used for agricultural inventory operations excluding expired,
+     * damaged, or otherwise unavailable inventory batches.
+     *
+     * @return HasMany<ProductInventory> Active inventory batches only
      */
     public function activeInventories(): HasMany
     {
@@ -878,6 +1218,12 @@ class Product extends Model
 
     /**
      * Get available inventory batches (with available quantity).
+     *
+     * Filtered relationship to inventory batches with unreserved quantity
+     * available for new agricultural orders. Excludes fully reserved batches
+     * and considers quantity > reserved_quantity.
+     *
+     * @return HasMany<ProductInventory> Inventory batches with available stock
      */
     public function availableInventories(): HasMany
     {
@@ -886,6 +1232,12 @@ class Product extends Model
 
     /**
      * Get inventory transactions.
+     *
+     * Relationship to all inventory movement records for this product.
+     * Tracks production, sales, adjustments, and other inventory changes
+     * essential for agricultural inventory auditing and financial reporting.
+     *
+     * @return HasMany<InventoryTransaction> All inventory movement records
      */
     public function inventoryTransactions(): HasMany
     {
@@ -894,6 +1246,12 @@ class Product extends Model
 
     /**
      * Get inventory reservations.
+     *
+     * Relationship to stock reservations for confirmed agricultural orders.
+     * Reservations prevent overselling by temporarily allocating inventory
+     * to specific orders before fulfillment.
+     *
+     * @return HasMany<InventoryReservation> Stock reservations for orders
      */
     public function inventoryReservations(): HasMany
     {
@@ -902,6 +1260,12 @@ class Product extends Model
 
     /**
      * Get the available stock attribute.
+     *
+     * Computed attribute calculating unreserved inventory available for new orders.
+     * Critical for preventing overselling in agricultural order management
+     * and providing accurate stock information to customers.
+     *
+     * @return float Available quantity (total_stock - reserved_stock)
      */
     public function getAvailableStockAttribute(): float
     {
@@ -910,6 +1274,12 @@ class Product extends Model
 
     /**
      * Check if the product is in stock.
+     *
+     * Boolean check for product availability in agricultural inventory.
+     * Returns true if any unreserved stock exists, false if completely
+     * out of stock or fully reserved.
+     *
+     * @return bool True if available stock > 0
      */
     public function isInStock(): bool
     {
@@ -918,6 +1288,12 @@ class Product extends Model
 
     /**
      * Check if the product needs reordering.
+     *
+     * Determines if agricultural product stock has fallen below the
+     * configured reorder threshold. Only applies to products with
+     * inventory tracking enabled.
+     *
+     * @return bool True if inventory tracking is enabled and available stock <= reorder threshold
      */
     public function needsReorder(): bool
     {
@@ -926,6 +1302,13 @@ class Product extends Model
 
     /**
      * Add inventory to the product.
+     *
+     * Creates new inventory batch for agricultural product with full transaction
+     * logging. Supports lot numbers, expiration dates, and cost tracking
+     * required for food safety compliance and agricultural inventory management.
+     *
+     * @param array $data Inventory batch data including quantity, lot_number, expiration_date
+     * @return ProductInventory Created inventory batch with transaction record
      */
     public function addInventory(array $data): ProductInventory
     {
@@ -955,6 +1338,21 @@ class Product extends Model
 
     /**
      * Reserve stock for an order using FIFO.
+     *
+     * Implements First-In-First-Out inventory reservation for agricultural products
+     * to ensure proper rotation and minimize waste from expiration. Automatically
+     * spreads reservations across multiple batches if needed.
+     *
+     * FIFO Logic:
+     * 1. Sort batches by expiration date (earliest first)
+     * 2. Then by creation date for equal expiration dates
+     * 3. Reserve from oldest inventory first
+     *
+     * @param float $quantity Total quantity to reserve
+     * @param int $orderId Order requiring the reservation
+     * @param int $orderItemId Specific order line item
+     * @return array<InventoryReservation> Array of created reservations
+     * @throws Exception When insufficient stock available
      */
     public function reserveStock(float $quantity, int $orderId, int $orderItemId): array
     {
@@ -963,7 +1361,7 @@ class Product extends Model
         }
 
         if ($quantity > $this->available_stock) {
-            throw new \Exception("Insufficient stock. Available: {$this->available_stock}, Requested: {$quantity}");
+            throw new Exception("Insufficient stock. Available: {$this->available_stock}, Requested: {$quantity}");
         }
 
         $reservations = [];
@@ -994,6 +1392,12 @@ class Product extends Model
 
     /**
      * Get inventory value for this product.
+     *
+     * Calculates total monetary value of all active inventory based on
+     * cost per unit. Essential for agricultural financial reporting,
+     * insurance valuations, and asset management.
+     *
+     * @return float Total inventory value (sum of quantity * cost_per_unit)
      */
     public function getInventoryValue(): float
     {
@@ -1002,14 +1406,30 @@ class Product extends Model
 
     /**
      * Check if this product can be safely deleted.
+     *
+     * Validates whether agricultural product can be safely removed from the system
+     * without breaking referential integrity. Checks for existing orders,
+     * inventory transactions, and other dependent records.
+     *
+     * @return array Validation result with 'can_delete' boolean and 'reasons' array
      */
     public function canBeDeleted(): array
     {
-        return app(\App\Actions\Product\ValidateProductDeletionAction::class)->execute($this);
+        return app(ValidateProductDeletionAction::class)->execute($this);
     }
 
     /**
      * Update stock status based on current levels.
+     *
+     * Automatically updates product stock status based on current inventory levels
+     * and configured reorder thresholds. Status transitions:
+     * - out_of_stock: available_stock <= 0
+     * - low_stock: available_stock <= reorder_threshold
+     * - in_stock: available_stock > reorder_threshold
+     *
+     * Products not tracking inventory default to 'in_stock' status.
+     *
+     * @return void
      */
     public function updateStockStatus(): void
     {
@@ -1036,7 +1456,13 @@ class Product extends Model
     }
 
     /**
-     * Check if inventory entries should be updated based on what changed
+     * Check if inventory entries should be updated based on what changed.
+     *
+     * Determines if inventory entries need updating based on product changes.
+     * Currently triggers on product activation to ensure activated products
+     * have proper inventory structures in place.
+     *
+     * @return bool True if inventory entries should be updated
      */
     public function shouldUpdateInventoryEntries(): bool
     {
@@ -1046,16 +1472,32 @@ class Product extends Model
     }
     
     /**
-     * Clone this product with all its relationships
+     * Clone this product with all its relationships.
+     *
+     * Creates a complete copy of agricultural product including price variations,
+     * photos, and related data. Useful for creating product variants or
+     * seasonal product duplications. Delegates to CloneProductAction for
+     * complex cloning logic.
+     *
+     * @return Product Newly created product clone
      */
     public function cloneProduct(): Product
     {
-        return app(\App\Actions\Product\CloneProductAction::class)->execute($this);
+        return app(CloneProductAction::class)->execute($this);
     }
 
     /**
-     * Ensure inventory entries exist for all active price variations
-     * This method only CREATES missing entries, never modifies existing ones
+     * Ensure inventory entries exist for all active price variations.
+     *
+     * Creates missing inventory batch entries for active price variations to
+     * maintain proper inventory structure. This method only CREATES missing entries,
+     * never modifies existing ones to preserve historical inventory data.
+     *
+     * Each created entry starts with zero quantity and requires manual inventory
+     * additions to reflect actual stock levels. Essential for maintaining
+     * consistent inventory tracking across all pricing variations.
+     *
+     * @return void
      */
     public function ensureInventoryEntriesExist(): void
     {

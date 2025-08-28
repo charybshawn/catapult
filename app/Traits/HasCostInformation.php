@@ -5,17 +5,31 @@ namespace App\Traits;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
- * Trait HasCostInformation
- *
- * Provides common functionality for models that track cost and price information.
- * This trait assumes the model has cost/price related fields like:
- * - cost_per_unit
- * - price
- * - base_price
- * - total_cost
- * - etc.
- *
+ * Has Cost Information Trait
+ * 
+ * Comprehensive cost and price management functionality for agricultural Eloquent models.
+ * Provides standardized cost tracking, profit calculations, and pricing analysis
+ * capabilities essential for agricultural business operations.
+ * 
+ * @model_trait Cost and price management for agricultural entities
+ * @agricultural_use Cost tracking for seeds, products, consumables, and agricultural services
+ * @business_context Profit margin analysis, pricing strategy, and agricultural cost accounting
+ * @financial_analysis Markup calculations, profit tracking, and cost analysis for agricultural operations
+ * 
+ * Key features:
+ * - Automatic field detection and casting for agricultural cost fields
+ * - Profit margin and markup percentage calculations
+ * - Cost and price formatting with currency symbols
+ * - Query scopes for cost-based filtering and analysis
+ * - Discount and markup calculations for agricultural pricing
+ * 
+ * Supported fields:
+ * - cost_per_unit, price, base_price, wholesale_price, bulk_price
+ * - total_cost, unit_cost, special_price for agricultural pricing tiers
+ * 
  * @package App\Traits
+ * @author Shawn
+ * @since 2024
  */
 trait HasCostInformation
 {
@@ -77,13 +91,13 @@ trait HasCostInformation
     {
         // Prioritize common cost field names
         $priorityFields = ['cost_per_unit', 'unit_cost', 'cost', 'price'];
-        
+
         foreach ($priorityFields as $field) {
             if ($this->hasCostField($field)) {
                 return $field;
             }
         }
-        
+
         return 'cost_per_unit'; // Default
     }
 
@@ -96,13 +110,13 @@ trait HasCostInformation
     {
         // Prioritize common price field names
         $priorityFields = ['price', 'base_price', 'unit_price'];
-        
+
         foreach ($priorityFields as $field) {
             if ($this->hasCostField($field)) {
                 return $field;
             }
         }
-        
+
         return 'price'; // Default
     }
 

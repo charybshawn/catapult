@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Exception;
 use App\Services\SimpleBackupService;
 use Illuminate\Console\Command;
 
@@ -133,7 +134,7 @@ class DatabaseRestoreCommand extends Command
                 $this->info("Database restored successfully!");
                 $this->line("Restored at: " . now()->format('M j, Y g:i A'));
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error("Restore failed: {$e->getMessage()}");
         }
     }

@@ -2,12 +2,15 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Schemas\Schema;
+use App\Filament\Resources\RecurringOrderResource\Pages\ListRecurringOrders;
+use App\Filament\Resources\RecurringOrderResource\Pages\CreateRecurringOrder;
+use App\Filament\Resources\RecurringOrderResource\Pages\EditRecurringOrder;
 use App\Filament\Resources\RecurringOrderResource\Forms\RecurringOrderForm;
 use App\Filament\Resources\RecurringOrderResource\Pages;
 use App\Filament\Resources\RecurringOrderResource\Tables\RecurringOrderTable;
 use App\Filament\Resources\RecurringOrderResource\Tables\RecurringOrderTableActions;
 use App\Models\Order;
-use Filament\Forms\Form;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -23,11 +26,11 @@ class RecurringOrderResource extends BaseResource
 {
     protected static ?string $model = Order::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-arrow-path';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-arrow-path';
     protected static ?string $navigationLabel = 'Recurring Orders';
     protected static ?string $modelLabel = 'Recurring Order';
     protected static ?string $pluralModelLabel = 'Recurring Orders';
-    protected static ?string $navigationGroup = 'Orders & Sales';
+    protected static string | \UnitEnum | null $navigationGroup = 'Orders & Sales';
     protected static ?int $navigationSort = 3;
     protected static ?string $recordTitleAttribute = 'id';
     
@@ -39,9 +42,9 @@ class RecurringOrderResource extends BaseResource
             ->whereNull('parent_recurring_order_id'); // Only templates, not generated orders
     }
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form->schema(RecurringOrderForm::schema());
+        return $schema->components(RecurringOrderForm::schema());
     }
 
     public static function table(Table $table): Table
@@ -54,9 +57,9 @@ class RecurringOrderResource extends BaseResource
             ->modifyQueryUsing(fn (Builder $query) => RecurringOrderTable::modifyQuery($query))
             ->columns(RecurringOrderTable::columns())
             ->filters(RecurringOrderTable::filters())
-            ->actions(RecurringOrderTableActions::actions())
+            ->recordActions(RecurringOrderTableActions::actions())
             ->headerActions(RecurringOrderTableActions::headerActions())
-            ->bulkActions(RecurringOrderTableActions::bulkActions());
+            ->toolbarActions(RecurringOrderTableActions::bulkActions());
     }
 
     public static function getRelations(): array
@@ -69,9 +72,9 @@ class RecurringOrderResource extends BaseResource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListRecurringOrders::route('/'),
-            'create' => Pages\CreateRecurringOrder::route('/create'),
-            'edit' => Pages\EditRecurringOrder::route('/{record}/edit'),
+            'index' => ListRecurringOrders::route('/'),
+            'create' => CreateRecurringOrder::route('/create'),
+            'edit' => EditRecurringOrder::route('/{record}/edit'),
         ];
     }
 }

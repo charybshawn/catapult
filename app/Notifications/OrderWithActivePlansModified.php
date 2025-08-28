@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use Carbon\Carbon;
 use App\Models\Order;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -69,8 +70,8 @@ class OrderWithActivePlansModified extends Notification implements ShouldQueue
         if (!empty($this->changes)) {
             $mail->line('**Changes made:**');
             foreach ($this->changes as $field => $change) {
-                $oldDate = \Carbon\Carbon::parse($change['old'])->format('M j, Y');
-                $newDate = \Carbon\Carbon::parse($change['new'])->format('M j, Y');
+                $oldDate = Carbon::parse($change['old'])->format('M j, Y');
+                $newDate = Carbon::parse($change['new'])->format('M j, Y');
                 $fieldName = str_replace('_', ' ', ucfirst($field));
                 $mail->line("- {$fieldName}: {$oldDate} → {$newDate}");
             }

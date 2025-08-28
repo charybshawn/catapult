@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\ActivityResource\Pages;
 
+use Filament\Actions\Action;
+use Artisan;
 use App\Filament\Resources\ActivityResource;
 use App\Filament\Widgets\ActivityStatsWidget;
 use App\Filament\Widgets\RecentActivityWidget;
@@ -17,7 +19,7 @@ class ListActivities extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\Action::make('purge')
+            Action::make('purge')
                 ->label('Purge Old Logs')
                 ->icon('heroicon-o-trash')
                 ->color('danger')
@@ -32,7 +34,7 @@ class ListActivities extends ListRecords
     
     protected function purgeLogs(): void
     {
-        \Artisan::call('activitylog:purge', ['--force' => true]);
+        Artisan::call('activitylog:purge', ['--force' => true]);
         
         $this->notify('success', 'Old activity logs have been purged.');
     }

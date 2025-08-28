@@ -2,14 +2,44 @@
 
 namespace App\Traits\Logging;
 
+use Exception;
 use App\Services\ApiLogService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
+/**
+ * Logs API Requests Trait
+ * 
+ * Comprehensive API request and response logging for agricultural controllers
+ * and services. Provides detailed API activity tracking essential for agricultural
+ * system integration monitoring and debugging.
+ * 
+ * @logging_trait API request/response logging for agricultural system integrations
+ * @agricultural_use API logging for agricultural data exchanges, webhook processing, external integrations
+ * @monitoring API performance monitoring and debugging for agricultural system interfaces
+ * @security API authentication and rate limiting tracking for agricultural system security
+ * 
+ * Key features:
+ * - Complete API request/response cycle logging for agricultural endpoints
+ * - Error logging with context for agricultural API troubleshooting
+ * - Authentication attempt tracking for agricultural system security
+ * - Rate limiting monitoring for agricultural API protection
+ * - Webhook activity logging for agricultural system integrations
+ * - External API call tracking for agricultural service dependencies
+ * 
+ * @package App\Traits\Logging
+ * @author Shawn
+ * @since 2024
+ */
 trait LogsApiRequests
 {
     /**
-     * Log an incoming API request.
+     * Log an incoming API request for agricultural system endpoints.
+     * 
+     * @agricultural_context Log API requests for agricultural data endpoints and integrations
+     * @param Request $request Incoming HTTP request for agricultural API endpoint
+     * @param string|null $endpoint Custom endpoint name for agricultural API logging
+     * @return string Request ID for correlation with response and error logs
      */
     public function logApiRequest(Request $request, string $endpoint = null): string
     {
@@ -36,7 +66,7 @@ trait LogsApiRequests
     /**
      * Log an API error.
      */
-    public function logApiError(string $requestId, \Exception $exception): void
+    public function logApiError(string $requestId, Exception $exception): void
     {
         app(ApiLogService::class)->logError(
             $requestId,
@@ -78,7 +108,13 @@ trait LogsApiRequests
     }
 
     /**
-     * Wrap an API action with logging.
+     * Wrap an agricultural API action with comprehensive request/response logging.
+     * 
+     * @agricultural_context Complete logging wrapper for agricultural API endpoints
+     * @param Request $request HTTP request for agricultural API action
+     * @param callable $action Agricultural API action to execute with logging
+     * @return mixed API response with automatic logging of success or failure
+     * @error_handling Automatically logs exceptions for agricultural API troubleshooting
      */
     public function withApiLogging(Request $request, callable $action)
     {
@@ -91,14 +127,20 @@ trait LogsApiRequests
             $this->logApiResponse($requestId, $response, $statusCode);
             
             return $response;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->logApiError($requestId, $e);
             throw $e;
         }
     }
 
     /**
-     * Log API webhook activity.
+     * Log API webhook activity for agricultural system integrations.
+     * 
+     * @agricultural_context Webhook logging for agricultural system integration monitoring
+     * @param string $type Webhook type identifier for agricultural system classification
+     * @param Request $request Incoming webhook request from agricultural integration partner
+     * @param array $payload Webhook payload data for agricultural system processing
+     * @return void
      */
     public function logWebhook(string $type, Request $request, array $payload = []): void
     {
@@ -115,7 +157,14 @@ trait LogsApiRequests
     }
 
     /**
-     * Log external API call.
+     * Log external API call for agricultural service dependencies.
+     * 
+     * @agricultural_context External API call logging for agricultural system dependencies
+     * @param string $service External service name (seed suppliers, weather services, etc.)
+     * @param string $endpoint External API endpoint for agricultural data integration
+     * @param array $parameters Request parameters sent to external agricultural service
+     * @param mixed|null $response Response received from external agricultural service
+     * @return void
      */
     public function logExternalApiCall(string $service, string $endpoint, array $parameters = [], $response = null): void
     {

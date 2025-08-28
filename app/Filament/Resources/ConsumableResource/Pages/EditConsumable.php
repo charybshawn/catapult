@@ -2,6 +2,10 @@
 
 namespace App\Filament\Resources\ConsumableResource\Pages;
 
+use App\Models\MasterSeedCatalog;
+use App\Models\MasterCultivar;
+use Filament\Schemas\Schema;
+use Filament\Actions\DeleteAction;
 use App\Filament\Resources\ConsumableResource;
 use App\Models\Consumable;
 use App\Models\PackagingType;
@@ -29,14 +33,14 @@ class EditConsumable extends BaseEditRecord
         // For seed consumables, generate name from master catalog and cultivar
         if (!empty($data['consumable_type_id']) && $data['consumable_type_id'] == 3) {
             if (!empty($data['master_seed_catalog_id']) && !empty($data['cultivar'])) {
-                $masterCatalog = \App\Models\MasterSeedCatalog::find($data['master_seed_catalog_id']);
+                $masterCatalog = MasterSeedCatalog::find($data['master_seed_catalog_id']);
                 if ($masterCatalog) {
                     // Generate name from catalog and cultivar
                     $data['name'] = $masterCatalog->common_name . ' (' . $data['cultivar'] . ')';
                     
                     // Set master_cultivar_id if not set
                     if (empty($data['master_cultivar_id'])) {
-                        $masterCultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $data['master_seed_catalog_id'])
+                        $masterCultivar = MasterCultivar::where('master_seed_catalog_id', $data['master_seed_catalog_id'])
                             ->where('cultivar_name', $data['cultivar'])
                             ->first();
                         if ($masterCultivar) {
@@ -72,15 +76,15 @@ class EditConsumable extends BaseEditRecord
         return $data;
     }
 
-    public function form(Forms\Form $form): Forms\Form
+    public function form(Schema $schema): Schema
     {
-        return ConsumableResource::form($form);
+        return ConsumableResource::form($schema);
     }
 
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            DeleteAction::make(),
         ];
     }
 protected function mutateFormDataBeforeFill(array $data): array
@@ -111,7 +115,7 @@ protected function mutateFormDataBeforeFill(array $data): array
         
         // For seed consumables, populate cultivar field from master_cultivar_id relationship
         if (!empty($data['consumable_type_id']) && $data['consumable_type_id'] == 3 && !empty($data['master_cultivar_id'])) {
-            $masterCultivar = \App\Models\MasterCultivar::find($data['master_cultivar_id']);
+            $masterCultivar = MasterCultivar::find($data['master_cultivar_id']);
             if ($masterCultivar) {
                 $data['cultivar'] = $masterCultivar->cultivar_name;
                 

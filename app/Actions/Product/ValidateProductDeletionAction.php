@@ -2,6 +2,8 @@
 
 namespace App\Actions\Product;
 
+use App\Models\OrderItem;
+use App\Models\Crop;
 use App\Models\Product;
 
 class ValidateProductDeletionAction
@@ -58,7 +60,7 @@ class ValidateProductDeletionAction
     protected function checkPendingOrders(Product $product, array &$errors): void
     {
         // Check for order items that reference this product
-        $orderItemsCount = \App\Models\OrderItem::where('product_id', $product->id)
+        $orderItemsCount = OrderItem::where('product_id', $product->id)
             ->whereHas('order', function ($query) {
                 $query->whereIn('status', ['pending', 'processing', 'confirmed']);
             })
@@ -75,7 +77,7 @@ class ValidateProductDeletionAction
     protected function checkPlantingPlans(Product $product, array &$errors): void
     {
         // Check for crops that reference this product
-        $activeCropsCount = \App\Models\Crop::where('product_id', $product->id)
+        $activeCropsCount = Crop::where('product_id', $product->id)
             ->whereIn('status', ['planned', 'planted', 'growing'])
             ->count();
             

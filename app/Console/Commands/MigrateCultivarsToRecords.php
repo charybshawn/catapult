@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Exception;
 use Illuminate\Console\Command;
 use App\Models\MasterSeedCatalog;
 use App\Models\MasterCultivar;
@@ -84,7 +85,7 @@ class MigrateCultivarsToRecords extends Command
                         ]);
                         $this->line("  ✓ {$cultivarName} (created)");
                         $totalCreated++;
-                    } catch (\Exception $e) {
+                    } catch (Exception $e) {
                         $this->error("  ✗ {$cultivarName} (failed: {$e->getMessage()})");
                     }
                 }

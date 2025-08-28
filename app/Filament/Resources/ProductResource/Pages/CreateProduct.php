@@ -2,6 +2,9 @@
 
 namespace App\Filament\Resources\ProductResource\Pages;
 
+use Illuminate\Validation\ValidationException;
+use Exception;
+use App\Models\PackagingType;
 use App\Filament\Resources\ProductResource;
 use App\Filament\Pages\Base\BaseCreateRecord;
 use App\Models\PriceVariation;
@@ -22,7 +25,7 @@ class CreateProduct extends BaseCreateRecord
             Log::info('CreateProduct: Create method called');
             Log::info('Form state:', $this->form->getState());
             parent::create($another);
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             Log::error('CreateProduct: Validation error', [
                 'errors' => $e->errors(),
                 'validator' => $e->validator ? $e->validator->failed() : 'no validator'
@@ -31,7 +34,7 @@ class CreateProduct extends BaseCreateRecord
             // Show the validation errors to the user
             foreach ($e->errors() as $field => $messages) {
                 foreach ($messages as $message) {
-                    \Filament\Notifications\Notification::make()
+                    Notification::make()
                         ->danger()
                         ->title('Validation Error')
                         ->body($field . ': ' . $message)
@@ -41,14 +44,14 @@ class CreateProduct extends BaseCreateRecord
             }
             
             throw $e;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('CreateProduct: Error', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
             
             // Show the error to the user
-            \Filament\Notifications\Notification::make()
+            Notification::make()
                 ->danger()
                 ->title('Error Creating Product')
                 ->body($e->getMessage())
@@ -99,12 +102,12 @@ class CreateProduct extends BaseCreateRecord
         try {
             $this->createPriceVariationsFromTemplates();
             $this->createProductPhoto();
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error in afterCreate', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             // Don't throw the exception, just log it
             // This allows the redirect to happen
         }
@@ -124,7 +127,7 @@ class CreateProduct extends BaseCreateRecord
         
         // Create variations from pending template IDs (new method)
         if (!empty($pendingTemplateIds)) {
-            $templates = \App\Models\PriceVariation::whereIn('id', $pendingTemplateIds)
+            $templates = PriceVariation::whereIn('id', $pendingTemplateIds)
                 ->where('is_global', true)
                 ->where('is_active', true)
                 ->get();
@@ -134,7 +137,7 @@ class CreateProduct extends BaseCreateRecord
                 // Use the template's original name instead of generating a new one
                 $name = $template->name;
                 
-                $variation = \App\Models\PriceVariation::create([
+                $variation = PriceVariation::create([
                     'product_id' => $product->id,
                     'template_id' => $template->id,
                     'packaging_type_id' => $template->packaging_type_id,
@@ -176,7 +179,7 @@ class CreateProduct extends BaseCreateRecord
             // Determine name based on packaging type
             $name = 'Default';
             if (!empty($variationData['packaging_type_id'])) {
-                $packagingType = \App\Models\PackagingType::find($variationData['packaging_type_id']);
+                $packagingType = PackagingType::find($variationData['packaging_type_id']);
                 if ($packagingType) {
                     $name = $packagingType->name;
                 }

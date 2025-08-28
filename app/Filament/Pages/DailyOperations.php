@@ -10,15 +10,72 @@ use App\Models\CropAlert;
 use App\Models\CropBatchListView;
 use Carbon\Carbon;
 
+/**
+ * Daily Operations Center Page
+ * 
+ * Central operational dashboard for microgreens farm daily activities.
+ * Provides quick access to critical farm tasks, production metrics, and
+ * workflow navigation for efficient daily operations management.
+ * 
+ * @filament_page Central operations dashboard for farm management
+ * @agricultural_workflow Supports daily growing, harvesting, inventory tasks
+ * @business_operations Tracks pending orders, alerts, stock levels
+ * @ui_organization Grouped quick actions by operational category
+ * 
+ * @package App\Filament\Pages
+ * @author Catapult Development Team
+ * @version 1.0.0
+ */
 class DailyOperations extends Page
 {
-    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
+    /**
+     * Navigation icon for operations dashboard
+     * 
+     * @var string Clipboard icon representing daily task management
+     */
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-clipboard-document-check';
+    
+    /**
+     * Navigation label for operations center
+     * 
+     * @var string Display name in navigation menu
+     */
     protected static ?string $navigationLabel = 'Daily Operations';
+    
+    /**
+     * Page title for operations dashboard
+     * 
+     * @var string Display title for page header
+     */
     protected static ?string $title = 'Daily Operations Center';
+    
+    /**
+     * Navigation registration control
+     * 
+     * @var bool False to exclude from main navigation
+     * @performance Reduces navigation queries for operational dashboard
+     */
     protected static bool $shouldRegisterNavigation = false;
     
-    protected static string $view = 'filament.pages.daily-operations';
+    /**
+     * Blade view template for operations page
+     * 
+     * @var string Path to daily operations template
+     */
+    protected string $view = 'filament.pages.daily-operations';
     
+    /**
+     * Get view data for operations dashboard template
+     * 
+     * Compiles operational statistics and quick action configurations for
+     * the daily operations dashboard template display.
+     * 
+     * @template_data Primary data provider for daily-operations blade template
+     * @dashboard_integration Combines stats and quick actions for unified interface
+     * @agricultural_operations Provides farm-specific operational data
+     * 
+     * @return array Template data with statistics and quick action configurations
+     */
     public function getViewData(): array
     {
         return [
@@ -27,6 +84,19 @@ class DailyOperations extends Page
         ];
     }
     
+    /**
+     * Get operational statistics for dashboard display
+     * 
+     * Calculates key operational metrics for daily farm management including
+     * crop advancement needs, alerts, inventory status, and order backlogs.
+     * Uses optimized queries with aggregation for performance.
+     * 
+     * @agricultural_metrics Core production and inventory statistics
+     * @business_intelligence Daily operational KPIs for farm management
+     * @performance Uses view-based queries and aggregation for efficiency
+     * 
+     * @return array Associative array of operational statistics
+     */
     protected function getStats(): array
     {
         $today = Carbon::today();
@@ -49,6 +119,20 @@ class DailyOperations extends Page
         ];
     }
     
+    /**
+     * Get quick action configurations for operations dashboard
+     * 
+     * Defines grouped quick action categories for daily farm operations including
+     * growing, harvesting, inventory management, analytics, and configuration.
+     * Each action group contains themed actions with routing and badge integration.
+     * 
+     * @agricultural_workflow Organizes actions by operational workflow categories
+     * @ui_organization Groups related actions with consistent theming and navigation
+     * @badge_integration Dynamic badge counts from operational statistics
+     * @route_integration Direct links to relevant Filament resource pages
+     * 
+     * @return array Multi-dimensional array of action group configurations
+     */
     protected function getQuickActions(): array
     {
         return [

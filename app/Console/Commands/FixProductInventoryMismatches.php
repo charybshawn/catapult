@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Exception;
 use App\Models\Product;
 use App\Models\ProductInventory;
 use App\Models\PriceVariation;
@@ -65,7 +66,7 @@ class FixProductInventoryMismatches extends Command
                 $this->warn("\nRun without --dry-run to apply these fixes.");
             }
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             DB::rollBack();
             $this->error("Error: " . $e->getMessage());
             return 1;

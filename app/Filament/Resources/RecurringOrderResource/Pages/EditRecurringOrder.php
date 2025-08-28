@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\RecurringOrderResource\Pages;
 
+use Filament\Actions\DeleteAction;
 use App\Filament\Resources\RecurringOrderResource;
 use Filament\Actions;
 use App\Filament\Pages\Base\BaseEditRecord;
@@ -14,7 +15,7 @@ class EditRecurringOrder extends BaseEditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            DeleteAction::make(),
         ];
     }
     

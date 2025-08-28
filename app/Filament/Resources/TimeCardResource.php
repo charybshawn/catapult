@@ -2,11 +2,35 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Grid;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\DateTimePicker;
+use App\Models\TimeCardStatus;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TagsInput;
+use App\Models\TaskType;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TagsColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\Filter;
+use Filament\Actions\EditAction;
+use Filament\Actions\Action;
+use Filament\Notifications\Notification;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use App\Filament\Resources\TimeCardResource\Pages\ListTimeCards;
+use App\Filament\Resources\TimeCardResource\Pages\CreateTimeCard;
+use App\Filament\Resources\TimeCardResource\Pages\EditTimeCard;
 use App\Filament\Resources\TimeCardResource\Pages;
 use App\Filament\Resources\TimeCardResource\RelationManagers;
 use App\Models\TimeCard;
 use Filament\Forms;
-use Filament\Forms\Form;
 use App\Filament\Resources\Base\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -18,68 +42,68 @@ class TimeCardResource extends BaseResource
 {
     protected static ?string $model = TimeCard::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-clock';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-clock';
     
     protected static ?string $navigationLabel = 'Time Cards';
     
-    protected static ?string $navigationGroup = 'System';
+    protected static string | \UnitEnum | null $navigationGroup = 'System';
     
     protected static ?int $navigationSort = 1;
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Time Entry Details')
+        return $schema
+            ->components([
+                Section::make('Time Entry Details')
                     ->schema([
-                        Forms\Components\Grid::make(2)
+                        Grid::make(2)
                             ->schema([
-                                Forms\Components\Select::make('user_id')
+                                Select::make('user_id')
                                     ->relationship('user', 'name')
                                     ->required()
                                     ->searchable()
                                     ->preload()
                                     ->label('Employee'),
-                                Forms\Components\DatePicker::make('work_date')
+                                DatePicker::make('work_date')
                                     ->required()
                                     ->default(now())
                                     ->label('Work Date'),
                             ]),
-                        Forms\Components\Grid::make(2)
+                        Grid::make(2)
                             ->schema([
-                                Forms\Components\DateTimePicker::make('clock_in')
+                                DateTimePicker::make('clock_in')
                                     ->required()
                                     ->seconds(false)
                                     ->default(now())
                                     ->label('Clock In Time'),
-                                Forms\Components\DateTimePicker::make('clock_out')
+                                DateTimePicker::make('clock_out')
                                     ->seconds(false)
                                     ->label('Clock Out Time')
                                     ->afterOrEqual('clock_in'),
                             ]),
-                        Forms\Components\Grid::make(2)
+                        Grid::make(2)
                             ->schema([
-                                Forms\Components\Select::make('time_card_status_id')
+                                Select::make('time_card_status_id')
                                     ->label('Status')
                                     ->relationship('timeCardStatus', 'name')
-                                    ->default(fn () => \App\Models\TimeCardStatus::where('code', 'active')->first()?->id)
+                                    ->default(fn () => TimeCardStatus::where('code', 'active')->first()?->id)
                                     ->required(),
-                                Forms\Components\TextInput::make('duration_minutes')
+                                TextInput::make('duration_minutes')
                                     ->numeric()
                                     ->disabled()
                                     ->dehydrated(false)
                                     ->label('Duration (minutes)')
                                     ->placeholder('Calculated automatically'),
                             ]),
-                        Forms\Components\Textarea::make('notes')
+                        Textarea::make('notes')
                             ->rows(3)
                             ->columnSpanFull()
                             ->label('Notes'),
-                        Forms\Components\TagsInput::make('taskNames')
+                        TagsInput::make('taskNames')
                             ->label('Tasks Performed')
                             ->placeholder('Select or type tasks...')
                             ->suggestions(function () {
-                                return \App\Models\TaskType::active()
+                                return TaskType::active()
                                     ->orderBy('category')
                                     ->orderBy('sort_order')
                                     ->pluck('name')
@@ -89,12 +113,12 @@ class TimeCardResource extends BaseResource
                             ->helperText('Tasks completed during this shift')
                             ->dehydrated(false),
                     ]),
-                Forms\Components\Section::make('Technical Information')
+                Section::make('Technical Information')
                     ->schema([
-                        Forms\Components\TextInput::make('ip_address')
+                        TextInput::make('ip_address')
                             ->maxLength(255)
                             ->disabled(),
-                        Forms\Components\TextInput::make('user_agent')
+                        TextInput::make('user_agent')
                             ->maxLength(255)
                             ->disabled(),
                     ])
@@ -108,30 +132,30 @@ class TimeCardResource extends BaseResource
         return $table
             ->modifyQueryUsing(fn (Builder $query) => $query->with(['user']))
             ->columns([
-                Tables\Columns\TextColumn::make('user.name')
+                TextColumn::make('user.name')
                     ->label('Employee')
                     ->searchable()
                     ->sortable()
                     ->weight(FontWeight::Bold),
-                Tables\Columns\TextColumn::make('work_date')
+                TextColumn::make('work_date')
                     ->date()
                     ->sortable()
                     ->label('Date'),
-                Tables\Columns\TextColumn::make('clock_in')
+                TextColumn::make('clock_in')
                     ->dateTime('g:i A')
                     ->sortable()
                     ->label('Clock In'),
-                Tables\Columns\TextColumn::make('clock_out')
+                TextColumn::make('clock_out')
                     ->dateTime('g:i A')
                     ->sortable()
                     ->label('Clock Out')
                     ->placeholder('Still working...'),
-                Tables\Columns\TextColumn::make('duration_formatted')
+                TextColumn::make('duration_formatted')
                     ->label('Duration')
                     ->getStateUsing(fn ($record) => $record->duration_formatted)
                     ->badge()
                     ->color(fn ($state) => $state === '--:--' ? 'warning' : 'success'),
-                Tables\Columns\TextColumn::make('timeCardStatus.name')
+                TextColumn::make('timeCardStatus.name')
                     ->label('Status')
                     ->badge()
                     ->color(fn ($state): string => match ($state) {
@@ -140,7 +164,7 @@ class TimeCardResource extends BaseResource
                         'Cancelled' => 'danger',
                         default => 'gray',
                     }),
-                Tables\Columns\IconColumn::make('requires_review')
+                IconColumn::make('requires_review')
                     ->boolean()
                     ->label('Needs Review')
                     ->trueIcon('heroicon-o-exclamation-triangle')
@@ -151,7 +175,7 @@ class TimeCardResource extends BaseResource
                         'Flagged: ' . implode(', ', $record->flags ?? []) : 
                         ''
                     ),
-                Tables\Columns\TextColumn::make('max_shift_status')
+                TextColumn::make('max_shift_status')
                     ->label('Shift Status')
                     ->getStateUsing(function (TimeCard $record): string {
                         if ($record->max_shift_exceeded) {
@@ -171,43 +195,43 @@ class TimeCardResource extends BaseResource
                         str_contains($state, 'Near limit') => 'warning',
                         default => 'success',
                     }),
-                Tables\Columns\TagsColumn::make('taskNames')
+                TagsColumn::make('taskNames')
                     ->label('Tasks')
                     ->getStateUsing(fn (TimeCard $record) => $record->task_names)
                     ->separator(',')
                     ->limitList(3),
-                Tables\Columns\TextColumn::make('notes')
+                TextColumn::make('notes')
                     ->limit(30)
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('user')
+                SelectFilter::make('user')
                     ->relationship('user', 'name')
                     ->searchable()
                     ->preload()
                     ->label('Employee'),
-                Tables\Filters\SelectFilter::make('time_card_status_id')
+                SelectFilter::make('time_card_status_id')
                     ->label('Status')
                     ->relationship('timeCardStatus', 'name'),
-                Tables\Filters\TernaryFilter::make('requires_review')
+                TernaryFilter::make('requires_review')
                     ->label('Requires Review')
                     ->trueLabel('Flagged for Review')
                     ->falseLabel('No Review Needed')
                     ->placeholder('All Time Cards'),
-                Tables\Filters\TernaryFilter::make('max_shift_exceeded')
+                TernaryFilter::make('max_shift_exceeded')
                     ->label('Exceeded 8 Hours')
                     ->trueLabel('Over 8 Hours')
                     ->falseLabel('Under 8 Hours')
                     ->placeholder('All Shifts'),
-                Tables\Filters\Filter::make('work_date')
-                    ->form([
-                        Forms\Components\DatePicker::make('from')
+                Filter::make('work_date')
+                    ->schema([
+                        DatePicker::make('from')
                             ->label('From Date'),
-                        Forms\Components\DatePicker::make('until')
+                        DatePicker::make('until')
                             ->label('Until Date'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
@@ -222,25 +246,25 @@ class TimeCardResource extends BaseResource
                             );
                     }),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\Action::make('clock_out')
+            ->recordActions([
+                EditAction::make(),
+                Action::make('clock_out')
                     ->label('Clock Out')
                     ->icon('heroicon-o-arrow-right-end-on-rectangle')
                     ->color('warning')
                     ->requiresConfirmation()
                     ->action(fn (TimeCard $record) => $record->clockOut())
                     ->visible(fn (TimeCard $record) => $record->timeCardStatus?->code === 'active'),
-                Tables\Actions\Action::make('resolve_review')
+                Action::make('resolve_review')
                     ->label('Resolve Review')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->form([
-                        Forms\Components\DateTimePicker::make('actual_clock_out')
+                    ->schema([
+                        DateTimePicker::make('actual_clock_out')
                             ->label('Actual Clock Out Time')
                             ->required()
                             ->default(fn (TimeCard $record) => $record->clock_out ?? now()),
-                        Forms\Components\Textarea::make('resolution_notes')
+                        Textarea::make('resolution_notes')
                             ->label('Resolution Notes')
                             ->required()
                             ->placeholder('Explain the resolution (e.g., "Forgot to clock out at 5 PM")')
@@ -250,7 +274,7 @@ class TimeCardResource extends BaseResource
                         // Update the time card with the actual clock out time
                         $record->update([
                             'clock_out' => $data['actual_clock_out'],
-                            'time_card_status_id' => \App\Models\TimeCardStatus::where('code', 'completed')->first()?->id,
+                            'time_card_status_id' => TimeCardStatus::where('code', 'completed')->first()?->id,
                         ]);
                         
                         // Resolve the review flag
@@ -259,7 +283,7 @@ class TimeCardResource extends BaseResource
                             $data['resolution_notes']
                         );
                         
-                        \Filament\Notifications\Notification::make()
+                        Notification::make()
                             ->title('Time Card Resolved')
                             ->body("Time card for {$record->user->name} has been resolved.")
                             ->success()
@@ -267,9 +291,9 @@ class TimeCardResource extends BaseResource
                     })
                     ->visible(fn (TimeCard $record) => $record->requires_review),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ])
             ->defaultSort('work_date', 'desc');
@@ -285,9 +309,9 @@ class TimeCardResource extends BaseResource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListTimeCards::route('/'),
-            'create' => Pages\CreateTimeCard::route('/create'),
-            'edit' => Pages\EditTimeCard::route('/{record}/edit'),
+            'index' => ListTimeCards::route('/'),
+            'create' => CreateTimeCard::route('/create'),
+            'edit' => EditTimeCard::route('/{record}/edit'),
         ];
     }
 }

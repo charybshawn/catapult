@@ -2,11 +2,14 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Schemas\Schema;
+use App\Filament\Resources\PriceVariationResource\Pages\ListPriceVariations;
+use App\Filament\Resources\PriceVariationResource\Pages\CreatePriceVariation;
+use App\Filament\Resources\PriceVariationResource\Pages\EditPriceVariation;
 use App\Filament\Resources\PriceVariationResource\Forms\PriceVariationForm;
 use App\Filament\Resources\PriceVariationResource\Pages;
 use App\Filament\Resources\PriceVariationResource\Tables\PriceVariationTable;
 use App\Models\PriceVariation;
-use Filament\Forms\Form;
 use Filament\Tables\Table;
 
 /**
@@ -21,17 +24,17 @@ class PriceVariationResource extends BaseResource
     // Hide from navigation since price variations are managed within ProductResource
     protected static bool $shouldRegisterNavigation = false;
 
-    protected static ?string $navigationIcon = 'heroicon-o-currency-dollar';
-    protected static ?string $navigationGroup = 'Products & Inventory';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-currency-dollar';
+    protected static string | \UnitEnum | null $navigationGroup = 'Products & Inventory';
     protected static ?int $navigationSort = 5;
     protected static ?string $recordTitleAttribute = 'name';
 
     /**
      * Configure form using extracted form class
      */
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form->schema(PriceVariationForm::schema());
+        return $schema->components(PriceVariationForm::schema());
     }
 
     /**
@@ -56,9 +59,9 @@ class PriceVariationResource extends BaseResource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListPriceVariations::route('/'),
-            'create' => Pages\CreatePriceVariation::route('/create'),
-            'edit' => Pages\EditPriceVariation::route('/{record}/edit'),
+            'index' => ListPriceVariations::route('/'),
+            'create' => CreatePriceVariation::route('/create'),
+            'edit' => EditPriceVariation::route('/{record}/edit'),
         ];
     }
 }

@@ -2,6 +2,21 @@
 
 namespace App\Filament\Resources\CustomerResource\Tables;
 
+use Filament\Tables\Columns\TextColumn;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\ViewAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Tables\Columns\BadgeColumn;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Actions\Action;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use App\Actions\Customer\CreateCustomerLoginAction;
+use Filament\Actions\DeleteAction;
 use App\Models\Customer;
 use App\Models\CustomerType;
 use Filament\Tables;
@@ -15,21 +30,21 @@ class CustomerTable
     public static function columns(): array
     {
         return [
-            Tables\Columns\TextColumn::make('display_name')
+            TextColumn::make('display_name')
                 ->label('Customer')
                 ->searchable(['contact_name', 'business_name'])
                 ->sortable(query: function (Builder $query, string $direction): Builder {
                     return $query->orderBy('business_name', $direction)->orderBy('contact_name', $direction);
                 }),
-            Tables\Columns\TextColumn::make('email')
+            TextColumn::make('email')
                 ->searchable()
                 ->sortable(),
             static::getPhoneColumn(),
             static::getCustomerTypeColumn(),
-            Tables\Columns\TextColumn::make('city')
+            TextColumn::make('city')
                 ->searchable()
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('province')
+            TextColumn::make('province')
                 ->toggleable(),
             static::getWholesaleDiscountColumn(),
             static::getLoginAccountColumn(),
@@ -54,9 +69,9 @@ class CustomerTable
     public static function actions(): array
     {
         return [
-            Tables\Actions\ActionGroup::make([
-                Tables\Actions\ViewAction::make()->tooltip('View record'),
-                Tables\Actions\EditAction::make()->tooltip('Edit record'),
+            ActionGroup::make([
+                ViewAction::make()->tooltip('View record'),
+                EditAction::make()->tooltip('Edit record'),
                 static::getCreateLoginAction(),
                 static::getDeleteAction(),
             ])
@@ -74,8 +89,8 @@ class CustomerTable
     public static function bulkActions(): array
     {
         return [
-            Tables\Actions\BulkActionGroup::make([
-                Tables\Actions\DeleteBulkAction::make()
+            BulkActionGroup::make([
+                DeleteBulkAction::make()
                     ->visible(fn () => auth()->user()->hasRole('admin')),
             ]),
         ];
@@ -84,9 +99,9 @@ class CustomerTable
     /**
      * Phone column with formatting
      */
-    protected static function getPhoneColumn(): Tables\Columns\TextColumn
+    protected static function getPhoneColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('phone')
+        return TextColumn::make('phone')
             ->searchable()
             ->formatStateUsing(fn ($state) => $state ? (new Customer(['phone' => $state]))->formatted_phone : null);
     }
@@ -94,9 +109,9 @@ class CustomerTable
     /**
      * Customer type badge column
      */
-    protected static function getCustomerTypeColumn(): Tables\Columns\BadgeColumn
+    protected static function getCustomerTypeColumn(): BadgeColumn
     {
-        return Tables\Columns\BadgeColumn::make('customerType.name')
+        return BadgeColumn::make('customerType.name')
             ->label('Type')
             ->colors([
                 'success' => fn ($state) => $state === 'Retail',
@@ -108,9 +123,9 @@ class CustomerTable
     /**
      * Wholesale discount percentage column
      */
-    protected static function getWholesaleDiscountColumn(): Tables\Columns\TextColumn
+    protected static function getWholesaleDiscountColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('wholesale_discount_percentage')
+        return TextColumn::make('wholesale_discount_percentage')
             ->label('Discount %')
             ->suffix('%')
             ->toggleable()
@@ -122,9 +137,9 @@ class CustomerTable
     /**
      * Login account status column
      */
-    protected static function getLoginAccountColumn(): Tables\Columns\IconColumn
+    protected static function getLoginAccountColumn(): IconColumn
     {
-        return Tables\Columns\IconColumn::make('has_user_account')
+        return IconColumn::make('has_user_account')
             ->label('Login')
             ->boolean()
             ->trueIcon('heroicon-o-check-circle')
@@ -136,9 +151,9 @@ class CustomerTable
     /**
      * Orders count column
      */
-    protected static function getOrdersCountColumn(): Tables\Columns\TextColumn
+    protected static function getOrdersCountColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('orders_count')
+        return TextColumn::make('orders_count')
             ->label('Orders')
             ->counts('orders')
             ->sortable();
@@ -147,9 +162,9 @@ class CustomerTable
     /**
      * Customer type filter
      */
-    protected static function getCustomerTypeFilter(): Tables\Filters\SelectFilter
+    protected static function getCustomerTypeFilter(): SelectFilter
     {
-        return Tables\Filters\SelectFilter::make('customer_type_id')
+        return SelectFilter::make('customer_type_id')
             ->label('Customer Type')
             ->relationship('customerType', 'name')
             ->options(CustomerType::options());
@@ -158,9 +173,9 @@ class CustomerTable
     /**
      * Login account filter
      */
-    protected static function getLoginAccountFilter(): Tables\Filters\TernaryFilter
+    protected static function getLoginAccountFilter(): TernaryFilter
     {
-        return Tables\Filters\TernaryFilter::make('has_user_account')
+        return TernaryFilter::make('has_user_account')
             ->label('Has Login')
             ->placeholder('All customers')
             ->trueLabel('With login')
@@ -174,25 +189,25 @@ class CustomerTable
     /**
      * Create login action - delegates to Action class
      */
-    protected static function getCreateLoginAction(): Tables\Actions\Action
+    protected static function getCreateLoginAction(): Action
     {
-        return Tables\Actions\Action::make('create_login')
+        return Action::make('create_login')
             ->label('Create Login')
             ->icon('heroicon-o-key')
             ->color('success')
             ->visible(fn (Customer $record) => !$record->hasUserAccount())
-            ->form([
-                \Filament\Forms\Components\TextInput::make('password')
+            ->schema([
+                TextInput::make('password')
                     ->password()
                     ->required()
                     ->minLength(8)
                     ->helperText('Minimum 8 characters'),
-                \Filament\Forms\Components\Toggle::make('send_credentials')
+                Toggle::make('send_credentials')
                     ->label('Email credentials to customer')
                     ->default(true),
             ])
             ->action(function (Customer $record, array $data): void {
-                app(\App\Actions\Customer\CreateCustomerLoginAction::class)->execute($record, $data);
+                app(CreateCustomerLoginAction::class)->execute($record, $data);
             })
             ->successNotificationTitle('Login created successfully');
     }
@@ -200,9 +215,9 @@ class CustomerTable
     /**
      * Delete action with order count validation
      */
-    protected static function getDeleteAction(): Tables\Actions\DeleteAction
+    protected static function getDeleteAction(): DeleteAction
     {
-        return Tables\Actions\DeleteAction::make()
+        return DeleteAction::make()
             ->tooltip('Delete record')
             ->visible(fn (Customer $record) => $record->orders()->count() === 0);
     }

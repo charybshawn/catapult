@@ -2,6 +2,14 @@
 
 namespace App\Filament\Resources\ProductInventoryResource\RelationManagers;
 
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\BadgeColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\Filter;
+use Filament\Actions\Action;
+use Exception;
+use Filament\Forms\Components\Textarea;
+use Filament\Actions\BulkAction;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -11,62 +19,97 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Filament\Notifications\Notification;
 
+/**
+ * ReservationsRelationManager for Agricultural Inventory Reservation Management
+ * 
+ * Manages inventory reservations for agricultural products with comprehensive
+ * reservation lifecycle operations including confirmation, fulfillment, and
+ * cancellation. Critical for maintaining accurate available inventory levels
+ * in microgreens operations where stock must be reserved for pending orders.
+ * 
+ * @filament_relation_manager Inventory reservation management for ProductInventoryResource
+ * @business_domain Agricultural inventory with reservation tracking and fulfillment
+ * @relationship_type One-to-many: ProductInventory -> InventoryReservations
+ * 
+ * @reservation_lifecycle pending -> confirmed -> fulfilled, with cancellation support
+ * @agricultural_context Stock reservation for perishable microgreens with expiration tracking
+ * @inventory_integrity Ensures accurate available stock calculations through reservation management
+ * 
+ * @status_workflow pending (awaiting confirmation), confirmed (locked stock), fulfilled (stock deducted)
+ * @business_operations Order-driven reservations with manual override capabilities
+ * @related_models InventoryReservation, Order, ProductInventory for complete reservation context
+ */
 class ReservationsRelationManager extends RelationManager
 {
     protected static string $relationship = 'reservations';
 
     protected static ?string $title = 'Reservations';
 
+    /**
+     * Configure inventory reservation table for agricultural operations.
+     * 
+     * Provides comprehensive reservation management interface with status tracking,
+     * order integration, expiration monitoring, and lifecycle actions. Essential
+     * for managing stock reservations in time-sensitive agricultural operations.
+     * 
+     * @param Table $table Filament table instance for configuration
+     * @return Table Configured table with agricultural reservation management features
+     * 
+     * @columns Order linking, quantity tracking, status badges, timestamps with expiration alerts
+     * @actions Confirm, fulfill, cancel operations for complete reservation lifecycle management
+     * @filtering Status and expiration filters for agricultural inventory operations
+     * @bulk_operations Expired reservation cleanup for inventory maintenance
+     */
     public function table(Table $table): Table
     {
         return $table
             ->defaultSort('created_at', 'desc')
             ->columns([
-                Tables\Columns\TextColumn::make('order.id')
+                TextColumn::make('order.id')
                     ->label('Order #')
                     ->formatStateUsing(fn ($state) => '#' . $state)
                     ->url(fn ($record) => route('filament.admin.resources.orders.edit', $record->order_id)),
-                Tables\Columns\TextColumn::make('quantity')
+                TextColumn::make('quantity')
                     ->label('Quantity')
                     ->numeric(2)
                     ->alignEnd(),
-                Tables\Columns\BadgeColumn::make('status')
+                BadgeColumn::make('status')
                     ->colors([
                         'warning' => 'pending',
                         'success' => 'confirmed',
                         'info' => 'fulfilled',
                         'danger' => 'cancelled',
                     ]),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->label('Reserved At')
                     ->dateTime()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('expires_at')
+                TextColumn::make('expires_at')
                     ->label('Expires At')
                     ->dateTime()
                     ->color(fn ($state, $record) => $record->isExpired() ? 'danger' : null),
-                Tables\Columns\TextColumn::make('fulfilled_at')
+                TextColumn::make('fulfilled_at')
                     ->label('Fulfilled At')
                     ->dateTime()
                     ->toggleable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options([
                         'pending' => 'Pending',
                         'confirmed' => 'Confirmed',
                         'fulfilled' => 'Fulfilled',
                         'cancelled' => 'Cancelled',
                     ]),
-                Tables\Filters\Filter::make('expired')
+                Filter::make('expired')
                     ->query(fn (Builder $query): Builder => $query->expired())
                     ->label('Expired'),
             ])
             ->headerActions([
                 // No manual creation of reservations
             ])
-            ->actions([
-                Tables\Actions\Action::make('confirm')
+            ->recordActions([
+                Action::make('confirm')
                     ->label('Confirm')
                     ->icon('heroicon-o-check')
                     ->color('success')
@@ -79,7 +122,7 @@ class ReservationsRelationManager extends RelationManager
                             ->success()
                             ->send();
                     }),
-                Tables\Actions\Action::make('fulfill')
+                Action::make('fulfill')
                     ->label('Fulfill')
                     ->icon('heroicon-o-check-circle')
                     ->color('info')
@@ -95,7 +138,7 @@ class ReservationsRelationManager extends RelationManager
                                 ->body('Stock has been deducted from inventory.')
                                 ->success()
                                 ->send();
-                        } catch (\Exception $e) {
+                        } catch (Exception $e) {
                             Notification::make()
                                 ->title('Fulfillment Failed')
                                 ->body($e->getMessage())
@@ -103,14 +146,14 @@ class ReservationsRelationManager extends RelationManager
                                 ->send();
                         }
                     }),
-                Tables\Actions\Action::make('cancel')
+                Action::make('cancel')
                     ->label('Cancel')
                     ->icon('heroicon-o-x-mark')
                     ->color('danger')
                     ->visible(fn ($record) => in_array($record->status, ['pending', 'confirmed']))
                     ->requiresConfirmation()
-                    ->form([
-                        Forms\Components\Textarea::make('reason')
+                    ->schema([
+                        Textarea::make('reason')
                             ->label('Cancellation Reason')
                             ->required()
                             ->rows(2),
@@ -123,7 +166,7 @@ class ReservationsRelationManager extends RelationManager
                                 ->body('Reserved stock has been released.')
                                 ->success()
                                 ->send();
-                        } catch (\Exception $e) {
+                        } catch (Exception $e) {
                             Notification::make()
                                 ->title('Cancellation Failed')
                                 ->body($e->getMessage())
@@ -132,8 +175,8 @@ class ReservationsRelationManager extends RelationManager
                         }
                     }),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkAction::make('cancel_expired')
+            ->toolbarActions([
+                BulkAction::make('cancel_expired')
                     ->label('Cancel Expired')
                     ->icon('heroicon-o-x-mark')
                     ->color('danger')

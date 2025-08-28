@@ -8,11 +8,29 @@ use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Comprehensive metrics and analytics service for agricultural production monitoring.
+ * 
+ * Provides detailed activity tracking, performance monitoring, and statistical analysis
+ * for agricultural operations including crop management, order processing, and user
+ * activity patterns. Supports real-time dashboard metrics and historical trend analysis.
+ *
+ * @business_domain Agricultural operation analytics and performance monitoring
+ * @related_services ActivityLogService, CacheService
+ * @used_by Dashboard widgets, analytics pages, performance monitoring
+ * @caching Aggressive caching (300-600s) for expensive metric calculations
+ */
 class MetricsService
 {
     protected ActivityLogService $activityService;
     protected CacheService $cacheService;
 
+    /**
+     * Initialize metrics service with activity logging and caching capabilities.
+     *
+     * @param ActivityLogService $activityService Handles activity log queries
+     * @param CacheService $cacheService Provides intelligent caching for metric calculations
+     */
     public function __construct(ActivityLogService $activityService, CacheService $cacheService)
     {
         $this->activityService = $activityService;
@@ -20,7 +38,24 @@ class MetricsService
     }
 
     /**
-     * Get activity metrics for a specific user
+     * Get comprehensive activity metrics for a specific agricultural team member.
+     * 
+     * Analyzes user behavior patterns including crop management activities,
+     * order processing frequency, and operational efficiency metrics.
+     * Essential for farm labor management and productivity optimization.
+     *
+     * @param int $userId The user ID to analyze
+     * @param Carbon|null $from Start date for analysis (defaults to unbounded)
+     * @param Carbon|null $to End date for analysis (defaults to unbounded)
+     * @return array Comprehensive user activity metrics including:
+     *   - total_activities: Total activity count
+     *   - activities_by_type: Breakdown by activity type (crop, order, system)
+     *   - activities_by_day: Daily activity distribution
+     *   - most_active_hours: Hourly activity patterns for shift optimization
+     *   - affected_models: Agricultural entities user interacts with most
+     *   - recent_activities: Latest 10 activities for context
+     * @caching 5-minute cache for performance
+     * @agricultural_context Used for labor efficiency analysis and shift planning
      */
     public function getUserMetrics(int $userId, ?Carbon $from = null, ?Carbon $to = null): array
     {
@@ -50,7 +85,24 @@ class MetricsService
     }
 
     /**
-     * Get system-wide metrics
+     * Get system-wide agricultural operation metrics and performance indicators.
+     * 
+     * Provides comprehensive farm operation analytics including overall activity
+     * patterns, user engagement, system performance, and error rates.
+     * Critical for operational decision making and system optimization.
+     *
+     * @param Carbon|null $from Start date for analysis (defaults to unbounded)
+     * @param Carbon|null $to End date for analysis (defaults to unbounded)
+     * @return array System-wide metrics including:
+     *   - total_activities: Overall system activity
+     *   - unique_users: Active user count for staffing insights
+     *   - activities_per_hour: Hourly load patterns
+     *   - top_users: Most active team members
+     *   - top_actions: Most common operations
+     *   - error_rate: System reliability metrics
+     *   - performance_metrics: Response times and optimization opportunities
+     * @caching 10-minute cache for dashboard performance
+     * @agricultural_context Used for farm operation efficiency and capacity planning
      */
     public function getSystemMetrics(?Carbon $from = null, ?Carbon $to = null): array
     {
@@ -80,7 +132,23 @@ class MetricsService
     }
 
     /**
-     * Get model-specific metrics
+     * Get detailed metrics for specific agricultural entities (crops, products, orders).
+     * 
+     * Analyzes activity patterns for individual agricultural model types,
+     * providing insights into how different farm operations are being managed
+     * and where optimization opportunities exist.
+     *
+     * @param string $modelClass The model class to analyze (e.g., Crop::class, Product::class)
+     * @param Carbon|null $from Start date for analysis (defaults to unbounded)
+     * @param Carbon|null $to End date for analysis (defaults to unbounded)
+     * @return array Model-specific metrics including:
+     *   - total_activities: Activities for this model type
+     *   - activities_by_event: Breakdown by CRUD operations
+     *   - top_users: Users most active with this entity type
+     *   - activity_timeline: Daily activity distribution
+     *   - crud_breakdown: Create/update/delete operation analysis
+     * @caching 10-minute cache for entity-specific dashboards
+     * @agricultural_context Used for crop lifecycle analysis, product management insights
      */
     public function getModelMetrics(string $modelClass, ?Carbon $from = null, ?Carbon $to = null): array
     {
@@ -108,7 +176,14 @@ class MetricsService
     }
 
     /**
-     * Get activities grouped by type
+     * Group activities by log type (system, crop, order, api, etc.).
+     * 
+     * Categorizes farm activities to understand operational focus areas
+     * and identify bottlenecks in agricultural workflows.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query Base activity query
+     * @return array Activity counts keyed by log type
+     * @agricultural_context Helps identify which farm operations are most active
      */
     protected function getActivitiesByType($query): array
     {
@@ -120,7 +195,16 @@ class MetricsService
     }
 
     /**
-     * Get activities grouped by day
+     * Get daily activity distribution for agricultural operation planning.
+     * 
+     * Creates a complete timeline with zero-filled gaps to identify
+     * patterns in farm activity and optimal scheduling windows.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query Base activity query
+     * @param Carbon|null $from Start date (defaults to 30 days ago)
+     * @param Carbon|null $to End date (defaults to now)
+     * @return array Daily activity counts with zero-filled missing days
+     * @agricultural_context Used for identifying busy farm periods and planning crop schedules
      */
     protected function getActivitiesByDay($query, ?Carbon $from, ?Carbon $to): array
     {
@@ -147,7 +231,14 @@ class MetricsService
     }
 
     /**
-     * Get most active hours
+     * Analyze hourly activity patterns for agricultural labor optimization.
+     * 
+     * Identifies peak operational hours to optimize staffing, equipment usage,
+     * and agricultural task scheduling for maximum efficiency.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query Base activity query
+     * @return array Activity counts by hour (0-23)
+     * @agricultural_context Used for shift planning and greenhouse operation scheduling
      */
     protected function getMostActiveHours($query): array
     {
@@ -233,7 +324,15 @@ class MetricsService
     }
 
     /**
-     * Get error rate
+     * Calculate system error rate for agricultural operation reliability.
+     * 
+     * Monitors system health and identifies potential issues that could
+     * disrupt critical agricultural processes like crop monitoring or
+     * order fulfillment.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query Base activity query
+     * @return array Error statistics including total, errors, and rate percentage
+     * @agricultural_context Critical for ensuring reliable crop management systems
      */
     protected function getErrorRate($query): array
     {
@@ -254,7 +353,15 @@ class MetricsService
     }
 
     /**
-     * Get performance metrics
+     * Analyze system performance metrics for agricultural operation efficiency.
+     * 
+     * Monitors response times, identifies slow operations, and tracks background
+     * job performance to ensure agricultural systems run smoothly during
+     * critical periods like harvest or order fulfillment.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query Base activity query
+     * @return array Performance metrics including API response times and job stats
+     * @agricultural_context Ensures crop monitoring and order processing systems perform optimally
      */
     protected function getPerformanceMetrics($query): array
     {
@@ -342,7 +449,14 @@ class MetricsService
     }
 
     /**
-     * Get slow queries
+     * Identify slow database queries that could impact agricultural operations.
+     * 
+     * Monitors for queries taking over 1 second that could delay critical
+     * agricultural processes like crop status updates or inventory management.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query Base activity query
+     * @return array Top 10 slowest queries with duration and context
+     * @agricultural_context Prevents delays in time-sensitive crop management operations
      */
     protected function getSlowQueries($query): array
     {
@@ -357,7 +471,14 @@ class MetricsService
     }
 
     /**
-     * Get background job statistics
+     * Analyze background job performance for agricultural automation reliability.
+     * 
+     * Monitors automated tasks like crop plan generation, recurring orders,
+     * and inventory updates to ensure agricultural workflows continue smoothly.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query Base activity query
+     * @return array Job statistics including success rate and average duration
+     * @agricultural_context Critical for automated crop scheduling and order processing
      */
     protected function getBackgroundJobStats($query): array
     {

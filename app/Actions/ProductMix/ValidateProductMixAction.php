@@ -2,6 +2,7 @@
 
 namespace App\Actions\ProductMix;
 
+use InvalidArgumentException;
 use App\Models\ProductMix;
 
 /**
@@ -34,7 +35,7 @@ class ValidateProductMixAction
         if (isset($data['name'])) {
             $validatedData['name'] = trim($data['name']);
             if (empty($validatedData['name'])) {
-                throw new \InvalidArgumentException('Product mix name is required');
+                throw new InvalidArgumentException('Product mix name is required');
             }
         }
         
@@ -57,7 +58,7 @@ class ValidateProductMixAction
     protected function validateMixComponents(array $components): array
     {
         if (empty($components)) {
-            throw new \InvalidArgumentException('At least one mix component is required');
+            throw new InvalidArgumentException('At least one mix component is required');
         }
         
         $validatedComponents = [];
@@ -84,24 +85,24 @@ class ValidateProductMixAction
         
         // Master seed catalog ID validation
         if (!isset($component['master_seed_catalog_id']) || empty($component['master_seed_catalog_id'])) {
-            throw new \InvalidArgumentException('Master seed catalog ID is required for each component');
+            throw new InvalidArgumentException('Master seed catalog ID is required for each component');
         }
         $validatedComponent['master_seed_catalog_id'] = (int) $component['master_seed_catalog_id'];
         
         // Cultivar validation
         if (!isset($component['cultivar']) || empty($component['cultivar'])) {
-            throw new \InvalidArgumentException('Cultivar is required for each component');
+            throw new InvalidArgumentException('Cultivar is required for each component');
         }
         $validatedComponent['cultivar'] = trim($component['cultivar']);
         
         // Percentage validation
         if (!isset($component['percentage']) || !is_numeric($component['percentage'])) {
-            throw new \InvalidArgumentException('Valid percentage is required for each component');
+            throw new InvalidArgumentException('Valid percentage is required for each component');
         }
         
         $percentage = floatval($component['percentage']);
         if ($percentage <= 0 || $percentage > 100) {
-            throw new \InvalidArgumentException('Percentage must be between 0.01 and 100');
+            throw new InvalidArgumentException('Percentage must be between 0.01 and 100');
         }
         
         $validatedComponent['percentage'] = round($percentage, 2);
@@ -124,7 +125,7 @@ class ValidateProductMixAction
         $rounded = round($totalPercentage, 2);
         
         if ($rounded !== 100.00) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Total percentage must equal 100%. Current total: {$rounded}%"
             );
         }
@@ -136,7 +137,7 @@ class ValidateProductMixAction
     public function validateForDeletion(ProductMix $productMix): void
     {
         if ($productMix->products()->count() > 0) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot delete product mix that is used by products'
             );
         }
@@ -152,7 +153,7 @@ class ValidateProductMixAction
         
         // Ensure we have the required fields
         if (!isset($data['master_seed_catalog_id']) || !isset($data['percentage'])) {
-            throw new \InvalidArgumentException('Missing required fields: master_seed_catalog_id and percentage');
+            throw new InvalidArgumentException('Missing required fields: master_seed_catalog_id and percentage');
         }
         
         // Ensure recipe_id is properly handled (can be null)

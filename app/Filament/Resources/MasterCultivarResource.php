@@ -2,12 +2,30 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Schemas\Schema;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\TagsInput;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Toggle;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\ViewAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use App\Filament\Resources\MasterCultivarResource\Pages\ListMasterCultivars;
+use App\Filament\Resources\MasterCultivarResource\Pages\CreateMasterCultivar;
+use App\Filament\Resources\MasterCultivarResource\Pages\EditMasterCultivar;
 use App\Filament\Resources\MasterCultivarResource\Pages;
 use App\Filament\Resources\MasterCultivarResource\RelationManagers;
 use App\Models\MasterCultivar;
 use App\Models\MasterSeedCatalog;
 use Filament\Forms;
-use Filament\Forms\Form;
 use App\Filament\Resources\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -18,29 +36,29 @@ class MasterCultivarResource extends BaseResource
 {
     protected static ?string $model = MasterCultivar::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-tag';
-    protected static ?string $navigationGroup = 'Products & Inventory';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-tag';
+    protected static string | \UnitEnum | null $navigationGroup = 'Products & Inventory';
     protected static ?string $navigationLabel = 'Cultivars';
     protected static bool $shouldRegisterNavigation = false;
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Select::make('master_seed_catalog_id')
+        return $schema
+            ->components([
+                Select::make('master_seed_catalog_id')
                     ->label('Seed Type')
                     ->relationship('masterSeedCatalog', 'common_name')
                     ->required()
                     ->searchable()
                     ->preload(),
-                Forms\Components\TextInput::make('cultivar_name')
+                TextInput::make('cultivar_name')
                     ->required()
                     ->maxLength(255),
-                Forms\Components\TagsInput::make('aliases')
+                TagsInput::make('aliases')
                     ->helperText('Alternative names for this cultivar'),
-                Forms\Components\Textarea::make('description')
+                Textarea::make('description')
                     ->columnSpanFull(),
-                Forms\Components\Toggle::make('is_active')
+                Toggle::make('is_active')
                     ->default(true),
             ]);
     }
@@ -49,35 +67,35 @@ class MasterCultivarResource extends BaseResource
     {
         return static::configureTableDefaults($table)
             ->columns([
-                Tables\Columns\TextColumn::make('masterSeedCatalog.common_name')
+                TextColumn::make('masterSeedCatalog.common_name')
                     ->label('Seed Type')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('cultivar_name')
+                TextColumn::make('cultivar_name')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('masterSeedCatalog.category')
+                TextColumn::make('masterSeedCatalog.category')
                     ->label('Category')
                     ->badge()
                     ->sortable(),
-                Tables\Columns\IconColumn::make('is_active')
+                IconColumn::make('is_active')
                     ->boolean(),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('master_seed_catalog_id')
+                SelectFilter::make('master_seed_catalog_id')
                     ->label('Seed Type')
                     ->relationship('masterSeedCatalog', 'common_name'),
-                Tables\Filters\TernaryFilter::make('is_active'),
+                TernaryFilter::make('is_active'),
             ])
-            ->actions([
-                Tables\Actions\ActionGroup::make([
-                    Tables\Actions\ViewAction::make()->tooltip('View record'),
-                    Tables\Actions\EditAction::make()->tooltip('Edit record'),
-                    Tables\Actions\DeleteAction::make()->tooltip('Delete record'),
+            ->recordActions([
+                ActionGroup::make([
+                    ViewAction::make()->tooltip('View record'),
+                    EditAction::make()->tooltip('Edit record'),
+                    DeleteAction::make()->tooltip('Delete record'),
                 ])
                 ->label('Actions')
                 ->icon('heroicon-m-ellipsis-vertical')
@@ -85,9 +103,9 @@ class MasterCultivarResource extends BaseResource
                 ->color('gray')
                 ->button(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }
@@ -102,9 +120,9 @@ class MasterCultivarResource extends BaseResource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListMasterCultivars::route('/'),
-            'create' => Pages\CreateMasterCultivar::route('/create'),
-            'edit' => Pages\EditMasterCultivar::route('/{record}/edit'),
+            'index' => ListMasterCultivars::route('/'),
+            'create' => CreateMasterCultivar::route('/create'),
+            'edit' => EditMasterCultivar::route('/{record}/edit'),
         ];
     }
 }

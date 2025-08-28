@@ -11,7 +11,7 @@ class CropPlanStatusWidget extends BaseWidget
 {
     protected static ?int $sort = 2;
     
-    protected static ?string $pollingInterval = '30s';
+    protected ?string $pollingInterval = '30s';
     
     protected int $daysToLookAhead = 7;
 
@@ -72,7 +72,7 @@ class CropPlanStatusWidget extends BaseWidget
             })->count();
             $chartData[] = $count;
         }
-        
+
         return array_reverse($chartData); // Most recent first
     }
     

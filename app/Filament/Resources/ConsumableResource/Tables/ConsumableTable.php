@@ -2,6 +2,12 @@
 
 namespace App\Filament\Resources\ConsumableResource\Tables;
 
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Grouping\Group;
+use Filament\Tables\Columns\Column;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Filters\TernaryFilter;
 use App\Models\Consumable;
 use App\Models\ConsumableType;
 use App\Models\ConsumableUnit;
@@ -62,13 +68,13 @@ class ConsumableTable
     protected static function getCommonTableColumns(): array
     {
         return [
-            Tables\Columns\TextColumn::make('name')
+            TextColumn::make('name')
                 ->label('Name')
                 ->searchable()
                 ->sortable()
                 ->toggleable()
                 ->color('primary'),
-            Tables\Columns\TextColumn::make('consumableType.name')
+            TextColumn::make('consumableType.name')
                 ->label('Type')
                 ->badge()
                 ->color(function ($record): string {
@@ -82,17 +88,17 @@ class ConsumableTable
                     };
                 })
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('supplier.name')
+            TextColumn::make('supplier.name')
                 ->label('Supplier')
                 ->searchable()
                 ->sortable()
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('lot_no')
+            TextColumn::make('lot_no')
                 ->label('Lot/Batch#')
                 ->searchable()
                 ->sortable()
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('current_stock')
+            TextColumn::make('current_stock')
                 ->label('Available Quantity')
                 ->getStateUsing(fn ($record) => $record ? max(0, $record->initial_stock - $record->consumed_quantity) : 0)
                 ->numeric()
@@ -126,7 +132,7 @@ class ConsumableTable
     protected static function getSeedSpecificColumns(): array
     {
         return [
-            Tables\Columns\TextColumn::make('remaining_seed')
+            TextColumn::make('remaining_seed')
                 ->label('Remaining Seed')
                 ->getStateUsing(function ($record) {
                     if (!$record || !$record->consumableType || !$record->consumableType->isSeed()) return null;
@@ -146,7 +152,7 @@ class ConsumableTable
                 )
                 ->size('sm')
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('percentage_remaining')
+            TextColumn::make('percentage_remaining')
                 ->label('% Remaining')
                 ->getStateUsing(function ($record) {
                     if (!$record || !$record->consumableType || !$record->consumableType->isSeed()) return null;
@@ -191,7 +197,7 @@ class ConsumableTable
     protected static function getPackagingSpecificColumns(): array
     {
         return [
-            Tables\Columns\TextColumn::make('packagingType.capacity_volume')
+            TextColumn::make('packagingType.capacity_volume')
                 ->label('Capacity')
                 ->getStateUsing(function ($record) {
                     if ($record->packagingType) {
@@ -221,31 +227,31 @@ class ConsumableTable
     protected static function getTypeFilterToggles(): array
     {
         return [
-            Tables\Filters\Filter::make('seeds')
+            Filter::make('seeds')
                 ->label('Seeds')
                 ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'seed')))
                 ->toggle()
                 ->indicateUsing(fn (array $data) => ($data['seeds'] ?? false) ? 'Seeds' : null),
                 
-            Tables\Filters\Filter::make('soil')
+            Filter::make('soil')
                 ->label('Soil & Growing Media')
                 ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'soil')))
                 ->toggle()
                 ->indicateUsing(fn (array $data) => ($data['soil'] ?? false) ? 'Soil & Growing Media' : null),
                 
-            Tables\Filters\Filter::make('packaging')
+            Filter::make('packaging')
                 ->label('Packaging')
                 ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'packaging')))
                 ->toggle()
                 ->indicateUsing(fn (array $data) => ($data['packaging'] ?? false) ? 'Packaging' : null),
                 
-            Tables\Filters\Filter::make('labels')
+            Filter::make('labels')
                 ->label('Labels')
                 ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'label')))
                 ->toggle()
                 ->indicateUsing(fn (array $data) => ($data['labels'] ?? false) ? 'Labels' : null),
                 
-            Tables\Filters\Filter::make('other')
+            Filter::make('other')
                 ->label('Other')
                 ->query(fn (Builder $query) => $query->whereHas('consumableType', fn ($q) => $q->where('code', 'other')))
                 ->toggle()
@@ -259,13 +265,13 @@ class ConsumableTable
     protected static function getCommonGroups(): array
     {
         return [
-            Tables\Grouping\Group::make('name')
+            Group::make('name')
                 ->label('Name')
                 ->collapsible(),
-            Tables\Grouping\Group::make('consumableType.name')
+            Group::make('consumableType.name')
                 ->label('Type')
                 ->collapsible(),
-            Tables\Grouping\Group::make('supplier.name')
+            Group::make('supplier.name')
                 ->label('Supplier')
                 ->collapsible(),
         ];
@@ -274,11 +280,9 @@ class ConsumableTable
     /**
      * Get default sort for the table
      */
-    public static function getDefaultSort(): \Closure
+    public static function getDefaultSort(): array
     {
-        return function (Builder $query) {
-            return $query->orderByRaw('(initial_stock - consumed_quantity) ASC');
-        };
+        return ['name', 'asc'];
     }
 
     /**
@@ -286,9 +290,9 @@ class ConsumableTable
      * These would normally come from traits but we can't access them here
      */
 
-    protected static function getActiveStatusBadgeColumn(): Tables\Columns\Column
+    protected static function getActiveStatusBadgeColumn(): Column
     {
-        return Tables\Columns\IconColumn::make('is_active')
+        return IconColumn::make('is_active')
             ->label('Active')
             ->boolean()
             ->trueIcon('heroicon-o-check-circle')
@@ -300,12 +304,12 @@ class ConsumableTable
     protected static function getTimestampColumns(): array
     {
         return [
-            Tables\Columns\TextColumn::make('created_at')
+            TextColumn::make('created_at')
                 ->label('Created')
                 ->dateTime()
                 ->sortable()
                 ->toggleable(isToggledHiddenByDefault: true),
-            Tables\Columns\TextColumn::make('updated_at')
+            TextColumn::make('updated_at')
                 ->label('Updated')
                 ->dateTime()
                 ->sortable()
@@ -316,7 +320,7 @@ class ConsumableTable
     protected static function getInventoryFilters(): array
     {
         return [
-            Tables\Filters\TernaryFilter::make('low_stock')
+            TernaryFilter::make('low_stock')
                 ->label('Low Stock')
                 ->placeholder('All items')
                 ->trueLabel('Low stock only')
@@ -328,9 +332,9 @@ class ConsumableTable
         ];
     }
 
-    protected static function getActiveStatusFilter(): Tables\Filters\TernaryFilter
+    protected static function getActiveStatusFilter(): TernaryFilter
     {
-        return Tables\Filters\TernaryFilter::make('is_active')
+        return TernaryFilter::make('is_active')
             ->label('Active Status');
     }
 }

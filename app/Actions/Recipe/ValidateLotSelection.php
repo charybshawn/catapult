@@ -2,6 +2,7 @@
 
 namespace App\Actions\Recipe;
 
+use Closure;
 use App\Services\InventoryManagementService;
 
 /**
@@ -96,7 +97,7 @@ class ValidateLotSelection
     /**
      * Get validation closure for Filament form rules
      */
-    public function getValidationClosure(): \Closure
+    public function getValidationClosure(): Closure
     {
         return function ($attribute, $value, $fail) {
             $result = $this->validate($value);

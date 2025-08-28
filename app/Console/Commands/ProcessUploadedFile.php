@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Services\SeedScrapeImporter;
+use Exception;
 use App\Jobs\ProcessSeedScrapeUpload;
 use App\Models\SeedScrapeUpload;
 use Illuminate\Console\Command;
@@ -50,7 +52,7 @@ class ProcessUploadedFile extends Command
         
         // Process synchronously for testing
         try {
-            $importer = new \App\Services\SeedScrapeImporter();
+            $importer = new SeedScrapeImporter();
             $importer->import($filePath, $upload);
             
             $this->info('Successfully processed file!');
@@ -58,7 +60,7 @@ class ProcessUploadedFile extends Command
             $this->info('Notes: ' . $upload->fresh()->notes);
             
             return Command::SUCCESS;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error('Error processing file: ' . $e->getMessage());
             return Command::FAILURE;
         }

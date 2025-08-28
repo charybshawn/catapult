@@ -2,6 +2,10 @@
 
 namespace App\Filament\Resources\SeedEntryResource\Tables;
 
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\ImageColumn;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Filters\SelectFilter;
 use App\Actions\SeedEntry\ValidateSeedEntryDeletionAction;
 use App\Filament\Resources\SeedEntryResource\Tables\SeedEntryTableActions;
 use App\Models\SeedEntry;
@@ -17,53 +21,53 @@ class SeedEntryTable
     public static function columns(): array
     {
         return [
-            Tables\Columns\TextColumn::make('common_name')
+            TextColumn::make('common_name')
                 ->label('Common Name')
                 ->searchable()
                 ->sortable()
                 ->weight(FontWeight::Bold)
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('cultivar_name')
+            TextColumn::make('cultivar_name')
                 ->label('Cultivar')
                 ->searchable()
                 ->sortable()
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('supplier.name')
+            TextColumn::make('supplier.name')
                 ->label('Supplier')
                 ->searchable()
                 ->sortable()
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('supplier_sku')
+            TextColumn::make('supplier_sku')
                 ->label('Supplier SKU')
                 ->searchable()
                 ->sortable()
                 ->toggleable(isToggledHiddenByDefault: true),
-            Tables\Columns\TextColumn::make('url')
+            TextColumn::make('url')
                 ->label('Product URL')
                 ->searchable()
                 ->limit(50)
                 ->toggleable(isToggledHiddenByDefault: true),
-            Tables\Columns\ImageColumn::make('image_url')
+            ImageColumn::make('image_url')
                 ->label('Image')
                 ->circular()
                 ->toggleable(isToggledHiddenByDefault: true),
-            Tables\Columns\TextColumn::make('description')
+            TextColumn::make('description')
                 ->label('Description')
                 ->limit(50)
                 ->searchable()
                 ->toggleable(isToggledHiddenByDefault: true),
-            Tables\Columns\TextColumn::make('tags')
+            TextColumn::make('tags')
                 ->label('Tags')
                 ->badge()
                 ->separator(',')
                 ->toggleable(isToggledHiddenByDefault: true),
-            Tables\Columns\TextColumn::make('variations_count')
+            TextColumn::make('variations_count')
                 ->counts('variations')
                 ->label('Variations')
                 ->sortable()
                 ->toggleable(),
             static::getStockStatusColumn(),
-            Tables\Columns\IconColumn::make('is_active')
+            IconColumn::make('is_active')
                 ->label('Active')
                 ->boolean()
                 ->sortable()
@@ -78,9 +82,9 @@ class SeedEntryTable
     public static function filters(): array
     {
         return [
-            Tables\Filters\SelectFilter::make('common_name')
+            SelectFilter::make('common_name')
                 ->options(function () {
-                    return \App\Models\SeedEntry::whereNotNull('common_name')
+                    return SeedEntry::whereNotNull('common_name')
                         ->where('common_name', '<>', '')
                         ->distinct()
                         ->orderBy('common_name')
@@ -89,9 +93,9 @@ class SeedEntryTable
                 })
                 ->searchable()
                 ->label('Common Name'),
-            Tables\Filters\SelectFilter::make('cultivar_name')
+            SelectFilter::make('cultivar_name')
                 ->options(function () {
-                    return \App\Models\SeedEntry::whereNotNull('cultivar_name')
+                    return SeedEntry::whereNotNull('cultivar_name')
                         ->where('cultivar_name', '<>', '')
                         ->distinct()
                         ->orderBy('cultivar_name')
@@ -100,12 +104,12 @@ class SeedEntryTable
                 })
                 ->searchable()
                 ->label('Cultivar'),
-            Tables\Filters\SelectFilter::make('supplier')
+            SelectFilter::make('supplier')
                 ->relationship('supplier', 'name')
                 ->searchable()
                 ->preload()
                 ->label('Supplier'),
-            Tables\Filters\SelectFilter::make('is_active')
+            SelectFilter::make('is_active')
                 ->label('Status')
                 ->options([
                     '1' => 'Active',
@@ -140,9 +144,9 @@ class SeedEntryTable
         return $query->with('variations');
     }
 
-    protected static function getStockStatusColumn(): Tables\Columns\TextColumn
+    protected static function getStockStatusColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('stock_status')
+        return TextColumn::make('stock_status')
             ->label('Stock Status')
             ->getStateUsing(function (SeedEntry $record): string {
                 $variations = $record->variations;
@@ -196,9 +200,9 @@ class SeedEntryTable
             ->toggleable();
     }
 
-    protected static function getUsageStatusColumn(): Tables\Columns\TextColumn
+    protected static function getUsageStatusColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('usage_status')
+        return TextColumn::make('usage_status')
             ->label('Usage Status')
             ->getStateUsing(function (SeedEntry $record): string {
                 $issues = app(ValidateSeedEntryDeletionAction::class)->execute($record);
@@ -224,9 +228,9 @@ class SeedEntryTable
             ->toggleable(isToggledHiddenByDefault: true);
     }
 
-    protected static function getUsageStatusFilter(): Tables\Filters\SelectFilter
+    protected static function getUsageStatusFilter(): SelectFilter
     {
-        return Tables\Filters\SelectFilter::make('usage_status')
+        return SelectFilter::make('usage_status')
             ->label('Usage Status')
             ->options([
                 'available' => 'Available for Deletion',
@@ -254,9 +258,9 @@ class SeedEntryTable
             });
     }
 
-    protected static function getStockStatusFilter(): Tables\Filters\SelectFilter
+    protected static function getStockStatusFilter(): SelectFilter
     {
-        return Tables\Filters\SelectFilter::make('stock_status')
+        return SelectFilter::make('stock_status')
             ->label('Stock Status')
             ->options([
                 'all_in_stock' => 'All In Stock',

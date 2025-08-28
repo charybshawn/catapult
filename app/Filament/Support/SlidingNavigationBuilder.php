@@ -2,13 +2,43 @@
 
 namespace App\Filament\Support;
 
+use Exception;
 use Filament\Facades\Filament;
 use Filament\Navigation\NavigationBuilder;
 use Filament\Navigation\NavigationGroup;
 use Filament\Navigation\NavigationItem;
 
+/**
+ * Sliding Navigation Builder
+ * 
+ * Advanced navigation builder for Filament admin panel implementing sliding
+ * navigation patterns optimized for agricultural farm management workflows.
+ * Combines static menu structure with dynamic resource discovery.
+ * 
+ * @filament_support Advanced navigation management with sliding UI patterns
+ * @agricultural_use Farm management navigation with production, inventory, orders organization
+ * @ui_pattern Sliding navigation with grouped resources and contextual organization
+ * @dynamic_resources Automatic discovery and categorization of Filament resources
+ * 
+ * Key features:
+ * - Sliding navigation UI for efficient agricultural workflow navigation
+ * - Dynamic resource categorization (production vs inventory vs orders)
+ * - Agricultural-specific grouping and organization patterns
+ * - Smart resource detection and menu placement
+ * 
+ * @package App\Filament\Support
+ * @author Shawn
+ * @since 2024
+ */
 class SlidingNavigationBuilder
 {
+    /**
+     * Build complete sliding navigation structure.
+     * 
+     * @agricultural_context Builds farm management navigation with production, inventory, orders
+     * @return array Complete navigation structure merging static and dynamic elements
+     * @methodology Combines predefined agricultural workflows with discovered resources
+     */
     public static function build(): array
     {
         $staticNavigation = self::getStaticNavigation();
@@ -185,7 +215,7 @@ class SlidingNavigationBuilder
     private static function getDynamicNavigation(): array
     {
         try {
-            $panel = Filament::getCurrentPanel();
+            $panel = Filament::getCurrentOrDefaultPanel();
             if (!$panel) {
                 return [];
             }
@@ -237,12 +267,21 @@ class SlidingNavigationBuilder
             }
 
             return $groupedItems;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Silently fail if there's an issue with resource discovery
             return [];
         }
     }
 
+    /**
+     * Map Filament navigation groups to sliding navigation groups.
+     * 
+     * @agricultural_context Maps agricultural resource groups to workflow-based categories
+     * @param string|null $navigationGroup Original Filament navigation group
+     * @param mixed $resource Resource instance for intelligent categorization
+     * @return string|null Sliding navigation group ('production', 'inventory', 'products', 'orders')
+     * @intelligent_routing Dynamically categorizes "Products & Inventory" based on resource type
+     */
     private static function mapNavigationGroupToSlidingGroup(?string $navigationGroup, $resource = null): ?string
     {
         // Handle special case: "Products & Inventory" needs to be split dynamically

@@ -2,11 +2,19 @@
 
 namespace App\Filament\Resources\CropResource\Forms;
 
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Select;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\TagsInput;
+use Filament\Schemas\Components\Group;
+use Filament\Forms\Components\DateTimePicker;
 use App\Filament\Resources\RecipeResource;
 use App\Models\Recipe;
 use Filament\Forms;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
 use Carbon\Carbon;
 
 class CropForm
@@ -27,9 +35,9 @@ class CropForm
                 ->dehydrated(fn (Get $get) => !static::checkRecipeRequiresSoaking($get)),
             
             // Soaking section - only appears if recipe requires soaking
-            Forms\Components\Section::make('Soaking Setup')
+            Section::make('Soaking Setup')
                 ->schema([
-                    Forms\Components\Placeholder::make('temp_tray_info')
+                    Placeholder::make('temp_tray_info')
                         ->label('')
                         ->content('Temporary tray numbers will be assigned during soaking and can be updated after germination.')
                         ->columnSpanFull(),
@@ -42,10 +50,10 @@ class CropForm
                 ->compact(),
             
             // Optional advanced fields
-            Forms\Components\Section::make('Advanced Options')
+            Section::make('Advanced Options')
                 ->schema([
                     ...static::getTimelineFields(),
-                    Forms\Components\Textarea::make('notes')
+                    Textarea::make('notes')
                         ->label('Notes')
                         ->rows(3)
                         ->columnSpanFull(),
@@ -55,9 +63,9 @@ class CropForm
         ];
     }
     
-    protected static function getRecipeField(): Forms\Components\Select
+    protected static function getRecipeField(): Select
     {
-        return Forms\Components\Select::make('recipe_id')
+        return Select::make('recipe_id')
             ->label('Recipe')
             ->relationship('recipe', 'name')
             ->required()
@@ -79,9 +87,9 @@ class CropForm
     
     
     
-    protected static function getTrayCountField(): Forms\Components\TextInput
+    protected static function getTrayCountField(): TextInput
     {
-        return Forms\Components\TextInput::make('tray_count')
+        return TextInput::make('tray_count')
             ->label('Number of Trays')
             ->helperText('How many trays are you planting?')
             ->numeric()
@@ -95,9 +103,9 @@ class CropForm
             });
     }
     
-    protected static function getTrayNumbersField(): Forms\Components\TagsInput
+    protected static function getTrayNumbersField(): TagsInput
     {
-        return Forms\Components\TagsInput::make('tray_numbers')
+        return TagsInput::make('tray_numbers')
             ->label('Tray Numbers')
             ->helperText('Enter tray numbers (e.g., A1, A2, B1) - press Enter after each')
             ->placeholder('A1')
@@ -112,9 +120,9 @@ class CropForm
             });
     }
     
-    protected static function getSeedWeightCalculation(): Forms\Components\Placeholder
+    protected static function getSeedWeightCalculation(): Placeholder
     {
-        return Forms\Components\Placeholder::make('seed_weight_calculation')
+        return Placeholder::make('seed_weight_calculation')
             ->label('Total Seed Required')
             ->content(function (Get $get) {
                 $recipeId = $get('recipe_id');
@@ -135,10 +143,10 @@ class CropForm
             ->columnSpanFull();
     }
     
-    protected static function getSoakingTimeFields(): Forms\Components\Group
+    protected static function getSoakingTimeFields(): Group
     {
-        return Forms\Components\Group::make([
-            Forms\Components\DateTimePicker::make('soaking_at')
+        return Group::make([
+            DateTimePicker::make('soaking_at')
                 ->label('Soaking Start Time')
                 ->default(now())
                 ->required(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
@@ -164,19 +172,19 @@ class CropForm
     protected static function getTimelineFields(): array
     {
         return [
-            Forms\Components\DateTimePicker::make('soaking_at')
+            DateTimePicker::make('soaking_at')
                 ->label('Soaking Date'),
             
-            Forms\Components\DateTimePicker::make('germination_at')
+            DateTimePicker::make('germination_at')
                 ->label('Germination Date'),
             
-            Forms\Components\DateTimePicker::make('blackout_at')
+            DateTimePicker::make('blackout_at')
                 ->label('Blackout Date'),
             
-            Forms\Components\DateTimePicker::make('light_at')
+            DateTimePicker::make('light_at')
                 ->label('Light Date'),
             
-            Forms\Components\DateTimePicker::make('harvested_at')
+            DateTimePicker::make('harvested_at')
                 ->label('Harvested Date'),
         ];
     }

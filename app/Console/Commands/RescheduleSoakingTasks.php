@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Exception;
 use App\Models\Crop;
 use App\Services\CropTaskManagementService;
 use Illuminate\Console\Command;
@@ -52,7 +53,7 @@ class RescheduleSoakingTasks extends Command
                 
                 $this->line("  ✓ Tasks rescheduled for crop {$crop->id}");
                 
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $this->error("  ✗ Error rescheduling crop {$crop->id}: " . $e->getMessage());
                 Log::error('Error rescheduling soaking crop tasks', [
                     'crop_id' => $crop->id,

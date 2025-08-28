@@ -8,13 +8,13 @@ use Illuminate\Support\Facades\DB;
 
 class ErrorRateWidget extends ChartWidget
 {
-    protected static ?string $heading = 'Error Rate Monitor';
+    protected ?string $heading = 'Error Rate Monitor';
     
     protected static ?int $sort = 5;
     
     protected int | string | array $columnSpan = '1/2';
     
-    protected static ?string $maxHeight = '250px';
+    protected ?string $maxHeight = '250px';
 
     protected function getData(): array
     {

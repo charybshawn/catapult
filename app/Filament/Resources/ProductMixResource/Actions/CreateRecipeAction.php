@@ -2,14 +2,53 @@
 
 namespace App\Filament\Resources\ProductMixResource\Actions;
 
+use Filament\Actions\Action;
+use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
+use App\Services\InventoryManagementService;
+use App\Models\Consumable;
+use Filament\Forms\Components\Toggle;
 use App\Models\Recipe;
 use App\Filament\Resources\RecipeResource\Forms\RecipeForm;
 use Filament\Forms;
-use Filament\Forms\Components\Actions\Action;
 use Filament\Notifications\Notification;
 
+/**
+ * CreateRecipeAction for Agricultural Growing Recipe Creation
+ * 
+ * Provides specialized action for creating new growing recipes directly from
+ * ProductMix context with intelligent name generation based on variety, cultivar,
+ * and growing parameters. Essential for rapid recipe development in microgreens
+ * operations where recipes are variety-specific with detailed growing parameters.
+ * 
+ * @filament_action Recipe creation action for ProductMixResource
+ * @business_domain Agricultural recipe creation with automated naming and parameter management
+ * @recipe_creation Variety-specific growing recipes with cultivar and lot tracking
+ * 
+ * @naming_automation "Name (Cultivar)(Lot:x) - DTM - Seed Density (g)" format
+ * @agricultural_parameters Days to maturity, seed density, germination timing
+ * @inventory_integration Seed lot selection with availability checking
+ * 
+ * @business_workflow Create recipe -> set in parent form -> return to product mix configuration
+ * @related_models Recipe, MasterSeedCatalog, MasterCultivar, Consumable for complete context
+ * @form_integration Delegates to RecipeForm for consistent parameter fields
+ */
 class CreateRecipeAction
 {
+    /**
+     * Create recipe creation action with agricultural business logic.
+     * 
+     * Builds comprehensive action for creating growing recipes with intelligent
+     * name generation, seed lot integration, and parameter validation.
+     * Essential for streamlined recipe creation in agricultural operations.
+     * 
+     * @return Action Configured recipe creation action with agricultural context
+     * @agricultural_naming Automated recipe naming based on variety and growing parameters
+     * @inventory_aware Seed lot selection with availability calculations
+     * @business_integration Sets created recipe in parent form for immediate use
+     */
     public static function make(): Action
     {
         return Action::make('createRecipe')
@@ -20,7 +59,7 @@ class CreateRecipeAction
             ->modal()
             ->modalHeading('Create New Recipe')
             ->modalDescription('Create a recipe for the selected variety and cultivar.')
-            ->form(static::getFormSchema())
+            ->schema(static::getFormSchema())
             ->action(function (array $data, callable $get, callable $set) {
                 // Generate the proper recipe name format: "Name (Cultivar)(Lot:x) - DTM - Seed Density (g)"
                 $commonName = $data['common_name'] ?? 'Unknown';
@@ -61,18 +100,30 @@ class CreateRecipeAction
             });
     }
     
+    /**
+     * Get form schema for agricultural recipe creation.
+     * 
+     * Provides comprehensive form sections including recipe information with
+     * variety context, seed lot selection, and growing parameters. Integrates
+     * with existing RecipeForm fields for consistency and validation.
+     * 
+     * @return array Form schema for agricultural recipe creation
+     * @form_sections Recipe info with variety display, growing parameters with agricultural fields
+     * @agricultural_context Variety/cultivar display, seed lot selection, growing parameters
+     * @field_delegation Uses RecipeForm for consistent parameter field definitions
+     */
     protected static function getFormSchema(): array
     {
         return [
-            Forms\Components\Section::make('Recipe Information')
+            Section::make('Recipe Information')
                 ->schema([
-                    Forms\Components\Hidden::make('master_seed_catalog_id'),
-                    Forms\Components\Hidden::make('master_cultivar_id'),
-                    Forms\Components\Hidden::make('common_name'),
-                    Forms\Components\Hidden::make('cultivar_name'),
-                    Forms\Components\Hidden::make('name'),
+                    Hidden::make('master_seed_catalog_id'),
+                    Hidden::make('master_cultivar_id'),
+                    Hidden::make('common_name'),
+                    Hidden::make('cultivar_name'),
+                    Hidden::make('name'),
                     
-                    Forms\Components\Placeholder::make('variety_info')
+                    Placeholder::make('variety_info')
                         ->label('Creating Recipe For')
                         ->content(function (callable $get) {
                             $commonName = $get('common_name') ?? 'Unknown Variety';
@@ -80,16 +131,16 @@ class CreateRecipeAction
                             return "{$commonName} ({$cultivarName})";
                         }),
                     
-                    Forms\Components\Select::make('lot_number')
+                    Select::make('lot_number')
                         ->label('Seed Lot (Optional)')
                         ->options(function () {
                             // Get available seed lots from consumables
-                            $seedTypeId = app(\App\Services\InventoryManagementService::class)->getSeedTypeId();
+                            $seedTypeId = app(InventoryManagementService::class)->getSeedTypeId();
                             if (!$seedTypeId) {
                                 return [];
                             }
                             
-                            $consumables = \App\Models\Consumable::where('consumable_type_id', $seedTypeId)
+                            $consumables = Consumable::where('consumable_type_id', $seedTypeId)
                                 ->where('is_active', true)
                                 ->whereNotNull('lot_no')
                                 ->where('lot_no', '<>', '')
@@ -124,13 +175,13 @@ class CreateRecipeAction
                         ->nullable()
                         ->helperText('Select from available seed lots'),
                         
-                    Forms\Components\Toggle::make('is_active')
+                    Toggle::make('is_active')
                         ->label('Active')
                         ->default(true),
                 ])
                 ->columns(2),
 
-            Forms\Components\Section::make('Growing Parameters')
+            Section::make('Growing Parameters')
                 ->schema([
                     RecipeForm::getDaysToMaturityField(),
                     RecipeForm::getSeedSoakHoursField(),

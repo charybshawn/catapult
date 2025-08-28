@@ -2,6 +2,13 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\ViewAction;
+use App\Filament\Resources\ScheduledTaskResource\Pages\ListScheduledTasks;
+use App\Filament\Resources\ScheduledTaskResource\Pages\ViewScheduledTask;
 use App\Filament\Resources\ScheduledTaskResource\Pages;
 use App\Models\ScheduledTask;
 use App\Filament\Resources\BaseResource;
@@ -12,9 +19,9 @@ class ScheduledTaskResource extends BaseResource
 {
     protected static ?string $model = ScheduledTask::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-clock';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-clock';
     protected static ?string $navigationLabel = 'Scheduled Tasks';
-    protected static ?string $navigationGroup = 'System';
+    protected static string | \UnitEnum | null $navigationGroup = 'System';
     protected static ?int $navigationSort = 10;
     
     // Disable create/edit since these are system-managed
@@ -41,11 +48,11 @@ class ScheduledTaskResource extends BaseResource
             ->persistSortInSession()
             ->persistColumnSearchesInSession()
             ->persistSearchInSession()            ->columns([
-                Tables\Columns\TextColumn::make('command')
+                TextColumn::make('command')
                     ->label('Command')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('task_type')
+                TextColumn::make('task_type')
                     ->label('Task Type')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
@@ -57,7 +64,7 @@ class ScheduledTaskResource extends BaseResource
                     })
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('expression')
+                TextColumn::make('expression')
                     ->label('Schedule')
                     ->formatStateUsing(function (string $state): string {
                         // Convert cron expression to human readable
@@ -71,22 +78,22 @@ class ScheduledTaskResource extends BaseResource
                             '0 5 * * 1' => 'Weekly Monday at 5:00 AM',
                             'N/A' => 'Manual execution only',
                         ];
-                        
+
                         return $expressions[$state] ?? $state;
                     }),
-                Tables\Columns\TextColumn::make('description')
+                TextColumn::make('description')
                     ->label('Description')
                     ->limit(50),
-                Tables\Columns\IconColumn::make('without_overlapping')
+                IconColumn::make('without_overlapping')
                     ->label('No Overlap')
                     ->boolean()
                     ->getStateUsing(fn ($record) => $record->without_overlapping === 'Yes'),
-                Tables\Columns\TextColumn::make('timezone')
+                TextColumn::make('timezone')
                     ->label('Timezone')
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('command')
+                SelectFilter::make('command')
                     ->options([
                         'app:check-resource-levels' => 'Resource Levels Check',
                         'app:update-crop-time-fields' => 'Crop Time Updates',
@@ -97,7 +104,7 @@ class ScheduledTaskResource extends BaseResource
                         'orders:backfill-billing-periods' => 'Order Maintenance',
                     ])
                     ->label('Command Type'),
-                Tables\Filters\SelectFilter::make('task_type')
+                SelectFilter::make('task_type')
                     ->options([
                         'Scheduled Task' => 'Scheduled Task',
                         'Manual Command' => 'Manual Command',
@@ -106,9 +113,9 @@ class ScheduledTaskResource extends BaseResource
                     ])
                     ->label('Task Type')
             ])
-            ->actions([
-                Tables\Actions\ActionGroup::make([
-                    Tables\Actions\ViewAction::make()
+            ->recordActions([
+                ActionGroup::make([
+                    ViewAction::make()
                         ->label('View Details')
                         ->tooltip('View record')
                         ->icon('heroicon-o-eye'),
@@ -119,7 +126,7 @@ class ScheduledTaskResource extends BaseResource
                 ->color('gray')
                 ->button(),
             ])
-            ->bulkActions([
+            ->toolbarActions([
                 // No bulk actions needed
             ])
             ->defaultSort('command')
@@ -136,8 +143,8 @@ class ScheduledTaskResource extends BaseResource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListScheduledTasks::route('/'),
-            'view' => Pages\ViewScheduledTask::route('/{record}'),
+            'index' => ListScheduledTasks::route('/'),
+            'view' => ViewScheduledTask::route('/{record}'),
         ];
     }
 }

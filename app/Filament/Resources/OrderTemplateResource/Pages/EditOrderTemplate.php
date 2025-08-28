@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\OrderTemplateResource\Pages;
 
+use Filament\Actions\DeleteAction;
 use App\Filament\Resources\OrderTemplateResource;
 use Filament\Actions;
 use App\Filament\Pages\Base\BaseEditRecord;
@@ -13,7 +14,7 @@ class EditOrderTemplate extends BaseEditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            DeleteAction::make(),
         ];
     }
 }

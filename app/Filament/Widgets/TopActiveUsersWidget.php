@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 
 class TopActiveUsersWidget extends Widget
 {
-    protected static string $view = 'filament.widgets.top-active-users';
+    protected string $view = 'filament.widgets.top-active-users';
     
     protected static ?int $sort = 6;
     

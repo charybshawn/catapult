@@ -2,6 +2,17 @@
 
 namespace App\Filament\Resources\OrderResource\Tables;
 
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\BulkAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Textarea;
+use Filament\Actions\Action;
+use Exception;
+use Filament\Forms\Components\Select;
+use App\Services\StatusTransitionService;
+use Filament\Actions\DeleteBulkAction;
+use App\Models\Invoice;
+use Carbon\Carbon;
 use App\Models\Order;
 use App\Models\OrderStatus;
 use Filament\Forms;
@@ -29,7 +40,7 @@ class OrderTableBulkActions
     public static function make(): array
     {
         return [
-            Tables\Actions\BulkActionGroup::make([
+            BulkActionGroup::make([
                 static::getCreateConsolidatedInvoiceAction(),
                 static::getBulkStatusUpdateAction(),
                 static::getDeleteBulkAction(),
@@ -40,9 +51,9 @@ class OrderTableBulkActions
     /**
      * Create consolidated invoice bulk action
      */
-    protected static function getCreateConsolidatedInvoiceAction(): Tables\Actions\BulkAction
+    protected static function getCreateConsolidatedInvoiceAction(): BulkAction
     {
-        return Tables\Actions\BulkAction::make('create_consolidated_invoice')
+        return BulkAction::make('create_consolidated_invoice')
             ->label('Create Consolidated Invoice')
             ->icon('heroicon-o-document-text')
             ->color('warning')
@@ -50,15 +61,15 @@ class OrderTableBulkActions
             ->modalHeading('Create Consolidated Invoice')
             ->modalDescription('This will create a single invoice for all selected orders.')
             ->form([
-                Forms\Components\DatePicker::make('issue_date')
+                DatePicker::make('issue_date')
                     ->label('Issue Date')
                     ->default(now())
                     ->required(),
-                Forms\Components\DatePicker::make('due_date')
+                DatePicker::make('due_date')
                     ->label('Due Date')
                     ->default(now()->addDays(30))
                     ->required(),
-                Forms\Components\Textarea::make('notes')
+                Textarea::make('notes')
                     ->label('Invoice Notes')
                     ->placeholder('Additional notes for the consolidated invoice...')
                     ->rows(3),
@@ -87,12 +98,12 @@ class OrderTableBulkActions
                         ->body("Invoice #{$invoice->invoice_number} created for {$records->count()} orders totaling $" . number_format($invoice->total_amount, 2) . ".")
                         ->success()
                         ->actions([
-                            \Filament\Notifications\Actions\Action::make('view')
+                            Action::make('view')
                                 ->label('View Invoice')
                                 ->url(route('filament.admin.resources.invoices.edit', ['record' => $invoice->id]))
                         ])
                         ->send();
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->title('Error Creating Invoice')
                         ->body('Failed to create consolidated invoice: ' . $e->getMessage())
@@ -106,9 +117,9 @@ class OrderTableBulkActions
     /**
      * Bulk status update action
      */
-    protected static function getBulkStatusUpdateAction(): Tables\Actions\BulkAction
+    protected static function getBulkStatusUpdateAction(): BulkAction
     {
-        return Tables\Actions\BulkAction::make('bulk_status_update')
+        return BulkAction::make('bulk_status_update')
             ->label('Update Status')
             ->icon('heroicon-o-arrow-path')
             ->color('info')
@@ -132,7 +143,7 @@ class OrderTableBulkActions
                        (!empty($warnings) ? "\n\nWarnings:\n" . implode("\n", $warnings) : '');
             })
             ->form([
-                Forms\Components\Select::make('new_status')
+                Select::make('new_status')
                     ->label('New Status')
                     ->options(OrderStatus::active()
                         ->notFinal()
@@ -140,7 +151,7 @@ class OrderTableBulkActions
                         ->pluck('name', 'code'))
                     ->required()
                     ->helperText('Select the new status for all eligible orders'),
-                Forms\Components\Textarea::make('notes')
+                Textarea::make('notes')
                     ->label('Notes')
                     ->placeholder('Optional notes about this bulk status change')
                     ->rows(3),
@@ -148,7 +159,7 @@ class OrderTableBulkActions
             ->action(function (Collection $records, array $data) {
                 // TODO: Extract to App\Actions\Order\BulkStatusUpdateAction
                 
-                $statusService = app(\App\Services\StatusTransitionService::class);
+                $statusService = app(StatusTransitionService::class);
                 
                 // Filter out ineligible orders
                 $eligibleOrders = $records->filter(function ($order) {
@@ -199,9 +210,9 @@ class OrderTableBulkActions
     /**
      * Standard delete bulk action
      */
-    protected static function getDeleteBulkAction(): Tables\Actions\DeleteBulkAction
+    protected static function getDeleteBulkAction(): DeleteBulkAction
     {
-        return Tables\Actions\DeleteBulkAction::make();
+        return DeleteBulkAction::make();
     }
 
     /**
@@ -250,12 +261,12 @@ class OrderTableBulkActions
 
     /**
      * Create a consolidated invoice from multiple orders
-     * 
+     *
      * @param Collection $orders
      * @param array $data
-     * @return \App\Models\Invoice
+     * @return Invoice
      */
-    protected static function createConsolidatedInvoice(Collection $orders, array $data): \App\Models\Invoice
+    protected static function createConsolidatedInvoice(Collection $orders, array $data): Invoice
     {
         // Calculate total amount
         $totalAmount = $orders->sum(function ($order) {
@@ -263,15 +274,15 @@ class OrderTableBulkActions
         });
 
         // Get billing period from order dates
-        $deliveryDates = $orders->pluck('delivery_date')->map(fn($date) => \Carbon\Carbon::parse($date))->sort();
+        $deliveryDates = $orders->pluck('delivery_date')->map(fn($date) => Carbon::parse($date))->sort();
         $billingPeriodStart = $deliveryDates->first()->startOfMonth();
         $billingPeriodEnd = $deliveryDates->last()->endOfMonth();
 
         // Generate invoice number
-        $invoiceNumber = \App\Models\Invoice::generateInvoiceNumber();
+        $invoiceNumber = Invoice::generateInvoiceNumber();
 
         // Create the consolidated invoice
-        $invoice = \App\Models\Invoice::create([
+        $invoice = Invoice::create([
             'user_id' => $orders->first()->user_id,
             'invoice_number' => $invoiceNumber,
             'amount' => $totalAmount,

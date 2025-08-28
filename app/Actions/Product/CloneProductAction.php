@@ -2,6 +2,8 @@
 
 namespace App\Actions\Product;
 
+use App\Models\PriceVariation;
+use App\Models\ProductPhoto;
 use App\Models\Product;
 use Illuminate\Support\Facades\DB;
 
@@ -67,7 +69,7 @@ class CloneProductAction
                 $variationData['template_id'] = $variation->id; // Reference the original template
             }
             
-            \App\Models\PriceVariation::create($variationData);
+            PriceVariation::create($variationData);
         }
     }
 
@@ -90,7 +92,7 @@ class CloneProductAction
             // Copy the actual file if needed (for now, we'll reference the same file)
             // In a production environment, you might want to copy the actual file
             
-            \App\Models\ProductPhoto::create($photoData);
+            ProductPhoto::create($photoData);
         }
     }
 }

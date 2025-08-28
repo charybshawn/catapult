@@ -2,22 +2,53 @@
 
 namespace App\Filament\Resources\PriceVariationResource\Tables;
 
+use Filament\Tables\Columns\TextColumn;
+use App\Filament\Resources\BaseResource;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Actions\BulkActionGroup;
+use App\Models\PriceVariation;
+use Filament\Tables\Table;
 use App\Filament\Traits\CsvExportAction;
 use Filament\Tables;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
- * PriceVariation Table Component
- * Extracted from PriceVariationResource table method (lines 363-566)
- * Following Filament Resource Architecture Guide patterns
- * Max 300 lines as per requirements
+ * PriceVariation Table Component for Agricultural Product Pricing Display
+ * 
+ * Provides comprehensive table functionality for displaying agricultural product
+ * price variations with specialized formatting for weight-based pricing, packaging
+ * information, and agricultural business context. Supports complex filtering,
+ * bulk operations, and CSV export for microgreens business operations.
+ * 
+ * @filament_component Table schema builder for PriceVariationResource
+ * @business_domain Agricultural product pricing with packaging and weight display
+ * @architectural_pattern Extracted from PriceVariationResource following Filament Resource Architecture Guide
+ * @complexity_target Max 300 lines through delegation to specialized action classes
+ * 
+ * @display_features Weight formatting, packaging integration, pricing unit display
+ * @agricultural_focus Microgreens pricing with per-gram, per-package calculations
+ * @filtering_support Product, packaging, pricing type, status filters for agricultural context
+ * 
+ * @export_functionality CSV export with agricultural product and packaging relationship data
+ * @bulk_operations Activate/deactivate, delete with agricultural business considerations
+ * @related_classes PriceVariationTableActions for action definitions and complex operations
  */
 class PriceVariationTable
 {
     use CsvExportAction;
 
     /**
-     * Get all table columns
+     * Get all table columns for agricultural price variation display.
+     * 
+     * Assembles comprehensive column set including product relationships,
+     * pricing information, packaging details, and status indicators.
+     * Designed for agricultural business users managing complex pricing structures.
+     * 
+     * @return array Complete set of table columns for price variation management
+     * @agricultural_display Product names, packaging types, weight/quantity formatting
+     * @business_context Default/template indicators, active status, pricing information
      */
     public static function columns(): array
     {
@@ -37,28 +68,47 @@ class PriceVariationTable
     }
 
     /**
-     * Get product column
+     * Get product column for agricultural product identification.
+     * 
+     * Displays linked agricultural product name with placeholder for global templates.
+     * Essential for identifying which microgreen product each pricing variation applies to.
+     * 
+     * @return TextColumn Sortable and searchable product name with template handling
+     * @agricultural_context Shows microgreen product names or "Global Template" indicator
+     * @business_logic Null product_id displays as "Global Template" for reusable pricing
      */
-    protected static function getProductColumn(): Tables\Columns\TextColumn
+    protected static function getProductColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('product.name')
+        return TextColumn::make('product.name')
             ->label('Product')
             ->sortable()
             ->searchable()
             ->placeholder('Global Template');
     }
 
-    protected static function getNameColumn(): Tables\Columns\TextColumn
+    protected static function getNameColumn(): TextColumn
     {
-        return \App\Filament\Resources\BaseResource::getNameColumn();
+        return TextColumn::make('name')
+            ->label('Name')
+            ->searchable()
+            ->sortable()
+            ->toggleable();
     }
 
     /**
-     * Get packaging type column
+     * Get packaging type column for agricultural container display.
+     * 
+     * Shows packaging container information with badge styling and placeholder
+     * for package-free variations. Critical for understanding agricultural product
+     * presentation and pricing context in microgreens operations.
+     * 
+     * @return TextColumn Packaging type with badge styling and package-free handling
+     * @agricultural_packaging Clamshells, bulk containers, or "Package-Free" indicator
+     * @visual_design Badge color coding - primary for packaged, gray for package-free
      */
-    protected static function getPackagingTypeColumn(): Tables\Columns\TextColumn
+    protected static function getPackagingTypeColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('packagingType.name')
+        return TextColumn::make('packagingType.name')
             ->label('Packaging Type')
             ->sortable()
             ->placeholder('Package-Free')
@@ -69,19 +119,28 @@ class PriceVariationTable
     /**
      * Get SKU column
      */
-    protected static function getSkuColumn(): Tables\Columns\TextColumn
+    protected static function getSkuColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('sku')
+        return TextColumn::make('sku')
             ->label('SKU/UPC')
             ->searchable();
     }
 
     /**
-     * Get fill weight column with complex formatting
+     * Get fill weight column with agricultural measurement formatting.
+     * 
+     * Provides intelligent weight/quantity display based on packaging type and
+     * variation context. Handles agricultural measurement standards including
+     * metric conversions and specialized formatting for different packaging types.
+     * 
+     * @return TextColumn Weight/quantity column with agricultural formatting logic
+     * @agricultural_measurements Grams, pounds, trays, units with context-aware display
+     * @business_logic Template, package-free, and packaged variations formatted differently
+     * @measurement_conversions Gram-to-pound conversions for agricultural bulk sales
      */
-    protected static function getFillWeightColumn(): Tables\Columns\TextColumn
+    protected static function getFillWeightColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('fill_weight')
+        return TextColumn::make('fill_weight')
             ->label('Weight/Qty')
             ->formatStateUsing(function ($state, $record) {
                 return static::formatFillWeight($state, $record);
@@ -92,9 +151,9 @@ class PriceVariationTable
     /**
      * Get price column
      */
-    protected static function getPriceColumn(): Tables\Columns\TextColumn
+    protected static function getPriceColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('price')
+        return TextColumn::make('price')
             ->money('USD')
             ->sortable();
     }
@@ -102,9 +161,9 @@ class PriceVariationTable
     /**
      * Get is default column
      */
-    protected static function getIsDefaultColumn(): Tables\Columns\IconColumn
+    protected static function getIsDefaultColumn(): IconColumn
     {
-        return Tables\Columns\IconColumn::make('is_default')
+        return IconColumn::make('is_default')
             ->label('Default')
             ->boolean();
     }
@@ -112,9 +171,9 @@ class PriceVariationTable
     /**
      * Get is global column
      */
-    protected static function getIsGlobalColumn(): Tables\Columns\IconColumn
+    protected static function getIsGlobalColumn(): IconColumn
     {
-        return Tables\Columns\IconColumn::make('is_global')
+        return IconColumn::make('is_global')
             ->label('Template')
             ->boolean();
     }
@@ -122,9 +181,9 @@ class PriceVariationTable
     /**
      * Get is active column
      */
-    protected static function getIsActiveColumn(): Tables\Columns\IconColumn
+    protected static function getIsActiveColumn(): IconColumn
     {
-        return Tables\Columns\IconColumn::make('is_active')
+        return IconColumn::make('is_active')
             ->label('Active')
             ->boolean();
     }
@@ -132,9 +191,9 @@ class PriceVariationTable
     /**
      * Get created at column
      */
-    protected static function getCreatedAtColumn(): Tables\Columns\TextColumn
+    protected static function getCreatedAtColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('created_at')
+        return TextColumn::make('created_at')
             ->dateTime()
             ->sortable()
             ->toggleable(isToggledHiddenByDefault: true);
@@ -143,16 +202,24 @@ class PriceVariationTable
     /**
      * Get updated at column
      */
-    protected static function getUpdatedAtColumn(): Tables\Columns\TextColumn
+    protected static function getUpdatedAtColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('updated_at')
+        return TextColumn::make('updated_at')
             ->dateTime()
             ->sortable()
             ->toggleable(isToggledHiddenByDefault: true);
     }
 
     /**
-     * Get all table filters
+     * Get all table filters for agricultural pricing management.
+     * 
+     * Provides comprehensive filtering options including product selection,
+     * packaging types, and status indicators. Essential for managing large
+     * numbers of price variations in agricultural business operations.
+     * 
+     * @return array Complete set of filters for price variation management
+     * @agricultural_filtering Product-based, packaging-based, and status-based filtering
+     * @business_utility Helps users find specific pricing variations quickly
      */
     public static function filters(): array
     {
@@ -168,9 +235,9 @@ class PriceVariationTable
     /**
      * Get product filter
      */
-    protected static function getProductFilter(): Tables\Filters\SelectFilter
+    protected static function getProductFilter(): SelectFilter
     {
-        return Tables\Filters\SelectFilter::make('product')
+        return SelectFilter::make('product')
             ->relationship('product', 'name')
             ->searchable()
             ->preload()
@@ -180,9 +247,9 @@ class PriceVariationTable
     /**
      * Get packaging type filter
      */
-    protected static function getPackagingTypeFilter(): Tables\Filters\SelectFilter
+    protected static function getPackagingTypeFilter(): SelectFilter
     {
-        return Tables\Filters\SelectFilter::make('packagingType')
+        return SelectFilter::make('packagingType')
             ->relationship('packagingType', 'name')
             ->searchable()
             ->preload()
@@ -192,27 +259,27 @@ class PriceVariationTable
     /**
      * Get is default filter
      */
-    protected static function getIsDefaultFilter(): Tables\Filters\TernaryFilter
+    protected static function getIsDefaultFilter(): TernaryFilter
     {
-        return Tables\Filters\TernaryFilter::make('is_default')
+        return TernaryFilter::make('is_default')
             ->label('Default Price');
     }
 
     /**
      * Get is global filter
      */
-    protected static function getIsGlobalFilter(): Tables\Filters\TernaryFilter
+    protected static function getIsGlobalFilter(): TernaryFilter
     {
-        return Tables\Filters\TernaryFilter::make('is_global')
+        return TernaryFilter::make('is_global')
             ->label('Global Templates');
     }
 
     /**
      * Get is active filter
      */
-    protected static function getIsActiveFilter(): Tables\Filters\TernaryFilter
+    protected static function getIsActiveFilter(): TernaryFilter
     {
-        return Tables\Filters\TernaryFilter::make('is_active');
+        return TernaryFilter::make('is_active');
     }
 
     /**
@@ -229,7 +296,7 @@ class PriceVariationTable
     public static function bulkActions(): array
     {
         return [
-            Tables\Actions\BulkActionGroup::make([
+            BulkActionGroup::make([
                 PriceVariationTableActions::getDeleteBulkAction(),
                 PriceVariationTableActions::getActivateBulkAction(),
                 PriceVariationTableActions::getDeactivateBulkAction(),
@@ -248,7 +315,19 @@ class PriceVariationTable
     }
 
     /**
-     * Format fill weight display based on context
+     * Format fill weight display based on agricultural packaging context.
+     * 
+     * Implements complex formatting logic for displaying weights and quantities
+     * based on packaging type, variation context, and agricultural measurement standards.
+     * Handles global templates, package-free variations, and packaged products differently.
+     * 
+     * @param mixed $state Fill weight value from database
+     * @param object $record PriceVariation record with packaging relationships
+     * @return string Formatted weight/quantity display with appropriate units
+     * 
+     * @agricultural_formatting Trays, grams with pound conversions, units based on context
+     * @business_logic Global templates show "Template", package-free uses variation name hints
+     * @measurement_standards Metric primary with imperial conversions for agricultural sales
      */
     protected static function formatFillWeight($state, $record): string
     {
@@ -317,13 +396,13 @@ class PriceVariationTable
      */
     protected static function getModelClass(): string
     {
-        return \App\Models\PriceVariation::class;
+        return PriceVariation::class;
     }
 
     /**
      * Get table configuration with persistence
      */
-    public static function configure(Tables\Table $table): Tables\Table
+    public static function configure(Table $table): Table
     {
         return $table
             ->persistFiltersInSession()
@@ -332,8 +411,8 @@ class PriceVariationTable
             ->persistSearchInSession()
             ->columns(static::columns())
             ->filters(static::filters())
-            ->actions(static::actions())
-            ->bulkActions(static::bulkActions())
+            ->recordActions(static::actions())
+            ->toolbarActions(static::bulkActions())
             ->headerActions(static::headerActions());
     }
 }

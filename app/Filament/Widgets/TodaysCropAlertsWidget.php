@@ -8,7 +8,7 @@ use Illuminate\Support\Carbon;
 
 class TodaysCropAlertsWidget extends Widget
 {
-    protected static string $view = 'filament.widgets.todays-crop-alerts-widget';
+    protected string $view = 'filament.widgets.todays-crop-alerts-widget';
     
     // Set the default widget positioning
     protected static ?int $sort = 2;

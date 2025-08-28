@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use InvalidArgumentException;
 use App\Services\CurrencyConversionService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -9,6 +10,44 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Represents specific packaging variations of agricultural seed entries,
+ * including pricing, weight, availability, and currency conversion capabilities
+ * for microgreens seed procurement and cost analysis.
+ *
+ * @business_domain Agricultural Seed Procurement & Price Management
+ * @workflow_context Used in seed sourcing, cost analysis, and inventory planning
+ * @agricultural_process Manages different packaging sizes and pricing from suppliers
+ *
+ * Database Table: seed_variations
+ * @property int $id Primary identifier for seed variation
+ * @property int $seed_entry_id Reference to parent seed entry
+ * @property string|null $size Package size description (e.g., '1 lb', '5 kg')
+ * @property string|null $sku Supplier stock keeping unit code
+ * @property float|null $weight_kg Normalized weight in kilograms
+ * @property float|null $original_weight_value Original weight value from supplier
+ * @property string|null $original_weight_unit Original weight unit (lbs, oz, kg, g)
+ * @property string|null $unit Supplier's unit description
+ * @property float|null $current_price Current price (null for out-of-stock)
+ * @property string $currency Price currency (USD, CAD, EUR, etc.)
+ * @property bool $is_available Whether this variation is currently available
+ * @property Carbon|null $last_checked_at Last price/availability check timestamp
+ * @property int|null $consumable_id Link to inventory consumable record
+ * @property Carbon $created_at Record creation timestamp
+ * @property Carbon $updated_at Record last update timestamp
+ *
+ * @relationship seedEntry BelongsTo relationship to SeedEntry for variety context
+ * @relationship priceHistory HasMany relationship to SeedPriceHistory for trends
+ * @relationship consumable BelongsTo relationship to Consumable inventory item
+ *
+ * @business_rule Prices must be reasonable ($0.01 to $50,000) or null for out-of-stock
+ * @business_rule Weight values must be positive when provided
+ * @business_rule Extreme price-per-kg ratios trigger warning logs
+ * @business_rule Currency conversion supports multi-currency price analysis
+ *
+ * @agricultural_procurement Enables cost comparison across package sizes and suppliers
+ * @cost_optimization Supports bulk purchasing decisions through price-per-kg analysis
+ */
 class SeedVariation extends Model
 {
     use HasFactory;
@@ -20,17 +59,17 @@ class SeedVariation extends Model
         static::saving(function ($variation) {
             // Validate price is reasonable (allow null for out-of-stock items)
             if ($variation->current_price !== null && ($variation->current_price <= 0 || $variation->current_price > 50000)) {
-                throw new \InvalidArgumentException('Price must be between $unit.01 and $50,000, or null for out-of-stock items');
+                throw new InvalidArgumentException('Price must be between $unit.01 and $50,000, or null for out-of-stock items');
             }
             
             // Validate weight is positive if provided
             if ($variation->weight_kg !== null && $variation->weight_kg <= 0) {
-                throw new \InvalidArgumentException('Weight must be positive');
+                throw new InvalidArgumentException('Weight must be positive');
             }
             
             // Validate original weight values are consistent
             if ($variation->original_weight_value !== null && $variation->original_weight_value <= 0) {
-                throw new \InvalidArgumentException('Original weight value must be positive');
+                throw new InvalidArgumentException('Original weight value must be positive');
             }
             
             // Log extreme price/kg ratios for review (only if price is available)

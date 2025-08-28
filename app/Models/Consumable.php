@@ -2,6 +2,16 @@
 
 namespace App\Models;
 
+use RuntimeException;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Select;
+use Filament\Actions\Action;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Fieldset;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Components\Utilities\Get;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,12 +30,138 @@ use App\Traits\HasSupplier;
 use App\Traits\HasCostInformation;
 use App\Traits\HasTimestamps;
 
+/**
+ * Consumable Model for Agricultural Inventory Management
+ * 
+ * Manages all consumable materials required for microgreens production including
+ * seeds, growing media (soil), packaging materials, and other operational supplies.
+ * Provides comprehensive inventory tracking with lot management, supplier relationships,
+ * and automated restock notifications for agricultural operations.
+ * 
+ * This model handles:
+ * - Multi-type inventory management (seeds, soil, packaging, consumables)
+ * - Lot-based tracking with uppercase normalization for consistency
+ * - Supplier relationship management for procurement workflows
+ * - Automated stock calculations and depletion tracking
+ * - Restock threshold monitoring and automated alerts
+ * - Transaction-based inventory history and audit trails
+ * - Master seed catalog integration for variety management
+ * 
+ * Business Context:
+ * Agricultural operations depend on consistent supply of quality materials:
+ * - Seeds: Core input requiring lot tracking for quality and germination rates
+ * - Growing media: Soil/coir blends affecting plant health and yield
+ * - Packaging: Containers and labels for finished product presentation
+ * - Consumables: Tools, nutrients, sanitizers, and operational supplies
+ * 
+ * Inventory management critical for:
+ * - Production continuity and avoiding stockouts
+ * - Quality control through lot tracking and supplier management
+ * - Cost control through automated reordering and supplier comparison
+ * - Regulatory compliance through complete audit trails
+ * - Yield optimization through proper resource allocation
+ * 
+ * @property int $id Primary key
+ * @property string|null $name Computed display name (auto-generated for seeds, stored for others)
+ * @property int $consumable_type_id Type of consumable (seed, soil, packaging, consumable)
+ * @property int|null $supplier_id Supplier providing this consumable
+ * @property int|null $packaging_type_id Package type (for packaging consumables only)
+ * @property int|null $master_seed_catalog_id Master seed variety (for seed consumables)
+ * @property int|null $master_cultivar_id Specific cultivar (for seed consumables)
+ * @property string|null $cultivar Legacy cultivar field (use master_cultivar_id instead)
+ * @property float $initial_stock Initial quantity received/counted
+ * @property float $consumed_quantity Amount consumed from initial stock
+ * @property int|null $consumable_unit_id Unit type for packaging (bags, bottles, units)
+ * @property int $units_quantity Number of units per package
+ * @property float $restock_threshold Minimum stock level triggering reorder alerts
+ * @property float $restock_quantity Recommended reorder quantity
+ * @property float|null $cost_per_unit Legacy cost field (use HasCostInformation trait methods)
+ * @property float $quantity_per_unit Weight/volume per individual unit
+ * @property string $quantity_unit Measurement unit (g, kg, l, ml, etc.)
+ * @property float $total_quantity Computed or direct total available quantity
+ * @property string|null $notes Additional information and usage notes
+ * @property string|null $lot_no Lot/batch identifier (auto-uppercased)
+ * @property bool $is_active Whether consumable is available for use
+ * @property \Carbon\Carbon|null $last_ordered_at Last procurement date
+ * @property \Carbon\Carbon $created_at Consumable creation timestamp
+ * @property \Carbon\Carbon $updated_at Last modification timestamp
+ * 
+ * @relationship consumableType BelongsTo relationship to ConsumableType lookup
+ * @relationship supplier BelongsTo relationship to Supplier (via HasSupplier trait)
+ * @relationship consumableUnit BelongsTo relationship to ConsumableUnit (packaging type)
+ * @relationship packagingType BelongsTo relationship to PackagingType (for packaging consumables)
+ * @relationship seedEntry BelongsTo relationship to SeedEntry (legacy)
+ * @relationship masterSeedCatalog BelongsTo relationship to MasterSeedCatalog variety
+ * @relationship masterCultivar BelongsTo relationship to MasterCultivar specification
+ * @relationship seedVariations HasMany relationship to SeedVariations (pricing history)
+ * @relationship consumableTransactions HasMany relationship to inventory transactions
+ * 
+ * @business_rules
+ * - Lot numbers automatically converted to uppercase for consistency
+ * - Seed consumables use computed names from master catalog + cultivar
+ * - Non-seed consumables use stored names for flexibility
+ * - Current stock = max(0, initial_stock - consumed_quantity) for non-seeds
+ * - Seed consumables use total_quantity field directly (no calculation)
+ * - Restock alerts triggered when current stock falls below threshold
+ * - Transaction tracking provides detailed audit trails when enabled
+ * - Seed relationships validated for data integrity and proper references
+ * 
+ * @workflow_patterns
+ * Seed Inventory Management:
+ * 1. Seeds received with lot numbers and supplier information
+ * 2. Master catalog and cultivar relationships established
+ * 3. Initial stock recorded with total quantity in specified units
+ * 4. Production consumes seeds, reducing total quantity
+ * 5. Restock alerts triggered when below threshold
+ * 6. New lots create separate consumable records for tracking
+ * 
+ * General Consumable Workflow:
+ * 1. Consumables received and catalogued with supplier details
+ * 2. Initial stock and unit specifications recorded
+ * 3. Consumption tracked through deduction methods
+ * 4. Stock levels monitored against restock thresholds
+ * 5. Automated alerts trigger procurement workflows
+ * 6. Transaction history maintains complete audit trails
+ * 
+ * Transaction-Based Tracking:
+ * 1. Initialize transaction tracking for detailed history
+ * 2. Record all additions and consumptions as transactions
+ * 3. Calculate current stock from transaction history
+ * 4. Maintain audit trails for compliance and analysis
+ * 
+ * @agricultural_context
+ * - Seeds: Quality degrades over time, lot tracking essential for germination rates
+ * - Growing media: Batch consistency affects plant health and yield uniformity  
+ * - Packaging: Container quality affects product presentation and shelf life
+ * - Consumables: Tools and supplies support daily operations and maintenance
+ * - Seasonal variations: Seed availability and pricing fluctuate with growing seasons
+ * - Organic certification: Supplier tracking required for organic compliance
+ * 
+ * @performance_considerations
+ * - Name computation cached for seed consumables to avoid repeated calculations
+ * - Lot number indexing supports efficient lot-based queries
+ * - Transaction tracking optional to balance detail vs performance
+ * - Supplier relationships eager loaded for inventory reporting
+ * - Activity logging tracks inventory changes for audit and analysis
+ * 
+ * @see \App\Services\InventoryManagementService For inventory operations and calculations
+ * @see \App\Services\ConsumableCalculatorService For display formatting and validation
+ * @see \App\Models\ConsumableTransaction For detailed transaction history
+ * @see \App\Models\MasterSeedCatalog For seed variety specifications
+ * 
+ * @author Agricultural Systems Team
+ * @package App\Models
+ */
 class Consumable extends Model
 {
     use HasFactory, LogsActivity, HasActiveStatus, HasSupplier, HasCostInformation, HasTimestamps;
     
     /**
      * The attributes that are mass assignable.
+     * 
+     * Defines which consumable fields can be bulk assigned during creation
+     * and updates, supporting agricultural inventory management workflows.
+     * Includes all inventory parameters, relationships, and tracking fields.
      *
      * @var array<int, string>
      */
@@ -56,7 +192,11 @@ class Consumable extends Model
     ];
     
     /**
-     * The attributes that should be cast.
+     * The attributes that should be cast to appropriate data types.
+     * 
+     * Ensures proper handling of decimal quantities for precise inventory
+     * calculations, boolean flags for status tracking, and datetime stamps
+     * for procurement and usage history.
      *
      * @var array<string, string>
      */
@@ -84,6 +224,14 @@ class Consumable extends Model
     
     /**
      * Set the lot number to uppercase.
+     * 
+     * Automatically normalizes lot numbers to uppercase for consistency
+     * across the system. Critical for agricultural lot tracking where
+     * case variations could cause lookup failures and quality control issues.
+     * 
+     * @param string|null $value Lot number to normalize
+     * @business_context Consistent lot numbering essential for quality tracking
+     * @usage Seed lot management and quality control workflows
      */
     public function setLotNoAttribute($value)
     {
@@ -112,7 +260,7 @@ class Consumable extends Model
     public function getTypeAttribute($value)
     {
         if (!$this->consumableType) {
-            throw new \RuntimeException("Consumable {$this->id} is missing consumable_type_id relationship. This must be fixed in the database.");
+            throw new RuntimeException("Consumable {$this->id} is missing consumable_type_id relationship. This must be fixed in the database.");
         }
         
         return $this->consumableType->code;
@@ -309,6 +457,15 @@ class Consumable extends Model
     
     /**
      * Check if the consumable needs to be restocked.
+     * 
+     * Compares current stock levels against defined restock thresholds
+     * to trigger automated procurement alerts. Essential for maintaining
+     * production continuity and avoiding stockouts in agricultural operations.
+     * 
+     * @return bool True if current stock below restock threshold
+     * @business_context Prevents production delays from inventory shortages
+     * @delegation Uses InventoryManagementService for consistent logic
+     * @usage Automated restock alerts and procurement planning
      */
     public function needsRestock(): bool
     {
@@ -392,6 +549,14 @@ class Consumable extends Model
     
     /**
      * Configure the activity log options for this model.
+     * 
+     * Defines which consumable fields are tracked for audit and agricultural
+     * compliance purposes. Logs changes to inventory levels, supplier relationships,
+     * and critical parameters for quality control and regulatory compliance.
+     * 
+     * @return LogOptions Configured logging options for consumable changes
+     * @business_context Inventory changes require complete audit trails
+     * @compliance Required for agricultural quality control and traceability
      */
     public function getActivitylogOptions(): LogOptions
     {
@@ -503,7 +668,7 @@ class Consumable extends Model
     public static function getSeedFormSchema(): array
     {
         return [
-            Forms\Components\TextInput::make('name')
+            TextInput::make('name')
                 ->label('Seed Name/Variety')
                 ->helperText('Include the variety name (e.g., "Basil - Genovese")')
                 ->required()
@@ -517,7 +682,7 @@ class Consumable extends Model
                         ->unique()
                         ->toArray();
                 }),
-            Forms\Components\Select::make('supplier_id')
+            Select::make('supplier_id')
                 ->label('Supplier')
                 ->options(function () {
                     return Supplier::query()
@@ -530,24 +695,24 @@ class Consumable extends Model
                 })
                 ->searchable()
                 ->preload()
-                ->createOptionAction(function (Forms\Components\Actions\Action $action) {
+                ->createOptionAction(function (Action $action) {
                     return $action
-                        ->form([
-                            Forms\Components\TextInput::make('name')
+                        ->schema([
+                            TextInput::make('name')
                                 ->required()
                                 ->maxLength(255),
-                            Forms\Components\Hidden::make('supplier_type_id')
+                            Hidden::make('supplier_type_id')
                                 ->afterStateHydrated(function ($component, $state) {
-                                    $seedType = \App\Models\SupplierType::where('code', 'seed')->first();
+                                    $seedType = SupplierType::where('code', 'seed')->first();
                                     $component->state($seedType?->id);
                                 }),
-                            Forms\Components\Textarea::make('contact_info')
+                            Textarea::make('contact_info')
                                 ->label('Contact Information')
                                 ->rows(3),
                         ]);
                 }),
             // Simplified Quantity Tracking 
-            Forms\Components\TextInput::make('total_quantity')
+            TextInput::make('total_quantity')
                 ->label('Total Quantity')
                 ->helperText('Total amount of seed (e.g., 3 for 3 KG)')
                 ->numeric()
@@ -556,7 +721,7 @@ class Consumable extends Model
                 ->default(0)
                 ->step(0.001),
                 
-            Forms\Components\Select::make('quantity_unit')
+            Select::make('quantity_unit')
                 ->label('Unit of Measurement')
                 ->helperText('Unit for the total amount')
                 ->options([
@@ -569,23 +734,23 @@ class Consumable extends Model
                 ->default('g'),
                 
             // Hidden fields to maintain compatibility
-            Forms\Components\Hidden::make('consumable_type_id')
+            Hidden::make('consumable_type_id')
                 ->afterStateHydrated(function ($component, $state) {
-                    $seedType = \App\Models\ConsumableType::findByCode('seed');
+                    $seedType = ConsumableType::findByCode('seed');
                     $component->state($seedType?->id);
                 }),
-            Forms\Components\Hidden::make('initial_stock')
+            Hidden::make('initial_stock')
                 ->default(1),
-            Forms\Components\Hidden::make('consumable_unit_id')
+            Hidden::make('consumable_unit_id')
                 ->afterStateHydrated(function ($component, $state) {
-                    $unitType = \App\Models\ConsumableUnit::findByCode('unit');
+                    $unitType = ConsumableUnit::findByCode('unit');
                     $component->state($unitType?->id);
                 }),
-            Forms\Components\Hidden::make('quantity_per_unit')
+            Hidden::make('quantity_per_unit')
                 ->default(1),
                 
             // Restock Settings
-            Forms\Components\TextInput::make('restock_threshold')
+            TextInput::make('restock_threshold')
                 ->label('Restock Threshold')
                 ->helperText('When total quantity falls below this amount, reorder')
                 ->numeric()
@@ -593,7 +758,7 @@ class Consumable extends Model
                 ->default(500)
                 ->step(0.001),
                 
-            Forms\Components\TextInput::make('restock_quantity')
+            TextInput::make('restock_quantity')
                 ->label('Restock Quantity')
                 ->helperText('How much to order when restocking')
                 ->numeric()
@@ -601,17 +766,17 @@ class Consumable extends Model
                 ->default(1000)
                 ->step(0.001),
                 
-            Forms\Components\TextInput::make('lot_no')
+            TextInput::make('lot_no')
                 ->label('Lot/Batch Number')
                 ->helperText('Will be converted to uppercase')
                 ->maxLength(100),
                 
-            Forms\Components\Textarea::make('notes')
+            Textarea::make('notes')
                 ->label('Additional Notes')
                 ->helperText('Any additional information about this seed')
                 ->rows(3),
                 
-            Forms\Components\Toggle::make('is_active')
+            Toggle::make('is_active')
                 ->label('Active')
                 ->default(true),
         ];
@@ -625,13 +790,13 @@ class Consumable extends Model
     public static function getSoilFormSchema(): array
     {
         return [
-            Forms\Components\TextInput::make('name')
+            TextInput::make('name')
                 ->label('Soil Name')
                 ->helperText('Descriptive name for this soil type')
                 ->required()
                 ->maxLength(255),
                 
-            Forms\Components\Select::make('supplier_id')
+            Select::make('supplier_id')
                 ->label('Supplier')
                 ->options(function () {
                     return Supplier::query()
@@ -644,26 +809,26 @@ class Consumable extends Model
                 })
                 ->searchable()
                 ->preload()
-                ->createOptionAction(function (Forms\Components\Actions\Action $action) {
+                ->createOptionAction(function (Action $action) {
                     return $action
-                        ->form([
-                            Forms\Components\TextInput::make('name')
+                        ->schema([
+                            TextInput::make('name')
                                 ->required()
                                 ->maxLength(255),
-                            Forms\Components\Hidden::make('supplier_type_id')
+                            Hidden::make('supplier_type_id')
                                 ->afterStateHydrated(function ($component, $state) {
-                                    $soilType = \App\Models\SupplierType::where('code', 'soil')->first();
+                                    $soilType = SupplierType::where('code', 'soil')->first();
                                     $component->state($soilType?->id);
                                 }),
-                            Forms\Components\Textarea::make('contact_info')
+                            Textarea::make('contact_info')
                                 ->label('Contact Information')
                                 ->rows(3),
                         ]);
                 }),
                 
-            Forms\Components\Fieldset::make('Inventory Details')
+            Fieldset::make('Inventory Details')
                 ->schema([
-                    Forms\Components\TextInput::make('initial_stock')
+                    TextInput::make('initial_stock')
                         ->label('Quantity')
                         ->helperText('Number of units in stock')
                         ->numeric()
@@ -671,23 +836,23 @@ class Consumable extends Model
                         ->required()
                         ->default(1)
                         ->reactive()
-                        ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get) {
+                        ->afterStateUpdated(function (Set $set, Get $get) {
                             // Update total quantity calculation when initial stock changes
                             if ($get('quantity_per_unit') && $get('quantity_per_unit') > 0) {
                                 $set('total_quantity', (float)$get('initial_stock') * (float)$get('quantity_per_unit'));
                             }
                         }),
                         
-                    Forms\Components\Select::make('consumable_unit_id')
+                    Select::make('consumable_unit_id')
                         ->label('Packaging Type')
                         ->helperText('Container or form of packaging')
-                        ->options(\App\Models\ConsumableUnit::options())
+                        ->options(ConsumableUnit::options())
                         ->required()
                         ->default(function () {
-                            return \App\Models\ConsumableUnit::findByCode('unit')?->id;
+                            return ConsumableUnit::findByCode('unit')?->id;
                         }),
                         
-                    Forms\Components\TextInput::make('quantity_per_unit')
+                    TextInput::make('quantity_per_unit')
                         ->label('Unit Size')
                         ->helperText('Capacity or size of each unit (e.g., 107L per bag)')
                         ->numeric()
@@ -695,12 +860,12 @@ class Consumable extends Model
                         ->default(50)
                         ->step(0.01)
                         ->reactive()
-                        ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get) {
+                        ->afterStateUpdated(function (Set $set, Get $get) {
                             // Update total quantity based on stock and unit size
                             $set('total_quantity', (float)$get('initial_stock') * (float)$get('quantity_per_unit'));
                         }),
                         
-                    Forms\Components\Select::make('quantity_unit')
+                    Select::make('quantity_unit')
                         ->label('Unit of Measurement')
                         ->helperText('Unit for the size/capacity value')
                         ->options([
@@ -718,28 +883,28 @@ class Consumable extends Model
                         ->default('l'),
                         
                     // Hidden field for total_quantity calculation
-                    Forms\Components\Hidden::make('total_quantity')
+                    Hidden::make('total_quantity')
                         ->default(0),
                         
                     // Hidden compatibility fields
-                    Forms\Components\Hidden::make('consumed_quantity')
+                    Hidden::make('consumed_quantity')
                         ->default(0),
                         
-                    Forms\Components\Hidden::make('unit')
+                    Hidden::make('unit')
                         ->default('unit'),
                 ])
                 ->columns(2),
                 
-            Forms\Components\Fieldset::make('Restock Settings')
+            Fieldset::make('Restock Settings')
                 ->schema([
-                    Forms\Components\TextInput::make('restock_threshold')
+                    TextInput::make('restock_threshold')
                         ->label('Restock Threshold')
                         ->helperText('Minimum number of units to maintain in inventory')
                         ->numeric()
                         ->required()
                         ->default(2),
                         
-                    Forms\Components\TextInput::make('restock_quantity')
+                    TextInput::make('restock_quantity')
                         ->label('Restock Quantity')
                         ->helperText('Quantity to order when restocking')
                         ->numeric()
@@ -748,23 +913,23 @@ class Consumable extends Model
                 ])
                 ->columns(2),
                 
-            Forms\Components\Textarea::make('notes')
+            Textarea::make('notes')
                 ->label('Additional Information')
                 ->helperText('Any special notes about this soil type')
                 ->rows(3),
                 
-            Forms\Components\Toggle::make('is_active')
+            Toggle::make('is_active')
                 ->label('Active')
                 ->helperText('Whether this soil is available for use')
                 ->default(true),
                 
             // Hidden fields to set correct type
-            Forms\Components\Hidden::make('type')
+            Hidden::make('type')
                 ->default('soil'),
                 
-            Forms\Components\Hidden::make('consumable_type_id')
+            Hidden::make('consumable_type_id')
                 ->afterStateHydrated(function ($component, $state) {
-                    $soilType = \App\Models\ConsumableType::where('code', 'soil')->first();
+                    $soilType = ConsumableType::where('code', 'soil')->first();
                     $component->state($soilType?->id);
                 }),
         ];

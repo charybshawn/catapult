@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Exception;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
@@ -73,7 +74,7 @@ class JobLogService
     /**
      * Log job failure.
      */
-    public function logJobFailed(string $jobId, string $jobClass, \Exception $exception, int $attempt = 1): void
+    public function logJobFailed(string $jobId, string $jobClass, Exception $exception, int $attempt = 1): void
     {
         $startTime = Cache::get("job_start_{$jobId}");
         $duration = $startTime ? microtime(true) - $startTime : null;

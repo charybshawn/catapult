@@ -2,14 +2,37 @@
 
 namespace App\Filament\Resources\CustomerResource\Forms;
 
+use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Utilities\Get;
 use App\Models\Customer;
 use App\Models\CustomerType;
 use Filament\Forms;
 
+/**
+ * Customer form schema for agricultural business relationship management.
+ * 
+ * Provides comprehensive customer onboarding and management interface
+ * including business information, wholesale pricing configuration, delivery
+ * addressing, and account integration for agricultural product sales.
+ * 
+ * @filament_form Customer management with agricultural business context
+ * @business_context Agricultural customer relationships and pricing
+ * @customer_types Retail and wholesale customer configuration
+ */
 class CustomerForm
 {
     /**
-     * Get the complete form schema for CustomerResource
+     * Get complete customer form schema with agricultural business features.
+     * 
+     * Returns structured form sections for customer information, wholesale
+     * settings, delivery coordination, and account management. Supports
+     * agricultural business customer relationship and pricing management.
+     * 
+     * @return array Complete customer form schema
+     * @filament_usage Form schema for CustomerResource
+     * @business_logic Agricultural customer management with pricing tiers
      */
     public static function schema(): array
     {
@@ -22,14 +45,22 @@ class CustomerForm
     }
 
     /**
-     * Customer Information section
+     * Get customer information section with business relationship details.
+     * 
+     * Returns form section for basic customer details including business
+     * information, contact details, and customer type selection for
+     * agricultural business relationship management.
+     * 
+     * @return Section Customer information form section
+     * @business_context Business relationships and contact management
+     * @customer_management Agricultural customer onboarding and details
      */
-    protected static function getCustomerInformationSection(): Forms\Components\Section
+    protected static function getCustomerInformationSection(): Section
     {
-        return Forms\Components\Section::make('Customer Information')
+        return Section::make('Customer Information')
             ->description('Basic customer details')
             ->schema([
-                Forms\Components\Select::make('customer_type_id')
+                Select::make('customer_type_id')
                     ->label('Customer Type')
                     ->relationship('customerType', 'name')
                     ->options(CustomerType::options())
@@ -39,22 +70,22 @@ class CustomerForm
                     ->required()
                     ->reactive()
                     ->columnSpan(1),
-                Forms\Components\TextInput::make('business_name')
+                TextInput::make('business_name')
                     ->maxLength(255)
                     ->placeholder('ABC Grocery Store')
                     ->columnSpan(1),
-                Forms\Components\TextInput::make('contact_name')
+                TextInput::make('contact_name')
                     ->label('Contact Name')
                     ->required()
                     ->maxLength(255)
                     ->placeholder('Jane Smith'),
-                Forms\Components\TextInput::make('email')
+                TextInput::make('email')
                     ->label('Email 1')
                     ->email()
                     ->required()
                     ->maxLength(255)
                     ->placeholder('customer@example.com'),
-                Forms\Components\TextInput::make('cc_email')
+                TextInput::make('cc_email')
                     ->label('CC Email')
                     ->email()
                     ->maxLength(255)
@@ -66,9 +97,9 @@ class CustomerForm
     /**
      * Phone field with formatting logic
      */
-    protected static function getPhoneField(): Forms\Components\TextInput
+    protected static function getPhoneField(): TextInput
     {
-        return Forms\Components\TextInput::make('phone')
+        return TextInput::make('phone')
             ->tel()
             ->maxLength(20)
             ->placeholder('(416) 555-1234')
@@ -92,12 +123,12 @@ class CustomerForm
     /**
      * Wholesale Settings section
      */
-    protected static function getWholesaleSettingsSection(): Forms\Components\Section
+    protected static function getWholesaleSettingsSection(): Section
     {
-        return Forms\Components\Section::make('Wholesale Settings')
+        return Section::make('Wholesale Settings')
             ->description('Discount settings for wholesale customers')
             ->schema([
-                Forms\Components\TextInput::make('wholesale_discount_percentage')
+                TextInput::make('wholesale_discount_percentage')
                     ->label('Wholesale Discount %')
                     ->numeric()
                     ->minValue(0)
@@ -107,7 +138,7 @@ class CustomerForm
                     ->default(0)
                     ->helperText('Default discount percentage for wholesale orders'),
             ])
-            ->visible(function (Forms\Get $get) {
+            ->visible(function (Get $get) {
                 $customerTypeId = $get('customer_type_id');
                 if (!$customerTypeId) return false;
                 $customerType = CustomerType::find($customerTypeId);
@@ -118,17 +149,17 @@ class CustomerForm
     /**
      * Delivery Address section
      */
-    protected static function getDeliveryAddressSection(): Forms\Components\Section
+    protected static function getDeliveryAddressSection(): Section
     {
-        return Forms\Components\Section::make('Delivery Address')
+        return Section::make('Delivery Address')
             ->description('Where orders will be delivered')
             ->schema([
-                Forms\Components\TextInput::make('address')
+                TextInput::make('address')
                     ->label('Street Address')
                     ->maxLength(255)
                     ->placeholder('123 Main Street')
                     ->columnSpanFull(),
-                Forms\Components\TextInput::make('city')
+                TextInput::make('city')
                     ->maxLength(100)
                     ->placeholder('Toronto'),
                 static::getProvinceSelect(),
@@ -140,9 +171,9 @@ class CustomerForm
     /**
      * Province/State select with comprehensive options
      */
-    protected static function getProvinceSelect(): Forms\Components\Select
+    protected static function getProvinceSelect(): Select
     {
-        return Forms\Components\Select::make('province')
+        return Select::make('province')
             ->label('Province/State')
             ->searchable()
             ->options([
@@ -218,21 +249,21 @@ class CustomerForm
     /**
      * Postal/ZIP code field with conditional masking
      */
-    protected static function getPostalCodeField(): Forms\Components\TextInput
+    protected static function getPostalCodeField(): TextInput
     {
-        return Forms\Components\TextInput::make('postal_code')
+        return TextInput::make('postal_code')
             ->label('Postal/ZIP Code')
             ->maxLength(20)
             ->placeholder('M5V 3A8')
-            ->mask(fn (Forms\Get $get) => $get('country') === 'CA' ? 'A9A 9A9' : null);
+            ->mask(fn (Get $get) => $get('country') === 'CA' ? 'A9A 9A9' : null);
     }
 
     /**
      * Country select field
      */
-    protected static function getCountrySelect(): Forms\Components\Select
+    protected static function getCountrySelect(): Select
     {
-        return Forms\Components\Select::make('country')
+        return Select::make('country')
             ->options([
                 'CA' => 'Canada',
                 'US' => 'United States',
@@ -247,12 +278,12 @@ class CustomerForm
     /**
      * Login Account section
      */
-    protected static function getLoginAccountSection(): Forms\Components\Section
+    protected static function getLoginAccountSection(): Section
     {
-        return Forms\Components\Section::make('Login Account')
+        return Section::make('Login Account')
             ->description('Optional: Link to a user account for online access')
             ->schema([
-                Forms\Components\Select::make('user_id')
+                Select::make('user_id')
                     ->label('Linked User Account')
                     ->relationship('user', 'email')
                     ->searchable()

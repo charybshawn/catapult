@@ -2,10 +2,25 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Schemas\Schema;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Textarea;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Actions\ViewAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use App\Filament\Resources\SeedScrapeUploadResource\Pages\ListSeedScrapeUploads;
+use App\Filament\Resources\SeedScrapeUploadResource\Pages\CreateSeedScrapeUpload;
+use App\Filament\Resources\SeedScrapeUploadResource\Pages\EditSeedScrapeUpload;
+use App\Filament\Resources\SeedScrapeUploadResource\Pages\ViewSeedScrapeUpload;
 use App\Filament\Resources\SeedScrapeUploadResource\Pages;
 use App\Models\SeedScrapeUpload;
 use Filament\Forms;
-use Filament\Forms\Form;
 use App\Filament\Resources\Base\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -15,24 +30,24 @@ class SeedScrapeUploadResource extends BaseResource
 {
     protected static ?string $model = SeedScrapeUpload::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-arrow-up-tray';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-arrow-up-tray';
     
     protected static ?string $navigationLabel = 'Seed Data Uploads';
     
-    protected static ?string $navigationGroup = 'Products & Inventory';
+    protected static string | \UnitEnum | null $navigationGroup = 'Products & Inventory';
     
     protected static ?int $navigationSort = 5;
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\TextInput::make('filename')
+        return $schema
+            ->components([
+                TextInput::make('filename')
                     ->label('Filename')
                     ->required()
                     ->maxLength(255)
                     ->disabled(),
-                Forms\Components\Select::make('status')
+                Select::make('status')
                     ->options([
                         SeedScrapeUpload::STATUS_PENDING => 'Pending',
                         SeedScrapeUpload::STATUS_PROCESSING => 'Processing',
@@ -40,12 +55,12 @@ class SeedScrapeUploadResource extends BaseResource
                         SeedScrapeUpload::STATUS_ERROR => 'Error',
                     ])
                     ->required(),
-                Forms\Components\DateTimePicker::make('uploaded_at')
+                DateTimePicker::make('uploaded_at')
                     ->required()
                     ->disabled(),
-                Forms\Components\DateTimePicker::make('processed_at')
+                DateTimePicker::make('processed_at')
                     ->disabled(),
-                Forms\Components\Textarea::make('notes')
+                Textarea::make('notes')
                     ->maxLength(65535)
                     ->columnSpanFull(),
             ]);
@@ -58,11 +73,11 @@ class SeedScrapeUploadResource extends BaseResource
             ->persistSortInSession()
             ->persistColumnSearchesInSession()
             ->persistSearchInSession()            ->columns([
-                Tables\Columns\TextColumn::make('filename')
+                TextColumn::make('filename')
                     ->label('Filename')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         SeedScrapeUpload::STATUS_PENDING => 'gray',
@@ -71,19 +86,19 @@ class SeedScrapeUploadResource extends BaseResource
                         SeedScrapeUpload::STATUS_ERROR => 'danger',
                         default => 'gray',
                     }),
-                Tables\Columns\TextColumn::make('uploaded_at')
+                TextColumn::make('uploaded_at')
                     ->dateTime()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('processed_at')
+                TextColumn::make('processed_at')
                     ->dateTime()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options([
                         SeedScrapeUpload::STATUS_PENDING => 'Pending',
                         SeedScrapeUpload::STATUS_PROCESSING => 'Processing',
@@ -91,14 +106,14 @@ class SeedScrapeUploadResource extends BaseResource
                         SeedScrapeUpload::STATUS_ERROR => 'Error',
                     ]),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+            ->recordActions([
+                ViewAction::make(),
+                EditAction::make(),
+                DeleteAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ])
             ->defaultSort('uploaded_at', 'desc');
@@ -114,10 +129,10 @@ class SeedScrapeUploadResource extends BaseResource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListSeedScrapeUploads::route('/'),
-            'create' => Pages\CreateSeedScrapeUpload::route('/create'),
-            'edit' => Pages\EditSeedScrapeUpload::route('/{record}/edit'),
-            'view' => Pages\ViewSeedScrapeUpload::route('/{record}'),
+            'index' => ListSeedScrapeUploads::route('/'),
+            'create' => CreateSeedScrapeUpload::route('/create'),
+            'edit' => EditSeedScrapeUpload::route('/{record}/edit'),
+            'view' => ViewSeedScrapeUpload::route('/{record}'),
         ];
     }
 } 

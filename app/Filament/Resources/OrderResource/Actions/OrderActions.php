@@ -2,19 +2,54 @@
 
 namespace App\Filament\Resources\OrderResource\Actions;
 
+use Filament\Actions\Action;
+use App\Services\RecurringOrderService;
+use Exception;
+use App\Models\Invoice;
+use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Forms\Components\DatePicker;
+use App\Services\StatusTransitionService;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Textarea;
+use Filament\Actions\BulkAction;
+use Carbon\Carbon;
 use App\Models\Order;
 use App\Models\OrderStatus;
 use App\Services\OrderPlanningService;
 use Filament\Forms;
-use Filament\Forms\Get;
 use Filament\Notifications\Notification;
 use Filament\Tables;
 use Illuminate\Database\Eloquent\Collection;
 
+/**
+ * Order action collection for agricultural order management system.
+ * 
+ * Provides comprehensive order management actions including recurring order generation,
+ * price recalculation for wholesale customers, crop plan generation for production
+ * orders, invoice creation, and status management. Handles complex agricultural
+ * business workflows including bulk operations and consolidated billing.
+ * 
+ * @filament_actions Complete order lifecycle management
+ * @business_domain Agricultural microgreens order processing and fulfillment
+ * @workflow_support Order-to-crop-to-delivery automation
+ * @customer_support Wholesale pricing, recurring orders, consolidated invoicing
+ */
 class OrderActions
 {
     /**
-     * Get all row actions for the table
+     * Get all row actions for order management table.
+     * 
+     * Provides comprehensive action set for individual order management including
+     * recurring order generation, price updates for wholesale customers, production
+     * planning, invoicing, and status transitions. Actions are contextually shown
+     * based on order state and customer type.
+     * 
+     * @return array Complete set of order row actions with agricultural context
+     * @filament_usage Table row actions for OrderResource
+     * @business_logic Actions adapt to order status, customer type, and production needs
      */
     public static function getRowActions(): array
     {
@@ -29,7 +64,15 @@ class OrderActions
     }
 
     /**
-     * Get all bulk actions for the table
+     * Get all bulk actions for order management operations.
+     * 
+     * Provides efficient bulk operations for order processing including consolidated
+     * invoice creation for wholesale customers and batch status updates. Handles
+     * complex business validation for multi-order operations.
+     * 
+     * @return array Bulk actions for efficient order processing
+     * @filament_usage Table bulk actions for OrderResource
+     * @business_logic Consolidated billing, batch status management
      */
     public static function getBulkActions(): array
     {
@@ -39,9 +82,20 @@ class OrderActions
         ];
     }
 
-    protected static function getGenerateNextRecurringAction(): Tables\Actions\Action
+    /**
+     * Generate next recurring order action for template orders.
+     * 
+     * Creates the next order in a recurring series based on configured frequency
+     * and schedule. Handles agricultural production timing, validates generation
+     * conditions, and maintains customer relationship continuity.
+     * 
+     * @return Action Action for generating next recurring order
+     * @business_process Recurring order automation for regular customers
+     * @agricultural_context Maintains consistent production schedules
+     */
+    protected static function getGenerateNextRecurringAction(): Action
     {
-        return Tables\Actions\Action::make('generate_next_recurring')
+        return Action::make('generate_next_recurring')
             ->label('Generate Next Order')
             ->icon('heroicon-o-plus-circle')
             ->color('success')
@@ -56,7 +110,7 @@ class OrderActions
             )
             ->action(function (Order $record) {
                 try {
-                    $recurringOrderService = app(\App\Services\RecurringOrderService::class);
+                    $recurringOrderService = app(RecurringOrderService::class);
                     $newOrder = $recurringOrderService->generateNextOrder($record);
                     
                     if ($newOrder) {
@@ -65,7 +119,7 @@ class OrderActions
                             ->body("Order #{$newOrder->id} has been created successfully.")
                             ->success()
                             ->actions([
-                                \Filament\Notifications\Actions\Action::make('view')
+                                Action::make('view')
                                     ->label('View Order')
                                     ->url(route('filament.admin.resources.orders.edit', ['record' => $newOrder->id]))
                             ])
@@ -77,7 +131,7 @@ class OrderActions
                             ->warning()
                             ->send();
                     }
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->title('Error Generating Order')
                         ->body('Failed to generate recurring order: ' . $e->getMessage())
@@ -87,9 +141,20 @@ class OrderActions
             });
     }
 
-    protected static function getRecalculatePricesAction(): Tables\Actions\Action
+    /**
+     * Recalculate prices action for wholesale customers.
+     * 
+     * Updates all order item prices using current wholesale discount rates and
+     * product pricing. Essential for maintaining accurate pricing when wholesale
+     * terms change or product costs are updated.
+     * 
+     * @return Action Action for recalculating wholesale prices
+     * @business_logic Wholesale discount application, price synchronization
+     * @customer_type Wholesale customers with dynamic discount rates
+     */
+    protected static function getRecalculatePricesAction(): Action
     {
-        return Tables\Actions\Action::make('recalculate_prices')
+        return Action::make('recalculate_prices')
             ->label('Recalculate Prices')
             ->icon('heroicon-o-calculator')
             ->color('info')
@@ -145,7 +210,7 @@ class OrderActions
                             ->info()
                             ->send();
                     }
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->title('Error Recalculating Prices')
                         ->body('Failed to recalculate prices: ' . $e->getMessage())
@@ -155,9 +220,20 @@ class OrderActions
             });
     }
 
-    protected static function getGenerateCropPlansAction(): Tables\Actions\Action
+    /**
+     * Generate crop plans action for production orders.
+     * 
+     * Analyzes order requirements and creates detailed crop production plans
+     * based on delivery dates, variety requirements, and growing schedules.
+     * Integrates with agricultural planning service for optimal production timing.
+     * 
+     * @return Action Action for generating crop production plans
+     * @agricultural_process Order-to-production planning automation
+     * @business_logic Production schedule optimization, delivery date alignment
+     */
+    protected static function getGenerateCropPlansAction(): Action
     {
-        return Tables\Actions\Action::make('generate_crop_plans')
+        return Action::make('generate_crop_plans')
             ->label('Generate Crop Plans')
             ->icon('heroicon-o-sparkles')
             ->color('success')
@@ -191,9 +267,20 @@ class OrderActions
             });
     }
 
-    protected static function getConvertToInvoiceAction(): Tables\Actions\Action
+    /**
+     * Convert order to invoice action for billing workflow.
+     * 
+     * Creates formal invoice from completed or ready orders, transitioning
+     * from order management to accounts receivable. Handles agricultural
+     * business billing cycles and customer payment terms.
+     * 
+     * @return Action Action for creating invoice from order
+     * @business_process Order-to-billing workflow transition
+     * @financial_management Invoice creation, payment tracking
+     */
+    protected static function getConvertToInvoiceAction(): Action
     {
-        return Tables\Actions\Action::make('convert_to_invoice')
+        return Action::make('convert_to_invoice')
             ->label('Create Invoice')
             ->icon('heroicon-o-document-text')
             ->color('warning')
@@ -209,19 +296,19 @@ class OrderActions
             )
             ->action(function (Order $record) {
                 try {
-                    $invoice = \App\Models\Invoice::createFromOrder($record);
+                    $invoice = Invoice::createFromOrder($record);
                     
                     Notification::make()
                         ->title('Invoice Created')
                         ->body("Invoice #{$invoice->id} has been created successfully.")
                         ->success()
                         ->actions([
-                            \Filament\Notifications\Actions\Action::make('view')
+                            Action::make('view')
                                 ->label('View Invoice')
                                 ->url(route('filament.admin.resources.invoices.edit', ['record' => $invoice->id]))
                         ])
                         ->send();
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->title('Error Creating Invoice')
                         ->body('Failed to create invoice: ' . $e->getMessage())
@@ -231,9 +318,20 @@ class OrderActions
             });
     }
 
-    protected static function getConvertToRecurringAction(): Tables\Actions\Action
+    /**
+     * Convert order to recurring template action.
+     * 
+     * Transforms one-time order into recurring order template with configurable
+     * frequency and schedule. Supports agricultural business patterns of regular
+     * deliveries for restaurants and wholesale customers.
+     * 
+     * @return Action Action for converting to recurring order template
+     * @business_pattern Regular delivery automation for consistent customers
+     * @agricultural_context Predictable production planning for recurring needs
+     */
+    protected static function getConvertToRecurringAction(): Action
     {
-        return Tables\Actions\Action::make('convert_to_recurring')
+        return Action::make('convert_to_recurring')
             ->label('Convert to Recurring')
             ->icon('heroicon-o-arrow-path')
             ->color('primary')
@@ -244,10 +342,10 @@ class OrderActions
                 $record->customer &&
                 $record->orderItems()->count() > 0
             )
-            ->form([
-                Forms\Components\Section::make('Recurring Settings')
+            ->schema([
+                Section::make('Recurring Settings')
                     ->schema([
-                        Forms\Components\Select::make('frequency')
+                        Select::make('frequency')
                             ->label('Frequency')
                             ->options([
                                 'weekly' => 'Weekly',
@@ -258,7 +356,7 @@ class OrderActions
                             ->required()
                             ->reactive(),
                             
-                        Forms\Components\TextInput::make('interval')
+                        TextInput::make('interval')
                             ->label('Interval (weeks)')
                             ->helperText('For bi-weekly: enter 2 for every 2 weeks')
                             ->numeric()
@@ -267,13 +365,13 @@ class OrderActions
                             ->maxValue(12)
                             ->visible(fn (Get $get) => $get('frequency') === 'biweekly'),
                             
-                        Forms\Components\DatePicker::make('start_date')
+                        DatePicker::make('start_date')
                             ->label('Start Date')
                             ->default(now()->addWeek())
                             ->required()
                             ->minDate(now()),
                             
-                        Forms\Components\DatePicker::make('end_date')
+                        DatePicker::make('end_date')
                             ->label('End Date (Optional)')
                             ->helperText('Leave blank for indefinite recurring')
                             ->minDate(fn (Get $get) => $get('start_date')),
@@ -286,7 +384,7 @@ class OrderActions
             )
             ->action(function (Order $record, array $data) {
                 try {
-                    $recurringOrderService = app(\App\Services\RecurringOrderService::class);
+                    $recurringOrderService = app(RecurringOrderService::class);
                     $convertedOrder = $recurringOrderService->convertToRecurringTemplate($record, $data);
                     
                     Notification::make()
@@ -294,12 +392,12 @@ class OrderActions
                         ->body("Order #{$record->id} has been converted to a recurring template.")
                         ->success()
                         ->actions([
-                            \Filament\Notifications\Actions\Action::make('view')
+                            Action::make('view')
                                 ->label('View Template')
                                 ->url(route('filament.admin.resources.recurring-orders.edit', ['record' => $convertedOrder->id]))
                         ])
                         ->send();
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->title('Conversion Failed')
                         ->body('Failed to convert order to recurring: ' . $e->getMessage())
@@ -309,9 +407,20 @@ class OrderActions
             });
     }
 
-    protected static function getTransitionStatusAction(): Tables\Actions\Action
+    /**
+     * Order status transition action with business validation.
+     * 
+     * Manages order lifecycle transitions through valid status changes,
+     * enforcing agricultural business rules and workflow constraints.
+     * Provides audit trail for order progression tracking.
+     * 
+     * @return Action Action for managing order status transitions
+     * @workflow_management Order lifecycle progression with validation
+     * @business_rules Status transition constraints and audit logging
+     */
+    protected static function getTransitionStatusAction(): Action
     {
-        return Tables\Actions\Action::make('transition_status')
+        return Action::make('transition_status')
             ->label('Change Status')
             ->icon('heroicon-o-arrow-path')
             ->color('info')
@@ -319,25 +428,25 @@ class OrderActions
                 !$record->isInFinalState() && 
                 $record->status?->code !== 'template'
             )
-            ->form(function (Order $record) {
-                $validStatuses = app(\App\Services\StatusTransitionService::class)
+            ->schema(function (Order $record) {
+                $validStatuses = app(StatusTransitionService::class)
                     ->getValidNextStatuses($record);
                 
                 if ($validStatuses->isEmpty()) {
                     return [
-                        Forms\Components\Placeholder::make('no_transitions')
+                        Placeholder::make('no_transitions')
                             ->label('')
                             ->content('No valid status transitions available for this order.')
                     ];
                 }
                 
                 return [
-                    Forms\Components\Select::make('new_status')
+                    Select::make('new_status')
                         ->label('New Status')
                         ->options($validStatuses->pluck('name', 'code'))
                         ->required()
                         ->helperText('Select the new status for this order'),
-                    Forms\Components\Textarea::make('notes')
+                    Textarea::make('notes')
                         ->label('Notes')
                         ->placeholder('Optional notes about this status change')
                         ->rows(3),
@@ -366,9 +475,20 @@ class OrderActions
             });
     }
 
-    protected static function getCreateConsolidatedInvoiceAction(): Tables\Actions\BulkAction
+    /**
+     * Create consolidated invoice bulk action for wholesale billing.
+     * 
+     * Combines multiple orders from same customer into single invoice,
+     * streamlining billing for wholesale accounts with multiple deliveries.
+     * Validates order compatibility and customer billing preferences.
+     * 
+     * @return BulkAction Bulk action for consolidated invoice creation
+     * @business_process Wholesale billing efficiency, multi-order invoicing
+     * @customer_type Wholesale accounts with multiple concurrent orders
+     */
+    protected static function getCreateConsolidatedInvoiceAction(): BulkAction
     {
-        return Tables\Actions\BulkAction::make('create_consolidated_invoice')
+        return BulkAction::make('create_consolidated_invoice')
             ->label('Create Consolidated Invoice')
             ->icon('heroicon-o-document-text')
             ->color('warning')
@@ -376,15 +496,15 @@ class OrderActions
             ->modalHeading('Create Consolidated Invoice')
             ->modalDescription('This will create a single invoice for all selected orders.')
             ->form([
-                Forms\Components\DatePicker::make('issue_date')
+                DatePicker::make('issue_date')
                     ->label('Issue Date')
                     ->default(now())
                     ->required(),
-                Forms\Components\DatePicker::make('due_date')
+                DatePicker::make('due_date')
                     ->label('Due Date')
                     ->default(now()->addDays(30))
                     ->required(),
-                Forms\Components\Textarea::make('notes')
+                Textarea::make('notes')
                     ->label('Invoice Notes')
                     ->placeholder('Additional notes for the consolidated invoice...')
                     ->rows(3),
@@ -410,12 +530,12 @@ class OrderActions
                         ->body("Invoice #{$invoice->invoice_number} created for {$records->count()} orders totaling $" . number_format($invoice->total_amount, 2) . ".")
                         ->success()
                         ->actions([
-                            \Filament\Notifications\Actions\Action::make('view')
+                            Action::make('view')
                                 ->label('View Invoice')
                                 ->url(route('filament.admin.resources.invoices.edit', ['record' => $invoice->id]))
                         ])
                         ->send();
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->title('Error Creating Invoice')
                         ->body('Failed to create consolidated invoice: ' . $e->getMessage())
@@ -426,9 +546,20 @@ class OrderActions
             ->deselectRecordsAfterCompletion();
     }
 
-    protected static function getBulkStatusUpdateAction(): Tables\Actions\BulkAction
+    /**
+     * Bulk status update action for efficient order processing.
+     * 
+     * Updates multiple orders to same status simultaneously with business
+     * validation and transition rules. Supports batch processing of order
+     * lifecycle changes for operational efficiency.
+     * 
+     * @return BulkAction Bulk action for status updates
+     * @operational_efficiency Batch order processing, status synchronization
+     * @workflow_management Bulk lifecycle transitions with validation
+     */
+    protected static function getBulkStatusUpdateAction(): BulkAction
     {
-        return Tables\Actions\BulkAction::make('bulk_status_update')
+        return BulkAction::make('bulk_status_update')
             ->label('Update Status')
             ->icon('heroicon-o-arrow-path')
             ->color('info')
@@ -452,7 +583,7 @@ class OrderActions
                        (!empty($warnings) ? "\n\nWarnings:\n" . implode("\n", $warnings) : '');
             })
             ->form([
-                Forms\Components\Select::make('new_status')
+                Select::make('new_status')
                     ->label('New Status')
                     ->options(OrderStatus::active()
                         ->notFinal()
@@ -460,13 +591,13 @@ class OrderActions
                         ->pluck('name', 'code'))
                     ->required()
                     ->helperText('Select the new status for all eligible orders'),
-                Forms\Components\Textarea::make('notes')
+                Textarea::make('notes')
                     ->label('Notes')
                     ->placeholder('Optional notes about this bulk status change')
                     ->rows(3),
             ])
             ->action(function (Collection $records, array $data) {
-                $statusService = app(\App\Services\StatusTransitionService::class);
+                $statusService = app(StatusTransitionService::class);
                 
                 $eligibleOrders = $records->filter(function ($order) {
                     return !$order->isInFinalState() && 
@@ -514,7 +645,16 @@ class OrderActions
     }
 
     /**
-     * Validate that orders can be consolidated into a single invoice
+     * Validate orders for consolidated invoice creation.
+     * 
+     * Performs comprehensive validation to ensure selected orders can be
+     * legally and logically combined into single consolidated invoice.
+     * Checks customer matching, invoice requirements, and order states.
+     * 
+     * @param Collection $orders Orders to validate for consolidation
+     * @return array Array of validation error messages, empty if valid
+     * @business_validation Customer matching, billing requirements
+     * @financial_rules Invoice consolidation business constraints
      */
     protected static function validateOrdersForConsolidation(Collection $orders): array
     {
@@ -550,21 +690,31 @@ class OrderActions
     }
 
     /**
-     * Create a consolidated invoice from multiple orders
+     * Create consolidated invoice from validated order collection.
+     * 
+     * Generates single invoice combining multiple orders with proper
+     * billing period calculation, amount aggregation, and order linking.
+     * Handles agricultural business billing cycles and payment terms.
+     * 
+     * @param Collection $orders Validated orders for consolidation
+     * @param array $data Invoice configuration data (dates, notes)
+     * @return Invoice Created consolidated invoice with linked orders
+     * @business_process Multi-order billing consolidation
+     * @financial_management Invoice generation, order relationship tracking
      */
-    protected static function createConsolidatedInvoice(Collection $orders, array $data): \App\Models\Invoice
+    protected static function createConsolidatedInvoice(Collection $orders, array $data): Invoice
     {
         $totalAmount = $orders->sum(function ($order) {
             return $order->totalAmount();
         });
 
-        $deliveryDates = $orders->pluck('delivery_date')->map(fn($date) => \Carbon\Carbon::parse($date))->sort();
+        $deliveryDates = $orders->pluck('delivery_date')->map(fn($date) => Carbon::parse($date))->sort();
         $billingPeriodStart = $deliveryDates->first()->startOfMonth();
         $billingPeriodEnd = $deliveryDates->last()->endOfMonth();
 
-        $invoiceNumber = \App\Models\Invoice::generateInvoiceNumber();
+        $invoiceNumber = Invoice::generateInvoiceNumber();
 
-        $invoice = \App\Models\Invoice::create([
+        $invoice = Invoice::create([
             'user_id' => $orders->first()->user_id,
             'invoice_number' => $invoiceNumber,
             'amount' => $totalAmount,

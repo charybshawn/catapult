@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -58,12 +59,12 @@ class FixBackupViews extends Command
                         $this->line('   View definition exists and is accessible from Laravel');
                         $this->line('   Issue is likely mysqldump permissions or view definer');
                     }
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     $this->error('   View definition error: ' . $e->getMessage());
                 }
             }
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error('Error checking views: ' . $e->getMessage());
             return 1;
         }

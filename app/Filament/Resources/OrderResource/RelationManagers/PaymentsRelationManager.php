@@ -2,8 +2,21 @@
 
 namespace App\Filament\Resources\OrderResource\RelationManagers;
 
+use Filament\Schemas\Schema;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Forms\Components\Textarea;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Actions\CreateAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\Action;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
 use Filament\Forms;
-use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -16,15 +29,15 @@ class PaymentsRelationManager extends RelationManager
 
     protected static ?string $recordTitleAttribute = 'id';
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\TextInput::make('amount')
+        return $schema
+            ->components([
+                TextInput::make('amount')
                     ->required()
                     ->numeric()
                     ->prefix('$'),
-                Forms\Components\Select::make('method')
+                Select::make('method')
                     ->options([
                         'stripe' => 'Stripe',
                         'cash' => 'Cash',
@@ -33,7 +46,7 @@ class PaymentsRelationManager extends RelationManager
                         'other' => 'Other',
                     ])
                     ->required(),
-                Forms\Components\Select::make('status')
+                Select::make('status')
                     ->options([
                         'pending' => 'Pending',
                         'completed' => 'Completed',
@@ -42,16 +55,16 @@ class PaymentsRelationManager extends RelationManager
                     ])
                     ->default('pending')
                     ->required(),
-                Forms\Components\TextInput::make('transaction_id')
+                TextInput::make('transaction_id')
                     ->label('Transaction ID')
                     ->maxLength(255),
-                Forms\Components\DateTimePicker::make('paid_at')
+                DateTimePicker::make('paid_at')
                     ->label('Paid At')
                     ->default(function (string $operation) {
                         return $operation === 'create' && $this->data['status'] === 'completed' ? now() : null;
                     })
-                    ->visible(fn (Forms\Get $get) => $get('status') === 'completed'),
-                Forms\Components\Textarea::make('notes')
+                    ->visible(fn (Get $get) => $get('status') === 'completed'),
+                Textarea::make('notes')
                     ->rows(2),
             ]);
     }
@@ -60,10 +73,10 @@ class PaymentsRelationManager extends RelationManager
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('amount')
+                TextColumn::make('amount')
                     ->money('USD')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('method')
+                TextColumn::make('method')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         'stripe' => 'success',
@@ -72,7 +85,7 @@ class PaymentsRelationManager extends RelationManager
                         'invoice' => 'primary',
                         default => 'gray',
                     }),
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         'pending' => 'warning',
@@ -81,25 +94,25 @@ class PaymentsRelationManager extends RelationManager
                         'refunded' => 'info',
                         default => 'gray',
                     }),
-                Tables\Columns\TextColumn::make('transaction_id')
+                TextColumn::make('transaction_id')
                     ->label('Transaction ID')
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('paid_at')
+                TextColumn::make('paid_at')
                     ->dateTime()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->dateTime()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options([
                         'pending' => 'Pending',
                         'completed' => 'Completed',
                         'failed' => 'Failed',
                         'refunded' => 'Refunded',
                     ]),
-                Tables\Filters\SelectFilter::make('method')
+                SelectFilter::make('method')
                     ->options([
                         'stripe' => 'Stripe',
                         'cash' => 'Cash',
@@ -109,8 +122,8 @@ class PaymentsRelationManager extends RelationManager
                     ]),
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make()
-                    ->mutateFormDataUsing(function (array $data): array {
+                CreateAction::make()
+                    ->mutateDataUsing(function (array $data): array {
                         if ($data['status'] === 'completed' && empty($data['paid_at'])) {
                             $data['paid_at'] = now();
                         }
@@ -118,10 +131,10 @@ class PaymentsRelationManager extends RelationManager
                         return $data;
                     }),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
-                Tables\Actions\Action::make('mark_completed')
+            ->recordActions([
+                EditAction::make(),
+                DeleteAction::make(),
+                Action::make('mark_completed')
                     ->label('Mark as Completed')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
@@ -129,7 +142,7 @@ class PaymentsRelationManager extends RelationManager
                         $record->markAsCompleted();
                     })
                     ->visible(fn ($record) => $record->status === 'pending'),
-                Tables\Actions\Action::make('mark_failed')
+                Action::make('mark_failed')
                     ->label('Mark as Failed')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
@@ -137,7 +150,7 @@ class PaymentsRelationManager extends RelationManager
                         $record->markAsFailed();
                     })
                     ->visible(fn ($record) => $record->status === 'pending'),
-                Tables\Actions\Action::make('mark_refunded')
+                Action::make('mark_refunded')
                     ->label('Mark as Refunded')
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('info')
@@ -146,9 +159,9 @@ class PaymentsRelationManager extends RelationManager
                     })
                     ->visible(fn ($record) => $record->status === 'completed'),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

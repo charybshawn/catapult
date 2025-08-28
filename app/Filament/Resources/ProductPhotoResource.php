@@ -2,11 +2,27 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Schemas\Schema;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\ImageColumn;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use App\Filament\Resources\ProductPhotoResource\Pages\ListProductPhotos;
+use App\Filament\Resources\ProductPhotoResource\Pages\CreateProductPhoto;
+use App\Filament\Resources\ProductPhotoResource\Pages\EditProductPhoto;
 use App\Filament\Resources\ProductPhotoResource\Pages;
 use App\Filament\Resources\ProductPhotoResource\RelationManagers;
 use App\Models\ItemPhoto;
 use Filament\Forms;
-use Filament\Forms\Form;
 use App\Filament\Resources\Base\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -17,9 +33,9 @@ class ProductPhotoResource extends BaseResource
 {
     protected static ?string $model = ItemPhoto::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-photo';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-photo';
     
-    protected static ?string $navigationGroup = 'Products & Inventory';
+    protected static string | \UnitEnum | null $navigationGroup = 'Products & Inventory';
     
     protected static ?int $navigationSort = 4;
     
@@ -27,28 +43,28 @@ class ProductPhotoResource extends BaseResource
     
     protected static bool $shouldRegisterNavigation = false;
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Select::make('item_id')
+        return $schema
+            ->components([
+                Select::make('item_id')
                     ->relationship('item', 'name')
                     ->required()
                     ->searchable()
                     ->preload(),
-                Forms\Components\FileUpload::make('photo')
+                FileUpload::make('photo')
                     ->required()
                     ->image()
                     ->directory('item-photos')
                     ->maxSize(5120)
                     ->imageResizeTargetWidth('1200')
                     ->imageResizeTargetHeight('1200'),
-                Forms\Components\TextInput::make('caption')
+                TextInput::make('caption')
                     ->maxLength(255),
-                Forms\Components\TextInput::make('order')
+                TextInput::make('order')
                     ->numeric()
                     ->default(0),
-                Forms\Components\Toggle::make('is_default')
+                Toggle::make('is_default')
                     ->label('Default Photo')
                     ->helperText('This will be shown as the main product image')
                     ->reactive()
@@ -73,47 +89,47 @@ class ProductPhotoResource extends BaseResource
             ->persistSortInSession()
             ->persistColumnSearchesInSession()
             ->persistSearchInSession()            ->columns([
-                Tables\Columns\TextColumn::make('item.name')
+                TextColumn::make('item.name')
                     ->label('Product')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\ImageColumn::make('photo')
+                ImageColumn::make('photo')
                     ->width(100)
                     ->height(100),
-                Tables\Columns\TextColumn::make('caption')
+                TextColumn::make('caption')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('order')
+                TextColumn::make('order')
                     ->sortable(),
-                Tables\Columns\IconColumn::make('is_default')
+                IconColumn::make('is_default')
                     ->label('Default')
                     ->boolean()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('item')
+                SelectFilter::make('item')
                     ->relationship('item', 'name')
                     ->searchable()
                     ->preload(),
-                Tables\Filters\TernaryFilter::make('is_default')
+                TernaryFilter::make('is_default')
                     ->label('Default Photo'),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make()
+            ->recordActions([
+                EditAction::make()
                     ->tooltip('Edit photo'),
-                Tables\Actions\DeleteAction::make()
+                DeleteAction::make()
                     ->tooltip('Delete photo'),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }
@@ -128,9 +144,9 @@ class ProductPhotoResource extends BaseResource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListProductPhotos::route('/'),
-            'create' => Pages\CreateProductPhoto::route('/create'),
-            'edit' => Pages\EditProductPhoto::route('/{record}/edit'),
+            'index' => ListProductPhotos::route('/'),
+            'create' => CreateProductPhoto::route('/create'),
+            'edit' => EditProductPhoto::route('/{record}/edit'),
         ];
     }
 } 

@@ -2,6 +2,11 @@
 
 namespace App\Filament\Resources\ScheduledTaskResource\Pages;
 
+use Illuminate\Database\Eloquent\Builder;
+use App\Models\ScheduledTask;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Contracts\Pagination\Paginator;
+use Illuminate\Contracts\Pagination\CursorPaginator;
 use App\Filament\Resources\ScheduledTaskResource;
 use Filament\Resources\Pages\ListRecords;
 
@@ -16,18 +21,18 @@ class ListScheduledTasks extends ListRecords
         ];
     }
     
-    protected function getTableQuery(): \Illuminate\Database\Eloquent\Builder
+    protected function getTableQuery(): Builder
     {
         // Create a minimal builder that won't actually query the database
-        $model = new \App\Models\ScheduledTask();
+        $model = new ScheduledTask();
         return $model->newQuery();
     }
     
-    public function getTableRecords(): \Illuminate\Database\Eloquent\Collection|\Illuminate\Contracts\Pagination\Paginator|\Illuminate\Contracts\Pagination\CursorPaginator
+    public function getTableRecords(): Collection|Paginator|CursorPaginator
     {
-        $tasks = \App\Models\ScheduledTask::getScheduledTasks();
+        $tasks = ScheduledTask::getScheduledTasks();
         
         // Convert to Eloquent Collection to match expected return type
-        return new \Illuminate\Database\Eloquent\Collection($tasks);
+        return new Collection($tasks);
     }
 }

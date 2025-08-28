@@ -2,9 +2,16 @@
 
 namespace App\Filament\Pages;
 
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\ColorPicker;
+use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\Placeholder;
 use App\Models\Setting;
 use Filament\Forms;
-use Filament\Forms\Form;
 use Filament\Pages\Page;
 use Filament\Actions\Action;
 use Filament\Support\Exceptions\Halt;
@@ -12,11 +19,11 @@ use Filament\Notifications\Notification;
 
 class SystemSettings extends Page
 {
-    protected static ?string $navigationIcon = 'heroicon-o-cog-6-tooth';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-cog-6-tooth';
     protected static ?string $navigationLabel = 'Settings';
-    protected static ?string $navigationGroup = 'System';
+    protected static string | \UnitEnum | null $navigationGroup = 'System';
     protected static ?int $navigationSort = 1;
-    protected static string $view = 'filament.pages.system-settings';
+    protected string $view = 'filament.pages.system-settings';
 
     public ?array $data = [];
 
@@ -29,44 +36,44 @@ class SystemSettings extends Page
         ]);
     }
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Tabs::make('Settings')
+        return $schema
+            ->components([
+                Tabs::make('Settings')
                     ->tabs([
-                        Forms\Components\Tabs\Tab::make('General Settings')
+                        Tab::make('General Settings')
                             ->icon('heroicon-o-cog')
                             ->schema([
-                                Forms\Components\TextInput::make('site_name')
+                                TextInput::make('site_name')
                                     ->label('Site Name')
                                     ->required(),
-                                Forms\Components\ColorPicker::make('primary_color')
+                                ColorPicker::make('primary_color')
                                     ->label('Primary Color')
                                     ->required(),
                             ]),
                         
-                        Forms\Components\Tabs\Tab::make('Database & Backup')
+                        Tab::make('Database & Backup')
                             ->icon('heroicon-o-circle-stack')
                             ->schema([
-                                Forms\Components\Section::make('Automatic Backup Settings')
+                                Section::make('Automatic Backup Settings')
                                     ->description('Configure when the system should automatically create database backups for data protection')
                                     ->schema([
-                                        Forms\Components\Toggle::make('auto_backup_before_cascade_delete')
+                                        Toggle::make('auto_backup_before_cascade_delete')
                                             ->label('Auto Backup Before Cascading Deletes')
                                             ->helperText('Automatically create a database backup before performing operations that cascade delete related data (customers, orders, products, etc.). This provides data protection in case of accidental deletions.')
                                             ->inline(false),
                                     ]),
-                                Forms\Components\Section::make('Protected Models Information')
+                                Section::make('Protected Models Information')
                                     ->description('Information about which models are protected by automatic backups')
                                     ->schema([
-                                        Forms\Components\Placeholder::make('critical_models')
+                                        Placeholder::make('critical_models')
                                             ->label('Critical Models (High Risk)')
                                             ->content('Users (Customers), Orders, Products, Suppliers - These have the most extensive cascading relationships'),
-                                        Forms\Components\Placeholder::make('important_models')
+                                        Placeholder::make('important_models')
                                             ->label('Important Models (Medium Risk)')
                                             ->content('Recipes, Time Cards, Master Seed Catalog, Product Mix, Packaging Types'),
-                                        Forms\Components\Placeholder::make('backup_location')
+                                        Placeholder::make('backup_location')
                                             ->label('Backup Storage')
                                             ->content('Backup files are stored in storage/app/backups/database/ and can be managed via the Database Management page.')
                                             ->helperText('Backup files are named: cascade_delete_[model]_[id]_[timestamp].sql'),

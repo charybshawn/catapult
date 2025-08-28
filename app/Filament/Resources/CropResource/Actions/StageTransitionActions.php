@@ -2,6 +2,13 @@
 
 namespace App\Filament\Resources\CropResource\Actions;
 
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\TextInput;
+use Illuminate\Validation\ValidationException;
+use Exception;
+use Filament\Forms\Components\Textarea;
+use App\Models\CropBatchListView;
 use App\Models\Crop;
 use App\Models\CropStage;
 use App\Services\CropTaskManagementService;
@@ -47,12 +54,12 @@ class StageTransitionActions
                 }
                 return 'This will update the current stage of all crops in this batch.';
             })
-            ->form(function ($record): array {
+            ->schema(function ($record): array {
                 $currentStage = CropStageCache::find($record->current_stage_id);
                 $isSoaking = $currentStage?->code === 'soaking';
                 
                 $formElements = [
-                    Forms\Components\DateTimePicker::make('advancement_timestamp')
+                    DateTimePicker::make('advancement_timestamp')
                         ->label('When did this advancement occur?')
                         ->default(now())
                         ->seconds(false)
@@ -66,12 +73,12 @@ class StageTransitionActions
                     $crops = self::getCropsForRecord($record);
                     
                     if ($crops->count() > 0) {
-                        $formElements[] = Forms\Components\Section::make('Assign Real Tray Numbers')
+                        $formElements[] = Section::make('Assign Real Tray Numbers')
                             ->description('Replace the temporary SOAKING-X identifiers with actual tray numbers. Each tray in the batch needs a unique identifier.')
                             ->schema(function() use ($crops) {
                                 $fields = [];
                                 foreach ($crops as $index => $crop) {
-                                    $fields[] = Forms\Components\TextInput::make("tray_numbers.{$crop->id}")
+                                    $fields[] = TextInput::make("tray_numbers.{$crop->id}")
                                         ->label("Tray currently labeled as: {$crop->tray_number}")
                                         ->placeholder('Enter real tray number')
                                         ->required()
@@ -159,13 +166,13 @@ class StageTransitionActions
                             ->send();
                     }
                     
-                } catch (\Illuminate\Validation\ValidationException $e) {
+                } catch (ValidationException $e) {
                     Notification::make()
                         ->title('Validation Failed')
                         ->body($e->validator->errors()->first())
                         ->danger()
                         ->send();
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->title('Error')
                         ->body('Failed to advance stage: ' . $e->getMessage())
@@ -200,8 +207,8 @@ class StageTransitionActions
                 return 'Rollback to ' . ucfirst($previousStage?->name ?? 'Unknown') . '?';
             })
             ->modalDescription('This will revert all crops in this batch to the previous stage. Current stage timestamps will be cleared.')
-            ->form([
-                Forms\Components\Textarea::make('reason')
+            ->schema([
+                Textarea::make('reason')
                     ->label('Reason for rollback (optional)')
                     ->placeholder('Explain why this rollback is necessary...')
                     ->rows(3)
@@ -271,13 +278,13 @@ class StageTransitionActions
                             ->send();
                     }
                     
-                } catch (\Illuminate\Validation\ValidationException $e) {
+                } catch (ValidationException $e) {
                     Notification::make()
                         ->title('Validation Failed')
                         ->body($e->validator->errors()->first())
                         ->danger()
                         ->send();
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->title('Error')
                         ->body('Failed to rollback stage: ' . $e->getMessage())
@@ -303,8 +310,8 @@ class StageTransitionActions
             ->requiresConfirmation()
             ->modalHeading('Harvest Crop?')
             ->modalDescription('This will mark all crops in this batch as harvested.')
-            ->form([
-                Forms\Components\DateTimePicker::make('harvest_timestamp')
+            ->schema([
+                DateTimePicker::make('harvest_timestamp')
                     ->label('When was this harvested?')
                     ->default(now())
                     ->seconds(false)
@@ -340,7 +347,7 @@ class StageTransitionActions
                             ->send();
                     }
                     
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->title('Error')
                         ->body('Failed to harvest batch: ' . $e->getMessage())
@@ -356,7 +363,7 @@ class StageTransitionActions
     private static function getCropsForRecord($record)
     {
         // If this is a CropBatchListView, use its ID as the crop_batch_id
-        if ($record instanceof \App\Models\CropBatchListView) {
+        if ($record instanceof CropBatchListView) {
             return Crop::where('crop_batch_id', $record->id)
                 ->with(['recipe', 'currentStage'])
                 ->get();

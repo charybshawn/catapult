@@ -2,9 +2,20 @@
 
 namespace App\Filament\Resources\OrderResource\RelationManagers;
 
+use Filament\Schemas\Schema;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Grid;
+use Filament\Forms\Components\Textarea;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Actions\CreateAction;
+use Filament\Actions\Action;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
 use App\Models\PackagingType;
 use Filament\Forms;
-use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -17,11 +28,11 @@ class OrderPackagingsRelationManager extends RelationManager
     
     protected static ?string $title = 'Packaging';
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Select::make('packaging_type_id')
+        return $schema
+            ->components([
+                Select::make('packaging_type_id')
                     ->label('Packaging Type')
                     ->options(PackagingType::where('is_active', true)->pluck('display_name', 'id'))
                     ->required()
@@ -39,7 +50,7 @@ class OrderPackagingsRelationManager extends RelationManager
                         }
                     }),
                     
-                Forms\Components\TextInput::make('quantity')
+                TextInput::make('quantity')
                     ->required()
                     ->numeric()
                     ->default(1)
@@ -54,39 +65,39 @@ class OrderPackagingsRelationManager extends RelationManager
                         $set('total_volume', number_format($quantity * $capacityVolume, 2));
                     }),
                     
-                Forms\Components\Grid::make()
+                Grid::make()
                     ->schema([
-                        Forms\Components\TextInput::make('capacity_volume')
+                        TextInput::make('capacity_volume')
                             ->label('Volume Per Unit')
                             ->disabled()
                             ->dehydrated(false),
                             
-                        Forms\Components\TextInput::make('volume_unit')
+                        TextInput::make('volume_unit')
                             ->label('Unit')
                             ->disabled()
                             ->dehydrated(false),
                     ])
                     ->columns(2),
                     
-                Forms\Components\TextInput::make('cost_per_unit')
+                TextInput::make('cost_per_unit')
                     ->label('Cost Per Unit ($)')
                     ->disabled()
                     ->dehydrated(false)
                     ->prefix('$'),
                     
-                Forms\Components\TextInput::make('total_cost')
+                TextInput::make('total_cost')
                     ->label('Total Cost ($)')
                     ->disabled()
                     ->dehydrated(false)
                     ->prefix('$'),
                     
-                Forms\Components\TextInput::make('total_volume')
+                TextInput::make('total_volume')
                     ->label('Total Volume')
                     ->disabled()
                     ->dehydrated(false)
                     ->suffix(fn ($get) => $get('volume_unit')),
                     
-                Forms\Components\Textarea::make('notes')
+                Textarea::make('notes')
                     ->maxLength(500),
             ]);
     }
@@ -96,34 +107,34 @@ class OrderPackagingsRelationManager extends RelationManager
         return $table
             ->recordTitleAttribute('id')
             ->columns([
-                Tables\Columns\TextColumn::make('packagingType.display_name')
+                TextColumn::make('packagingType.display_name')
                     ->label('Packaging Type')
                     ->searchable()
                     ->sortable(),
                     
-                Tables\Columns\TextColumn::make('quantity')
+                TextColumn::make('quantity')
                     ->label('Quantity')
                     ->sortable(),
                     
-                Tables\Columns\TextColumn::make('volume_info')
+                TextColumn::make('volume_info')
                     ->label('Volume')
                     ->getStateUsing(function ($record) {
                         return $record->packagingType->capacity_volume . ' ' . $record->packagingType->volume_unit;
                     }),
                     
-                Tables\Columns\TextColumn::make('total_volume')
+                TextColumn::make('total_volume')
                     ->label('Total Volume')
                     ->getStateUsing(function ($record) {
                         return number_format($record->quantity * $record->packagingType->capacity_volume, 2) . ' ' . 
                             $record->packagingType->volume_unit;
                     }),
                     
-                Tables\Columns\TextColumn::make('packagingType.cost_per_unit')
+                TextColumn::make('packagingType.cost_per_unit')
                     ->label('Unit Cost')
                     ->money('USD')
                     ->sortable(),
                     
-                Tables\Columns\TextColumn::make('getTotalCostAttribute')
+                TextColumn::make('getTotalCostAttribute')
                     ->label('Total Cost')
                     ->money('USD')
                     ->getStateUsing(fn ($record) => $record->getTotalCostAttribute()),
@@ -132,14 +143,14 @@ class OrderPackagingsRelationManager extends RelationManager
                 //
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make()
-                    ->mutateFormDataUsing(function (array $data): array {
+                CreateAction::make()
+                    ->mutateDataUsing(function (array $data): array {
                         // Remove calculated fields that don't exist in the database
                         unset($data['total_cost'], $data['total_volume']);
                         return $data;
                     }),
                     
-                Tables\Actions\Action::make('autoAssignPackaging')
+                Action::make('autoAssignPackaging')
                     ->label('Auto Assign Packaging')
                     ->icon('heroicon-o-cube')
                     ->color('primary')
@@ -152,18 +163,18 @@ class OrderPackagingsRelationManager extends RelationManager
                     ->modalDescription('This will assign packaging based on the order items. Any existing packaging assignments will be removed.')
                     ->modalSubmitActionLabel('Yes, assign packaging'),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make()
-                    ->mutateFormDataUsing(function (array $data): array {
+            ->recordActions([
+                EditAction::make()
+                    ->mutateDataUsing(function (array $data): array {
                         // Remove calculated fields that don't exist in the database
                         unset($data['total_cost'], $data['total_volume']);
                         return $data;
                     }),
-                Tables\Actions\DeleteAction::make(),
+                DeleteAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

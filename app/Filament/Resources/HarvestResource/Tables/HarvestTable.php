@@ -2,16 +2,55 @@
 
 namespace App\Filament\Resources\HarvestResource\Tables;
 
+use Filament\Actions\ActionGroup;
+use Filament\Actions\ViewAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Tables\Grouping\Group;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\Summarizers\Sum;
+use Filament\Tables\Columns\Summarizers\Average;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\Filter;
+use Filament\Forms\Components\DatePicker;
 use App\Models\Harvest;
 use App\Models\MasterCultivar;
 use Filament\Forms;
 use Filament\Tables;
 use Illuminate\Database\Eloquent\Builder;
 
+/**
+ * Filament table component builder for agricultural harvest data display.
+ *
+ * Provides comprehensive table configuration for harvest record display with
+ * advanced sorting, filtering, and grouping capabilities. Includes agricultural
+ * business context with cultivar-based filtering, weight summarization, and
+ * complex join operations for optimal performance. Supports harvest analytics
+ * and production reporting workflows.
+ *
+ * @filament_table
+ * @business_domain Agricultural harvest data presentation and analytics
+ * @related_models Harvest, MasterCultivar, MasterSeedCatalog, User
+ * @workflow_support Harvest reporting, production analytics, cultivar performance tracking
+ * @performance_optimization Includes join query optimizations and eager loading strategies
+ * @author Catapult Development Team
+ * @since Laravel 12.x + Filament v4
+ */
 class HarvestTable
 {
     /**
-     * Returns Filament table columns for Harvest resources
+     * Generate comprehensive table column configuration for harvest data display.
+     *
+     * Creates complete column set including harvest date, cultivar information,
+     * weight metrics with summarizers, tray counts, and user attribution.
+     * Optimized for agricultural production analytics and harvest performance tracking.
+     *
+     * @return array Complete Filament table columns array with agricultural context
+     * @filament_method Primary table columns generator
+     * @agricultural_metrics Weight totals, tray counts, average calculations with summarizers
+     * @business_context Cultivar tracking, user attribution, harvest date organization
      */
     public static function columns(): array
     {
@@ -27,7 +66,16 @@ class HarvestTable
     }
 
     /**
-     * Returns Filament table filters
+     * Generate table filtering options for harvest data analysis.
+     *
+     * Provides cultivar-based filtering and date range selection for harvest
+     * data analysis. Supports agricultural reporting requirements with business
+     * context filtering for production analytics and quality control.
+     *
+     * @return array Filament table filters array with agricultural business context
+     * @filament_method Table filtering configuration
+     * @agricultural_filters Cultivar selection, harvest date ranges for production analysis
+     * @business_intelligence Supports harvest performance tracking and variety comparison
      */
     public static function filters(): array
     {
@@ -38,15 +86,24 @@ class HarvestTable
     }
 
     /**
-     * Returns Filament table actions
+     * Generate table row actions for harvest record management.
+     *
+     * Creates action group with view, edit, and delete capabilities for individual
+     * harvest records. Provides comprehensive harvest data management with agricultural
+     * business context and user-friendly action organization.
+     *
+     * @return array Filament table actions array with grouped operations
+     * @filament_method Row-level actions configuration
+     * @crud_operations View, edit, delete actions for harvest record management
+     * @ui_optimization Grouped actions with tooltips for better user experience
      */
     public static function actions(): array
     {
         return [
-            Tables\Actions\ActionGroup::make([
-                Tables\Actions\ViewAction::make()->tooltip('View record'),
-                Tables\Actions\EditAction::make()->tooltip('Edit record'),
-                Tables\Actions\DeleteAction::make()->tooltip('Delete record'),
+            ActionGroup::make([
+                ViewAction::make()->tooltip('View record'),
+                EditAction::make()->tooltip('Edit record'),
+                DeleteAction::make()->tooltip('Delete record'),
             ])
             ->label('Actions')
             ->icon('heroicon-m-ellipsis-vertical')
@@ -62,8 +119,8 @@ class HarvestTable
     public static function bulkActions(): array
     {
         return [
-            Tables\Actions\BulkActionGroup::make([
-                Tables\Actions\DeleteBulkAction::make(),
+            BulkActionGroup::make([
+                DeleteBulkAction::make(),
             ]),
         ];
     }
@@ -74,11 +131,11 @@ class HarvestTable
     public static function groups(): array
     {
         return [
-            Tables\Grouping\Group::make('harvest_date')
+            Group::make('harvest_date')
                 ->label('Date Only')
                 ->date()
                 ->collapsible(),
-            Tables\Grouping\Group::make('master_cultivar_id')
+            Group::make('master_cultivar_id')
                 ->label('Variety Only')
                 ->getTitleFromRecordUsing(fn (Harvest $record): string => $record->masterCultivar->full_name)
                 ->orderQueryUsing(function (Builder $query, string $direction) {
@@ -103,9 +160,9 @@ class HarvestTable
     /**
      * Harvest date column
      */
-    protected static function getHarvestDateColumn(): Tables\Columns\TextColumn
+    protected static function getHarvestDateColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('harvest_date')
+        return TextColumn::make('harvest_date')
             ->label('Date')
             ->date('M j, Y')
             ->sortable();
@@ -114,9 +171,9 @@ class HarvestTable
     /**
      * Cultivar column with complex search and sort logic
      */
-    protected static function getCultivarColumn(): Tables\Columns\TextColumn
+    protected static function getCultivarColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('masterCultivar.full_name')
+        return TextColumn::make('masterCultivar.full_name')
             ->label('Variety')
             ->searchable(query: function (Builder $query, string $search): Builder {
                 return $query->whereHas('masterCultivar', function (Builder $query) use ($search) {
@@ -136,15 +193,15 @@ class HarvestTable
     /**
      * Total weight column with summarizer
      */
-    protected static function getTotalWeightColumn(): Tables\Columns\TextColumn
+    protected static function getTotalWeightColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('total_weight_grams')
+        return TextColumn::make('total_weight_grams')
             ->label('Total Weight')
             ->suffix(' g')
             ->numeric(1)
             ->sortable()
             ->summarize([
-                Tables\Columns\Summarizers\Sum::make()
+                Sum::make()
                     ->label('Total')
                     ->numeric(1)
                     ->suffix(' g'),
@@ -154,14 +211,14 @@ class HarvestTable
     /**
      * Tray count column with summarizer
      */
-    protected static function getTrayCountColumn(): Tables\Columns\TextColumn
+    protected static function getTrayCountColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('tray_count')
+        return TextColumn::make('tray_count')
             ->label('Trays')
             ->numeric()
             ->sortable()
             ->summarize([
-                Tables\Columns\Summarizers\Sum::make()
+                Sum::make()
                     ->label('Total'),
             ]);
     }
@@ -169,15 +226,15 @@ class HarvestTable
     /**
      * Average weight per tray column with summarizer
      */
-    protected static function getAverageWeightColumn(): Tables\Columns\TextColumn
+    protected static function getAverageWeightColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('average_weight_per_tray')
+        return TextColumn::make('average_weight_per_tray')
             ->label('Avg/Tray')
             ->suffix(' g')
             ->numeric(1)
             ->sortable()
             ->summarize([
-                Tables\Columns\Summarizers\Average::make()
+                Average::make()
                     ->label('Average')
                     ->numeric(1)
                     ->suffix(' g'),
@@ -187,9 +244,9 @@ class HarvestTable
     /**
      * Harvested by user column
      */
-    protected static function getHarvestedByColumn(): Tables\Columns\TextColumn
+    protected static function getHarvestedByColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('user.name')
+        return TextColumn::make('user.name')
             ->label('Harvested By')
             ->searchable()
             ->toggleable();
@@ -198,9 +255,9 @@ class HarvestTable
     /**
      * Created at timestamp column
      */
-    protected static function getCreatedAtColumn(): Tables\Columns\TextColumn
+    protected static function getCreatedAtColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('created_at')
+        return TextColumn::make('created_at')
             ->dateTime()
             ->sortable()
             ->toggleable(isToggledHiddenByDefault: true);
@@ -209,9 +266,9 @@ class HarvestTable
     /**
      * Cultivar filter for variety selection
      */
-    protected static function getCultivarFilter(): Tables\Filters\SelectFilter
+    protected static function getCultivarFilter(): SelectFilter
     {
-        return Tables\Filters\SelectFilter::make('master_cultivar_id')
+        return SelectFilter::make('master_cultivar_id')
             ->label('Variety')
             ->options(function () {
                 return MasterCultivar::with('masterSeedCatalog')
@@ -227,13 +284,13 @@ class HarvestTable
     /**
      * Date range filter for harvest dates
      */
-    protected static function getDateRangeFilter(): Tables\Filters\Filter
+    protected static function getDateRangeFilter(): Filter
     {
-        return Tables\Filters\Filter::make('harvest_date')
-            ->form([
-                Forms\Components\DatePicker::make('from')
+        return Filter::make('harvest_date')
+            ->schema([
+                DatePicker::make('from')
                     ->label('From Date'),
-                Forms\Components\DatePicker::make('until')
+                DatePicker::make('until')
                     ->label('Until Date'),
             ])
             ->query(function (Builder $query, array $data): Builder {

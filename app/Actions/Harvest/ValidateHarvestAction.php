@@ -8,16 +8,49 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Business logic for validating harvest data before creation
+ * Validates comprehensive harvest data for agricultural operations.
+ * 
+ * Provides multi-layered validation for microgreens harvest operations including
+ * basic data validation, business rule enforcement, crop-cultivar relationship
+ * validation, harvest eligibility verification, and data consistency checks.
+ * Ensures harvest data integrity before database operations.
+ * 
+ * @business_domain Agricultural Microgreens Harvest Data Validation
+ * @validation_layers Basic validation, business rules, relationship validation, data consistency
+ * @harvest_integrity Comprehensive data validation for harvest operations
+ * 
+ * @author Catapult System
+ * @since 1.0.0
  */
 class ValidateHarvestAction
 {
     /**
-     * Validate harvest data
-     *
-     * @param array $data
-     * @return array Validated data
-     * @throws ValidationException
+     * Execute comprehensive harvest data validation with multi-layer checks.
+     * 
+     * Performs complete validation workflow including basic field validation,
+     * business rule enforcement, and data consistency verification. Ensures
+     * harvest data meets all requirements before database operations proceed.
+     * 
+     * @business_process Complete Harvest Data Validation Workflow
+     * @agricultural_context Microgreens harvest data with crop relationships
+     * @validation_comprehensive Multi-layer validation with business rule enforcement
+     * 
+     * @param array $data Raw harvest data for validation
+     * @return array Validated and sanitized harvest data
+     * 
+     * @throws ValidationException For any validation failures with detailed messages
+     * 
+     * @validation_layers:
+     *   1. Basic field validation (required fields, data types, formats)
+     *   2. Cultivar-crop relationship validation
+     *   3. Crop harvest eligibility verification
+     *   4. Weight and percentage data consistency
+     * 
+     * @business_rules Enforces agricultural production business logic
+     * @data_integrity Ensures consistency between weight and percentage data
+     * 
+     * @usage Called from CreateHarvestAction before database operations
+     * @error_handling Provides detailed validation messages for UI display
      */
     public function execute(array $data): array
     {
@@ -38,9 +71,24 @@ class ValidateHarvestAction
     }
 
     /**
-     * Get validation rules for harvest data
-     *
-     * @return array
+     * Define comprehensive validation rules for harvest data structure.
+     * 
+     * Establishes complete validation rule set for all harvest data components
+     * including main harvest fields and nested crop data arrays. Ensures
+     * proper data types, required fields, and business constraints.
+     * 
+     * @validation_structure Complete rule set for harvest and crop data
+     * @agricultural_context Rules specific to microgreens harvest operations
+     * 
+     * @return array Complete validation rule array for Laravel validator
+     * 
+     * @rule_categories:
+     *   - Main harvest: cultivar, date, user, notes
+     *   - Crop array: required crops with weight and percentage data
+     *   - Individual crops: ID, weight, percentage, and optional notes
+     * 
+     * @constraint_enforcement Database existence checks and business limits
+     * @data_integrity Weight minimums, percentage limits, field length restrictions
      */
     protected function getRules(): array
     {
@@ -58,10 +106,25 @@ class ValidateHarvestAction
     }
 
     /**
-     * Validate that all selected crops belong to the chosen cultivar
-     *
-     * @param array $data
-     * @throws ValidationException
+     * Validate crop-cultivar relationship consistency for harvest integrity.
+     * 
+     * Ensures all selected crops belong to the specified master cultivar through
+     * recipe and seed catalog relationships. Prevents harvesting crops of different
+     * varieties under single harvest record, maintaining data integrity and
+     * agricultural production accuracy.
+     * 
+     * @relationship_validation Crop-cultivar association through recipe linkage
+     * @agricultural_context Variety consistency in microgreens harvest operations
+     * @data_integrity Prevents mixed-variety harvest records
+     * 
+     * @param array $data Validated harvest data with cultivar and crop selections
+     * @throws ValidationException If any crops don't belong to specified cultivar
+     * 
+     * @validation_logic Uses nested whereHas queries to verify:
+     *   Crop -> Recipe -> MasterSeedCatalog -> MasterCultivar relationship chain
+     * 
+     * @business_rule All crops in single harvest must be same variety/cultivar
+     * @error_handling Provides clear error message for relationship violations
      */
     protected function validateCultivarsMatch(array $data): void
     {
@@ -86,10 +149,25 @@ class ValidateHarvestAction
     }
 
     /**
-     * Validate that all selected crops are in a harvestable state
-     *
-     * @param array $data
-     * @throws ValidationException
+     * Validate crop production stage eligibility for harvest operations.
+     * 
+     * Ensures selected crops are in appropriate production stages for harvest,
+     * excluding crops already harvested or cancelled. Prevents duplicate harvest
+     * operations and maintains accurate production lifecycle tracking.
+     * 
+     * @stage_validation Production stage eligibility for harvest operations
+     * @agricultural_context Microgreens production lifecycle stage verification
+     * @duplicate_prevention Prevents re-harvesting completed crops
+     * 
+     * @param array $data Validated harvest data with crop selections
+     * @throws ValidationException If any crops are in non-harvestable stages
+     * 
+     * @ineligible_stages 'harvested' and 'cancelled' crops excluded from harvest
+     * @error_detail Provides specific tray numbers for non-harvestable crops
+     * @business_rule Crops can only be harvested once (full or partial)
+     * 
+     * @usage Prevents harvest interface from accepting completed crops
+     * @data_consistency Maintains accurate production stage tracking
      */
     protected function validateCropsAreHarvestable(array $data): void
     {
@@ -111,10 +189,26 @@ class ValidateHarvestAction
     }
 
     /**
-     * Validate weight and percentage data consistency
-     *
-     * @param array $data
-     * @throws ValidationException
+     * Validate weight and percentage data consistency for harvest accuracy.
+     * 
+     * Ensures logical consistency between harvested weight and percentage values
+     * for each crop in harvest operation. Prevents data inconsistencies that would
+     * affect yield calculations and production analytics.
+     * 
+     * @data_consistency Weight and percentage logical relationship validation
+     * @agricultural_context Harvest yield data accuracy for production metrics
+     * @analytics_integrity Ensures reliable data for yield calculations
+     * 
+     * @param array $data Validated harvest data with crop weight and percentage data
+     * @throws ValidationException If weight-percentage relationships are inconsistent
+     * 
+     * @consistency_rules:
+     *   - Weight > 0 required when percentage > 0
+     *   - Percentage > 0 required when weight > 0
+     *   - Both zero values acceptable for no-harvest scenarios
+     * 
+     * @error_detail Provides field-specific error messages for UI display
+     * @yield_accuracy Maintains accurate harvest yield data for production analysis
      */
     protected function validateWeightData(array $data): void
     {

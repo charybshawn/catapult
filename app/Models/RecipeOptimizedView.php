@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Exception;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -112,7 +113,7 @@ class RecipeOptimizedView extends Model
      */
     public function save(array $options = [])
     {
-        throw new \Exception('Cannot save to a database view. Use the Recipe model instead.');
+        throw new Exception('Cannot save to a database view. Use the Recipe model instead.');
     }
     
     /**
@@ -120,6 +121,6 @@ class RecipeOptimizedView extends Model
      */
     public function delete()
     {
-        throw new \Exception('Cannot delete from a database view. Use the Recipe model instead.');
+        throw new Exception('Cannot delete from a database view. Use the Recipe model instead.');
     }
 }

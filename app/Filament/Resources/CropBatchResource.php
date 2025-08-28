@@ -2,6 +2,12 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Schemas\Schema;
+use App\Filament\Resources\CropBatchResource\Forms\CropBatchEditForm;
+use App\Filament\Resources\CropBatchResource\Pages\ListCropBatches;
+use App\Filament\Resources\CropBatchResource\Pages\CreateCropBatch;
+use App\Filament\Resources\CropBatchResource\Pages\ViewCropBatch;
+use App\Filament\Resources\CropBatchResource\Pages\EditCropBatch;
 use App\Filament\Resources\CropBatchResource\Pages;
 use App\Filament\Resources\CropResource\Forms\CropBatchForm;
 use App\Filament\Resources\CropResource\Infolists\CropBatchInfolist;
@@ -11,8 +17,6 @@ use App\Filament\Traits\HasStandardActions;
 use App\Filament\Traits\HasTimestamps;
 use App\Models\CropBatch;
 use App\Models\CropBatchListView;
-use Filament\Forms\Form;
-use Filament\Infolists\Infolist;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -24,11 +28,11 @@ class CropBatchResource extends BaseResource
 
     protected static ?string $model = CropBatch::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-fire';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-fire';
 
     protected static ?string $navigationLabel = 'Crop Batches';
 
-    protected static ?string $navigationGroup = 'Production';
+    protected static string | \UnitEnum | null $navigationGroup = 'Production';
 
     protected static ?int $navigationSort = 2;
 
@@ -40,19 +44,19 @@ class CropBatchResource extends BaseResource
 
     protected static ?string $recordTitleAttribute = 'recipe_name';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
         // Use different forms for create vs edit
-        if ($form->getOperation() === 'edit') {
-            return $form->schema(\App\Filament\Resources\CropBatchResource\Forms\CropBatchEditForm::schema());
+        if ($schema->getOperation() === 'edit') {
+            return $schema->components(CropBatchEditForm::schema());
         }
         
-        return $form->schema(CropBatchForm::schema());
+        return $schema->components(CropBatchForm::schema());
     }
 
-    public static function infolist(Infolist $infolist): Infolist
+    public static function infolist(Schema $schema): Schema
     {
-        return $infolist->schema(CropBatchInfolist::schema());
+        return $schema->components(CropBatchInfolist::schema());
     }
 
     public static function table(Table $table): Table
@@ -65,8 +69,8 @@ class CropBatchResource extends BaseResource
             ->columns(CropBatchTable::columns())
             ->groups(CropBatchTable::groups())
             ->filters(CropBatchTable::filters())
-            ->actions(CropBatchTable::actions())
-            ->bulkActions(CropBatchTable::bulkActions())
+            ->recordActions(CropBatchTable::actions())
+            ->toolbarActions(CropBatchTable::bulkActions())
             ->headerActions([
                 static::getCsvExportAction(),
             ]);
@@ -86,10 +90,10 @@ class CropBatchResource extends BaseResource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListCropBatches::route('/'),
-            'create' => Pages\CreateCropBatch::route('/create'),
-            'view' => Pages\ViewCropBatch::route('/{record}'),
-            'edit' => Pages\EditCropBatch::route('/{record}/edit'),
+            'index' => ListCropBatches::route('/'),
+            'create' => CreateCropBatch::route('/create'),
+            'view' => ViewCropBatch::route('/{record}'),
+            'edit' => EditCropBatch::route('/{record}/edit'),
         ];
     }
 

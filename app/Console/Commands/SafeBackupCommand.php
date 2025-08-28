@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use Exception;
+use RuntimeException;
 use App\Services\SimpleBackupService;
 use Illuminate\Console\Command;
 use Symfony\Component\Process\Process;
@@ -58,7 +60,7 @@ class SafeBackupCommand extends Command
             } else {
                 $this->info("Backup created: {$backupFiles}");
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error("Backup failed: {$e->getMessage()}");
             return 1;
         }
@@ -77,7 +79,7 @@ class SafeBackupCommand extends Command
         try {
             $this->runProcess(['git', 'add', '.']);
             $this->info('Changes staged');
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error("Failed to stage changes: " . $e->getMessage());
             return 1;
         }
@@ -89,7 +91,7 @@ class SafeBackupCommand extends Command
         try {
             $this->runProcess(['git', 'commit', '-m', $commitMessage]);
             $this->info("Changes committed: {$commitMessage}");
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error("Failed to commit changes: " . $e->getMessage());
             return 1;
         }
@@ -100,7 +102,7 @@ class SafeBackupCommand extends Command
             try {
                 $this->runProcess(['git', 'push']);
                 $this->info('Changes pushed to origin');
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $this->warn("Push failed: {$e->getMessage()}");
                 $this->info('You may need to push manually later');
             }
@@ -360,7 +362,7 @@ class SafeBackupCommand extends Command
         $process->run();
         
         if (!$process->isSuccessful()) {
-            throw new \RuntimeException('mysqldump failed: ' . $process->getErrorOutput());
+            throw new RuntimeException('mysqldump failed: ' . $process->getErrorOutput());
         }
         
         file_put_contents($outputPath, $process->getOutput());
@@ -379,7 +381,7 @@ class SafeBackupCommand extends Command
         $process->run();
 
         if (!$process->isSuccessful()) {
-            throw new \RuntimeException($process->getErrorOutput() ?: $process->getOutput());
+            throw new RuntimeException($process->getErrorOutput() ?: $process->getOutput());
         }
 
         return $process->getOutput();

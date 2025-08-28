@@ -15,22 +15,22 @@ class PaymentReceived
     /**
      * The order instance.
      *
-     * @var \App\Models\Order
+     * @var Order
      */
     public $order;
 
     /**
      * The payment instance.
      *
-     * @var \App\Models\Payment
+     * @var Payment
      */
     public $payment;
 
     /**
      * Create a new event instance.
      *
-     * @param \App\Models\Order $order
-     * @param \App\Models\Payment $payment
+     * @param Order $order
+     * @param Payment $payment
      * @return void
      */
     public function __construct(Order $order, Payment $payment)

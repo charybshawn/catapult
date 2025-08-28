@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Exception;
 use App\Models\CropPlan;
 use App\Models\CropPlanStatus;
 use App\Models\Recipe;
@@ -310,7 +311,7 @@ class CropPlanAggregationService
     public function aggregatePlans(Collection $plans): CropPlan
     {
         if (!$this->canPlansBeAggregated($plans)) {
-            throw new \Exception('Plans cannot be aggregated - different recipes, dates, or non-draft status');
+            throw new Exception('Plans cannot be aggregated - different recipes, dates, or non-draft status');
         }
 
         $firstPlan = $plans->first();

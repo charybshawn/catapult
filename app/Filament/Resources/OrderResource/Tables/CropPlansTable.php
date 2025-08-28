@@ -2,6 +2,11 @@
 
 namespace App\Filament\Resources\OrderResource\Tables;
 
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Actions\Action;
+use Filament\Actions\EditAction;
+use Filament\Actions\BulkAction;
 use App\Actions\Order\ApproveAllPlansAction;
 use App\Actions\Order\GenerateOrderPlansAction;
 use App\Actions\Order\ValidateOrderPlanAction;
@@ -20,29 +25,29 @@ class CropPlansTable
     public static function columns(): array
     {
         return [
-            Tables\Columns\TextColumn::make('id')
+            TextColumn::make('id')
                 ->label('Plan ID')
                 ->sortable(),
-            Tables\Columns\TextColumn::make('status.name')
+            TextColumn::make('status.name')
                 ->badge()
                 ->color(fn (CropPlan $record): string => $record->status->color ?? 'gray'),
-            Tables\Columns\TextColumn::make('variety.name')
+            TextColumn::make('variety.name')
                 ->label('Variety')
                 ->searchable()
                 ->default('Unknown'),
-            Tables\Columns\TextColumn::make('recipe.name')
+            TextColumn::make('recipe.name')
                 ->label('Recipe')
                 ->searchable()
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('trays_needed')
+            TextColumn::make('trays_needed')
                 ->label('Trays')
                 ->numeric()
                 ->sortable(),
-            Tables\Columns\TextColumn::make('grams_needed')
+            TextColumn::make('grams_needed')
                 ->label('Grams')
                 ->numeric()
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('plant_by_date')
+            TextColumn::make('plant_by_date')
                 ->label('Plant By')
                 ->date()
                 ->sortable()
@@ -54,7 +59,7 @@ class CropPlansTable
                     }
                     return 'gray';
                 }),
-            Tables\Columns\TextColumn::make('days_until_planting')
+            TextColumn::make('days_until_planting')
                 ->label('Days Until')
                 ->getStateUsing(function (CropPlan $record): string {
                     $days = $record->days_until_planting;
@@ -78,15 +83,15 @@ class CropPlansTable
                     }
                     return 'gray';
                 }),
-            Tables\Columns\TextColumn::make('expected_harvest_date')
+            TextColumn::make('expected_harvest_date')
                 ->label('Harvest')
                 ->date()
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('crops_count')
+            TextColumn::make('crops_count')
                 ->label('Crops')
                 ->counts('crops')
                 ->badge(),
-            Tables\Columns\TextColumn::make('created_at')
+            TextColumn::make('created_at')
                 ->dateTime()
                 ->sortable()
                 ->toggleable(isToggledHiddenByDefault: true),
@@ -96,7 +101,7 @@ class CropPlansTable
     public static function filters(): array
     {
         return [
-            Tables\Filters\SelectFilter::make('status')
+            SelectFilter::make('status')
                 ->relationship('status', 'name')
                 ->preload(),
         ];
@@ -105,7 +110,7 @@ class CropPlansTable
     public static function headerActions($getOwnerRecord): array
     {
         return [
-            Tables\Actions\Action::make('generate_plans')
+            Action::make('generate_plans')
                 ->label('Generate Crop Plans')
                 ->icon('heroicon-o-sparkles')
                 ->color('success')
@@ -115,7 +120,7 @@ class CropPlansTable
                 ->requiresConfirmation()
                 ->modalHeading('Generate Crop Plans')
                 ->modalDescription('This will analyze the order items and generate crop plans based on delivery date and product requirements.'),
-            Tables\Actions\Action::make('approve_all')
+            Action::make('approve_all')
                 ->label('Approve All Plans')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
@@ -131,13 +136,13 @@ class CropPlansTable
     public static function actions(): array
     {
         return [
-            Tables\Actions\Action::make('approve')
+            Action::make('approve')
                 ->label('Approve')
                 ->icon('heroicon-o-check')
                 ->color('success')
                 ->visible(fn (CropPlan $record): bool => $record->canBeApproved())
                 ->requiresConfirmation(),
-            Tables\Actions\Action::make('cancel')
+            Action::make('cancel')
                 ->label('Cancel')
                 ->icon('heroicon-o-x-mark')
                 ->color('danger')
@@ -147,7 +152,7 @@ class CropPlansTable
                 ->requiresConfirmation()
                 ->modalHeading('Cancel Crop Plan')
                 ->modalDescription('Are you sure you want to cancel this crop plan? This action cannot be undone.'),
-            Tables\Actions\EditAction::make()
+            EditAction::make()
                 ->visible(fn (CropPlan $record): bool => 
                     app(ValidateOrderPlanAction::class)->canEditPlan($record)
                 ),
@@ -157,7 +162,7 @@ class CropPlansTable
     public static function bulkActions(): array
     {
         return [
-            Tables\Actions\BulkAction::make('approve_selected')
+            BulkAction::make('approve_selected')
                 ->label('Approve Selected')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')

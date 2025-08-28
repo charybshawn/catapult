@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Exception;
 use App\Models\Order;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -98,7 +99,7 @@ class BackfillAllRecurringBillingPeriods extends Command
                 
                 $processed++;
                 
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $this->error("✗ Failed to process Order #{$order->id}: " . $e->getMessage());
                 $errors++;
             }

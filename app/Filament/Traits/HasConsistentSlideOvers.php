@@ -2,15 +2,48 @@
 
 namespace App\Filament\Traits;
 
+use Filament\Actions\ViewAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\CreateAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\Action;
 use Filament\Tables;
 use Filament\Forms;
 
+/**
+ * Has Consistent Slide Overs Trait
+ * 
+ * Standardized slide-over panel configurations for agricultural Filament resources.
+ * Provides consistent UI patterns for viewing, editing, and creating agricultural
+ * entities with proper sizing, styling, and contextual actions.
+ * 
+ * @filament_trait Reusable slide-over panel configurations
+ * @agricultural_use Consistent slide-over UI for agricultural resource management
+ * @ui_consistency Standardized slide-over patterns across agricultural workflows
+ * @user_experience Optimized panel sizing and behavior for agricultural data entry
+ * 
+ * Key features:
+ * - Standardized slide-over configurations for agricultural resources
+ * - Consistent modal sizing and styling for agricultural data
+ * - Configurable actions and behaviors for agricultural workflows
+ * - Quick action patterns for agricultural entity relationships
+ * - Agricultural-appropriate tooltips and helper text
+ * 
+ * @package App\Filament\Traits
+ * @author Shawn
+ * @since 2024
+ */
 trait HasConsistentSlideOvers
 {
     /**
-     * Configure a consistent View action with slideover
+     * Configure a consistent View action with slide-over for agricultural resources.
+     * 
+     * @agricultural_context Standardized view action for agricultural entities with contextual information
+     * @param array $config Configuration overrides for view action customization
+     * @return ViewAction Configured view action with slide-over panel and agricultural UI patterns
+     * @ui_pattern 3xl modal width optimized for agricultural data display
      */
-    protected static function makeViewAction(array $config = []): Tables\Actions\ViewAction
+    protected static function makeViewAction(array $config = []): ViewAction
     {
         $defaults = [
             'tooltip' => 'View details',
@@ -23,7 +56,7 @@ trait HasConsistentSlideOvers
 
         $config = array_merge($defaults, $config);
 
-        $action = Tables\Actions\ViewAction::make()
+        $action = ViewAction::make()
             ->tooltip($config['tooltip'])
             ->modalWidth($config['modalWidth'])
             ->modalHeading($config['heading'])
@@ -48,9 +81,14 @@ trait HasConsistentSlideOvers
     }
 
     /**
-     * Configure a consistent Edit action with slideover
+     * Configure a consistent Edit action with slide-over for agricultural resources.
+     * 
+     * @agricultural_context Standardized edit action for agricultural entities with form optimization
+     * @param array $config Configuration overrides for edit action customization
+     * @return EditAction Configured edit action with slide-over panel optimized for agricultural forms
+     * @ui_pattern 3xl modal width suitable for agricultural data entry forms
      */
-    protected static function makeEditAction(array $config = []): Tables\Actions\EditAction
+    protected static function makeEditAction(array $config = []): EditAction
     {
         $defaults = [
             'tooltip' => 'Edit record',
@@ -62,7 +100,7 @@ trait HasConsistentSlideOvers
 
         $config = array_merge($defaults, $config);
 
-        $action = Tables\Actions\EditAction::make()
+        $action = EditAction::make()
             ->tooltip($config['tooltip'])
             ->modalWidth($config['modalWidth'])
             ->modalHeading($config['heading'])
@@ -84,7 +122,7 @@ trait HasConsistentSlideOvers
     /**
      * Configure a consistent Create action with slideover
      */
-    protected static function makeCreateAction(array $config = []): Tables\Actions\CreateAction
+    protected static function makeCreateAction(array $config = []): CreateAction
     {
         $defaults = [
             'label' => 'Create New',
@@ -97,7 +135,7 @@ trait HasConsistentSlideOvers
 
         $config = array_merge($defaults, $config);
 
-        return Tables\Actions\CreateAction::make()
+        return CreateAction::make()
             ->label($config['label'])
             ->tooltip($config['tooltip'])
             ->modalWidth($config['modalWidth'])
@@ -137,7 +175,7 @@ trait HasConsistentSlideOvers
                 'tooltip' => 'Delete record'
             ], $config['deleteConfig']);
             
-            $deleteAction = Tables\Actions\DeleteAction::make()
+            $deleteAction = DeleteAction::make()
                 ->tooltip($deleteConfig['tooltip']);
             
             $actions[] = $deleteAction;
@@ -147,7 +185,12 @@ trait HasConsistentSlideOvers
     }
 
     /**
-     * Configure standard header actions with create button
+     * Configure standard header actions with create button for agricultural resources.
+     * 
+     * @agricultural_context Standard header actions for agricultural resource list pages
+     * @param array $config Configuration for header actions and create button
+     * @return array Header actions array including create button and extra agricultural actions
+     * @workflow_pattern Consistent header action patterns across agricultural resources
      */
     protected static function getStandardHeaderActions(array $config = []): array
     {
@@ -173,9 +216,15 @@ trait HasConsistentSlideOvers
     }
 
     /**
-     * Create quick action buttons for modal footers
+     * Create quick action buttons for modal footers in agricultural workflows.
+     * 
+     * @agricultural_context Quick actions for agricultural entity relationships and workflows
+     * @param string $name Action name identifier
+     * @param array $config Action configuration including label, icon, color, and behavior
+     * @return Action Configured quick action for agricultural slide-over footers
+     * @use_cases View related orders, check inventory, contact suppliers, start crops
      */
-    protected static function makeQuickAction(string $name, array $config = []): Tables\Actions\Action
+    protected static function makeQuickAction(string $name, array $config = []): Action
     {
         $defaults = [
             'label' => ucfirst($name),
@@ -187,7 +236,7 @@ trait HasConsistentSlideOvers
 
         $config = array_merge($defaults, $config);
 
-        $action = Tables\Actions\Action::make($name)
+        $action = Action::make($name)
             ->label($config['label'])
             ->icon($config['icon'])
             ->color($config['color']);

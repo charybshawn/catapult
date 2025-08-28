@@ -13,15 +13,38 @@ use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Comprehensive agricultural seed data import and processing service.
+ * 
+ * Processes scraped seed data from various agricultural suppliers, handling
+ * complex product variations, pricing history, weight conversions, and supplier
+ * matching. Integrates with consumable inventory system and maintains detailed
+ * audit trails for agricultural seed catalog management.
+ *
+ * @business_domain Agricultural seed catalog management and supplier integration
+ * @related_models SeedEntry, SeedVariation, SeedPriceHistory, Supplier, Consumable
+ * @used_by Seed scraping system, supplier management, inventory synchronization
+ * @data_sources Multiple agricultural supplier formats (DamSeeds, Sprouting.com, Germina.ca)
+ * @agricultural_context Automates seed catalog updates from supplier websites
+ */
 class SeedScrapeImporter
 {
     /**
-     * Import seed data from a JSON file
+     * Import scraped agricultural seed data with automatic supplier detection.
+     * 
+     * Processes JSON files containing scraped seed catalog data from various
+     * agricultural suppliers. Handles supplier matching, product deduplication,
+     * price history tracking, and inventory synchronization. Essential for
+     * maintaining up-to-date seed catalogs across multiple suppliers.
      *
-     * @param string $jsonFilePath Path to the JSON file
-     * @param SeedScrapeUpload $scrapeUpload The upload record
+     * @param string $jsonFilePath Full path to JSON file containing scraped seed data
+     * @param SeedScrapeUpload $scrapeUpload Upload tracking record for audit trail
      * @return void
-     * @throws Exception
+     * @throws Exception If JSON format invalid or critical import errors occur
+     * @agricultural_context Processes agricultural seed catalogs from multiple supplier formats
+     * @supplier_detection Automatically matches suppliers using domain analysis
+     * @deduplication Prevents duplicate entries based on supplier, common name, and cultivar
+     * @audit_trail Comprehensive logging and status tracking for import operations
      */
     public function import(string $jsonFilePath, SeedScrapeUpload $scrapeUpload): void
     {
@@ -176,14 +199,21 @@ class SeedScrapeImporter
     }
     
     /**
-     * Import seed data from a JSON file with a pre-selected supplier
-     * This method bypasses supplier detection and uses the provided supplier
+     * Import agricultural seed data with pre-selected supplier attribution.
+     * 
+     * Processes scraped seed data while bypassing automatic supplier detection
+     * and using a manually selected supplier. Useful when automatic matching
+     * fails or when importing from new suppliers that need manual attribution.
+     * Creates supplier source mappings for future automatic detection.
      *
-     * @param string $jsonFilePath Path to the JSON file
-     * @param SeedScrapeUpload $scrapeUpload The upload record
-     * @param Supplier $supplier The pre-selected supplier
+     * @param string $jsonFilePath Full path to JSON file containing scraped seed data
+     * @param SeedScrapeUpload $scrapeUpload Upload tracking record for audit trail
+     * @param Supplier $supplier Pre-selected agricultural supplier for attribution
      * @return void
-     * @throws Exception
+     * @throws Exception If JSON format invalid or critical import errors occur
+     * @agricultural_context Handles seed catalog imports with manual supplier override
+     * @supplier_mapping Creates source mappings for future automatic detection
+     * @audit_trail Enhanced logging with supplier attribution details
      */
     public function importWithSupplier(string $jsonFilePath, SeedScrapeUpload $scrapeUpload, Supplier $supplier): void
     {
@@ -312,13 +342,22 @@ class SeedScrapeImporter
     }
     
     /**
-     * Process a single product from the JSON data
+     * Process individual agricultural product from scraped seed data.
+     * 
+     * Handles complex product parsing including cultivar name extraction,
+     * common name identification, and product variation processing.
+     * Manages deduplication, data merging, and creates comprehensive
+     * seed entries with proper agricultural classification.
      *
-     * @param array $productData
-     * @param Supplier $supplier
-     * @param string $timestamp
-     * @param string $defaultCurrency
+     * @param array $productData Raw product data from scraper
+     * @param Supplier $supplier Associated agricultural supplier
+     * @param string $timestamp Scraping timestamp for price history
+     * @param string $defaultCurrency Default currency for price data
      * @return void
+     * @throws Exception If product processing fails or data validation errors occur
+     * @agricultural_context Processes seed products with agricultural naming conventions
+     * @deduplication Prevents duplicate entries based on supplier/cultivar/common name
+     * @data_merging Updates existing entries with new information when available
      */
     public function processProduct(array $productData, Supplier $supplier, string $timestamp, string $defaultCurrency = 'USD'): void
     {
@@ -462,14 +501,23 @@ class SeedScrapeImporter
     }
     
     /**
-     * Process a single variant from the product data
+     * Process individual seed product variations with pricing and inventory tracking.
+     * 
+     * Handles complex variation data including weight parsing, price optimization,
+     * stock status tracking, and inventory synchronization. Creates price history
+     * records for agricultural market analysis and manages consumable inventory links.
      *
-     * @param array $variantData
-     * @param SeedEntry $seedEntry
-     * @param string $timestamp
-     * @param string $defaultCurrency
-     * @param bool $productIsInStock Global product stock status
+     * @param array $variantData Raw variation data from scraper
+     * @param SeedEntry $seedEntry Parent seed entry for this variation
+     * @param string $timestamp Scraping timestamp for price history
+     * @param string $defaultCurrency Default currency for price data
+     * @param bool $productIsInStock Global product availability status
      * @return void
+     * @throws Exception If variation processing fails or weight parsing errors
+     * @agricultural_context Processes seed package variations with weight/size data
+     * @price_optimization Keeps best (lowest) prices while tracking all price changes
+     * @inventory_sync Links variations with consumable inventory system
+     * @weight_handling Parses and converts various weight formats to standardized kg
      */
     protected function processVariant(array $variantData, SeedEntry $seedEntry, string $timestamp, string $defaultCurrency = 'USD', bool $productIsInStock = true): void
     {

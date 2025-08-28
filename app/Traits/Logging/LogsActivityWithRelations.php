@@ -2,16 +2,43 @@
 
 namespace App\Traits\Logging;
 
+use Illuminate\Database\Eloquent\Collection;
+use Exception;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
 
+/**
+ * Logs Activity With Relations Trait
+ * 
+ * Enhanced activity logging for agricultural Eloquent models that automatically
+ * includes related model data for comprehensive agricultural workflow tracking.
+ * Provides deep relationship logging for complex agricultural entity relationships.
+ * 
+ * @logging_trait Enhanced activity logging with relationship data inclusion
+ * @agricultural_use Activity logging for complex agricultural relationships (orders->items->products->varieties)
+ * @audit_trail Comprehensive audit trails for agricultural entity changes with related data
+ * @relationship_tracking Deep relationship tracking for agricultural supply chain workflows
+ * 
+ * Key features:
+ * - Configurable relationship inclusion for agricultural entity logging
+ * - Nested relationship loading with depth control for complex agricultural hierarchies
+ * - Sensitive data filtering for secure agricultural data logging
+ * - Performance-optimized relationship loading for large agricultural datasets
+ * - Flexible attribute selection for targeted agricultural relationship logging
+ * 
+ * @package App\Traits\Logging
+ * @author Shawn
+ * @since 2024
+ */
 trait LogsActivityWithRelations
 {
     /**
-     * Get the relationships that should be logged with this model.
-     * Override this method in your model to specify which relationships to include.
-     *
-     * @return array
+     * Get the relationships that should be logged with this agricultural model.
+     * 
+     * @agricultural_context Specify agricultural relationships to include in activity logging
+     * @return array Relationship names for agricultural entity logging
+     * @override Override in agricultural models to specify relevant relationships
+     * @example ['masterSeedCatalog', 'supplier', 'priceVariations', 'orderItems']
      */
     public function getLoggedRelationships(): array
     {
@@ -41,11 +68,13 @@ trait LogsActivityWithRelations
     }
 
     /**
-     * Load and format relationships for logging.
-     *
-     * @param array $relationships
-     * @param int $depth
-     * @return array
+     * Load and format agricultural relationships for comprehensive activity logging.
+     * 
+     * @agricultural_context Load related agricultural data for complete audit trail
+     * @param array $relationships Specific relationships to load (empty for all configured)
+     * @param int $depth Current relationship loading depth for nested agricultural hierarchies
+     * @return array Formatted relationship data for agricultural activity logging
+     * @performance Optimized for agricultural entity relationship complexity
      */
     public function loadRelationshipsForLogging(array $relationships = [], int $depth = 0): array
     {
@@ -78,7 +107,7 @@ trait LogsActivityWithRelations
                 $attributesToLog = $this->getRelationshipAttributesToLog()[$relation] ?? ['id', 'name'];
                 
                 // Handle different relationship types
-                if ($relatedData instanceof \Illuminate\Database\Eloquent\Collection) {
+                if ($relatedData instanceof Collection) {
                     // HasMany, BelongsToMany, MorphMany, etc.
                     $relationshipData[$relation] = $relatedData->map(function ($model) use ($attributesToLog, $depth, $relation) {
                         return $this->formatRelatedModel($model, $attributesToLog, $depth);
@@ -87,7 +116,7 @@ trait LogsActivityWithRelations
                     // BelongsTo, HasOne, MorphOne, etc.
                     $relationshipData[$relation] = $this->formatRelatedModel($relatedData, $attributesToLog, $depth);
                 }
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 // Log the error but don't break the activity logging
                 $relationshipData[$relation] = ['error' => 'Failed to load relationship: ' . $e->getMessage()];
             }
@@ -97,12 +126,14 @@ trait LogsActivityWithRelations
     }
 
     /**
-     * Format a related model for logging.
-     *
-     * @param Model $model
-     * @param array $attributes
-     * @param int $depth
-     * @return array
+     * Format a related agricultural model for activity logging.
+     * 
+     * @agricultural_context Format related agricultural entities with essential data and metadata
+     * @param Model $model Related agricultural model to format for logging
+     * @param array $attributes Attributes to include from the related agricultural model
+     * @param int $depth Current relationship depth for nested agricultural hierarchies
+     * @return array Formatted model data with agricultural metadata and timestamps
+     * @security Automatically excludes sensitive attributes for secure agricultural logging
      */
     protected function formatRelatedModel(Model $model, array $attributes, int $depth): array
     {

@@ -2,6 +2,9 @@
 
 namespace App\Providers\Filament;
 
+use Filament\Support\Enums\Width;
+use App\Filament\Pages\Dashboard;
+use App\Filament\Pages\WeeklyPlanning;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -10,7 +13,6 @@ use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\Support\Enums\MaxWidth;
 use Filament\Widgets;
 use Filament\Navigation\NavigationBuilder;
 use Filament\Navigation\NavigationItem;
@@ -29,10 +31,34 @@ use App\Filament\Widgets\TimeCardSummaryWidget;
 use App\Http\Middleware\TimeTrackingMiddleware;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Blade;
-use Saade\FilamentFullCalendar\FilamentFullCalendarPlugin;
+use Guava\Calendar\CalendarPlugin;
 
+/**
+ * Filament admin panel provider for Catapult agricultural management system.
+ * Configures comprehensive farm management interface with specialized navigation,
+ * agricultural widgets, calendar integration, and customized branding for microgreens operations.
+ *
+ * @business_domain Agricultural microgreens farm management and production monitoring
+ * @panel_configuration Full-width layout, amber theme, dark mode support
+ * @navigation_groups Organized by farm operations: Production, Inventory, Orders, System
+ * @widget_integration Crop alerts, planning status, seed trends, time tracking
+ * @calendar_plugin Integrated for crop planning and order scheduling workflows
+ * @security_middleware Full authentication and session management stack
+ */
 class AdminPanelProvider extends PanelProvider
 {
+    /**
+     * Configure the Filament admin panel for agricultural farm management.
+     * Sets up comprehensive interface for microgreens production including navigation,
+     * widgets, themes, and specialized agricultural functionality.
+     *
+     * @agricultural_navigation Organized by farm operations and workflow stages
+     * @widget_dashboard Crop status, seed management, time tracking, planning tools
+     * @theme_configuration Amber primary color, full-width layout, dark mode support
+     * @security_stack Complete authentication and middleware protection
+     * @calendar_integration Crop planning and order scheduling calendar functionality
+     * @return Panel Fully configured Filament panel for agricultural management
+     */
     public function panel(Panel $panel): Panel
     {
         return $panel
@@ -42,7 +68,7 @@ class AdminPanelProvider extends PanelProvider
             ->login()
             ->darkMode()
             ->brandName('Catapult Farm')
-            ->maxContentWidth(MaxWidth::Full)
+            ->maxContentWidth(Width::Full)
             ->colors([
                 'primary' => Color::Amber,
             ])
@@ -56,21 +82,22 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->resources([
                 CropAlertResource::class,
-                // Hide the original TaskScheduleResource from navigation but keep it available for now
-                // Will be completely removed in a future update
-                // This approach allows us to switch to the new resource without breaking existing links
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
-                \App\Filament\Pages\Dashboard::class,
-                \App\Filament\Pages\WeeklyPlanning::class,
+                Dashboard::class,
+                WeeklyPlanning::class,
             ])
             ->homeUrl('/admin')
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->viteTheme('resources/css/filament/admin/theme.css')
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::HEAD_START,
+                fn () => '<link rel="stylesheet" href="' . asset('build/assets/css/theme-0N0z5ztr.css') . '">'
+            )
             ->plugins([
-                FilamentFullCalendarPlugin::make(),
+                CalendarPlugin::make(),
             ])
             ->widgets([
                 // Removed AccountWidget to hide welcome message and sign out button

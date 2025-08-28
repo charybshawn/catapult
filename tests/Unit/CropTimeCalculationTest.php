@@ -8,6 +8,24 @@ use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
+/**
+ * Unit tests for crop time calculation functionality in agricultural production.
+ * 
+ * Tests comprehensive crop timing calculations for microgreens production including
+ * germination, blackout, and light stage durations. Validates harvest date predictions,
+ * stage transition timing, and date adjustments for agricultural workflow management.
+ *
+ * @covers \App\Models\Crop
+ * @covers \App\Models\Recipe
+ * @group unit
+ * @group crops
+ * @group timing
+ * @group agricultural-testing
+ * 
+ * @business_context Agricultural crop timing and harvest scheduling for microgreens
+ * @test_category Unit tests for crop time calculation and stage management
+ * @agricultural_workflow Seed to harvest timing for microgreens production cycles
+ */
 class CropTimeCalculationTest extends TestCase
 {
     use RefreshDatabase;
@@ -28,6 +46,18 @@ class CropTimeCalculationTest extends TestCase
         parent::tearDown();
     }
 
+    /**
+     * Test germination stage time calculations for agricultural production scheduling.
+     * 
+     * Validates that crops in germination stage calculate correct harvest dates and
+     * time-to-next-stage based on recipe timing parameters. Tests both newly planted
+     * crops and crops with elapsed germination time in microgreens production.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Microgreens germination timing for production planning
+     * @business_validation Ensures accurate harvest date predictions during germination
+     */
     public function testGerminationStageTimeCalculation()
     {
         // Create a test recipe
@@ -86,6 +116,18 @@ class CropTimeCalculationTest extends TestCase
         $this->assertStringContainsString('2d', $crop2->timeToNextStage(), 'Time to next stage is incorrect for 3 day old crop');
     }
 
+    /**
+     * Test blackout stage time calculations for agricultural production scheduling.
+     * 
+     * Validates that crops in blackout stage calculate correct harvest dates based
+     * on remaining blackout and light stage durations. Tests timing calculations
+     * for microgreens varieties requiring dark period growth.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Microgreens blackout period timing for light-sensitive varieties
+     * @business_validation Ensures accurate harvest predictions during blackout stage
+     */
     public function testBlackoutStageTimeCalculation()
     {
         // Create a test recipe
@@ -123,6 +165,18 @@ class CropTimeCalculationTest extends TestCase
         $this->assertNotEmpty($timeToNext, "Time to next stage should not be empty");
     }
 
+    /**
+     * Test light stage time calculations for agricultural production scheduling.
+     * 
+     * Validates that crops in light stage calculate correct harvest dates based
+     * on remaining light stage duration. Tests final growth stage timing for
+     * microgreens approaching harvest readiness.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Microgreens light stage timing for final growth period
+     * @business_validation Ensures accurate harvest predictions in final stage
+     */
     public function testLightStageTimeCalculation()
     {
         // Create a test recipe
@@ -162,6 +216,18 @@ class CropTimeCalculationTest extends TestCase
         $this->assertNotEmpty($timeToNext, "Time to next stage should not be empty");
     }
 
+    /**
+     * Test time calculations for recipes without blackout stage.
+     * 
+     * Validates that crops using recipes with zero blackout days correctly
+     * calculate timing by skipping the blackout stage. Tests simplified
+     * germination-to-light transitions for certain microgreens varieties.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Microgreens varieties not requiring blackout period
+     * @business_validation Ensures proper stage skipping and timing calculations
+     */
     public function testZeroBlackoutDaysCalculation()
     {
         // Create a test recipe with 0 blackout days
@@ -202,6 +268,18 @@ class CropTimeCalculationTest extends TestCase
         );
     }
 
+    /**
+     * Test date cascade updates when planting date changes in agricultural scheduling.
+     * 
+     * Validates that changing a crop's planting date properly updates all subsequent
+     * stage dates and harvest predictions. Tests agricultural workflow adjustments
+     * for production schedule modifications in microgreens farming.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Production schedule adjustment shifting all crop dates
+     * @business_validation Ensures consistent date updates across crop lifecycle
+     */
     public function testChangingPlantedDateShiftsAllDates()
     {
         // Create a test recipe
@@ -259,6 +337,18 @@ class CropTimeCalculationTest extends TestCase
         );
     }
 
+    /**
+     * Test crop stage reset functionality for agricultural production management.
+     * 
+     * Validates that crops can be reset to earlier stages with proper timestamp
+     * updates and future stage clearing. Tests agricultural workflow corrections
+     * for production issues or scheduling adjustments in microgreens farming.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Production issue requiring crop stage reset
+     * @business_validation Ensures proper stage reset with timestamp management
+     */
     public function testResetToStage()
     {
         // Set a fixed test time

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Exception;
 use App\Models\Order;
 use App\Models\OrderItem;
 use Illuminate\Console\Command;
@@ -108,7 +109,7 @@ class RecalculateOrderPrices extends Command
                 $this->info("No orders needed price updates.");
             }
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             DB::rollBack();
             $this->error("Error updating orders: " . $e->getMessage());
             return Command::FAILURE;

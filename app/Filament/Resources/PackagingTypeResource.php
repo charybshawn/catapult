@@ -2,13 +2,31 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\Select;
+use Filament\Schemas\Components\Grid;
+use Filament\Forms\Components\TextInput;
+use App\Models\VolumeUnit;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Toggle;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\BulkAction;
+use App\Filament\Resources\PackagingTypeResource\Pages\ListPackagingTypes;
+use App\Filament\Resources\PackagingTypeResource\Pages\CreatePackagingType;
+use App\Filament\Resources\PackagingTypeResource\Pages\EditPackagingType;
 use App\Filament\Resources\PackagingTypeResource\Pages;
 use App\Filament\Resources\PackagingTypeResource\RelationManagers;
 use App\Models\PackagingType;
 use App\Models\PackagingTypeCategory;
 use App\Models\PackagingUnitType;
 use Filament\Forms;
-use Filament\Forms\Form;
 use App\Filament\Resources\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -19,59 +37,59 @@ class PackagingTypeResource extends BaseResource
 {
     protected static ?string $model = PackagingType::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-archive-box';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-archive-box';
 
-    protected static ?string $navigationGroup = 'Products & Inventory';
+    protected static string | \UnitEnum | null $navigationGroup = 'Products & Inventory';
     
     protected static ?int $navigationSort = 2;
     
     protected static ?string $recordTitleAttribute = 'display_name';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Packaging Details')
+        return $schema
+            ->components([
+                Section::make('Packaging Details')
                     ->schema([
                         static::getNameField()
                             ->helperText('Name of the packaging type (e.g., "Clamshell")'),
                             
-                        Forms\Components\Select::make('type_category_id')
+                        Select::make('type_category_id')
                             ->label('Category')
                             ->required()
                             ->relationship('typeCategory', 'name')
                             ->options(PackagingTypeCategory::where('is_active', true)->orderBy('sort_order')->pluck('name', 'id'))
                             ->helperText('Select the category that best describes this packaging type'),
                             
-                        Forms\Components\Select::make('unit_type_id')
+                        Select::make('unit_type_id')
                             ->label('Unit Type')
                             ->required()
                             ->relationship('unitType', 'name')
                             ->options(PackagingUnitType::where('is_active', true)->orderBy('sort_order')->pluck('name', 'id'))
                             ->helperText('Select whether this packaging is sold by count or weight'),
                             
-                        Forms\Components\Grid::make()
+                        Grid::make()
                             ->schema([
-                                Forms\Components\TextInput::make('capacity_volume')
+                                TextInput::make('capacity_volume')
                                     ->label('Volume')
                                     ->required()
                                     ->numeric()
                                     ->minValue(0.01)
                                     ->step(0.01),
                                     
-                                Forms\Components\Select::make('volume_unit')
+                                Select::make('volume_unit')
                                     ->label('Unit')
-                                    ->options(\App\Models\VolumeUnit::options())
+                                    ->options(VolumeUnit::options())
                                     ->default('oz')
                                     ->required(),
                             ])
                             ->columns(2),
                             
-                        Forms\Components\Textarea::make('description')
+                        Textarea::make('description')
                             ->maxLength(1000)
                             ->columnSpanFull(),
                             
-                        Forms\Components\Toggle::make('is_active')
+                        Toggle::make('is_active')
                             ->label('Active')
                             ->default(true),
                     ])
@@ -89,65 +107,65 @@ class PackagingTypeResource extends BaseResource
             ->columns([
                 static::getNameColumn('Name'),
                     
-                Tables\Columns\TextColumn::make('typeCategory.name')
+                TextColumn::make('typeCategory.name')
                     ->label('Category')
                     ->badge()
                     ->color(fn (PackagingType $record): string => $record->typeCategory?->color ?? 'gray')
                     ->sortable()
                     ->toggleable(),
                     
-                Tables\Columns\TextColumn::make('unitType.name')
+                TextColumn::make('unitType.name')
                     ->label('Unit Type')
                     ->badge()
                     ->color(fn (PackagingType $record): string => $record->unitType?->color ?? 'gray')
                     ->sortable()
                     ->toggleable(),
                 
-                Tables\Columns\TextColumn::make('capacity_volume')
+                TextColumn::make('capacity_volume')
                     ->label('Volume')
                     ->formatStateUsing(fn (PackagingType $record): string => 
                         "{$record->capacity_volume} {$record->volume_unit}")
                     ->sortable()
                     ->toggleable(),
                     
-                Tables\Columns\IconColumn::make('is_active')
+                IconColumn::make('is_active')
                     ->label('Active')
                     ->boolean()
                     ->sortable(),
                     
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
                     
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('is_active')
+                SelectFilter::make('is_active')
                     ->label('Status')
                     ->options([
                         '1' => 'Active',
                         '0' => 'Inactive',
                     ]),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make()
+            ->recordActions([
+                EditAction::make()
                     ->tooltip('Edit packaging type'),
-                Tables\Actions\DeleteAction::make()
+                DeleteAction::make()
                     ->tooltip('Delete packaging type'),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\BulkAction::make('activate')
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                    BulkAction::make('activate')
                         ->label('Mark as Active')
                         ->icon('heroicon-o-check-circle')
                         ->action(fn (collection $records) => $records->each->update(['is_active' => true]))
                         ->deselectRecordsAfterCompletion(),
-                    Tables\Actions\BulkAction::make('deactivate')
+                    BulkAction::make('deactivate')
                         ->label('Mark as Inactive')
                         ->icon('heroicon-o-x-circle')
                         ->action(fn (collection $records) => $records->each->update(['is_active' => false]))
@@ -166,9 +184,9 @@ class PackagingTypeResource extends BaseResource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListPackagingTypes::route('/'),
-            'create' => Pages\CreatePackagingType::route('/create'),
-            'edit' => Pages\EditPackagingType::route('/{record}/edit'),
+            'index' => ListPackagingTypes::route('/'),
+            'create' => CreatePackagingType::route('/create'),
+            'edit' => EditPackagingType::route('/{record}/edit'),
         ];
     }
 }

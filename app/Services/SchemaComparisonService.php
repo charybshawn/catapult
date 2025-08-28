@@ -2,15 +2,42 @@
 
 namespace App\Services;
 
+use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 
+/**
+ * Agricultural database schema integrity and migration validation service.
+ * 
+ * Ensures database schema consistency for agricultural operations by comparing
+ * actual database structure with migration-defined schema. Critical for maintaining
+ * data integrity across development, staging, and production environments,
+ * preventing data loss during backups and ensuring reliable agricultural system operation.
+ *
+ * @business_domain Agricultural database integrity and schema management
+ * @related_services SimpleBackupService, migration system
+ * @used_by Database console, backup validation, deployment verification
+ * @agricultural_context Protects critical agricultural data during schema changes and deployments
+ */
 class SchemaComparisonService
 {
     /**
-     * Compare current database schema with migration-defined schema
+     * Compare current agricultural database schema with migration-defined schema.
+     * 
+     * Performs comprehensive schema validation to ensure database integrity
+     * for agricultural operations. Identifies drift between actual database
+     * structure and migration definitions that could compromise data integrity
+     * during critical agricultural processes.
+     *
+     * @return array Schema comparison results including:
+     *   - extra_tables: Tables in database but not in migrations
+     *   - missing_tables: Tables in migrations but not in database
+     *   - column_differences: Column mismatches per table
+     *   - summary: Human-readable summary of issues
+     *   - has_issues: Boolean flag indicating schema problems
+     * @agricultural_context Ensures reliable operation of crop, order, and inventory systems
      */
     public function compareSchemas(): array
     {
@@ -21,7 +48,14 @@ class SchemaComparisonService
     }
     
     /**
-     * Get the current database schema
+     * Extract current agricultural database schema from live database.
+     * 
+     * Queries actual database structure to build complete schema map
+     * including all tables, columns, and their properties. Essential
+     * for validating that agricultural data structures are intact.
+     *
+     * @return array Current database schema structure
+     * @agricultural_context Maps actual structure of crop, product, and order tables
      */
     private function getCurrentDatabaseSchema(): array
     {
@@ -56,7 +90,16 @@ class SchemaComparisonService
     }
     
     /**
-     * Get schema as defined by migrations
+     * Generate reference schema from Laravel migrations for agricultural database.
+     * 
+     * Creates temporary database and runs all migrations to determine what
+     * the schema SHOULD look like according to migration definitions.
+     * This provides the authoritative reference for agricultural database structure.
+     *
+     * @return array Migration-defined schema structure
+     * @throws Exception If temporary database creation or migration execution fails
+     * @agricultural_context Establishes correct structure for agricultural data tables
+     * @safety Creates isolated temporary database to avoid affecting production
      */
     public function getMigrationDefinedSchema(): array
     {
@@ -91,7 +134,7 @@ class SchemaComparisonService
             
             return $schema;
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Ensure we switch back even if there's an error
             config(['database.connections.mysql.database' => $originalDb]);
             DB::purge('mysql');
@@ -100,16 +143,25 @@ class SchemaComparisonService
             // Try to drop temp database
             try {
                 DB::statement("DROP DATABASE IF EXISTS `{$tempDb}`");
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 // Ignore cleanup errors
             }
             
-            throw new \Exception("Failed to analyze migration schema: " . $e->getMessage());
+            throw new Exception("Failed to analyze migration schema: " . $e->getMessage());
         }
     }
     
     /**
-     * Find differences between current and migration schemas
+     * Identify schema inconsistencies that could impact agricultural operations.
+     * 
+     * Compares actual database structure with migration-defined structure
+     * to identify potential issues that could cause agricultural system
+     * failures, backup problems, or data integrity issues.
+     *
+     * @param array $currentSchema Actual database schema structure
+     * @param array $migrationSchema Migration-defined schema structure
+     * @return array Detailed differences analysis with remediation guidance
+     * @agricultural_context Identifies risks to crop, order, and inventory data integrity
      */
     private function findSchemaDifferences(array $currentSchema, array $migrationSchema): array
     {
@@ -173,7 +225,14 @@ class SchemaComparisonService
     }
     
     /**
-     * Get all database tables (excluding system tables)
+     * Retrieve all agricultural business tables from database.
+     * 
+     * Filters out system tables and views to focus on agricultural
+     * business tables like crops, products, orders, and related entities.
+     * Excludes migration tracking and monitoring tables from analysis.
+     *
+     * @return array List of agricultural business table names
+     * @agricultural_context Focuses analysis on tables containing crop, product, and order data
      */
     private function getDatabaseTables(): array
     {
@@ -198,7 +257,15 @@ class SchemaComparisonService
     }
     
     /**
-     * Format differences for display
+     * Format schema differences into actionable agricultural system report.
+     * 
+     * Converts schema analysis into human-readable report with specific
+     * remediation steps for maintaining agricultural database integrity.
+     * Includes impact analysis on backup strategies and system reliability.
+     *
+     * @param array $differences Schema comparison results
+     * @return string Formatted report with remediation guidance
+     * @agricultural_context Provides actionable insights for maintaining agricultural data integrity
      */
     public function formatDifferences(array $differences): string
     {

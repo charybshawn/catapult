@@ -15,22 +15,22 @@ class OrderCropPlanted
     /**
      * The order instance.
      *
-     * @var \App\Models\Order
+     * @var Order
      */
     public $order;
 
     /**
      * The crop instance.
      *
-     * @var \App\Models\Crop
+     * @var Crop
      */
     public $crop;
 
     /**
      * Create a new event instance.
      *
-     * @param \App\Models\Order $order
-     * @param \App\Models\Crop $crop
+     * @param Order $order
+     * @param Crop $crop
      * @return void
      */
     public function __construct(Order $order, Crop $crop)

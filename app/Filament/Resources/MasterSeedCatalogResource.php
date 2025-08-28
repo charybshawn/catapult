@@ -2,12 +2,27 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Schemas\Schema;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TagsInput;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\ViewAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use App\Filament\Resources\MasterSeedCatalogResource\Pages\ListMasterSeedCatalogs;
+use App\Filament\Resources\MasterSeedCatalogResource\Pages\CreateMasterSeedCatalog;
+use App\Filament\Resources\MasterSeedCatalogResource\Pages\EditMasterSeedCatalog;
 use App\Filament\Resources\MasterSeedCatalogResource\Pages;
 use App\Filament\Resources\MasterSeedCatalogResource\RelationManagers;
 use App\Models\MasterSeedCatalog;
 use App\Models\MasterCultivar;
 use Filament\Forms;
-use Filament\Forms\Form;
 use App\Filament\Resources\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -21,35 +36,35 @@ class MasterSeedCatalogResource extends BaseResource
     
     protected static ?string $model = MasterSeedCatalog::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
-    protected static ?string $navigationGroup = 'Products & Inventory';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-clipboard-document-list';
+    protected static string | \UnitEnum | null $navigationGroup = 'Products & Inventory';
     protected static ?string $navigationLabel = 'Master Seed Catalog';
     protected static ?string $pluralLabel = 'Master Seed Catalog';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\TextInput::make('common_name')
+        return $schema
+            ->components([
+                TextInput::make('common_name')
                     ->required()
                     ->maxLength(255)
                     ->unique(ignoreRecord: true)
                     ->helperText('e.g. Radish, Cress, Peas, Sunflower'),
-                Forms\Components\Select::make('cultivar_id')
+                Select::make('cultivar_id')
                     ->label('Primary Cultivar')
                     ->relationship('cultivar', 'cultivar_name')
                     ->searchable()
                     ->preload()
                     ->createOptionForm([
-                        Forms\Components\TextInput::make('cultivar_name')
+                        TextInput::make('cultivar_name')
                             ->required()
                             ->maxLength(255),
-                        Forms\Components\Textarea::make('description'),
-                        Forms\Components\TagsInput::make('aliases')
+                        Textarea::make('description'),
+                        TagsInput::make('aliases')
                             ->helperText('Alternative names for this cultivar'),
                     ])
                     ->helperText('Select or create the primary cultivar for this seed type'),
-                Forms\Components\Select::make('category')
+                Select::make('category')
                     ->options([
                         'Herbs' => 'Herbs',
                         'Brassicas' => 'Brassicas',
@@ -60,9 +75,9 @@ class MasterSeedCatalogResource extends BaseResource
                         'Other' => 'Other',
                     ])
                     ->searchable(),
-                Forms\Components\TagsInput::make('aliases')
+                TagsInput::make('aliases')
                     ->helperText('Alternative names for this seed type'),
-                Forms\Components\Textarea::make('description')
+                Textarea::make('description')
                     ->columnSpanFull(),
             ]);
     }
@@ -71,31 +86,31 @@ class MasterSeedCatalogResource extends BaseResource
     {
         return static::configureTableDefaults($table)
             ->columns([
-                Tables\Columns\TextColumn::make('common_name')
+                TextColumn::make('common_name')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('cultivar.cultivar_name')
+                TextColumn::make('cultivar.cultivar_name')
                     ->label('Primary Cultivar')
                     ->searchable()
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('category')
+                TextColumn::make('category')
                     ->badge()
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('category'),
+                SelectFilter::make('category'),
             ])
-            ->actions([
-                Tables\Actions\ActionGroup::make([
-                    Tables\Actions\ViewAction::make()->tooltip('View record'),
-                    Tables\Actions\EditAction::make()->tooltip('Edit record'),
-                    Tables\Actions\DeleteAction::make()->tooltip('Delete record'),
+            ->recordActions([
+                ActionGroup::make([
+                    ViewAction::make()->tooltip('View record'),
+                    EditAction::make()->tooltip('Edit record'),
+                    DeleteAction::make()->tooltip('Delete record'),
                 ])
                 ->label('Actions')
                 ->icon('heroicon-m-ellipsis-vertical')
@@ -106,9 +121,9 @@ class MasterSeedCatalogResource extends BaseResource
             ->headerActions([
                 static::getCsvExportAction(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }
@@ -123,9 +138,9 @@ class MasterSeedCatalogResource extends BaseResource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListMasterSeedCatalogs::route('/'),
-            'create' => Pages\CreateMasterSeedCatalog::route('/create'),
-            'edit' => Pages\EditMasterSeedCatalog::route('/{record}/edit'),
+            'index' => ListMasterSeedCatalogs::route('/'),
+            'create' => CreateMasterSeedCatalog::route('/create'),
+            'edit' => EditMasterSeedCatalog::route('/{record}/edit'),
         ];
     }
     

@@ -2,6 +2,8 @@
 
 namespace App\Actions\Order;
 
+use Exception;
+use Filament\Actions\Action;
 use App\Models\Invoice;
 use Carbon\Carbon;
 use Filament\Notifications\Notification;
@@ -9,12 +11,51 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Handle creation of consolidated invoices from multiple orders
+ * Creates consolidated invoices from multiple customer orders for agricultural operations.
+ * 
+ * Manages the complex workflow of combining multiple agricultural product orders
+ * into single consolidated invoices for customer convenience and billing efficiency.
+ * Handles validation, amount calculation, billing period determination, and
+ * comprehensive error handling with user notifications.
+ * 
+ * @business_domain Agricultural Customer Billing and Invoice Management
+ * @consolidation_workflow Multi-order invoice creation with validation and error handling
+ * @billing_efficiency Streamlined invoicing for agricultural product deliveries
+ * 
+ * @author Catapult System
+ * @since 1.0.0
  */
 class ConsolidatedInvoiceAction
 {
     /**
-     * Create a consolidated invoice from multiple orders
+     * Execute consolidated invoice creation workflow with comprehensive validation.
+     * 
+     * Orchestrates complete consolidated invoice creation including order validation,
+     * business rule enforcement, invoice generation, and user notification management.
+     * Ensures multiple orders can be properly consolidated while maintaining data
+     * integrity and providing detailed feedback to users.
+     * 
+     * @business_process Consolidated Invoice Creation Workflow
+     * @agricultural_context Multiple microgreens orders combined for billing efficiency
+     * @validation_comprehensive Multi-layer validation with detailed error reporting
+     * 
+     * @param Collection $orders Collection of Order instances to consolidate into single invoice
+     * @param array $invoiceData Invoice creation data including dates and notes
+     * @return Invoice|null Created consolidated invoice or null if validation fails
+     * 
+     * @workflow_steps:
+     *   1. Validate orders for consolidation eligibility
+     *   2. Create consolidated invoice with calculated totals
+     *   3. Link orders to consolidated invoice
+     *   4. Send success notification with invoice details
+     *   5. Log operation for audit trail
+     * 
+     * @error_handling Comprehensive error catching with user notification
+     * @validation_feedback Detailed validation error messages for user guidance
+     * @audit_logging Success and failure logging for operational monitoring
+     * 
+     * @usage Called from bulk invoice creation interfaces and billing workflows
+     * @notification_system Integrates with Filament notification system for user feedback
      */
     public function execute(Collection $orders, array $invoiceData): ?Invoice
     {
@@ -31,7 +72,7 @@ class ConsolidatedInvoiceAction
                 'invoice_id' => $invoice->id, 'order_count' => $orders->count(), 'total_amount' => $invoice->total_amount
             ]);
             return $invoice;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Failed to create consolidated invoice', ['error' => $e->getMessage(), 'order_count' => $orders->count()]);
             $this->sendErrorNotification($e->getMessage());
             return null;
@@ -88,7 +129,7 @@ class ConsolidatedInvoiceAction
             ->body("Invoice #{$invoice->invoice_number} created for {$orders->count()} orders totaling $" . number_format($invoice->total_amount, 2) . ".")
             ->success()
             ->actions([
-                \Filament\Notifications\Actions\Action::make('view')
+                Action::make('view')
                     ->label('View Invoice')
                     ->url(route('filament.admin.resources.invoices.edit', ['record' => $invoice->id]))
             ])

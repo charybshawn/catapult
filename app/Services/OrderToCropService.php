@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Exception;
 use App\Models\Order;
 use App\Models\Crop;
 use App\Models\CropPlan;
@@ -49,7 +50,7 @@ class OrderToCropService
                 }
             }
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $results['errors'][] = $e->getMessage();
         }
 

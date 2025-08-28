@@ -2,13 +2,14 @@
 
 namespace App\Filament\Resources\ActivityResource\Pages;
 
+use Illuminate\Support\Collection;
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\View;
 use App\Filament\Resources\ActivityResource;
 use Filament\Actions;
 use Filament\Resources\Pages\ViewRecord;
-use Filament\Infolists\Infolist;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\View;
 
 class ViewActivity extends ViewRecord
 {
@@ -29,7 +30,7 @@ class ViewActivity extends ViewRecord
         $properties = $this->record->properties;
         
         // Handle Collection objects
-        if ($properties instanceof \Illuminate\Support\Collection) {
+        if ($properties instanceof Collection) {
             $properties = $properties->toArray();
         }
         
@@ -53,7 +54,7 @@ class ViewActivity extends ViewRecord
         $properties = $this->record->properties;
         
         // Handle Collection objects
-        if ($properties instanceof \Illuminate\Support\Collection) {
+        if ($properties instanceof Collection) {
             $properties = $properties->toArray();
         }
         
@@ -61,7 +62,7 @@ class ViewActivity extends ViewRecord
         return is_array($properties) && isset($properties['relationships']) && !empty($properties['relationships']);
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
         return $infolist
             ->schema([

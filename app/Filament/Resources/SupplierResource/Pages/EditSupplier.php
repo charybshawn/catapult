@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\SupplierResource\Pages;
 
+use Filament\Actions\DeleteAction;
 use App\Filament\Resources\SupplierResource;
 use Filament\Actions;
 use App\Filament\Pages\Base\BaseEditRecord;
@@ -13,7 +14,7 @@ class EditSupplier extends BaseEditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make()
+            DeleteAction::make()
                 ->tooltip('Delete supplier'),
         ];
     }

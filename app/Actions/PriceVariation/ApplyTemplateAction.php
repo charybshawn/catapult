@@ -2,6 +2,8 @@
 
 namespace App\Actions\PriceVariation;
 
+use InvalidArgumentException;
+use App\Models\Product;
 use App\Models\PriceVariation;
 
 /**
@@ -19,7 +21,7 @@ class ApplyTemplateAction
     {
         // Validate that the source is a global template
         if (!$template->is_global) {
-            throw new \InvalidArgumentException('Only global templates can be applied to products');
+            throw new InvalidArgumentException('Only global templates can be applied to products');
         }
 
         // Create a new product-specific variation based on the template
@@ -57,7 +59,7 @@ class ApplyTemplateAction
         }
 
         // Validate that the product exists
-        if (!$data['product_id'] || !\App\Models\Product::find($data['product_id'])) {
+        if (!$data['product_id'] || !Product::find($data['product_id'])) {
             $errors[] = 'Invalid product selected';
         }
 
@@ -82,7 +84,7 @@ class ApplyTemplateAction
      */
     public function getSuggestedValues(PriceVariation $template, int $productId): array
     {
-        $product = \App\Models\Product::find($productId);
+        $product = Product::find($productId);
         
         if (!$product) {
             return [];
@@ -99,7 +101,7 @@ class ApplyTemplateAction
     /**
      * Generate suggested name for the applied variation
      */
-    protected function generateSuggestedName(PriceVariation $template, \App\Models\Product $product): string
+    protected function generateSuggestedName(PriceVariation $template, Product $product): string
     {
         $pricingType = ucfirst($template->pricing_type);
         $packaging = $template->packagingType ? $template->packagingType->name : 'Package-Free';
@@ -110,7 +112,7 @@ class ApplyTemplateAction
     /**
      * Generate suggested SKU for the applied variation
      */
-    protected function generateSuggestedSku(PriceVariation $template, \App\Models\Product $product): ?string
+    protected function generateSuggestedSku(PriceVariation $template, Product $product): ?string
     {
         // Use template SKU as base if available
         if ($template->sku) {

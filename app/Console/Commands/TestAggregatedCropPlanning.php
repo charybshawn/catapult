@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Exception;
 use App\Services\CropPlanningService;
 use Illuminate\Console\Command;
 use App\Models\Order;
@@ -87,7 +88,7 @@ class TestAggregatedCropPlanning extends Command
                 $this->info('Crop plans have been created in the database.');
             }
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error('Error generating aggregated crop plans: ' . $e->getMessage());
             $this->error('Stack trace: ' . $e->getTraceAsString());
             return 1;

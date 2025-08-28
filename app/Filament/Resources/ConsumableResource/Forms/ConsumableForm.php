@@ -2,17 +2,55 @@
 
 namespace App\Filament\Resources\ConsumableResource\Forms;
 
+use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\Select;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Utilities\Get;
+use App\Models\PackagingType;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\TextInput;
+use App\Models\ProductMix;
+use App\Models\Consumable;
+use App\Models\MasterSeedCatalog;
+use App\Models\MasterCultivar;
+use Filament\Forms\Components\Placeholder;
+use Filament\Schemas\Components\Component;
+use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\Textarea;
 use App\Filament\Forms\Components\Common as FormCommon;
 use App\Models\ConsumableType;
 use Filament\Forms;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Comprehensive consumable inventory form builder for agricultural supply management.
+ *
+ * Provides sophisticated form configuration for managing diverse agricultural
+ * consumables including seeds, soil, packaging, and production supplies. Features
+ * dynamic field generation based on consumable type, intelligent name generation,
+ * seed catalog integration, and specialized inventory tracking for different
+ * supply categories in microgreens production operations.
+ *
+ * @filament_form Complex form builder for agricultural consumable inventory
+ * @business_domain Agricultural supply chain and inventory management
+ * @inventory_types Seeds, soil, packaging, mixes, and production consumables
+ * @dynamic_behavior Context-aware field generation based on consumable type
+ * @agricultural_integration Seed catalog linkage and cultivar management
+ */
 class ConsumableForm
 {
     /**
-     * Get the complete form schema for ConsumableResource
+     * Generate comprehensive form schema for agricultural consumable management.
+     *
+     * Creates complete form structure with dynamic sections based on consumable
+     * type, including basic information, inventory details, cost information,
+     * and additional notes. Adapts field visibility and requirements based on
+     * agricultural supply category (seeds, soil, packaging, etc.).
+     *
+     * @return array Complete Filament form schema for consumable management
+     * @form_sections Basic info, inventory details, cost info, additional notes
+     * @dynamic_structure Adapts to different consumable types and requirements
      */
     public static function schema(): array
     {
@@ -36,13 +74,23 @@ class ConsumableForm
     }
 
     /**
-     * Basic Information Section
+     * Generate basic information section for consumable identification and categorization.
+     *
+     * Creates comprehensive section for consumable type selection, name generation,
+     * supplier information, and seed catalog integration. Features dynamic field
+     * behavior based on consumable category with specialized handling for seeds,
+     * packaging, mixes, and general supplies.
+     *
+     * @param callable $isEditMode Function to determine if form is in edit mode
+     * @return Section Filament form section with basic consumable information
+     * @agricultural_types Seeds, soil, packaging, mixes, and production supplies
+     * @dynamic_fields Context-aware field generation and validation
      */
-    protected static function getBasicInformationSection($isEditMode): Forms\Components\Section
+    protected static function getBasicInformationSection($isEditMode): Section
     {
-        return Forms\Components\Section::make('Basic Information')
+        return Section::make('Basic Information')
             ->schema([
-                Forms\Components\Select::make('consumable_type_id')
+                Select::make('consumable_type_id')
                     ->label('Category')
                     ->options(ConsumableType::options())
                     ->required()
@@ -71,14 +119,14 @@ class ConsumableForm
                     }),
 
                 // Item Name Field - varies by type
-                Forms\Components\Grid::make()
+                Grid::make()
                     ->schema(function (Get $get, $record = null) {
                         return static::getItemNameFields($get, $record);
                     })
                     ->columnSpanFull(),
 
                 // Supplier field moved to be beside seed entry for seed type
-                Forms\Components\Grid::make()
+                Grid::make()
                     ->schema(function (Get $get, $record = null) {
                         return static::getSupplierField($get, $record);
                     })->columnSpanFull(),
@@ -93,14 +141,24 @@ class ConsumableForm
     }
 
     /**
-     * Inventory Details Section
+     * Generate inventory details section for specialized stock management.
+     *
+     * Creates inventory section with specialized fields for different consumable
+     * types. Seeds use weight-based tracking with remaining quantities, while
+     * other supplies use unit-based inventory with packaging information and
+     * consumption tracking.
+     *
+     * @param callable $isEditMode Function to determine if form is in edit mode
+     * @return Section Filament form section with inventory management fields
+     * @inventory_specialization Seeds use weight tracking, others use unit counting
+     * @consumption_tracking Usage monitoring and remaining stock calculations
      */
-    protected static function getInventoryDetailsSection($isEditMode): Forms\Components\Section
+    protected static function getInventoryDetailsSection($isEditMode): Section
     {
-        return Forms\Components\Section::make('Inventory Details')
+        return Section::make('Inventory Details')
             ->schema([
                 // Conditional form fields based on consumable type
-                Forms\Components\Grid::make()
+                Grid::make()
                     ->schema(function (Get $get, $record = null) use ($isEditMode) {
                         $typeId = $get('consumable_type_id') ?? $record?->consumable_type_id;
                         $type = $typeId ? ConsumableType::find($typeId) : null;
@@ -118,7 +176,17 @@ class ConsumableForm
     }
 
     /**
-     * Get item name fields based on consumable type
+     * Generate dynamic item name fields based on consumable type selection.
+     *
+     * Creates context-appropriate name fields for different agricultural
+     * consumable categories. Packaging types use dropdown selection, seeds
+     * use auto-generated names from catalog integration, mixes use product
+     * mix selection, and general supplies use manual text input.
+     *
+     * @param Get $get Form state getter for dynamic field generation
+     * @param mixed $record Existing record for edit operations
+     * @return array Dynamic field configuration based on consumable type
+     * @field_types Packaging (dropdown), seeds (auto-gen), mixes (selection), general (text)
      */
     protected static function getItemNameFields(Get $get, $record = null): array
     {
@@ -142,10 +210,10 @@ class ConsumableForm
     protected static function getPackagingTypeFields(): array
     {
         return [
-            Forms\Components\Select::make('packaging_type_id')
+            Select::make('packaging_type_id')
                 ->label('Item Name')
                 ->options(function () {
-                    return \App\Models\PackagingType::where('is_active', true)
+                    return PackagingType::where('is_active', true)
                         ->get()
                         ->mapWithKeys(function ($packagingType) {
                             return [$packagingType->id => $packagingType->display_name];
@@ -157,7 +225,7 @@ class ConsumableForm
                 ->reactive()
                 ->afterStateUpdated(function ($state, Set $set) {
                     // Get packaging type
-                    $packagingType = \App\Models\PackagingType::find($state);
+                    $packagingType = PackagingType::find($state);
 
                     // Set the name field from the packaging type
                     if ($packagingType) {
@@ -166,7 +234,7 @@ class ConsumableForm
                 }),
 
             // Hidden name field for packaging types
-            Forms\Components\Hidden::make('name'),
+            Hidden::make('name'),
         ];
     }
 
@@ -179,14 +247,14 @@ class ConsumableForm
             FormCommon::supplierSelect(),
 
             // Read-only name field that will be auto-generated
-            Forms\Components\TextInput::make('name')
+            TextInput::make('name')
                 ->label('Generated Name')
                 ->readonly()
                 ->helperText('Auto-generated from seed catalog and cultivar selection')
                 ->placeholder('Will be generated automatically'),
 
             // Hidden cultivar field for storage
-            Forms\Components\Hidden::make('cultivar'),
+            Hidden::make('cultivar'),
         ];
     }
 
@@ -196,11 +264,11 @@ class ConsumableForm
     protected static function getProductMixFields(): array
     {
         return [
-            Forms\Components\Select::make('product_mix_id')
+            Select::make('product_mix_id')
                 ->label('Product Mix')
                 ->helperText('Required: Please select a product mix')
                 ->options(function () {
-                    return \App\Models\ProductMix::where('is_active', true)
+                    return ProductMix::where('is_active', true)
                         ->pluck('name', 'id')
                         ->toArray();
                 })
@@ -209,7 +277,7 @@ class ConsumableForm
                 ->live(onBlur: true)
                 ->afterStateUpdated(function ($state, Set $set) {
                     if ($state) {
-                        $mix = \App\Models\ProductMix::find($state);
+                        $mix = ProductMix::find($state);
                         if ($mix) {
                             $set('name', $mix->name);
                         }
@@ -217,7 +285,7 @@ class ConsumableForm
                 }),
 
             // Hidden name field - will be set from the mix
-            Forms\Components\Hidden::make('name'),
+            Hidden::make('name'),
         ];
     }
 
@@ -227,7 +295,7 @@ class ConsumableForm
     protected static function getGeneralNameFields(Get $get): array
     {
         return [
-            Forms\Components\TextInput::make('name')
+            TextInput::make('name')
                 ->label('Item Name')
                 ->required()
                 ->maxLength(255)
@@ -237,7 +305,7 @@ class ConsumableForm
                     $type = $typeId ? ConsumableType::find($typeId) : null;
 
                     if ($type && in_array($type->code, ['soil', 'label'])) {
-                        return \App\Models\Consumable::where('consumable_type_id', $typeId)
+                        return Consumable::where('consumable_type_id', $typeId)
                             ->where('is_active', true)
                             ->pluck('name')
                             ->unique()
@@ -269,16 +337,25 @@ class ConsumableForm
     }
 
     /**
-     * Get seed catalog fields
+     * Generate seed catalog integration fields for agricultural seed management.
+     *
+     * Creates comprehensive seed selection fields including master seed catalog
+     * dropdown and cultivar selection with automatic name generation. Features
+     * dynamic cultivar options based on catalog selection and intelligent
+     * name formatting for agricultural seed identification.
+     *
+     * @return array Filament form fields for seed catalog integration
+     * @agricultural_integration Master catalog and cultivar relationship management
+     * @name_generation Automatic seed name creation from catalog + cultivar
      */
     protected static function getSeedCatalogFields(): array
     {
         return [
             // Seed catalog field - simplified approach
-            Forms\Components\Select::make('master_seed_catalog_id')
+            Select::make('master_seed_catalog_id')
                 ->label('Seed Catalog')
                 ->options(function () {
-                    return \App\Models\MasterSeedCatalog::query()
+                    return MasterSeedCatalog::query()
                         ->where('is_active', true)
                         ->pluck('common_name', 'id')
                         ->toArray();
@@ -299,7 +376,7 @@ class ConsumableForm
                 ->live(onBlur: true)
                 ->afterStateUpdated(function ($state, Set $set, Get $get) {
                     if ($state) {
-                        $masterCatalog = \App\Models\MasterSeedCatalog::find($state);
+                        $masterCatalog = MasterSeedCatalog::find($state);
                         if ($masterCatalog) {
                             static::handleSeedCatalogUpdate($masterCatalog, $set, $get);
                         }
@@ -307,12 +384,12 @@ class ConsumableForm
                 }),
 
             // Cultivar field - now uses proper relationships
-            Forms\Components\Select::make('master_cultivar_id')
+            Select::make('master_cultivar_id')
                 ->label('Cultivar')
                 ->options(function (Get $get) {
                     $catalogId = $get('master_seed_catalog_id');
                     if ($catalogId) {
-                        return \App\Models\MasterCultivar::where('master_seed_catalog_id', $catalogId)
+                        return MasterCultivar::where('master_seed_catalog_id', $catalogId)
                             ->where('is_active', true)
                             ->pluck('cultivar_name', 'id')
                             ->toArray();
@@ -340,8 +417,8 @@ class ConsumableForm
                     $cultivarId = $state;
 
                     if ($catalogId && $cultivarId) {
-                        $masterCatalog = \App\Models\MasterSeedCatalog::find($catalogId);
-                        $masterCultivar = \App\Models\MasterCultivar::find($cultivarId);
+                        $masterCatalog = MasterSeedCatalog::find($catalogId);
+                        $masterCultivar = MasterCultivar::find($cultivarId);
                         
                         if ($masterCatalog && $masterCultivar) {
                             $name = $masterCatalog->common_name.' ('.$masterCultivar->cultivar_name.')';
@@ -364,7 +441,7 @@ class ConsumableForm
         $cultivarId = $get('master_cultivar_id');
         if (! $cultivarId) {
             // Get first active cultivar from the relationship
-            $firstCultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $masterCatalog->id)
+            $firstCultivar = MasterCultivar::where('master_seed_catalog_id', $masterCatalog->id)
                 ->where('is_active', true)
                 ->first();
             
@@ -376,7 +453,7 @@ class ConsumableForm
             }
         } else {
             // Update name with existing cultivar
-            $masterCultivar = \App\Models\MasterCultivar::find($cultivarId);
+            $masterCultivar = MasterCultivar::find($cultivarId);
             if ($masterCultivar) {
                 $name = $masterCatalog->common_name.' ('.$masterCultivar->cultivar_name.')';
                 $set('name', $name);
@@ -386,16 +463,25 @@ class ConsumableForm
     }
 
     /**
-     * Get seed-specific inventory fields
+     * Generate specialized inventory fields for agricultural seed weight tracking.
+     *
+     * Creates weight-based inventory management for seeds including initial
+     * quantity, remaining quantity, consumption calculation, and lot tracking.
+     * Features automatic consumption calculation and precision decimal support
+     * for accurate agricultural seed inventory management.
+     *
+     * @return array Filament form fields for seed weight inventory management
+     * @weight_tracking Initial, remaining, and consumed quantity calculations
+     * @agricultural_precision Decimal support for gram-level accuracy
      */
     protected static function getSeedInventoryFields(): array
     {
         return [
             // Grid for initial quantity and unit
-            Forms\Components\Grid::make(2)
+            Grid::make(2)
                 ->schema([
                     // Direct total quantity input for seeds
-                    Forms\Components\TextInput::make('total_quantity')
+                    TextInput::make('total_quantity')
                         ->label('Initial Quantity')
                         ->helperText('Total amount purchased/received')
                         ->numeric()
@@ -404,7 +490,7 @@ class ConsumableForm
                         ->default(0)
                         ->step(0.001)
                         ->reactive()
-                        ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                        ->afterStateUpdated(function ($state, Set $set, Get $get) {
                             // When initial quantity changes, update remaining if it hasn't been manually set
                             if (! $get('remaining_quantity') || $get('remaining_quantity') == 0) {
                                 $set('remaining_quantity', $state);
@@ -412,7 +498,7 @@ class ConsumableForm
                         }),
 
                     // Unit of measurement for seeds
-                    Forms\Components\Select::make('quantity_unit')
+                    Select::make('quantity_unit')
                         ->label('Unit')
                         ->options([
                             'g' => 'Grams (g)',
@@ -427,7 +513,7 @@ class ConsumableForm
                 ->columnSpan(2),
 
             // Remaining quantity for existing inventory
-            Forms\Components\TextInput::make('remaining_quantity')
+            TextInput::make('remaining_quantity')
                 ->label('Current Remaining')
                 ->helperText('Actual weight remaining (e.g., weighed out 498g from 1000g)')
                 ->numeric()
@@ -437,7 +523,7 @@ class ConsumableForm
                 })
                 ->step(0.001)
                 ->reactive()
-                ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
+                ->afterStateUpdated(function ($state, Get $get, Set $set) {
                     $total = (float) $get('total_quantity');
                     $remaining = (float) $state;
                     $consumed = max(0, $total - $remaining);
@@ -452,7 +538,7 @@ class ConsumableForm
                 }),
 
             // Consumed quantity display
-            Forms\Components\Placeholder::make('consumed_display')
+            Placeholder::make('consumed_display')
                 ->label('Amount Used')
                 ->content(function (Get $get) {
                     $total = (float) $get('total_quantity');
@@ -464,34 +550,44 @@ class ConsumableForm
                 }),
 
             // Lot/batch number for seeds
-            Forms\Components\TextInput::make('lot_no')
+            TextInput::make('lot_no')
                 ->label('Lot/Batch Number')
                 ->helperText('Optional: Batch identifier')
                 ->maxLength(100),
 
             // Hidden fields for compatibility
-            Forms\Components\Hidden::make('consumed_quantity')
+            Hidden::make('consumed_quantity')
                 ->default(0)
                 ->dehydrated(),
-            Forms\Components\Hidden::make('initial_stock')
+            Hidden::make('initial_stock')
                 ->default(1),
-            Forms\Components\Hidden::make('quantity_per_unit')
+            Hidden::make('quantity_per_unit')
                 ->default(1),
-            Forms\Components\Hidden::make('restock_threshold')
+            Hidden::make('restock_threshold')
                 ->default(0),
-            Forms\Components\Hidden::make('restock_quantity')
+            Hidden::make('restock_quantity')
                 ->default(0),
         ];
     }
 
     /**
-     * Get standard inventory fields for non-seed types
+     * Generate standard inventory fields for unit-based agricultural supplies.
+     *
+     * Creates comprehensive inventory management for non-seed consumables
+     * including quantity tracking, consumption monitoring, packaging type
+     * selection, and unit size specifications. Supports diverse agricultural
+     * supply categories with flexible measurement units.
+     *
+     * @param callable $isEditMode Function to determine field visibility in edit mode
+     * @return array Filament form fields for unit-based inventory management
+     * @supply_tracking Soil, packaging, labels, and production consumables
+     * @measurement_flexibility Multiple unit types and capacity specifications
      */
     protected static function getStandardInventoryFields($isEditMode): array
     {
         return [
             // Quantity field
-            Forms\Components\TextInput::make('initial_stock')
+            TextInput::make('initial_stock')
                 ->label('Quantity')
                 ->helperText('Number of units in stock')
                 ->numeric()
@@ -501,7 +597,7 @@ class ConsumableForm
                 ->reactive(),
 
             // Consumed quantity field (only in edit mode)
-            Forms\Components\TextInput::make('consumed_quantity')
+            TextInput::make('consumed_quantity')
                 ->label('Used Quantity')
                 ->helperText('Number of units consumed')
                 ->numeric()
@@ -511,7 +607,7 @@ class ConsumableForm
                 ->visible(fn ($livewire) => $isEditMode($livewire)),
 
             // Available stock display (only in edit mode)
-            Forms\Components\TextInput::make('current_stock_display')
+            TextInput::make('current_stock_display')
                 ->label('Available Stock')
                 ->helperText('Current available quantity')
                 ->disabled()
@@ -520,7 +616,7 @@ class ConsumableForm
                 ->visible(fn ($livewire) => $isEditMode($livewire)),
 
             // Packaging type (unit type)
-            Forms\Components\Select::make('consumable_unit_id')
+            Select::make('consumable_unit_id')
                 ->label('Packaging Type')
                 ->helperText('Container or form of packaging')
                 ->options([
@@ -534,7 +630,7 @@ class ConsumableForm
                 ->default('unit'),
 
             // Unit size/capacity
-            Forms\Components\TextInput::make('quantity_per_unit')
+            TextInput::make('quantity_per_unit')
                 ->label('Unit Size')
                 ->helperText('Capacity or size of each unit (e.g., 107L per bag)')
                 ->numeric()
@@ -544,7 +640,7 @@ class ConsumableForm
                 ->reactive(),
 
             // Measurement unit for quantity_per_unit
-            Forms\Components\Select::make('quantity_unit')
+            Select::make('quantity_unit')
                 ->label('Unit of Measurement')
                 ->helperText('Unit for the size/capacity value')
                 ->options([
@@ -561,7 +657,7 @@ class ConsumableForm
                 ->default('l'),
 
             // Hidden field for total_quantity calculation
-            Forms\Components\Hidden::make('total_quantity')
+            Hidden::make('total_quantity')
                 ->default(0),
         ];
     }
@@ -569,9 +665,9 @@ class ConsumableForm
     /**
      * Get active status field
      */
-    protected static function getActiveStatusField(): Forms\Components\Component
+    protected static function getActiveStatusField(): Component
     {
-        return Forms\Components\Toggle::make('is_active')
+        return Toggle::make('is_active')
             ->label('Active')
             ->default(true);
     }
@@ -579,26 +675,26 @@ class ConsumableForm
     /**
      * Get cost information section
      */
-    protected static function getCostInformationSection(): Forms\Components\Section
+    protected static function getCostInformationSection(): Section
     {
-        return Forms\Components\Section::make('Cost Information')
+        return Section::make('Cost Information')
             ->schema([
-                Forms\Components\Grid::make(3)
+                Grid::make(3)
                     ->schema([
-                        Forms\Components\TextInput::make('cost_per_unit')
+                        TextInput::make('cost_per_unit')
                             ->label('Cost per Unit')
                             ->prefix('$')
                             ->numeric()
                             ->minValue(0)
                             ->step(0.01),
-                        Forms\Components\TextInput::make('last_purchase_price')
+                        TextInput::make('last_purchase_price')
                             ->label('Last Purchase Price')
                             ->prefix('$')
                             ->numeric()
                             ->disabled()
                             ->dehydrated(false)
                             ->visible(fn ($record) => $record !== null),
-                        Forms\Components\Placeholder::make('total_value')
+                        Placeholder::make('total_value')
                             ->label('Total Inventory Value')
                             ->content(function (Get $get) {
                                 return '$0.00'; // Simplified for now
@@ -611,11 +707,11 @@ class ConsumableForm
     /**
      * Get additional information section
      */
-    protected static function getAdditionalInformationSection(): Forms\Components\Section
+    protected static function getAdditionalInformationSection(): Section
     {
-        return Forms\Components\Section::make('Additional Information')
+        return Section::make('Additional Information')
             ->schema([
-                Forms\Components\Textarea::make('notes')
+                Textarea::make('notes')
                     ->label('Notes')
                     ->rows(3),
             ])

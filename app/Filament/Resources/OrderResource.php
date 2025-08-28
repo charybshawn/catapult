@@ -2,6 +2,43 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\DateTimePicker;
+use Exception;
+use App\Models\OrderType;
+use Filament\Schemas\Components\Grid;
+use Filament\Forms\Components\DatePicker;
+use App\Forms\Components\InvoiceOrderItems;
+use Closure;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\SelectColumn;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\Filter;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\ViewAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\Action;
+use App\Services\RecurringOrderService;
+use App\Models\Invoice;
+use App\Services\StatusTransitionService;
+use Filament\Forms\Components\Placeholder;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\BulkAction;
+use Illuminate\Database\Eloquent\Collection;
+use Filament\Actions\DeleteBulkAction;
+use App\Filament\Resources\OrderResource\Pages\ListOrders;
+use App\Filament\Resources\OrderResource\Pages\CreateOrder;
+use App\Filament\Resources\OrderResource\Pages\EditOrder;
+use App\Filament\Resources\OrderResource\Pages\CalendarOrders;
 use App\Filament\Resources\OrderResource\Pages;
 use App\Filament\Resources\OrderResource\RelationManagers;
 use App\Models\Customer;
@@ -11,23 +48,78 @@ use App\Models\Product;
 use App\Services\OrderPlanningService;
 use Carbon\Carbon;
 use Filament\Forms;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
 use Filament\Notifications\Notification;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Comprehensive Filament resource for agricultural order management with complex
+ * workflow integration, crop planning automation, and multi-tiered business operations.
+ *
+ * This resource manages the complete agricultural order lifecycle from initial customer
+ * requests through crop production, harvest scheduling, delivery coordination, and
+ * billing operations. It integrates deeply with agricultural workflows including
+ * crop planning, recurring order automation, and invoice generation.
+ *
+ * @filament_resource Manages Order entities with full agricultural workflow integration
+ * @business_domain Agricultural order processing and production planning
+ * @related_models Order, Customer, OrderItem, Product, CropPlan, Invoice, OrderStatus
+ * @workflow_support Complete order-to-delivery agricultural production chain
+ * 
+ * @agricultural_concepts
+ * - Order lifecycle: Draft → Confirmed → Production → Harvest → Delivery → Completed
+ * - Crop production integration: Orders drive crop planning and planting schedules
+ * - Delivery timing: Harvest dates automatically calculated from delivery requirements
+ * - Recurring orders: Template-based automatic order generation for regular customers
+ * 
+ * @complex_features
+ * - Intelligent delivery date validation with crop production timing warnings
+ * - Automatic harvest date calculation (4:00 PM day before delivery)
+ * - Crop plan generation based on order items and delivery dates
+ * - Recurring order template creation and automatic generation
+ * - Wholesale price recalculation for customer-specific discounts
+ * - Consolidated invoicing for multiple orders to same customer
+ * - Status transition validation with agricultural workflow protection
+ * 
+ * @business_workflows
+ * 1. Order Creation: Customer selection, delivery scheduling, item configuration
+ * 2. Production Planning: Crop plan generation, planting schedule coordination
+ * 3. Status Management: Workflow-validated status transitions with business rules
+ * 4. Harvest Coordination: Timing calculations, crop readiness tracking
+ * 5. Delivery Management: Customer notifications, fulfillment tracking
+ * 6. Billing Operations: Invoice creation, consolidated billing, payment tracking
+ * 
+ * @filament_advanced_features
+ * - Dynamic form sections with conditional visibility (recurring settings)
+ * - Reactive field updates with agricultural context validation
+ * - Complex table filters for production and payment status
+ * - Sophisticated bulk operations with business rule validation
+ * - Modal-based workflow actions with agricultural context
+ * - Real-time status updates with agricultural workflow integration
+ * 
+ * @performance_considerations
+ * - Eager loading of complex relationships (customer, items, status, plans)
+ * - Optimized queries for large order datasets with session persistence
+ * - Efficient bulk operations with batched database updates
+ * - Cached calculations for order totals and production requirements
+ * 
+ * @business_intelligence
+ * - Days until delivery calculation with urgency indicators
+ * - Payment status tracking with automated reconciliation
+ * - Crop production requirement analysis and visualization
+ * - Recurring order pattern analysis and template optimization
+ */
 class OrderResource extends BaseResource
 {
     protected static ?string $model = Order::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-shopping-cart';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-shopping-cart';
 
     protected static ?string $navigationLabel = 'Orders';
 
-    protected static ?string $navigationGroup = 'Orders & Sales';
+    protected static string | \UnitEnum | null $navigationGroup = 'Orders & Sales';
 
     protected static ?int $navigationSort = 1;
 
@@ -36,7 +128,19 @@ class OrderResource extends BaseResource
         return true;
     }
 
-    // Only show regular orders, not recurring templates
+    /**
+     * Configure base query to show only executable orders, excluding recurring templates.
+     *
+     * Filters the order listing to show regular orders and orders generated from
+     * recurring templates, but excludes the template records themselves from the
+     * main order management interface to prevent confusion between templates
+     * and actual production orders.
+     *
+     * @return Builder Query filtered for executable agricultural orders
+     * @business_logic Separates recurring templates from production order management
+     * @agricultural_workflow Templates are managed separately from production orders
+     * @ui_clarity Prevents template confusion in main order management interface
+     */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
@@ -49,12 +153,43 @@ class OrderResource extends BaseResource
             });
     }
 
-    public static function form(Form $form): Form
+    /**
+     * Create comprehensive order form with agricultural workflow integration.
+     *
+     * Builds a sophisticated form supporting the complete agricultural order
+     * lifecycle from customer selection through delivery scheduling, with
+     * intelligent field interactions, automatic calculations, and business
+     * rule validation tailored for agricultural production workflows.
+     *
+     * @param Schema $schema Filament schema builder instance
+     * @return Schema Complete order form with agricultural workflow integration
+     * 
+     * @form_sections
+     * - Order Type: Recurring order configuration and template settings
+     * - Order Information: Customer, delivery dates, status management
+     * - Recurring Settings: Frequency, dates for automated order generation
+     * - Billing & Invoicing: Payment terms and invoice requirements
+     * - Order Items: Product selection with agricultural context
+     * - Additional Information: Notes and special instructions
+     * 
+     * @agricultural_intelligence
+     * - Delivery date validation against crop production timelines
+     * - Automatic harvest date calculation (4:00 PM day before delivery)
+     * - Crop production timeline warnings for unrealistic delivery dates
+     * - Order type-specific status defaults for workflow optimization
+     * 
+     * @reactive_behavior
+     * - Recurring settings visibility based on order type selection
+     * - Customer type-specific discount field display
+     * - Delivery/harvest date automatic calculation and validation
+     * - Status helper text with agricultural workflow context
+     */
+    public static function form(Schema $schema): Schema
     {
-        return $form->schema([
-            Forms\Components\Section::make('Order Type')
+        return $schema->components([
+            Section::make('Order Type')
                 ->schema([
-                    Forms\Components\Toggle::make('is_recurring')
+                    Toggle::make('is_recurring')
                         ->label('Make this a recurring order')
                         ->helperText('When enabled, this order will generate new orders automatically')
                         ->reactive()
@@ -67,12 +202,12 @@ class OrderResource extends BaseResource
                         }),
                 ]),
 
-            Forms\Components\Section::make('Order Information')
+            Section::make('Order Information')
                 ->schema([
-                    Forms\Components\Select::make('customer_id')
+                    Select::make('customer_id')
                         ->label('Customer')
                         ->options(function () {
-                            return \App\Models\Customer::all()
+                            return Customer::all()
                                 ->mapWithKeys(function ($customer) {
                                     $display = $customer->business_name
                                         ? $customer->business_name.' ('.$customer->contact_name.')'
@@ -85,27 +220,27 @@ class OrderResource extends BaseResource
                         ->preload()
                         ->required()
                         ->createOptionForm([
-                            Forms\Components\TextInput::make('contact_name')
+                            TextInput::make('contact_name')
                                 ->label('Contact Name')
                                 ->required()
                                 ->maxLength(255),
-                            Forms\Components\TextInput::make('business_name')
+                            TextInput::make('business_name')
                                 ->label('Business Name')
                                 ->maxLength(255),
-                            Forms\Components\TextInput::make('email')
+                            TextInput::make('email')
                                 ->label('Email Address')
                                 ->email()
                                 ->required()
                                 ->unique(Customer::class, 'email'),
-                            Forms\Components\TextInput::make('cc_email')
+                            TextInput::make('cc_email')
                                 ->label('CC Email Address')
                                 ->email()
                                 ->maxLength(255),
-                            Forms\Components\TextInput::make('phone')
+                            TextInput::make('phone')
                                 ->label('Phone Number')
                                 ->tel()
                                 ->maxLength(20),
-                            Forms\Components\Select::make('customer_type')
+                            Select::make('customer_type')
                                 ->label('Customer Type')
                                 ->options([
                                     'retail' => 'Retail',
@@ -114,27 +249,27 @@ class OrderResource extends BaseResource
                                 ->default('retail')
                                 ->required()
                                 ->reactive(),
-                            Forms\Components\TextInput::make('wholesale_discount_percentage')
+                            TextInput::make('wholesale_discount_percentage')
                                 ->label('Wholesale Discount %')
                                 ->numeric()
                                 ->minValue(0)
                                 ->maxValue(100)
                                 ->step(0.01)
                                 ->suffix('%')
-                                ->visible(fn (Forms\Get $get) => $get('customer_type') === 'wholesale'),
-                            Forms\Components\Textarea::make('address')
+                                ->visible(fn (Get $get) => $get('customer_type') === 'wholesale'),
+                            Textarea::make('address')
                                 ->label('Address')
                                 ->rows(3),
-                            Forms\Components\TextInput::make('city')
+                            TextInput::make('city')
                                 ->label('City')
                                 ->maxLength(255),
-                            Forms\Components\TextInput::make('province')
+                            TextInput::make('province')
                                 ->label('Province')
                                 ->maxLength(255),
-                            Forms\Components\TextInput::make('postal_code')
+                            TextInput::make('postal_code')
                                 ->label('Postal Code')
                                 ->maxLength(20),
-                            Forms\Components\TextInput::make('country')
+                            TextInput::make('country')
                                 ->label('Country')
                                 ->maxLength(255)
                                 ->default('Canada'),
@@ -143,7 +278,7 @@ class OrderResource extends BaseResource
                             return Customer::create($data)->getKey();
                         })
                         ->helperText('Select existing customer or create a new one'),
-                    Forms\Components\DateTimePicker::make('delivery_date')
+                    DateTimePicker::make('delivery_date')
                         ->label('Delivery Date')
                         ->required()
                         ->live(onBlur: true)
@@ -154,7 +289,7 @@ class OrderResource extends BaseResource
                                     $deliveryDateTime = Carbon::parse($state);
                                     $harvestDateTime = $deliveryDateTime->copy()->subDay()->setTime(16, 0); // 4:00 PM day before
                                     $set('harvest_date', $harvestDateTime->toDateTimeString());
-                                } catch (\Exception $e) {
+                                } catch (Exception $e) {
                                     // If parsing fails, don't update harvest_date
                                     Log::error('Failed to parse delivery date: '.$e->getMessage());
                                 }
@@ -174,20 +309,20 @@ class OrderResource extends BaseResource
                                     if ($daysUntilDelivery < 5) {
                                         $helperText .= ' ⚠️ WARNING: This delivery date may be too soon for crop production!';
                                     }
-                                } catch (\Exception $e) {
+                                } catch (Exception $e) {
                                     // Ignore parse errors
                                 }
                             }
 
                             return $helperText;
                         })
-                        ->visible(fn (Forms\Get $get) => ! $get('is_recurring')),
-                    Forms\Components\DateTimePicker::make('harvest_date')
+                        ->visible(fn (Get $get) => ! $get('is_recurring')),
+                    DateTimePicker::make('harvest_date')
                         ->label('Harvest Date')
                         ->helperText('When this order should be harvested (automatically set to evening before delivery, but can be overridden)')
-                        ->required(fn (Forms\Get $get) => ! $get('is_recurring'))
-                        ->visible(fn (Forms\Get $get) => ! $get('is_recurring')),
-                    Forms\Components\Select::make('order_type_id')
+                        ->required(fn (Get $get) => ! $get('is_recurring'))
+                        ->visible(fn (Get $get) => ! $get('is_recurring')),
+                    Select::make('order_type_id')
                         ->label('Order Type')
                         ->relationship('orderType', 'name')
                         ->searchable()
@@ -195,7 +330,7 @@ class OrderResource extends BaseResource
                         ->required()
                         ->default(function () {
                             // Set default to 'website' order type
-                            $websiteType = \App\Models\OrderType::where('code', 'website')->first();
+                            $websiteType = OrderType::where('code', 'website')->first();
 
                             return $websiteType?->id;
                         })
@@ -203,7 +338,7 @@ class OrderResource extends BaseResource
                         ->afterStateUpdated(function ($state, callable $set, $record) {
                             // Auto-set status based on order type when creating
                             if (! $record && $state) {
-                                $orderType = \App\Models\OrderType::find($state);
+                                $orderType = OrderType::find($state);
                                 if ($orderType) {
                                     // Set appropriate default status based on order type
                                     $defaultStatusCode = match ($orderType->code) {
@@ -219,7 +354,7 @@ class OrderResource extends BaseResource
                                 }
                             }
                         }),
-                    Forms\Components\Select::make('status_id')
+                    Select::make('status_id')
                         ->label('Order Status')
                         ->options(function () {
                             return OrderStatus::getOptionsForDropdown(false, true);
@@ -260,11 +395,11 @@ class OrderResource extends BaseResource
                 ])
                 ->columns(2),
 
-            Forms\Components\Section::make('Recurring Settings')
+            Section::make('Recurring Settings')
                 ->schema([
-                    Forms\Components\Grid::make(3)
+                    Grid::make(3)
                         ->schema([
-                            Forms\Components\Select::make('recurring_frequency')
+                            Select::make('recurring_frequency')
                                 ->label('Frequency')
                                 ->options([
                                     'weekly' => 'Weekly',
@@ -273,21 +408,21 @@ class OrderResource extends BaseResource
                                 ])
                                 ->required(),
 
-                            Forms\Components\DatePicker::make('recurring_start_date')
+                            DatePicker::make('recurring_start_date')
                                 ->label('Start Date')
                                 ->helperText('First occurrence date')
                                 ->required(),
 
-                            Forms\Components\DatePicker::make('recurring_end_date')
+                            DatePicker::make('recurring_end_date')
                                 ->label('End Date (Optional)')
                                 ->helperText('Leave empty for indefinite'),
                         ]),
                 ])
                 ->visible(fn ($get) => $get('is_recurring')),
 
-            Forms\Components\Section::make('Billing & Invoicing')
+            Section::make('Billing & Invoicing')
                 ->schema([
-                    Forms\Components\Select::make('billing_frequency')
+                    Select::make('billing_frequency')
                         ->label('Billing Frequency')
                         ->options([
                             'immediate' => 'Immediate',
@@ -299,7 +434,7 @@ class OrderResource extends BaseResource
                         ->default('immediate')
                         ->required(),
 
-                    Forms\Components\Toggle::make('requires_invoice')
+                    Toggle::make('requires_invoice')
                         ->label('Requires Invoice')
                         ->default(true),
                 ])
@@ -307,9 +442,9 @@ class OrderResource extends BaseResource
                 ->collapsible()
                 ->collapsed(),
 
-            Forms\Components\Section::make('Order Items')
+            Section::make('Order Items')
                 ->schema([
-                    \App\Forms\Components\InvoiceOrderItems::make('orderItems')
+                    InvoiceOrderItems::make('orderItems')
                         ->label('Items')
                         ->productOptions(fn () => Product::query()->orderBy('name')->pluck('name', 'id')->toArray())
                         ->required()
@@ -317,7 +452,7 @@ class OrderResource extends BaseResource
                             'array',
                             'min:1',
                             function () {
-                                return function (string $attribute, $value, \Closure $fail) {
+                                return function (string $attribute, $value, Closure $fail) {
                                     if (! is_array($value)) {
                                         $fail('Order must have at least one item.');
 
@@ -361,9 +496,9 @@ class OrderResource extends BaseResource
                         ]),
                 ]),
 
-            Forms\Components\Section::make('Additional Information')
+            Section::make('Additional Information')
                 ->schema([
-                    Forms\Components\Textarea::make('notes')
+                    Textarea::make('notes')
                         ->rows(3)
                         ->columnSpanFull(),
                 ])
@@ -371,6 +506,44 @@ class OrderResource extends BaseResource
         ]);
     }
 
+    /**
+     * Configure comprehensive order table with agricultural workflow visualization.
+     *
+     * Creates a sophisticated table interface for agricultural order management
+     * with visual indicators for crop production requirements, payment status,
+     * delivery timing, and workflow state progression. Includes advanced filtering
+     * and bulk operations tailored for agricultural business operations.
+     *
+     * @param Table $table Filament table builder instance
+     * @return Table Complete order table with agricultural workflow features
+     * 
+     * @table_features
+     * - Customer display with business/contact name intelligence
+     * - Order type badges with agricultural workflow color coding
+     * - Inline status updates with transition validation
+     * - Days until delivery with urgency color indicators
+     * - Payment status visualization with reconciliation data
+     * - Crop production requirement indicators
+     * - Recurring order template identification
+     * 
+     * @agricultural_visualization
+     * - "Needs Growing" icon column for crop production requirements
+     * - Delivery timing with color-coded urgency levels
+     * - Harvest date display for production planning
+     * - Order total calculation with dynamic pricing
+     * 
+     * @advanced_filtering
+     * - Status and stage-based filtering for workflow management
+     * - Crop production requirement filtering
+     * - Payment status filtering with complex payment reconciliation
+     * - Customer type and order source filtering
+     * - Date range filtering for harvest and delivery planning
+     * 
+     * @performance_optimization
+     * - Session-persistent filters and searches for workflow efficiency
+     * - Eager loading of complex relationships prevents N+1 queries
+     * - Optimized column calculations for large order datasets
+     */
     public static function table(Table $table): Table
     {
         return $table
@@ -380,10 +553,10 @@ class OrderResource extends BaseResource
             ->persistColumnSearchesInSession()
             ->persistSearchInSession()
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('Order ID')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('customer.contact_name')
+                TextColumn::make('customer.contact_name')
                     ->label('Customer')
                     ->formatStateUsing(function ($state, Order $record) {
                         if (! $record->customer) {
@@ -404,7 +577,7 @@ class OrderResource extends BaseResource
                                 ->orWhere('business_name', 'like', "%{$search}%");
                         });
                     }),
-                Tables\Columns\TextColumn::make('order_type_display')
+                TextColumn::make('order_type_display')
                     ->label('Type')
                     ->badge()
                     ->color(fn (Order $record): string => match ($record->orderType?->code) {
@@ -413,7 +586,7 @@ class OrderResource extends BaseResource
                         'b2b' => 'info',
                         default => 'gray',
                     }),
-                Tables\Columns\SelectColumn::make('status_id')
+                SelectColumn::make('status_id')
                     ->label('Status')
                     ->options(function () {
                         return OrderStatus::getOptionsForDropdown(false, false);
@@ -422,7 +595,7 @@ class OrderResource extends BaseResource
                     ->disabled(fn ($record): bool => $record instanceof Order && ($record->status?->code === 'template' || $record->status?->is_final)
                     )
                     ->rules([
-                        fn ($record): \Closure => function (string $attribute, $value, \Closure $fail) use ($record) {
+                        fn ($record): Closure => function (string $attribute, $value, Closure $fail) use ($record) {
                             if (! ($record instanceof Order) || ! $record->status) {
                                 return;
                             }
@@ -470,14 +643,14 @@ class OrderResource extends BaseResource
                             ->success()
                             ->send();
                     }),
-                Tables\Columns\TextColumn::make('status.name')
+                TextColumn::make('status.name')
                     ->label('Status')
                     ->badge()
                     ->color(fn (Order $record): string => $record->status?->badge_color ?? 'gray')
                     ->formatStateUsing(fn (string $state, Order $record): string => $state.' ('.$record->status?->stage_display.')'
                     )
                     ->visible(false), // Hidden by default, can be toggled
-                Tables\Columns\IconColumn::make('requiresCrops')
+                IconColumn::make('requiresCrops')
                     ->label('Needs Growing')
                     ->boolean()
                     ->getStateUsing(fn (Order $record) => $record->requiresCropProduction())
@@ -486,7 +659,7 @@ class OrderResource extends BaseResource
                     ->trueColor('success')
                     ->falseColor('gray')
                     ->tooltip(fn (Order $record) => $record->requiresCropProduction() ? 'This order requires crop production' : 'No crops needed'),
-                Tables\Columns\TextColumn::make('paymentStatus')
+                TextColumn::make('paymentStatus')
                     ->label('Payment')
                     ->badge()
                     ->getStateUsing(fn (Order $record) => $record->isPaid() ? 'Paid' : 'Unpaid')
@@ -500,7 +673,7 @@ class OrderResource extends BaseResource
                         'Unpaid' => 'heroicon-o-x-circle',
                         default => 'heroicon-o-question-mark-circle',
                     }),
-                Tables\Columns\TextColumn::make('daysUntilDelivery')
+                TextColumn::make('daysUntilDelivery')
                     ->label('Delivery In')
                     ->getStateUsing(function (Order $record) {
                         if (! $record->delivery_date) {
@@ -537,37 +710,37 @@ class OrderResource extends BaseResource
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('delivery_date', $direction);
                     }),
-                Tables\Columns\TextColumn::make('parent_template')
+                TextColumn::make('parent_template')
                     ->label('Template')
                     ->getStateUsing(fn (Order $record) => $record->parent_recurring_order_id ? "Template #{$record->parent_recurring_order_id}" : null)
                     ->placeholder('Regular Order')
                     ->badge()
                     ->color('info')
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('totalAmount')
+                TextColumn::make('totalAmount')
                     ->label('Total')
                     ->money('USD')
                     ->getStateUsing(fn (Order $record) => $record->totalAmount()),
-                Tables\Columns\TextColumn::make('harvest_date')
+                TextColumn::make('harvest_date')
                     ->dateTime()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('delivery_date')
+                TextColumn::make('delivery_date')
                     ->dateTime()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
-                Tables\Filters\SelectFilter::make('status_id')
+                SelectFilter::make('status_id')
                     ->label('Status')
                     ->options(function () {
                         return OrderStatus::getOptionsForDropdown(false, true);
                     })
                     ->searchable(),
-                Tables\Filters\SelectFilter::make('stage')
+                SelectFilter::make('stage')
                     ->label('Stage')
                     ->options([
                         OrderStatus::STAGE_PRE_PRODUCTION => 'Pre-Production',
@@ -584,7 +757,7 @@ class OrderResource extends BaseResource
 
                         return $query;
                     }),
-                Tables\Filters\TernaryFilter::make('requires_crops')
+                TernaryFilter::make('requires_crops')
                     ->label('Requires Crops')
                     ->placeholder('All orders')
                     ->trueLabel('Orders needing crops')
@@ -603,7 +776,7 @@ class OrderResource extends BaseResource
                             });
                         }),
                     ),
-                Tables\Filters\TernaryFilter::make('payment_status')
+                TernaryFilter::make('payment_status')
                     ->label('Payment Status')
                     ->placeholder('All orders')
                     ->trueLabel('Paid orders')
@@ -622,21 +795,21 @@ class OrderResource extends BaseResource
                             });
                         }),
                     ),
-                Tables\Filters\TernaryFilter::make('parent_recurring_order_id')
+                TernaryFilter::make('parent_recurring_order_id')
                     ->label('Order Source')
                     ->nullable()
                     ->placeholder('All orders')
                     ->trueLabel('Generated from template')
                     ->falseLabel('Manual orders only'),
-                Tables\Filters\SelectFilter::make('customer_type')
+                SelectFilter::make('customer_type')
                     ->options([
                         'retail' => 'Retail',
                         'wholesale' => 'Wholesale',
                     ]),
-                Tables\Filters\Filter::make('harvest_date')
-                    ->form([
-                        Forms\Components\DatePicker::make('harvest_from'),
-                        Forms\Components\DatePicker::make('harvest_until'),
+                Filter::make('harvest_date')
+                    ->schema([
+                        DatePicker::make('harvest_from'),
+                        DatePicker::make('harvest_until'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         return $query
@@ -650,13 +823,13 @@ class OrderResource extends BaseResource
                             );
                     }),
             ])
-            ->actions([
-                Tables\Actions\ActionGroup::make([
-                    Tables\Actions\ViewAction::make()
+            ->recordActions([
+                ActionGroup::make([
+                    ViewAction::make()
                         ->tooltip('View order details'),
-                    Tables\Actions\EditAction::make()
+                    EditAction::make()
                         ->tooltip('Edit order'),
-                    Tables\Actions\Action::make('generate_next_recurring')
+                    Action::make('generate_next_recurring')
                         ->label('Generate Next Order')
                         ->icon('heroicon-o-plus-circle')
                         ->color('success')
@@ -669,7 +842,7 @@ class OrderResource extends BaseResource
                         )
                         ->action(function (Order $record) {
                             try {
-                                $recurringOrderService = app(\App\Services\RecurringOrderService::class);
+                                $recurringOrderService = app(RecurringOrderService::class);
                                 $newOrder = $recurringOrderService->generateNextOrder($record);
 
                                 if ($newOrder) {
@@ -678,7 +851,7 @@ class OrderResource extends BaseResource
                                         ->body("Order #{$newOrder->id} has been created successfully.")
                                         ->success()
                                         ->actions([
-                                            \Filament\Notifications\Actions\Action::make('view')
+                                            Action::make('view')
                                                 ->label('View Order')
                                                 ->url(route('filament.admin.resources.orders.edit', ['record' => $newOrder->id])),
                                         ])
@@ -690,7 +863,7 @@ class OrderResource extends BaseResource
                                         ->warning()
                                         ->send();
                                 }
-                            } catch (\Exception $e) {
+                            } catch (Exception $e) {
                                 Notification::make()
                                     ->title('Error Generating Order')
                                     ->body('Failed to generate recurring order: '.$e->getMessage())
@@ -699,7 +872,7 @@ class OrderResource extends BaseResource
                             }
                         }),
 
-                    Tables\Actions\Action::make('recalculate_prices')
+                    Action::make('recalculate_prices')
                         ->label('Recalculate Prices')
                         ->icon('heroicon-o-calculator')
                         ->color('info')
@@ -757,7 +930,7 @@ class OrderResource extends BaseResource
                                         ->info()
                                         ->send();
                                 }
-                            } catch (\Exception $e) {
+                            } catch (Exception $e) {
                                 Notification::make()
                                     ->title('Error Recalculating Prices')
                                     ->body('Failed to recalculate prices: '.$e->getMessage())
@@ -766,7 +939,7 @@ class OrderResource extends BaseResource
                             }
                         }),
 
-                    Tables\Actions\Action::make('generate_crop_plans')
+                    Action::make('generate_crop_plans')
                         ->label('Generate Crop Plans')
                         ->icon('heroicon-o-sparkles')
                         ->color('success')
@@ -797,7 +970,7 @@ class OrderResource extends BaseResource
                             }
                         }),
 
-                    Tables\Actions\Action::make('convert_to_invoice')
+                    Action::make('convert_to_invoice')
                         ->label('Create Invoice')
                         ->icon('heroicon-o-document-text')
                         ->color('warning')
@@ -811,19 +984,19 @@ class OrderResource extends BaseResource
                         )
                         ->action(function (Order $record) {
                             try {
-                                $invoice = \App\Models\Invoice::createFromOrder($record);
+                                $invoice = Invoice::createFromOrder($record);
 
                                 Notification::make()
                                     ->title('Invoice Created')
                                     ->body("Invoice #{$invoice->id} has been created successfully.")
                                     ->success()
                                     ->actions([
-                                        \Filament\Notifications\Actions\Action::make('view')
+                                        Action::make('view')
                                             ->label('View Invoice')
                                             ->url(route('filament.admin.resources.invoices.edit', ['record' => $invoice->id])),
                                     ])
                                     ->send();
-                            } catch (\Exception $e) {
+                            } catch (Exception $e) {
                                 Notification::make()
                                     ->title('Error Creating Invoice')
                                     ->body('Failed to create invoice: '.$e->getMessage())
@@ -832,7 +1005,7 @@ class OrderResource extends BaseResource
                             }
                         }),
 
-                    Tables\Actions\Action::make('convert_to_recurring')
+                    Action::make('convert_to_recurring')
                         ->label('Convert to Recurring')
                         ->icon('heroicon-o-arrow-path')
                         ->color('primary')
@@ -842,10 +1015,10 @@ class OrderResource extends BaseResource
                             $record->customer &&
                             $record->orderItems()->count() > 0
                         )
-                        ->form([
-                            Forms\Components\Section::make('Recurring Settings')
+                        ->schema([
+                            Section::make('Recurring Settings')
                                 ->schema([
-                                    Forms\Components\Select::make('frequency')
+                                    Select::make('frequency')
                                         ->label('Frequency')
                                         ->options([
                                             'weekly' => 'Weekly',
@@ -856,7 +1029,7 @@ class OrderResource extends BaseResource
                                         ->required()
                                         ->reactive(),
 
-                                    Forms\Components\TextInput::make('interval')
+                                    TextInput::make('interval')
                                         ->label('Interval (weeks)')
                                         ->helperText('For bi-weekly: enter 2 for every 2 weeks')
                                         ->numeric()
@@ -865,13 +1038,13 @@ class OrderResource extends BaseResource
                                         ->maxValue(12)
                                         ->visible(fn (Get $get) => $get('frequency') === 'biweekly'),
 
-                                    Forms\Components\DatePicker::make('start_date')
+                                    DatePicker::make('start_date')
                                         ->label('Start Date')
                                         ->default(now()->addWeek())
                                         ->required()
                                         ->minDate(now()),
 
-                                    Forms\Components\DatePicker::make('end_date')
+                                    DatePicker::make('end_date')
                                         ->label('End Date (Optional)')
                                         ->helperText('Leave blank for indefinite recurring')
                                         ->minDate(fn (Get $get) => $get('start_date')),
@@ -883,7 +1056,7 @@ class OrderResource extends BaseResource
                         )
                         ->action(function (Order $record, array $data) {
                             try {
-                                $recurringOrderService = app(\App\Services\RecurringOrderService::class);
+                                $recurringOrderService = app(RecurringOrderService::class);
                                 $convertedOrder = $recurringOrderService->convertToRecurringTemplate($record, $data);
 
                                 Notification::make()
@@ -891,12 +1064,12 @@ class OrderResource extends BaseResource
                                     ->body("Order #{$record->id} has been converted to a recurring template.")
                                     ->success()
                                     ->actions([
-                                        \Filament\Notifications\Actions\Action::make('view')
+                                        Action::make('view')
                                             ->label('View Template')
                                             ->url(route('filament.admin.resources.recurring-orders.edit', ['record' => $convertedOrder->id])),
                                     ])
                                     ->send();
-                            } catch (\Exception $e) {
+                            } catch (Exception $e) {
                                 Notification::make()
                                     ->title('Conversion Failed')
                                     ->body('Failed to convert order to recurring: '.$e->getMessage())
@@ -905,32 +1078,32 @@ class OrderResource extends BaseResource
                             }
                         }),
 
-                    Tables\Actions\Action::make('transition_status')
+                    Action::make('transition_status')
                         ->label('Change Status')
                         ->icon('heroicon-o-arrow-path')
                         ->color('info')
                         ->visible(fn (Order $record): bool => ! $record->isInFinalState() &&
                             $record->status?->code !== 'template'
                         )
-                        ->form(function (Order $record) {
-                            $validStatuses = app(\App\Services\StatusTransitionService::class)
+                        ->schema(function (Order $record) {
+                            $validStatuses = app(StatusTransitionService::class)
                                 ->getValidNextStatuses($record);
 
                             if ($validStatuses->isEmpty()) {
                                 return [
-                                    Forms\Components\Placeholder::make('no_transitions')
+                                    Placeholder::make('no_transitions')
                                         ->label('')
                                         ->content('No valid status transitions available for this order.'),
                                 ];
                             }
 
                             return [
-                                Forms\Components\Select::make('new_status')
+                                Select::make('new_status')
                                     ->label('New Status')
                                     ->options($validStatuses->pluck('name', 'code'))
                                     ->required()
                                     ->helperText('Select the new status for this order'),
-                                Forms\Components\Textarea::make('notes')
+                                Textarea::make('notes')
                                     ->label('Notes')
                                     ->placeholder('Optional notes about this status change')
                                     ->rows(3),
@@ -958,7 +1131,7 @@ class OrderResource extends BaseResource
                             }
                         }),
 
-                    Tables\Actions\DeleteAction::make()
+                    DeleteAction::make()
                         ->tooltip('Delete order'),
                 ])
                     ->label('Actions')
@@ -967,9 +1140,9 @@ class OrderResource extends BaseResource
                     ->color('gray')
                     ->button(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\BulkAction::make('create_consolidated_invoice')
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    BulkAction::make('create_consolidated_invoice')
                         ->label('Create Consolidated Invoice')
                         ->icon('heroicon-o-document-text')
                         ->color('warning')
@@ -977,20 +1150,20 @@ class OrderResource extends BaseResource
                         ->modalHeading('Create Consolidated Invoice')
                         ->modalDescription('This will create a single invoice for all selected orders.')
                         ->form([
-                            Forms\Components\DatePicker::make('issue_date')
+                            DatePicker::make('issue_date')
                                 ->label('Issue Date')
                                 ->default(now())
                                 ->required(),
-                            Forms\Components\DatePicker::make('due_date')
+                            DatePicker::make('due_date')
                                 ->label('Due Date')
                                 ->default(now()->addDays(30))
                                 ->required(),
-                            Forms\Components\Textarea::make('notes')
+                            Textarea::make('notes')
                                 ->label('Invoice Notes')
                                 ->placeholder('Additional notes for the consolidated invoice...')
                                 ->rows(3),
                         ])
-                        ->action(function (\Illuminate\Database\Eloquent\Collection $records, array $data) {
+                        ->action(function (Collection $records, array $data) {
                             // Validate that orders can be consolidated
                             $errors = self::validateOrdersForConsolidation($records);
 
@@ -1013,12 +1186,12 @@ class OrderResource extends BaseResource
                                     ->body("Invoice #{$invoice->invoice_number} created for {$records->count()} orders totaling $".number_format($invoice->total_amount, 2).'.')
                                     ->success()
                                     ->actions([
-                                        \Filament\Notifications\Actions\Action::make('view')
+                                        Action::make('view')
                                             ->label('View Invoice')
                                             ->url(route('filament.admin.resources.invoices.edit', ['record' => $invoice->id])),
                                     ])
                                     ->send();
-                            } catch (\Exception $e) {
+                            } catch (Exception $e) {
                                 Notification::make()
                                     ->title('Error Creating Invoice')
                                     ->body('Failed to create consolidated invoice: '.$e->getMessage())
@@ -1028,13 +1201,13 @@ class OrderResource extends BaseResource
                         })
                         ->deselectRecordsAfterCompletion(),
 
-                    Tables\Actions\BulkAction::make('bulk_status_update')
+                    BulkAction::make('bulk_status_update')
                         ->label('Update Status')
                         ->icon('heroicon-o-arrow-path')
                         ->color('info')
                         ->requiresConfirmation()
                         ->modalHeading('Bulk Status Update')
-                        ->modalDescription(function (\Illuminate\Database\Eloquent\Collection $records) {
+                        ->modalDescription(function (Collection $records) {
                             $finalOrders = $records->filter(fn ($order) => $order->isInFinalState());
                             $templateOrders = $records->filter(fn ($order) => $order->status?->code === 'template');
 
@@ -1052,7 +1225,7 @@ class OrderResource extends BaseResource
                                    (! empty($warnings) ? "\n\nWarnings:\n".implode("\n", $warnings) : '');
                         })
                         ->form([
-                            Forms\Components\Select::make('new_status')
+                            Select::make('new_status')
                                 ->label('New Status')
                                 ->options(OrderStatus::active()
                                     ->notFinal()
@@ -1060,13 +1233,13 @@ class OrderResource extends BaseResource
                                     ->pluck('name', 'code'))
                                 ->required()
                                 ->helperText('Select the new status for all eligible orders'),
-                            Forms\Components\Textarea::make('notes')
+                            Textarea::make('notes')
                                 ->label('Notes')
                                 ->placeholder('Optional notes about this bulk status change')
                                 ->rows(3),
                         ])
-                        ->action(function (\Illuminate\Database\Eloquent\Collection $records, array $data) {
-                            $statusService = app(\App\Services\StatusTransitionService::class);
+                        ->action(function (Collection $records, array $data) {
+                            $statusService = app(StatusTransitionService::class);
 
                             // Filter out ineligible orders
                             $eligibleOrders = $records->filter(function ($order) {
@@ -1114,7 +1287,7 @@ class OrderResource extends BaseResource
                         })
                         ->deselectRecordsAfterCompletion(),
 
-                    Tables\Actions\DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }
@@ -1128,9 +1301,29 @@ class OrderResource extends BaseResource
     }
 
     /**
-     * Validate that orders can be consolidated into a single invoice
+     * Validate agricultural orders for consolidated invoice creation.
+     *
+     * Performs comprehensive validation to ensure selected orders can be
+     * consolidated into a single invoice, checking for agricultural business
+     * rule compliance, customer consistency, and billing requirement alignment.
+     * Essential for maintaining billing integrity in agricultural operations.
+     *
+     * @param Collection $orders Collection of orders to validate for consolidation
+     * @return array Array of validation errors, empty if consolidation is valid
+     * 
+     * @validation_rules
+     * - No recurring order templates (only actual production orders)
+     * - All orders must require invoices (billing configuration consistency)
+     * - No orders with existing invoices (prevents duplicate billing)
+     * - Single customer requirement (consolidated billing constraint)
+     * - Minimum 2 orders for consolidation efficiency
+     * 
+     * @agricultural_business_logic
+     * - Template orders excluded from billing workflows
+     * - Customer consolidation supports bulk agricultural sales
+     * - Prevents billing confusion in complex agricultural order systems
      */
-    protected static function validateOrdersForConsolidation(\Illuminate\Database\Eloquent\Collection $orders): array
+    protected static function validateOrdersForConsolidation(Collection $orders): array
     {
         $errors = [];
 
@@ -1169,9 +1362,30 @@ class OrderResource extends BaseResource
     }
 
     /**
-     * Create a consolidated invoice from multiple orders
+     * Create consolidated invoice for multiple agricultural orders.
+     *
+     * Generates a single invoice encompassing multiple orders for the same
+     * customer, calculating total amounts, determining billing periods from
+     * delivery dates, and linking all orders to the consolidated invoice.
+     * Supports efficient billing for regular agricultural customers.
+     *
+     * @param Collection $orders Validated orders for consolidation
+     * @param array $data Invoice configuration data (dates, notes)
+     * @return Invoice Created consolidated invoice with order linkage
+     * 
+     * @consolidation_logic
+     * - Calculates total amount across all orders
+     * - Determines billing period from delivery date range
+     * - Generates unique invoice number for consolidated billing
+     * - Links all orders to consolidated invoice record
+     * 
+     * @agricultural_context
+     * - Billing periods based on agricultural delivery schedules
+     * - Order count tracking for agricultural business intelligence
+     * - Supports seasonal billing patterns in agricultural sales
+     * - Maintains order traceability within consolidated billing
      */
-    protected static function createConsolidatedInvoice(\Illuminate\Database\Eloquent\Collection $orders, array $data): \App\Models\Invoice
+    protected static function createConsolidatedInvoice(Collection $orders, array $data): Invoice
     {
         // Calculate total amount
         $totalAmount = $orders->sum(function ($order) {
@@ -1179,15 +1393,15 @@ class OrderResource extends BaseResource
         });
 
         // Get billing period from order dates
-        $deliveryDates = $orders->pluck('delivery_date')->map(fn ($date) => \Carbon\Carbon::parse($date))->sort();
+        $deliveryDates = $orders->pluck('delivery_date')->map(fn ($date) => Carbon::parse($date))->sort();
         $billingPeriodStart = $deliveryDates->first()->startOfMonth();
         $billingPeriodEnd = $deliveryDates->last()->endOfMonth();
 
         // Generate invoice number
-        $invoiceNumber = \App\Models\Invoice::generateInvoiceNumber();
+        $invoiceNumber = Invoice::generateInvoiceNumber();
 
         // Create the consolidated invoice
-        $invoice = \App\Models\Invoice::create([
+        $invoice = Invoice::create([
             'user_id' => $orders->first()->user_id,
             'invoice_number' => $invoiceNumber,
             'amount' => $totalAmount,
@@ -1213,10 +1427,10 @@ class OrderResource extends BaseResource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListOrders::route('/'),
-            'create' => Pages\CreateOrder::route('/create'),
-            'edit' => Pages\EditOrder::route('/{record}/edit'),
-            'calendar' => Pages\CalendarOrders::route('/calendar'),
+            'index' => ListOrders::route('/'),
+            'create' => CreateOrder::route('/create'),
+            'edit' => EditOrder::route('/{record}/edit'),
+            'calendar' => CalendarOrders::route('/calendar'),
         ];
     }
 }

@@ -2,13 +2,13 @@
 
 namespace App\Filament\Resources\ScheduledTaskResource\Pages;
 
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Grid;
 use App\Filament\Resources\ScheduledTaskResource;
 use App\Models\ScheduledTask;
 use Filament\Resources\Pages\ViewRecord;
-use Filament\Infolists\Infolist;
-use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Components\Grid;
 
 class ViewScheduledTask extends ViewRecord
 {
@@ -27,7 +27,7 @@ class ViewScheduledTask extends ViewRecord
         $this->record = $task;
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
         return $infolist
             ->schema([

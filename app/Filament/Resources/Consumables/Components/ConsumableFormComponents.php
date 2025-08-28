@@ -2,11 +2,19 @@
 
 namespace App\Filament\Resources\Consumables\Components;
 
+use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Grid;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Forms\Components\Placeholder;
+use Filament\Schemas\Components\Fieldset;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Forms\Components\Hidden;
 use App\Models\ConsumableType;
 use App\Models\ConsumableUnit;
 use Filament\Forms;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
 use App\Filament\Forms\Components\Common as FormCommon;
 use App\Filament\Traits\HasActiveStatus;
 use App\Filament\Traits\HasTimestamps;
@@ -19,12 +27,12 @@ trait ConsumableFormComponents
     /**
      * Get the basic information section that's common to all consumables
      */
-    public static function getConsumableBasicInformationSection(bool $includeType = true): Forms\Components\Section
+    public static function getConsumableBasicInformationSection(bool $includeType = true): Section
     {
         $schema = [];
         
         if ($includeType) {
-            $schema[] = Forms\Components\Select::make('consumable_type_id')
+            $schema[] = Select::make('consumable_type_id')
                 ->label('Category')
                 ->options(ConsumableType::options())
                 ->required()
@@ -34,7 +42,7 @@ trait ConsumableFormComponents
                 ->columnSpanFull();
         }
         
-        return Forms\Components\Section::make('Basic Information')
+        return Section::make('Basic Information')
             ->schema($schema)
             ->columns(2);
     }
@@ -42,7 +50,7 @@ trait ConsumableFormComponents
     /**
      * Get supplier field
      */
-    public static function getSupplierField(): Forms\Components\Select
+    public static function getSupplierField(): Select
     {
         return FormCommon::supplierSelect();
     }
@@ -50,7 +58,7 @@ trait ConsumableFormComponents
     /**
      * Get active status field
      */
-    public static function getActiveField(): Forms\Components\Toggle
+    public static function getActiveField(): Toggle
     {
         return static::getActiveStatusField()
             ->columnSpanFull();
@@ -59,13 +67,13 @@ trait ConsumableFormComponents
     /**
      * Get cost information section
      */
-    public static function getCostInformationSection(bool $alwaysVisible = false): Forms\Components\Section
+    public static function getCostInformationSection(bool $alwaysVisible = false): Section
     {
-        return Forms\Components\Section::make('Cost Information')
+        return Section::make('Cost Information')
             ->schema([
-                Forms\Components\Grid::make(3)
+                Grid::make(3)
                     ->schema([
-                        Forms\Components\TextInput::make('cost_per_unit')
+                        TextInput::make('cost_per_unit')
                             ->label('Cost per Unit')
                             ->prefix('$')
                             ->numeric()
@@ -83,14 +91,14 @@ trait ConsumableFormComponents
                                     return 'Cost per ' . ($unit ? $unit->symbol : 'unit');
                                 }
                             }),
-                        Forms\Components\TextInput::make('last_purchase_price')
+                        TextInput::make('last_purchase_price')
                             ->label('Last Purchase Price')
                             ->prefix('$')
                             ->numeric()
                             ->disabled()
                             ->dehydrated(false)
                             ->visible(fn ($record) => $record !== null),
-                        Forms\Components\Placeholder::make('total_value')
+                        Placeholder::make('total_value')
                             ->label('Total Inventory Value')
                             ->content(function (Get $get) {
                                 $costPerUnit = (float) $get('cost_per_unit');
@@ -126,18 +134,18 @@ trait ConsumableFormComponents
     /**
      * Get restock settings fieldset (currently deprecated/hidden)
      */
-    public static function getRestockSettings(): Forms\Components\Fieldset
+    public static function getRestockSettings(): Fieldset
     {
-        return Forms\Components\Fieldset::make('Restock Settings')
+        return Fieldset::make('Restock Settings')
             ->visible(false) // Temporarily hidden/deprecated
             ->schema([
-                Forms\Components\TextInput::make('restock_threshold')
+                TextInput::make('restock_threshold')
                     ->label('Restock Threshold')
                     ->helperText('When stock falls below this number, reorder')
                     ->numeric()
                     ->required()
                     ->default(5),
-                Forms\Components\TextInput::make('restock_quantity')
+                TextInput::make('restock_quantity')
                     ->label('Restock Quantity')
                     ->helperText('How many to order when restocking')
                     ->numeric()
@@ -153,7 +161,7 @@ trait ConsumableFormComponents
     {
         return [
             // Quantity field
-            Forms\Components\TextInput::make('initial_stock')
+            TextInput::make('initial_stock')
                 ->label('Quantity')
                 ->helperText('Number of units in stock')
                 ->numeric()
@@ -161,7 +169,7 @@ trait ConsumableFormComponents
                 ->required()
                 ->default(0)
                 ->reactive()
-                ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get) use ($isEditMode) {
+                ->afterStateUpdated(function (Set $set, Get $get) use ($isEditMode) {
                     if ($isEditMode) {
                         $set('current_stock_display', max(0, (float)$get('initial_stock') - (float)$get('consumed_quantity')));
                     }
@@ -177,7 +185,7 @@ trait ConsumableFormComponents
                 }),
             
             // Consumed quantity field (only in edit mode)
-            Forms\Components\TextInput::make('consumed_quantity')
+            TextInput::make('consumed_quantity')
                 ->label('Used Quantity')
                 ->helperText('Number of units consumed')
                 ->numeric()
@@ -185,7 +193,7 @@ trait ConsumableFormComponents
                 ->default(0)
                 ->reactive()
                 ->visible($isEditMode)
-                ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get) {
+                ->afterStateUpdated(function (Set $set, Get $get) {
                     $set('current_stock_display', max(0, (float)$get('initial_stock') - (float)$get('consumed_quantity')));
                     
                     // If unit capacity is set, also update total quantity calculation
@@ -196,7 +204,7 @@ trait ConsumableFormComponents
                 }),
             
             // Available stock display (only in edit mode)
-            Forms\Components\TextInput::make('current_stock_display')
+            TextInput::make('current_stock_display')
                 ->label('Available Stock')
                 ->helperText('Current available quantity')
                 ->disabled()
@@ -205,7 +213,7 @@ trait ConsumableFormComponents
                 ->visible($isEditMode),
             
             // Packaging type (unit type)
-            Forms\Components\Select::make('consumable_unit_id')
+            Select::make('consumable_unit_id')
                 ->label('Packaging Type')
                 ->helperText('Container or form of packaging')
                 ->options(ConsumableUnit::options())
@@ -215,7 +223,7 @@ trait ConsumableFormComponents
                 }),
             
             // Unit size/capacity
-            Forms\Components\TextInput::make('quantity_per_unit')
+            TextInput::make('quantity_per_unit')
                 ->label('Unit Size')
                 ->helperText('Capacity or size of each unit (e.g., 107L per bag)')
                 ->numeric()
@@ -223,7 +231,7 @@ trait ConsumableFormComponents
                 ->default(0)
                 ->step(0.01)
                 ->reactive()
-                ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get) use ($isEditMode) {
+                ->afterStateUpdated(function (Set $set, Get $get) use ($isEditMode) {
                     // Update total quantity based on available stock and unit size
                     $availableStock = $isEditMode
                         ? max(0, (float)$get('initial_stock') - (float)$get('consumed_quantity'))
@@ -233,7 +241,7 @@ trait ConsumableFormComponents
                 }),
             
             // Measurement unit for quantity_per_unit
-            Forms\Components\Select::make('quantity_unit')
+            Select::make('quantity_unit')
                 ->label('Unit of Measurement')
                 ->helperText('Unit for the size/capacity value')
                 ->options([
@@ -250,7 +258,7 @@ trait ConsumableFormComponents
                 ->default('l'),
             
             // Hidden field for total_quantity calculation
-            Forms\Components\Hidden::make('total_quantity')
+            Hidden::make('total_quantity')
                 ->default(0),
         ];
     }

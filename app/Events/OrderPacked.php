@@ -14,14 +14,14 @@ class OrderPacked
     /**
      * The order instance.
      *
-     * @var \App\Models\Order
+     * @var Order
      */
     public $order;
 
     /**
      * Create a new event instance.
      *
-     * @param \App\Models\Order $order
+     * @param Order $order
      * @return void
      */
     public function __construct(Order $order)

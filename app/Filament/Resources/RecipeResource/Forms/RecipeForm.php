@@ -2,18 +2,60 @@
 
 namespace App\Filament\Resources\RecipeResource\Forms;
 
+use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\Select;
+use App\Models\MasterSeedCatalog;
+use App\Models\MasterCultivar;
+use Filament\Forms\Components\Hidden;
+use App\Services\InventoryManagementService;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Actions\Action;
+use Filament\Forms\Components\Placeholder;
+use Illuminate\Support\HtmlString;
+use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\TextInput;
 use App\Models\Consumable;
 use App\Models\Recipe;
 use Filament\Forms;
-use Filament\Forms\Get;
 use Filament\Forms\Set;
 
+/**
+ * RecipeForm for Agricultural Growing Recipe Management
+ * 
+ * Provides comprehensive form functionality for creating and managing agricultural
+ * growing recipes with variety selection, growing parameters, and stage-specific
+ * configurations. Essential for standardizing microgreens production with precise
+ * timing, density, and environmental parameter control.
+ * 
+ * @filament_component Form schema builder for RecipeResource
+ * @business_domain Agricultural recipe management with growing parameter standardization
+ * @recipe_management Variety-specific growing recipes with precise parameter control
+ * 
+ * @agricultural_parameters Days to maturity, seed density, germination timing, environmental controls
+ * @variety_integration MasterSeedCatalog and cultivar selection with inventory awareness
+ * @growing_standardization Consistent parameter definitions for reproducible agricultural results
+ * 
+ * @business_workflow Variety selection -> parameter configuration -> stage definition -> validation
+ * @related_models Recipe, MasterSeedCatalog, MasterCultivar, Consumable for complete context
+ * @form_sections Recipe information, growing parameters, stage configurations
+ */
 class RecipeForm
 {
+    /**
+     * Get the complete form schema for agricultural recipe management.
+     * 
+     * Assembles comprehensive form sections including variety selection,
+     * growing parameters, and configuration options essential for
+     * standardized agricultural production recipes.
+     * 
+     * @return array Complete Filament form schema for recipe management
+     * @form_sections Recipe information with variety selection and growing parameters
+     * @agricultural_workflow Supports complete recipe creation and parameter management
+     */
     public static function schema(): array
     {
         return [
-            Forms\Components\Section::make('Recipe Information')
+            Section::make('Recipe Information')
                 ->schema([
                     static::getVarietyField(),
                     static::getCultivarField(),
@@ -25,7 +67,7 @@ class RecipeForm
                 ])
                 ->columns(2),
 
-            Forms\Components\Section::make('Growing Parameters')
+            Section::make('Growing Parameters')
                 ->schema([
                     static::getDaysToMaturityField(),
                     static::getSeedSoakHoursField(),
@@ -39,12 +81,12 @@ class RecipeForm
         ];
     }
 
-    protected static function getVarietyField(): Forms\Components\Select
+    protected static function getVarietyField(): Select
     {
-        return Forms\Components\Select::make('master_seed_catalog_id')
+        return Select::make('master_seed_catalog_id')
             ->label('Variety')
             ->options(function () {
-                return \App\Models\MasterSeedCatalog::query()
+                return MasterSeedCatalog::query()
                     ->where('is_active', true)
                     ->orderBy('common_name')
                     ->pluck('common_name', 'id');
@@ -57,7 +99,7 @@ class RecipeForm
             ->afterStateUpdated(function ($state, callable $set, ?Recipe $record) {
                 if ($state && ! $record) {
                     // When creating new recipe, set common_name based on selection
-                    $catalog = \App\Models\MasterSeedCatalog::find($state);
+                    $catalog = MasterSeedCatalog::find($state);
                     if ($catalog) {
                         $set('common_name', $catalog->common_name);
                     }
@@ -67,9 +109,9 @@ class RecipeForm
             });
     }
 
-    protected static function getCultivarField(): Forms\Components\Select
+    protected static function getCultivarField(): Select
     {
-        return Forms\Components\Select::make('master_cultivar_id')
+        return Select::make('master_cultivar_id')
             ->label('Cultivar')
             ->options(function (callable $get) {
                 $catalogId = $get('master_seed_catalog_id');
@@ -77,7 +119,7 @@ class RecipeForm
                     return [];
                 }
 
-                return \App\Models\MasterCultivar::where('master_seed_catalog_id', $catalogId)
+                return MasterCultivar::where('master_seed_catalog_id', $catalogId)
                     ->where('is_active', true)
                     ->pluck('cultivar_name', 'id');
             })
@@ -85,11 +127,11 @@ class RecipeForm
             ->reactive()
             ->afterStateUpdated(function ($state, callable $set, callable $get) {
                 if ($state) {
-                    $cultivar = \App\Models\MasterCultivar::find($state);
+                    $cultivar = MasterCultivar::find($state);
                     if ($cultivar) {
                         $set('cultivar_name', $cultivar->cultivar_name);
                         // Update recipe name
-                        $catalog = \App\Models\MasterSeedCatalog::find($get('master_seed_catalog_id'));
+                        $catalog = MasterSeedCatalog::find($get('master_seed_catalog_id'));
                         if ($catalog && $cultivar) {
                             $name = $catalog->common_name.' ('.$cultivar->cultivar_name.')';
                             $set('name', $name);
@@ -102,14 +144,14 @@ class RecipeForm
     protected static function getHiddenFields(): array
     {
         return [
-            Forms\Components\Hidden::make('common_name'),
-            Forms\Components\Hidden::make('cultivar_name'),
+            Hidden::make('common_name'),
+            Hidden::make('cultivar_name'),
         ];
     }
 
-    protected static function getLotNumberField(): Forms\Components\Select
+    protected static function getLotNumberField(): Select
     {
-        return Forms\Components\Select::make('lot_number')
+        return Select::make('lot_number')
             ->label('Seed Lot')
             ->options(fn () => static::getAvailableLotsForSelection())
             ->searchable()
@@ -121,7 +163,7 @@ class RecipeForm
                 'max:255',
                 function ($attribute, $value, $fail) {
                     if ($value) {
-                        $lotInventoryService = app(\App\Services\InventoryManagementService::class);
+                        $lotInventoryService = app(InventoryManagementService::class);
 
                         // Check if lot exists
                         if (! $lotInventoryService->lotExists($value)) {
@@ -146,14 +188,14 @@ class RecipeForm
                 },
             ])
             ->live(onBlur: true)
-            ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
+            ->afterStateUpdated(function ($state, callable $set, Get $get) {
                 // Clear lot_depleted_at when lot is changed
                 if ($state && $state !== $get('lot_number')) {
                     $set('lot_depleted_at', null);
                 }
             })
             ->suffixAction(
-                Forms\Components\Actions\Action::make('refresh_lots')
+                Action::make('refresh_lots')
                     ->icon('heroicon-o-arrow-path')
                     ->tooltip('Refresh available lots')
                     ->action(function ($livewire) {
@@ -162,12 +204,12 @@ class RecipeForm
             );
     }
 
-    protected static function getSeedConsumableField(): Forms\Components\Select
+    protected static function getSeedConsumableField(): Select
     {
-        return Forms\Components\Select::make('seed_consumable_id')
+        return Select::make('seed_consumable_id')
             ->label('Seed Consumable')
             ->options(function () {
-                return \App\Models\Consumable::query()
+                return Consumable::query()
                     ->whereHas('consumableType', function ($q) {
                         $q->where('name', 'like', '%seed%');
                     })
@@ -180,20 +222,20 @@ class RecipeForm
             ->helperText('Select the seed consumable for this recipe');
     }
 
-    protected static function getLotStatusPlaceholder(): Forms\Components\Placeholder
+    protected static function getLotStatusPlaceholder(): Placeholder
     {
-        return Forms\Components\Placeholder::make('lot_status')
+        return Placeholder::make('lot_status')
             ->label('Current Lot Status')
-            ->content(function (Forms\Get $get, ?Recipe $record) {
+            ->content(function (Get $get, ?Recipe $record) {
                 if (! $record || ! $record->lot_number) {
                     return 'No lot assigned';
                 }
 
-                $lotInventoryService = app(\App\Services\InventoryManagementService::class);
+                $lotInventoryService = app(InventoryManagementService::class);
                 $summary = $lotInventoryService->getLotSummary($record->lot_number);
 
                 if ($summary['available'] <= 0) {
-                    return new \Illuminate\Support\HtmlString(
+                    return new HtmlString(
                         '<div class="flex items-center gap-2 text-sm text-red-600">'.
                         '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">'.
                         '<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>'.
@@ -213,7 +255,7 @@ class RecipeForm
                 }
 
                 if (! $consumable) {
-                    return new \Illuminate\Support\HtmlString(
+                    return new HtmlString(
                         '<div class="flex items-center gap-2 text-sm text-red-600">'.
                         '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">'.
                         '<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>'.
@@ -231,7 +273,7 @@ class RecipeForm
                 $percentRemaining = $totalOriginal > 0 ? ($available / $totalOriginal) * 100 : 0;
 
                 if ($percentRemaining < 20) {
-                    return new \Illuminate\Support\HtmlString(
+                    return new HtmlString(
                         '<div class="flex items-center gap-2 text-sm text-yellow-600">'.
                         '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">'.
                         '<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>'.
@@ -241,7 +283,7 @@ class RecipeForm
                     );
                 }
 
-                return new \Illuminate\Support\HtmlString(
+                return new HtmlString(
                     '<div class="flex items-center gap-2 text-sm text-green-600">'.
                     '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">'.
                     '<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>'.
@@ -253,16 +295,16 @@ class RecipeForm
             ->visible(fn (?Recipe $record) => $record && $record->lot_number);
     }
 
-    protected static function getActiveToggle(): Forms\Components\Toggle
+    protected static function getActiveToggle(): Toggle
     {
-        return Forms\Components\Toggle::make('is_active')
+        return Toggle::make('is_active')
             ->label('Active')
             ->default(true);
     }
 
-    public static function getDaysToMaturityField(): Forms\Components\TextInput
+    public static function getDaysToMaturityField(): TextInput
     {
-        return Forms\Components\TextInput::make('days_to_maturity')
+        return TextInput::make('days_to_maturity')
             ->label('Days to Maturity (DTM)')
             ->helperText('Total days from planting to harvest')
             ->numeric()
@@ -271,7 +313,7 @@ class RecipeForm
             ->default(12)
             ->required()
             ->live(onBlur: true)
-            ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
+            ->afterStateUpdated(function ($state, callable $set, Get $get) {
                 // Calculate light days
                 $germ = floatval($get('germination_days') ?? 0);
                 $blackout = floatval($get('blackout_days') ?? 0);
@@ -282,9 +324,9 @@ class RecipeForm
             });
     }
 
-    public static function getSeedSoakHoursField(): Forms\Components\TextInput
+    public static function getSeedSoakHoursField(): TextInput
     {
-        return Forms\Components\TextInput::make('seed_soak_hours')
+        return TextInput::make('seed_soak_hours')
             ->label('Seed Soak Hours')
             ->numeric()
             ->integer()
@@ -292,9 +334,9 @@ class RecipeForm
             ->default(0);
     }
 
-    public static function getGerminationDaysField(): Forms\Components\TextInput
+    public static function getGerminationDaysField(): TextInput
     {
-        return Forms\Components\TextInput::make('germination_days')
+        return TextInput::make('germination_days')
             ->label('Germination Days')
             ->helperText('Days in germination stage')
             ->numeric()
@@ -303,7 +345,7 @@ class RecipeForm
             ->default(3)
             ->required()
             ->live(onBlur: true)
-            ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
+            ->afterStateUpdated(function ($state, callable $set, Get $get) {
                 $germ = floatval($state ?? 0);
                 $blackout = floatval($get('blackout_days') ?? 0);
                 $dtm = floatval($get('days_to_maturity') ?? 0);
@@ -313,9 +355,9 @@ class RecipeForm
             });
     }
 
-    public static function getBlackoutDaysField(): Forms\Components\TextInput
+    public static function getBlackoutDaysField(): TextInput
     {
-        return Forms\Components\TextInput::make('blackout_days')
+        return TextInput::make('blackout_days')
             ->label('Blackout Days')
             ->helperText('Days in blackout stage')
             ->numeric()
@@ -324,7 +366,7 @@ class RecipeForm
             ->default(2)
             ->required()
             ->live(onBlur: true)
-            ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
+            ->afterStateUpdated(function ($state, callable $set, Get $get) {
                 $germ = floatval($get('germination_days') ?? 0);
                 $blackout = floatval($state ?? 0);
                 $dtm = floatval($get('days_to_maturity') ?? 0);
@@ -334,15 +376,15 @@ class RecipeForm
             });
     }
 
-    public static function getLightDaysField(): Forms\Components\TextInput
+    public static function getLightDaysField(): TextInput
     {
-        return Forms\Components\TextInput::make('light_days')
+        return TextInput::make('light_days')
             ->label('Light Days')
             ->helperText('Automatically calculated from DTM - (germination + blackout)')
             ->numeric()
             ->disabled()
             ->dehydrated(true)
-            ->afterStateHydrated(function (Forms\Components\TextInput $component, $state, callable $set, Forms\Get $get) {
+            ->afterStateHydrated(function (TextInput $component, $state, callable $set, Get $get) {
                 // Calculate initial value when form loads
                 if ($get('days_to_maturity')) {
                     $germ = floatval($get('germination_days') ?? 0);
@@ -355,9 +397,9 @@ class RecipeForm
             });
     }
 
-    public static function getSeedDensityField(): Forms\Components\TextInput
+    public static function getSeedDensityField(): TextInput
     {
-        return Forms\Components\TextInput::make('seed_density_grams_per_tray')
+        return TextInput::make('seed_density_grams_per_tray')
             ->label('Seed Density (g/tray)')
             ->numeric()
             ->minValue(0)
@@ -366,9 +408,9 @@ class RecipeForm
             ->required();
     }
 
-    public static function getExpectedYieldField(): Forms\Components\TextInput
+    public static function getExpectedYieldField(): TextInput
     {
-        return Forms\Components\TextInput::make('expected_yield_grams')
+        return TextInput::make('expected_yield_grams')
             ->label('Expected Yield (g/tray)')
             ->numeric()
             ->minValue(0)
@@ -381,7 +423,7 @@ class RecipeForm
      */
     protected static function getAvailableLotsForSelection(): array
     {
-        $lotInventoryService = app(\App\Services\InventoryManagementService::class);
+        $lotInventoryService = app(InventoryManagementService::class);
         $lotNumbers = $lotInventoryService->getAllLotNumbers();
         $options = [];
 

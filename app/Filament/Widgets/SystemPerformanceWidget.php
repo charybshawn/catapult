@@ -10,13 +10,13 @@ use Illuminate\Support\Facades\DB;
 
 class SystemPerformanceWidget extends ChartWidget
 {
-    protected static ?string $heading = 'System Performance';
+    protected ?string $heading = 'System Performance';
     
     protected static ?int $sort = 4;
     
     protected int | string | array $columnSpan = 'full';
     
-    protected static ?string $maxHeight = '300px';
+    protected ?string $maxHeight = '300px';
 
     protected function getData(): array
     {

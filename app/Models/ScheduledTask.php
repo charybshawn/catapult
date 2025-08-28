@@ -2,10 +2,40 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Collection;
 
+/**
+ * Represents automated agricultural task scheduling for microgreens production,
+ * managing system automation, resource monitoring, and operational workflows.
+ * Provides visibility into agricultural automation and manual command availability.
+ *
+ * @business_domain Agricultural Automation & Task Management
+ * @workflow_context Used in system monitoring, automation oversight, and manual operations
+ * @agricultural_process Automates resource monitoring, crop processing, and production workflows
+ *
+ * Virtual Model: Does not use database table, returns hardcoded agricultural tasks
+ * @property int $id Task identifier for UI purposes
+ * @property string $command Artisan command name for agricultural automation
+ * @property string $full_command Complete command with artisan prefix
+ * @property string $expression Cron expression or DISABLED/N/A status
+ * @property string $description Human-readable task description
+ * @property string $timezone Application timezone for scheduling
+ * @property string $without_overlapping Whether task prevents concurrent execution
+ * @property string $mutex Mutex type (always 'None' for these tasks)
+ * @property string|null $next_due_date Next scheduled execution (not calculated)
+ * @property string $task_type Task category (Scheduled Task, Manual Command)
+ *
+ * @business_rule Scheduled tasks run automatically via cron scheduling
+ * @business_rule Manual commands require user initiation through interfaces
+ * @business_rule Some tasks are temporarily disabled for manual control
+ *
+ * @agricultural_automation Resource level monitoring, crop time updates, inventory checks
+ * @operational_support Recurring order processing, invoice generation, billing management
+ */
 class ScheduledTask extends Model
 {
     protected $fillable = [
@@ -37,7 +67,7 @@ class ScheduledTask extends Model
             app('db.connection'),
             app('db.connection')->getQueryGrammar(),
             app('db.connection')->getPostProcessor()
-        ), $model) extends \Illuminate\Database\Eloquent\Builder {
+        ), $model) extends Builder {
             
             public function __construct($query, $model)
             {
@@ -66,7 +96,7 @@ class ScheduledTask extends Model
                 $items = $tasks->forPage($page, $perPage);
                 $totalCount = $total ?: $tasks->count();
                 
-                return new \Illuminate\Pagination\LengthAwarePaginator(
+                return new LengthAwarePaginator(
                     $items,
                     $totalCount,
                     $perPage,

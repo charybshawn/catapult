@@ -2,11 +2,26 @@
 
 namespace App\Filament\Resources\OrderResource\Tables;
 
+use Filament\Actions\ActionGroup;
+use Filament\Actions\ViewAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\Action;
+use App\Services\RecurringOrderService;
+use Exception;
+use App\Models\Invoice;
+use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Forms\Components\DatePicker;
+use App\Services\StatusTransitionService;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Textarea;
+use Filament\Actions\DeleteAction;
 use App\Models\Order;
 use App\Models\OrderStatus;
 use App\Services\OrderPlanningService;
 use Filament\Forms;
-use Filament\Forms\Get;
 use Filament\Notifications\Notification;
 use Filament\Tables;
 
@@ -30,7 +45,7 @@ class OrderTableActions
     public static function make(): array
     {
         return [
-            Tables\Actions\ActionGroup::make([
+            ActionGroup::make([
                 static::getViewAction(),
                 static::getEditAction(),
                 static::getGenerateNextRecurringAction(),
@@ -52,27 +67,27 @@ class OrderTableActions
     /**
      * Standard view action
      */
-    protected static function getViewAction(): Tables\Actions\ViewAction
+    protected static function getViewAction(): ViewAction
     {
-        return Tables\Actions\ViewAction::make()
+        return ViewAction::make()
             ->tooltip('View order details');
     }
 
     /**
      * Standard edit action
      */
-    protected static function getEditAction(): Tables\Actions\EditAction
+    protected static function getEditAction(): EditAction
     {
-        return Tables\Actions\EditAction::make()
+        return EditAction::make()
             ->tooltip('Edit order');
     }
 
     /**
      * Generate next recurring order action
      */
-    protected static function getGenerateNextRecurringAction(): Tables\Actions\Action
+    protected static function getGenerateNextRecurringAction(): Action
     {
-        return Tables\Actions\Action::make('generate_next_recurring')
+        return Action::make('generate_next_recurring')
             ->label('Generate Next Order')
             ->icon('heroicon-o-plus-circle')
             ->color('success')
@@ -88,7 +103,7 @@ class OrderTableActions
             ->action(function (Order $record) {
                 // TODO: Extract to App\Actions\Order\GenerateNextRecurringOrderAction
                 try {
-                    $recurringOrderService = app(\App\Services\RecurringOrderService::class);
+                    $recurringOrderService = app(RecurringOrderService::class);
                     $newOrder = $recurringOrderService->generateNextOrder($record);
                     
                     if ($newOrder) {
@@ -97,7 +112,7 @@ class OrderTableActions
                             ->body("Order #{$newOrder->id} has been created successfully.")
                             ->success()
                             ->actions([
-                                \Filament\Notifications\Actions\Action::make('view')
+                                Action::make('view')
                                     ->label('View Order')
                                     ->url(route('filament.admin.resources.orders.edit', ['record' => $newOrder->id]))
                             ])
@@ -109,7 +124,7 @@ class OrderTableActions
                             ->warning()
                             ->send();
                     }
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->title('Error Generating Order')
                         ->body('Failed to generate recurring order: ' . $e->getMessage())
@@ -122,9 +137,9 @@ class OrderTableActions
     /**
      * Recalculate wholesale prices action
      */
-    protected static function getRecalculatePricesAction(): Tables\Actions\Action
+    protected static function getRecalculatePricesAction(): Action
     {
-        return Tables\Actions\Action::make('recalculate_prices')
+        return Action::make('recalculate_prices')
             ->label('Recalculate Prices')
             ->icon('heroicon-o-calculator')
             ->color('info')
@@ -183,7 +198,7 @@ class OrderTableActions
                             ->info()
                             ->send();
                     }
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->title('Error Recalculating Prices')
                         ->body('Failed to recalculate prices: ' . $e->getMessage())
@@ -196,9 +211,9 @@ class OrderTableActions
     /**
      * Generate crop plans action
      */
-    protected static function getGenerateCropPlansAction(): Tables\Actions\Action
+    protected static function getGenerateCropPlansAction(): Action
     {
-        return Tables\Actions\Action::make('generate_crop_plans')
+        return Action::make('generate_crop_plans')
             ->label('Generate Crop Plans')
             ->icon('heroicon-o-sparkles')
             ->color('success')
@@ -236,9 +251,9 @@ class OrderTableActions
     /**
      * Convert order to invoice action
      */
-    protected static function getConvertToInvoiceAction(): Tables\Actions\Action
+    protected static function getConvertToInvoiceAction(): Action
     {
-        return Tables\Actions\Action::make('convert_to_invoice')
+        return Action::make('convert_to_invoice')
             ->label('Create Invoice')
             ->icon('heroicon-o-document-text')
             ->color('warning')
@@ -255,19 +270,19 @@ class OrderTableActions
             ->action(function (Order $record) {
                 // TODO: Extract to App\Actions\Order\CreateInvoiceFromOrderAction
                 try {
-                    $invoice = \App\Models\Invoice::createFromOrder($record);
+                    $invoice = Invoice::createFromOrder($record);
                     
                     Notification::make()
                         ->title('Invoice Created')
                         ->body("Invoice #{$invoice->id} has been created successfully.")
                         ->success()
                         ->actions([
-                            \Filament\Notifications\Actions\Action::make('view')
+                            Action::make('view')
                                 ->label('View Invoice')
                                 ->url(route('filament.admin.resources.invoices.edit', ['record' => $invoice->id]))
                         ])
                         ->send();
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->title('Error Creating Invoice')
                         ->body('Failed to create invoice: ' . $e->getMessage())
@@ -280,9 +295,9 @@ class OrderTableActions
     /**
      * Convert order to recurring template action
      */
-    protected static function getConvertToRecurringAction(): Tables\Actions\Action
+    protected static function getConvertToRecurringAction(): Action
     {
-        return Tables\Actions\Action::make('convert_to_recurring')
+        return Action::make('convert_to_recurring')
             ->label('Convert to Recurring')
             ->icon('heroicon-o-arrow-path')
             ->color('primary')
@@ -293,10 +308,10 @@ class OrderTableActions
                 $record->customer &&
                 $record->orderItems()->count() > 0
             )
-            ->form([
-                Forms\Components\Section::make('Recurring Settings')
+            ->schema([
+                Section::make('Recurring Settings')
                     ->schema([
-                        Forms\Components\Select::make('frequency')
+                        Select::make('frequency')
                             ->label('Frequency')
                             ->options([
                                 'weekly' => 'Weekly',
@@ -307,7 +322,7 @@ class OrderTableActions
                             ->required()
                             ->reactive(),
                             
-                        Forms\Components\TextInput::make('interval')
+                        TextInput::make('interval')
                             ->label('Interval (weeks)')
                             ->helperText('For bi-weekly: enter 2 for every 2 weeks')
                             ->numeric()
@@ -316,13 +331,13 @@ class OrderTableActions
                             ->maxValue(12)
                             ->visible(fn (Get $get) => $get('frequency') === 'biweekly'),
                             
-                        Forms\Components\DatePicker::make('start_date')
+                        DatePicker::make('start_date')
                             ->label('Start Date')
                             ->default(now()->addWeek())
                             ->required()
                             ->minDate(now()),
                             
-                        Forms\Components\DatePicker::make('end_date')
+                        DatePicker::make('end_date')
                             ->label('End Date (Optional)')
                             ->helperText('Leave blank for indefinite recurring')
                             ->minDate(fn (Get $get) => $get('start_date')),
@@ -336,7 +351,7 @@ class OrderTableActions
             ->action(function (Order $record, array $data) {
                 // TODO: Extract to App\Actions\Order\ConvertToRecurringTemplateAction
                 try {
-                    $recurringOrderService = app(\App\Services\RecurringOrderService::class);
+                    $recurringOrderService = app(RecurringOrderService::class);
                     $convertedOrder = $recurringOrderService->convertToRecurringTemplate($record, $data);
                     
                     Notification::make()
@@ -344,12 +359,12 @@ class OrderTableActions
                         ->body("Order #{$record->id} has been converted to a recurring template.")
                         ->success()
                         ->actions([
-                            \Filament\Notifications\Actions\Action::make('view')
+                            Action::make('view')
                                 ->label('View Template')
                                 ->url(route('filament.admin.resources.recurring-orders.edit', ['record' => $convertedOrder->id]))
                         ])
                         ->send();
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->title('Conversion Failed')
                         ->body('Failed to convert order to recurring: ' . $e->getMessage())
@@ -362,9 +377,9 @@ class OrderTableActions
     /**
      * Manual status transition action
      */
-    protected static function getTransitionStatusAction(): Tables\Actions\Action
+    protected static function getTransitionStatusAction(): Action
     {
-        return Tables\Actions\Action::make('transition_status')
+        return Action::make('transition_status')
             ->label('Change Status')
             ->icon('heroicon-o-arrow-path')
             ->color('info')
@@ -372,25 +387,25 @@ class OrderTableActions
                 !$record->isInFinalState() && 
                 $record->status?->code !== 'template'
             )
-            ->form(function (Order $record) {
-                $validStatuses = app(\App\Services\StatusTransitionService::class)
+            ->schema(function (Order $record) {
+                $validStatuses = app(StatusTransitionService::class)
                     ->getValidNextStatuses($record);
                 
                 if ($validStatuses->isEmpty()) {
                     return [
-                        Forms\Components\Placeholder::make('no_transitions')
+                        Placeholder::make('no_transitions')
                             ->label('')
                             ->content('No valid status transitions available for this order.')
                     ];
                 }
                 
                 return [
-                    Forms\Components\Select::make('new_status')
+                    Select::make('new_status')
                         ->label('New Status')
                         ->options($validStatuses->pluck('name', 'code'))
                         ->required()
                         ->helperText('Select the new status for this order'),
-                    Forms\Components\Textarea::make('notes')
+                    Textarea::make('notes')
                         ->label('Notes')
                         ->placeholder('Optional notes about this status change')
                         ->rows(3),
@@ -423,9 +438,9 @@ class OrderTableActions
     /**
      * Standard delete action
      */
-    protected static function getDeleteAction(): Tables\Actions\DeleteAction
+    protected static function getDeleteAction(): DeleteAction
     {
-        return Tables\Actions\DeleteAction::make()
+        return DeleteAction::make()
             ->tooltip('Delete order');
     }
 
@@ -474,7 +489,7 @@ class OrderTableActions
             return [];
         }
 
-        return app(\App\Services\StatusTransitionService::class)
+        return app(StatusTransitionService::class)
             ->getValidNextStatuses($record)
             ->pluck('name', 'code')
             ->toArray();

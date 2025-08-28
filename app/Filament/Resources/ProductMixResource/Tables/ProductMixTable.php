@@ -2,6 +2,18 @@
 
 namespace App\Filament\Resources\ProductMixResource\Tables;
 
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\Filter;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\ViewAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\Action;
+use Filament\Actions\DeleteAction;
+use Exception;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
 use App\Actions\ProductMix\DuplicateProductMixAction;
 use App\Models\ProductMix;
 use App\Filament\Resources\ProductMixResource;
@@ -36,9 +48,9 @@ class ProductMixTable
     /**
      * Name column with link to edit page
      */
-    protected static function getNameColumn(): Tables\Columns\TextColumn
+    protected static function getNameColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('name')
+        return TextColumn::make('name')
             ->label('Name')
             ->searchable()
             ->sortable()
@@ -50,9 +62,9 @@ class ProductMixTable
     /**
      * Mix components summary column with visual component tags
      */
-    protected static function getComponentsSummaryColumn(): Tables\Columns\TextColumn
+    protected static function getComponentsSummaryColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('components_summary')
+        return TextColumn::make('components_summary')
             ->label('Mix Components')
             ->html()
             ->getStateUsing(function (ProductMix $record): string {
@@ -77,9 +89,9 @@ class ProductMixTable
     /**
      * Products count column showing usage
      */
-    protected static function getProductsCountColumn(): Tables\Columns\TextColumn
+    protected static function getProductsCountColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('products_count')
+        return TextColumn::make('products_count')
             ->label('Used in Products')
             ->getStateUsing(fn (ProductMix $record): string => 
                 $record->products()->count() . ' product(s)'
@@ -94,9 +106,9 @@ class ProductMixTable
     /**
      * Recipe completion status column
      */
-    protected static function getHasAllRecipesColumn(): Tables\Columns\IconColumn
+    protected static function getHasAllRecipesColumn(): IconColumn
     {
-        return Tables\Columns\IconColumn::make('has_all_recipes')
+        return IconColumn::make('has_all_recipes')
             ->label('Recipes')
             ->getStateUsing(fn (ProductMix $record): bool => $record->hasAllRecipes())
             ->boolean()
@@ -115,9 +127,9 @@ class ProductMixTable
     /**
      * Active status column
      */
-    protected static function getIsActiveColumn(): Tables\Columns\IconColumn
+    protected static function getIsActiveColumn(): IconColumn
     {
-        return Tables\Columns\IconColumn::make('is_active')
+        return IconColumn::make('is_active')
             ->label('Active')
             ->boolean()
             ->sortable()
@@ -127,9 +139,9 @@ class ProductMixTable
     /**
      * Created at timestamp column
      */
-    protected static function getCreatedAtColumn(): Tables\Columns\TextColumn
+    protected static function getCreatedAtColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('created_at')
+        return TextColumn::make('created_at')
             ->label('Created')
             ->dateTime()
             ->sortable()
@@ -151,9 +163,9 @@ class ProductMixTable
     /**
      * Active/inactive status filter
      */
-    protected static function getActiveFilter(): Tables\Filters\TernaryFilter
+    protected static function getActiveFilter(): TernaryFilter
     {
-        return Tables\Filters\TernaryFilter::make('is_active')
+        return TernaryFilter::make('is_active')
             ->label('Status')
             ->placeholder('All mixes')
             ->trueLabel('Active only')
@@ -163,9 +175,9 @@ class ProductMixTable
     /**
      * Filter for mixes not used in any products
      */
-    protected static function getUnusedFilter(): Tables\Filters\Filter
+    protected static function getUnusedFilter(): Filter
     {
-        return Tables\Filters\Filter::make('unused')
+        return Filter::make('unused')
             ->label('Unused Mixes')
             ->query(fn (Builder $query) => $query->whereDoesntHave('products'));
     }
@@ -173,9 +185,9 @@ class ProductMixTable
     /**
      * Filter for mixes without any components
      */
-    protected static function getIncompleteFilter(): Tables\Filters\Filter
+    protected static function getIncompleteFilter(): Filter
     {
-        return Tables\Filters\Filter::make('incomplete')
+        return Filter::make('incomplete')
             ->label('Incomplete Mixes')
             ->query(fn (Builder $query) => $query->whereDoesntHave('masterSeedCatalogs'));
     }
@@ -193,9 +205,9 @@ class ProductMixTable
     /**
      * Action group with all available actions
      */
-    protected static function getActionGroup(): Tables\Actions\ActionGroup
+    protected static function getActionGroup(): ActionGroup
     {
-        return Tables\Actions\ActionGroup::make([
+        return ActionGroup::make([
             static::getViewAction(),
             static::getEditAction(),
             static::getDuplicateAction(),
@@ -211,26 +223,26 @@ class ProductMixTable
     /**
      * View action
      */
-    protected static function getViewAction(): Tables\Actions\ViewAction
+    protected static function getViewAction(): ViewAction
     {
-        return Tables\Actions\ViewAction::make()->tooltip('View record');
+        return ViewAction::make()->tooltip('View record');
     }
 
     /**
      * Edit action
      */
-    protected static function getEditAction(): Tables\Actions\EditAction
+    protected static function getEditAction(): EditAction
     {
-        return Tables\Actions\EditAction::make()
+        return EditAction::make()
             ->tooltip('Edit mix');
     }
 
     /**
      * Duplicate action using dedicated Action class
      */
-    protected static function getDuplicateAction(): Tables\Actions\Action
+    protected static function getDuplicateAction(): Action
     {
-        return Tables\Actions\Action::make('duplicate')
+        return Action::make('duplicate')
             ->label('Duplicate')
             ->icon('heroicon-o-document-duplicate')
             ->color('gray')
@@ -244,13 +256,13 @@ class ProductMixTable
     /**
      * Delete action with protection for used mixes
      */
-    protected static function getDeleteAction(): Tables\Actions\DeleteAction
+    protected static function getDeleteAction(): DeleteAction
     {
-        return Tables\Actions\DeleteAction::make()
+        return DeleteAction::make()
             ->tooltip('Delete mix')
             ->before(function (ProductMix $record) {
                 if ($record->products()->count() > 0) {
-                    throw new \Exception('Cannot delete mix that is used by products.');
+                    throw new Exception('Cannot delete mix that is used by products.');
                 }
             });
     }
@@ -261,8 +273,8 @@ class ProductMixTable
     public static function bulkActions(): array
     {
         return [
-            Tables\Actions\BulkActionGroup::make([
-                Tables\Actions\DeleteBulkAction::make(),
+            BulkActionGroup::make([
+                DeleteBulkAction::make(),
             ]),
         ];
     }

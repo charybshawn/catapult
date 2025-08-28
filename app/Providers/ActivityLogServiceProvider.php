@@ -2,6 +2,16 @@
 
 namespace App\Providers;
 
+use App\Models\User;
+use App\Models\TimeCard;
+use App\Models\Crop;
+use App\Models\Product;
+use App\Models\Recipe;
+use App\Models\Order;
+use App\Models\Consumable;
+use App\Models\Supplier;
+use App\Observers\ActivityLogObserver;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\ServiceProvider;
 use App\Services\ActivityLogService;
 use App\Services\CacheService;
@@ -19,10 +29,28 @@ use Illuminate\Support\Facades\Gate;
 use App\Models\Activity;
 use App\Policies\ActivityPolicy;
 
+/**
+ * Activity logging service provider for comprehensive agricultural operation tracking.
+ * Configures automatic logging of all farm management activities including crop lifecycle,
+ * inventory changes, order processing, and user actions for audit and analysis purposes.
+ *
+ * @business_domain Agricultural operation auditing and farm activity tracking
+ * @activity_scope Crop management, inventory transactions, order fulfillment, user actions
+ * @logging_features Automatic model observers, event listeners, scheduled maintenance
+ * @retention_policy Configurable data retention with archival support
+ * @performance_optimization Cached metrics and statistics for activity analysis
+ */
 class ActivityLogServiceProvider extends ServiceProvider
 {
     /**
-     * Register services.
+     * Register activity logging services and dependencies for agricultural operation tracking.
+     * Configures comprehensive logging infrastructure to track all farm management activities
+     * including crop lifecycle events, inventory changes, and user interactions.
+     *
+     * @service_registration ActivityLogService, CacheService, MetricsService, RetentionService
+     * @middleware_aliases activity.log for web requests, activity.api for API calls
+     * @dependency_injection Proper constructor injection with configuration parameters
+     * @return void
      */
     public function register(): void
     {
@@ -59,7 +87,16 @@ class ActivityLogServiceProvider extends ServiceProvider
     }
 
     /**
-     * Bootstrap services.
+     * Bootstrap activity logging configuration for agricultural operation monitoring.
+     * Configures automatic activity tracking, model observers for farm entities,
+     * scheduled maintenance tasks, and policy-based access control for audit logs.
+     *
+     * @event_registration Global event listener for comprehensive activity capture
+     * @model_observers Automatic logging for User, Crop, Product, Order, Consumable operations
+     * @scheduled_tasks Daily log purge, weekly statistics, monthly maintenance
+     * @access_control Activity policy registration for audit log security
+     * @configuration_publishing Activity log configuration files and migrations
+     * @return void
      */
     public function boot(): void
     {
@@ -95,35 +132,51 @@ class ActivityLogServiceProvider extends ServiceProvider
     }
 
     /**
-     * Register model observers for automatic activity logging
+     * Register model observers for automatic agricultural activity logging.
+     * Attaches ActivityLogObserver to key farm management models to capture
+     * all create, update, and delete operations for comprehensive audit trails.
+     *
+     * @agricultural_models User, TimeCard, Crop, Product, Recipe, Order, Consumable, Supplier
+     * @observer_pattern Automatic attachment of ActivityLogObserver to configured models
+     * @configuration_driven Models list from activitylog.auto_log_models config
+     * @safety_check Class existence verification before observer registration
+     * @return void
      */
     protected function registerModelObservers(): void
     {
         // Get models that should be automatically logged
         $models = config('activitylog.auto_log_models', [
-            \App\Models\User::class,
-            \App\Models\TimeCard::class,
-            \App\Models\Crop::class,
-            \App\Models\Product::class,
-            \App\Models\Recipe::class,
-            \App\Models\Order::class,
-            \App\Models\Consumable::class,
-            \App\Models\Supplier::class,
+            User::class,
+            TimeCard::class,
+            Crop::class,
+            Product::class,
+            Recipe::class,
+            Order::class,
+            Consumable::class,
+            Supplier::class,
         ]);
 
         foreach ($models as $model) {
             if (class_exists($model)) {
-                $model::observe(\App\Observers\ActivityLogObserver::class);
+                $model::observe(ActivityLogObserver::class);
             }
         }
     }
 
     /**
-     * Schedule maintenance tasks
+     * Schedule maintenance tasks for agricultural activity log management.
+     * Configures automated cleanup, statistics generation, and database optimization
+     * to maintain performance while preserving important farm operation audit trails.
+     *
+     * @daily_cleanup Log purge at 3 AM to remove expired activity records
+     * @weekly_statistics Statistics generation on Sundays for farm operation analysis
+     * @monthly_maintenance Database optimization and archival of old agricultural data
+     * @overlap_protection WithoutOverlapping prevents concurrent execution conflicts
+     * @return void
      */
     protected function scheduleTasks(): void
     {
-        $schedule = $this->app->make(\Illuminate\Console\Scheduling\Schedule::class);
+        $schedule = $this->app->make(Schedule::class);
 
         // Daily cleanup of old logs
         $schedule->command('activitylog:purge')

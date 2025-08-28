@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Exception;
 use Illuminate\Console\Command;
 // use App\Models\CropTask; // No longer using CropTask model directly here
 use App\Models\TaskSchedule; // Using TaskSchedule model now
@@ -12,26 +13,45 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification; // Import Notification facade
 use Carbon\Carbon;
 
+/**
+ * Crop task processing command for agricultural workflow automation.
+ * Monitors scheduled crop tasks, sends notifications for due actions, and manages
+ * the automated workflow for crop lifecycle operations in microgreens production.
+ *
+ * @business_domain Agricultural crop lifecycle and task automation
+ * @task_monitoring Scheduled crop tasks, due notifications, workflow progression
+ * @scheduling_context Runs every 15 minutes for timely agricultural task notifications
+ * @notification_system Automated alerts to farm staff for required crop actions
+ * @workflow_integration Manages transition between crop stages and required interventions
+ */
 class ProcessCropTasks extends Command
 {
     /**
-     * The name and signature of the console command.
+     * The name and signature of the console command for crop task processing.
+     * Supports processing different resource types with crops as the default focus.
      *
      * @var string
      */
-    // Updated signature to reflect focus on TaskSchedule
     protected $signature = 'app:process-task-schedules {--type=crops : The resource type to process}';
 
     /**
-     * The console command description.
+     * The console command description for agricultural task schedule processing.
      *
      * @var string
      */
-    // Updated description
     protected $description = 'Sends notifications for due TaskSchedules based on resource type.';
 
     /**
-     * Execute the console command.
+     * Execute scheduled crop task processing for agricultural workflow automation.
+     * Identifies due task schedules, sends notifications to farm staff, and manages
+     * the continuous workflow progression for crop lifecycle operations.
+     *
+     * @agricultural_processing Monitors and notifies for due crop tasks and interventions
+     * @notification_logic Sends alerts to admin users for required agricultural actions
+     * @workflow_management Maintains active task schedules until manual completion
+     * @error_handling Graceful handling of missing crops or invalid task schedules
+     * @production_continuity Ensures timely notifications for uninterrupted crop production
+     * @return int Command exit status
      */
     public function handle()
     {
@@ -79,7 +99,7 @@ class ProcessCropTasks extends Command
             try {
                 // Extract crop_id from conditions
                 $cropId = $task->conditions['crop_id'] ?? null;
-                
+
                 if (!$cropId) {
                     Log::warning("[ProcessTaskSchedules] TaskSchedule ID {$task->id} is missing crop_id in conditions. Skipping.");
                     $errorCount++;
@@ -87,7 +107,7 @@ class ProcessCropTasks extends Command
                     // $task->update(['is_active' => false, 'status' => 'error_missing_data']);
                     continue;
                 }
-                
+
                 $crop = Crop::find($cropId);
 
                 if (!$crop) {
@@ -103,17 +123,17 @@ class ProcessCropTasks extends Command
                     Notification::send($usersToNotify, new CropTaskActionDue($task, $crop));
                     $notificationSentCount++;
                     Log::info("[ProcessTaskSchedules] Sent CropTaskActionDue notification for TaskSchedule ID {$task->id} to {$usersToNotify->count()} users.");
-                    
+
                     // Optional: Update notified_at timestamp on the task schedule
                     // $task->update(['notified_at' => $now]);
                 } else {
                     Log::warning("[ProcessTaskSchedules] No users to notify for TaskSchedule ID {$task->id}. Notification not sent.");
                 }
-                
+
                 // *** CRITICAL: Do NOT mark the task as inactive here ***
                 // The task remains active until the user performs the manual action.
 
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 Log::error("[ProcessTaskSchedules] Error processing TaskSchedule ID {$task->id}: " . $e->getMessage(), ['exception' => $e]);
                 $errorCount++;
                 // Do not deactivate task on generic error, let scheduler retry unless it's a permanent issue like missing crop.

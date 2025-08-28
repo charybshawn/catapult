@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\SupplierMatchingService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -40,7 +41,7 @@ class SupplierSourceMapping extends Model
      */
     public static function findMappingForSource(string $sourceUrl): ?self
     {
-        $service = app(\App\Services\SupplierMatchingService::class);
+        $service = app(SupplierMatchingService::class);
         $domain = $service->extractDomain($sourceUrl);
         
         // Try exact URL match first
@@ -63,7 +64,7 @@ class SupplierSourceMapping extends Model
      */
     public static function createMapping(string $sourceUrl, int $supplierId, array $metadata = []): self
     {
-        $service = app(\App\Services\SupplierMatchingService::class);
+        $service = app(SupplierMatchingService::class);
         $domain = $service->extractDomain($sourceUrl);
         $domainName = $service->extractDomainName($domain);
         

@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\SeedEntryResource\Pages;
 
+use Filament\Actions\DeleteAction;
+use Exception;
 use App\Filament\Resources\SeedEntryResource;
 use Filament\Actions;
 use App\Filament\Pages\Base\BaseEditRecord;
@@ -20,7 +22,7 @@ class EditSeedEntry extends BaseEditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            DeleteAction::make(),
         ];
     }
     
@@ -56,7 +58,7 @@ class EditSeedEntry extends BaseEditRecord
             // Prevent any form submission
             return false;
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Notification::make()
                 ->title('Failed to create variation')
                 ->body('Error: ' . $e->getMessage())
@@ -139,7 +141,7 @@ class EditSeedEntry extends BaseEditRecord
             // Refresh the form
             $this->dispatch('$refresh');
                 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Notification::make()
                 ->title('Error deleting variation')
                 ->body('An error occurred while deleting the seed variation.')

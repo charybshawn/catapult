@@ -9,10 +9,35 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Advanced seed price trends analytics widget for agricultural procurement intelligence.
+ *
+ * Provides sophisticated price tracking and trend analysis for agricultural seeds
+ * across multiple suppliers, time periods, and measurement units. Features cultivar
+ * comparison, supplier separation, similarity merging, and flexible price unit
+ * calculations for strategic procurement planning in microgreens production.
+ *
+ * @filament_widget Interactive chart widget for seed price analytics
+ * @business_domain Agricultural seed procurement and cost analysis
+ * @analytics_features Cultivar comparison, supplier trends, price unit conversion
+ * @dashboard_position Full width with customizable time periods and filters
+ * @procurement_intelligence Strategic analysis for optimal seed purchasing decisions
+ */
 class SeedPriceTrendsWidget extends ChartWidget
 {
-    protected static ?string $heading = null;
+    /** @var string|null Dynamic heading based on selected price unit */
+    protected ?string $heading = null;
     
+    /**
+     * Generate dynamic heading based on selected price unit for clarity.
+     *
+     * Creates contextually appropriate heading showing the price unit being
+     * analyzed (per gram, per kg, or custom gram amount) to ensure users
+     * understand the pricing context for agricultural procurement analysis.
+     *
+     * @return string|null Contextual heading with price unit information
+     * @ui_behavior Dynamic heading updates based on user-selected price unit
+     */
     public function getHeading(): ?string
     {
         $unitLabel = match($this->priceUnit) {
@@ -24,11 +49,14 @@ class SeedPriceTrendsWidget extends ChartWidget
         return "Seed Price Trends ({$unitLabel})";
     }
     
+    /** @var string Widget column span for full-width price trend display */
     protected int | string | array $columnSpan = 'full';
     
-    protected static ?string $maxHeight = '300px';
+    /** @var string Maximum height constraint for chart display */
+    protected ?string $maxHeight = '300px';
     
-    protected static ?array $options = [
+    /** @var array Chart.js configuration options for legend display */
+    protected ?array $options = [
         'plugins' => [
             'legend' => [
                 'display' => true,
@@ -36,15 +64,37 @@ class SeedPriceTrendsWidget extends ChartWidget
         ],
     ];
 
+    /** @var string|null Time period filter for price trend analysis */
     public ?string $filter = 'month';
 
+    /** @var array Selected cultivar names for price comparison */
     public ?array $cultivarNames = [];
+    
+    /** @var string|null Common name filter for seed variety grouping */
     public ?string $commonNameFilter = null;
+    
+    /** @var bool Whether to separate price trends by supplier */
     public bool $separateBySupplier = false;
+    
+    /** @var bool Whether to merge similar cultivar names for cleaner display */
     public bool $mergeSimilarCultivars = false;
+    
+    /** @var string Price unit calculation (kg, g, or custom) */
     public string $priceUnit = 'kg';
+    
+    /** @var float|null Custom gram amount for flexible price calculations */
     public ?float $customGramAmount = null;
 
+    /**
+     * Generate descriptive text for current price analysis configuration.
+     *
+     * Provides detailed information about selected cultivars, common name filters,
+     * and pricing units to help users understand the scope and context of the
+     * displayed price trend analysis.
+     *
+     * @return string|null Description of current analysis parameters
+     * @ui_context Shows selected cultivars, filters, and price unit information
+     */
     public function getDescription(): ?string
     {
         $cultivarList = empty($this->cultivarNames) ? 'None selected' : implode(', ', $this->cultivarNames);
@@ -60,6 +110,20 @@ class SeedPriceTrendsWidget extends ChartWidget
         return "Selected cultivars: {$cultivarList} (Count: {$count}){$commonNameInfo} | Showing average price per {$unitLabel} trends (in-stock only)";
     }
     
+    /**
+     * Initialize widget with price analysis configuration parameters.
+     *
+     * Sets up the widget with user-specified cultivars, filtering options,
+     * supplier separation preferences, and price unit calculations for
+     * customized agricultural procurement analysis.
+     *
+     * @param array $cultivarNames Selected cultivar names for comparison
+     * @param string|null $commonNameFilter Common name filter for variety grouping
+     * @param bool $separateBySupplier Whether to show trends by supplier
+     * @param bool $mergeSimilarCultivars Whether to merge similar cultivar names
+     * @param string $priceUnit Price calculation unit (kg, g, or custom)
+     * @param float|null $customGramAmount Custom gram amount for price calculations
+     */
     public function mount(array $cultivarNames = [], ?string $commonNameFilter = null, bool $separateBySupplier = false, bool $mergeSimilarCultivars = false, string $priceUnit = 'kg', ?float $customGramAmount = null): void
     {
         $this->cultivarNames = $cultivarNames;
@@ -70,6 +134,11 @@ class SeedPriceTrendsWidget extends ChartWidget
         $this->customGramAmount = $customGramAmount;
     }
     
+    /**
+     * Get Livewire event listeners for dynamic widget updates.
+     *
+     * @return array Event listener mappings for real-time configuration updates
+     */
     protected function getListeners(): array
     {
         return [
@@ -77,6 +146,20 @@ class SeedPriceTrendsWidget extends ChartWidget
         ];
     }
     
+    /**
+     * Update widget configuration via Livewire event for dynamic analysis.
+     *
+     * Responds to configuration changes from parent components or user
+     * interactions to update price trend analysis parameters and refresh
+     * the chart display with new cultivar selections and options.
+     *
+     * @param array $cultivars Updated cultivar names for price analysis
+     * @param string|null $commonName Updated common name filter
+     * @param bool $separateBySupplier Whether to separate trends by supplier
+     * @param bool $mergeSimilarCultivars Whether to merge similar cultivar names
+     * @param string $priceUnit Price calculation unit preference
+     * @param float|null $customGramAmount Custom gram amount for calculations
+     */
     public function updateCultivars($cultivars, $commonName = null, $separateBySupplier = false, $mergeSimilarCultivars = false, $priceUnit = 'kg', $customGramAmount = null): void
     {
         $this->cultivarNames = $cultivars;
@@ -89,6 +172,19 @@ class SeedPriceTrendsWidget extends ChartWidget
         $this->dispatch('$refresh');
     }
 
+    /**
+     * Generate comprehensive seed price trend data for agricultural procurement analysis.
+     *
+     * Performs complex data analysis including cultivar selection, similarity merging,
+     * supplier separation, time period filtering, and price unit calculations.
+     * Handles multi-dimensional price tracking across suppliers and time periods
+     * with sophisticated data alignment and visualization preparation.
+     *
+     * @return array Chart.js compatible dataset with aligned price trends
+     * @business_logic Processes price history with supplier and cultivar groupings
+     * @agricultural_analytics Supports strategic seed procurement decision-making
+     * @data_processing Aligns time series data across multiple cultivars and suppliers
+     */
     protected function getData(): array
     {
         if (empty($this->cultivarNames)) {
@@ -213,11 +309,21 @@ class SeedPriceTrendsWidget extends ChartWidget
         ];
     }
 
+    /**
+     * Get chart type for price trend visualization.
+     *
+     * @return string Chart.js chart type identifier for line chart display
+     */
     protected function getType(): string
     {
         return 'line';
     }
 
+    /**
+     * Get available time period filters for price trend analysis.
+     *
+     * @return array|null Available filter options with labels
+     */
     protected function getFilters(): ?array
     {
         return [
@@ -227,6 +333,17 @@ class SeedPriceTrendsWidget extends ChartWidget
         ];
     }
 
+    /**
+     * Generate consistent color assignment for cultivar visualization.
+     *
+     * Uses hash-based color selection to ensure each cultivar consistently
+     * receives the same color across different chart renderings, improving
+     * user experience and data interpretation in price trend analysis.
+     *
+     * @param string $cultivarName Cultivar name for color assignment
+     * @return string Hex color code for consistent chart visualization
+     * @ui_consistency Maintains same color for each cultivar across refreshes
+     */
     private function getColorForCultivar(string $cultivarName): string
     {
         // Professional color palette for charts
@@ -250,6 +367,19 @@ class SeedPriceTrendsWidget extends ChartWidget
         return $colors[$index];
     }
     
+    /**
+     * Merge similar cultivar names for cleaner price trend visualization.
+     *
+     * Uses sophisticated similarity algorithms to group cultivar names that
+     * represent the same variety but have slight naming variations across
+     * suppliers. Reduces chart complexity while maintaining data accuracy
+     * for agricultural procurement analysis.
+     *
+     * @param \Illuminate\Support\Collection $cultivars Collection of cultivar names to process
+     * @return \Illuminate\Support\Collection Merged cultivar groups with combined names
+     * @business_logic Groups similar names using 70% similarity threshold
+     * @data_processing Combines price data from similar cultivar name variations
+     */
     private function mergeSimilarCultivarNames($cultivars)
     {
         $mergedGroups = [];
@@ -290,6 +420,18 @@ class SeedPriceTrendsWidget extends ChartWidget
         });
     }
     
+    /**
+     * Calculate similarity score between two cultivar names for merging decisions.
+     *
+     * Implements multi-tier similarity detection including substring matching,
+     * prefix detection, and word-based comparison to identify cultivar name
+     * variations that should be grouped together for cleaner price analysis.
+     *
+     * @param string $name1 First cultivar name for comparison
+     * @param string $name2 Second cultivar name for comparison
+     * @return float Similarity score (0-100) for merging threshold evaluation
+     * @algorithm_logic Substring containment (95%), prefix matching (85%), word overlap (50-85%)
+     */
     private function calculateCultivarSimilarity(string $name1, string $name2): float
     {
         $name1 = strtolower(trim($name1));
@@ -327,6 +469,18 @@ class SeedPriceTrendsWidget extends ChartWidget
         return 0;
     }
     
+    /**
+     * Generate SQL calculation for flexible price unit conversion.
+     *
+     * Creates appropriate SQL expression for calculating prices in different
+     * units (per kg, per gram, or custom gram amounts) to support flexible
+     * agricultural procurement analysis and comparison across different
+     * package sizes and measurement preferences.
+     *
+     * @return string SQL expression for price unit calculation
+     * @business_logic Handles kg to gram conversions and custom amounts
+     * @procurement_support Enables price comparison across different package sizes
+     */
     private function getPriceCalculationSQL(): string
     {
         return match($this->priceUnit) {

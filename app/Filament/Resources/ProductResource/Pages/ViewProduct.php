@@ -2,11 +2,15 @@
 
 namespace App\Filament\Resources\ProductResource\Pages;
 
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\Placeholder;
+use Filament\Schemas\Components\Group;
+use Filament\Actions\EditAction;
 use App\Filament\Resources\ProductResource;
 use App\Services\DebugService;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Actions;
-use Filament\Forms\Form;
 use Filament\Forms\Components;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -15,24 +19,24 @@ class ViewProduct extends ViewRecord
 {
     protected static string $resource = ProductResource::class;
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
         // Use the standard resource form schema to show all sections including price variations
         try {
-            return parent::form($form);
+            return parent::form($schema);
         } catch (Throwable $e) {
             // Log the error with our debug service
             DebugService::logError($e, 'ViewProduct::form');
             
             // Create a debug form that just shows basic info
-            return $form->schema([
-                Components\Section::make('Debug Info')
+            return $schema->components([
+                Section::make('Debug Info')
                     ->description('An error occurred while building the form.')
                     ->schema([
-                        Components\Placeholder::make('error')
+                        Placeholder::make('error')
                             ->label('Error')
                             ->content($e->getMessage()),
-                        Components\Placeholder::make('file')
+                        Placeholder::make('file')
                             ->label('File')
                             ->content($e->getFile() . ':' . $e->getLine()),
                     ]),
@@ -55,9 +59,9 @@ class ViewProduct extends ViewRecord
             // Check if record exists
             if (!$this->record) {
                 return [
-                    Components\Section::make('Error')
+                    Section::make('Error')
                         ->schema([
-                            Components\Placeholder::make('error')
+                            Placeholder::make('error')
                                 ->label('Error')
                                 ->content('Record not found'),
                         ]),
@@ -90,17 +94,17 @@ class ViewProduct extends ViewRecord
             
             // Create a basic form schema with just the essential information
             return [
-                Components\Group::make()
+                Group::make()
                     ->schema([
-                        Components\Section::make('Product Information')
+                        Section::make('Product Information')
                             ->schema([
-                                Components\Placeholder::make('name')
+                                Placeholder::make('name')
                                     ->content(fn ($record) => $record->name ?? 'N/A'),
-                                Components\Placeholder::make('description')
+                                Placeholder::make('description')
                                     ->content(fn ($record) => $record->description ?? 'N/A'),
-                                Components\Placeholder::make('base_price')
+                                Placeholder::make('base_price')
                                     ->content(fn ($record) => '$' . number_format($record->base_price ?? 0, 2)),
-                                Components\Placeholder::make('id')
+                                Placeholder::make('id')
                                     ->content(fn ($record) => $record->id ?? 'N/A'),
                             ]),
                     ]),
@@ -110,9 +114,9 @@ class ViewProduct extends ViewRecord
             
             // Return an absolute fallback schema
             return [
-                Components\Section::make('Error Information')
+                Section::make('Error Information')
                     ->schema([
-                        Components\Placeholder::make('error')
+                        Placeholder::make('error')
                             ->label('Error')
                             ->content('An error occurred: ' . $e->getMessage()),
                     ]),
@@ -123,7 +127,7 @@ class ViewProduct extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\EditAction::make(),
+            EditAction::make(),
         ];
     }
 } 

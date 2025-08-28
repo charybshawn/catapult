@@ -6,11 +6,40 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 
+/**
+ * Fast agricultural database schema validation for backup compatibility checking.
+ * 
+ * Provides rapid schema compatibility verification for agricultural database backups
+ * without the overhead of full schema comparison. Critical for ensuring backup
+ * integrity before restore operations that could disrupt agricultural operations
+ * during critical periods like harvest or order fulfillment.
+ *
+ * @business_domain Agricultural database backup validation and schema integrity
+ * @related_services SchemaComparisonService, SimpleBackupService
+ * @used_by Database backup system, restore validation, deployment checks
+ * @performance Optimized for speed with 5-minute caching and lightweight parsing
+ * @agricultural_context Prevents agricultural data loss during backup restore operations
+ */
 class LightweightSchemaChecker
 {
     /**
-     * Perform a quick schema compatibility check for a backup
-     * This is much faster than full schema comparison
+     * Rapidly verify agricultural database backup compatibility with current schema.
+     * 
+     * Performs fast compatibility check to ensure backup can be safely restored
+     * without compromising agricultural data integrity. Essential for preventing
+     * restore failures that could disrupt crop tracking, order processing,
+     * or inventory management during critical agricultural operations.
+     *
+     * @param string $backupPath Full path to backup file to validate
+     * @return array Compatibility assessment including:
+     *   - compatible: Boolean or null if unknown
+     *   - issues: Critical problems that will prevent restore
+     *   - warnings: Potential issues that may cause problems
+     *   - execution_time_ms: Performance metrics for monitoring
+     *   - checked_at: Timestamp of validation
+     *   - table_count: Number of tables analyzed
+     * @agricultural_context Protects against agricultural data corruption during restore
+     * @performance Typically completes in under 100ms with caching
      */
     public function checkBackupCompatibility(string $backupPath): array
     {
@@ -109,7 +138,15 @@ class LightweightSchemaChecker
     }
     
     /**
-     * Get current database schema quickly using cached results
+     * Rapidly extract current agricultural database schema structure.
+     * 
+     * Uses efficient SQL queries and 5-minute caching to quickly build
+     * schema map of all agricultural tables including crops, products,
+     * orders, and related entities. Optimized for speed over detail.
+     *
+     * @return array Fast schema map with table names and column lists
+     * @caching 5-minute cache for performance optimization
+     * @agricultural_context Maps structure of critical agricultural data tables
      */
     private function getCurrentSchemaQuick(): array
     {
@@ -136,8 +173,20 @@ class LightweightSchemaChecker
     }
     
     /**
-     * Extract schema information from backup file
-     * This is fast - just parses CREATE TABLE and INSERT statements
+     * Parse agricultural database backup file to extract expected schema structure.
+     * 
+     * Rapidly analyzes backup file structure to determine what schema the
+     * backup expects, enabling compatibility validation without full restore.
+     * Handles both full backups (with CREATE statements) and data-only backups
+     * (with INSERT column lists) for comprehensive agricultural backup support.
+     *
+     * @param string $backupPath Path to agricultural database backup file
+     * @return array Backup schema analysis including:
+     *   - schema: Expected table and column structure
+     *   - is_data_only: Whether backup contains only data (no schema)
+     *   - has_column_info: Whether column information could be extracted
+     * @performance Fast regex-based parsing, no full file loading
+     * @agricultural_context Ensures agricultural backup compatibility validation
      */
     private function extractSchemaFromBackup(string $backupPath): array
     {
@@ -185,7 +234,15 @@ class LightweightSchemaChecker
     }
     
     /**
-     * Parse column names from CREATE TABLE statement
+     * Extract column names from SQL CREATE TABLE statements in agricultural backups.
+     * 
+     * Parses CREATE TABLE syntax to identify expected column structure
+     * for agricultural tables, enabling schema compatibility validation
+     * without executing SQL statements.
+     *
+     * @param string $createStatement Raw CREATE TABLE SQL statement
+     * @return array List of column names expected by the backup
+     * @agricultural_context Validates structure of crop, product, and order table backups
      */
     private function parseColumnsFromCreate(string $createStatement): array
     {
@@ -218,8 +275,15 @@ class LightweightSchemaChecker
     
     
     /**
-     * Get migration schema from cached results
-     * This should be updated after each migration/deployment
+     * Retrieve cached reference schema for agricultural database migrations.
+     * 
+     * Returns the authoritative schema definition from Laravel migrations,
+     * cached for performance. Used to validate that agricultural database
+     * structure matches what migrations expect.
+     *
+     * @return array|null Cached migration schema or null if not cached
+     * @caching 7-day cache duration for deployment stability
+     * @agricultural_context Provides reference structure for agricultural data validation
      */
     public function getCachedMigrationSchema(): ?array
     {
@@ -227,8 +291,16 @@ class LightweightSchemaChecker
     }
     
     /**
-     * Update the cached migration schema
-     * This should be run after deployments or migrations
+     * Update cached reference schema after agricultural database migrations.
+     * 
+     * Rebuilds the cached migration schema that serves as the authoritative
+     * reference for agricultural database structure. Should be run after
+     * any migration or deployment that affects database structure.
+     *
+     * @return void
+     * @caching Updates 7-day cache with fresh migration schema
+     * @agricultural_context Maintains accurate reference for agricultural data structure validation
+     * @deployment_hook Should be called during deployment process
      */
     public function updateMigrationSchemaCache(): void
     {

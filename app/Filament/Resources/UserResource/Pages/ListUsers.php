@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\UserResource\Pages;
 
+use Filament\Actions\CreateAction;
+use Exception;
 use App\Filament\Resources\UserResource;
 use App\Models\User;
 use Filament\Actions;
@@ -18,7 +20,7 @@ class ListUsers extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            CreateAction::make(),
         ];
     }
 
@@ -40,7 +42,7 @@ class ListUsers extends ListRecords
             $this->mountTableAction('edit', $userId);
             Log::info('Current mounted table actions after:', ['actions' => $this->mountedTableActions]);
             Log::info('Table action mounted successfully');
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error in editUserModal method', ['error' => $e->getMessage(), 'userId' => $userId, 'trace' => $e->getTraceAsString()]);
             throw $e;
         }

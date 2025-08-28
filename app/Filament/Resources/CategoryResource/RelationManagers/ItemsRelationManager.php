@@ -2,8 +2,21 @@
 
 namespace App\Filament\Resources\CategoryResource\RelationManagers;
 
+use Filament\Schemas\Schema;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Tables\Columns\TextColumn;
+use App\Filament\Resources\BaseResource;
+use Filament\Tables\Columns\ImageColumn;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Actions\CreateAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\BulkAction;
 use Filament\Forms;
-use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -14,20 +27,20 @@ class ItemsRelationManager extends RelationManager
 {
     protected static string $relationship = 'products';
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\TextInput::make('name')
+        return $schema
+            ->components([
+                TextInput::make('name')
                     ->required()
                     ->maxLength(255),
-                Forms\Components\TextInput::make('sku')
+                TextInput::make('sku')
                     ->label('SKU/UPC Code')
                     ->maxLength(255),
-                Forms\Components\Toggle::make('active')
+                Toggle::make('active')
                     ->label('Active')
                     ->default(true),
-                Forms\Components\Toggle::make('is_visible_in_store')
+                Toggle::make('is_visible_in_store')
                     ->label('Visible in Store')
                     ->default(true),
             ]);
@@ -38,43 +51,43 @@ class ItemsRelationManager extends RelationManager
         return $table
             ->recordTitleAttribute('name')
             ->columns([
-                Tables\Columns\TextColumn::make('sku')
+                TextColumn::make('sku')
                     ->label('SKU/UPC Code')
                     ->searchable(),
-                \App\Filament\Resources\BaseResource::getNameColumn(),
-                Tables\Columns\ImageColumn::make('default_photo')
+                BaseResource::getNameColumn(),
+                ImageColumn::make('default_photo')
                     ->label('Image')
                     ->circular(),
-                Tables\Columns\IconColumn::make('active')
+                IconColumn::make('active')
                     ->boolean()
                     ->sortable(),
-                Tables\Columns\IconColumn::make('is_visible_in_store')
+                IconColumn::make('is_visible_in_store')
                     ->label('In Store')
                     ->boolean()
                     ->sortable(),
             ])
             ->filters([
-                Tables\Filters\TernaryFilter::make('active'),
-                Tables\Filters\TernaryFilter::make('is_visible_in_store')
+                TernaryFilter::make('active'),
+                TernaryFilter::make('is_visible_in_store')
                     ->label('Visible in Store'),
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make(),
+                CreateAction::make(),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+            ->recordActions([
+                EditAction::make(),
+                DeleteAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\BulkAction::make('activate')
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                    BulkAction::make('activate')
                         ->label('Activate')
                         ->icon('heroicon-o-check')
                         ->action(function (Builder $query) {
                             $query->update(['active' => true]);
                         }),
-                    Tables\Actions\BulkAction::make('deactivate')
+                    BulkAction::make('deactivate')
                         ->label('Deactivate')
                         ->icon('heroicon-o-x-mark')
                         ->color('danger')

@@ -5,13 +5,103 @@ namespace App\Services;
 use App\Models\Crop;
 use App\Models\CropStage;
 use App\Models\Recipe;
+use App\Models\TaskSchedule;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
+/**
+ * Agricultural crop stage transition validation service for microgreens production.
+ * 
+ * Enforces comprehensive business rules and agricultural constraints governing
+ * crop lifecycle stage transitions in microgreens production. Validates timing,
+ * recipe adherence, batch consistency, and production workflow integrity to
+ * maintain quality standards and prevent agricultural operation errors.
+ * 
+ * @business_domain Agricultural production workflow validation and quality control
+ * @agricultural_workflow Enforces microgreens growing stage progression rules
+ * @production_safety Prevents invalid transitions that would compromise crop quality
+ * @business_impact Maintains production standards and prevents costly agricultural mistakes
+ * 
+ * @agricultural_stages
+ * - Soaking: Initial seed hydration (6-24 hours depending on variety)
+ * - Germination: Seed sprouting phase (1-3 days in darkness/humidity)
+ * - Blackout: Root establishment phase (0-4 days variety dependent)
+ * - Light: Photosynthetic growth phase (3-10 days under grow lights)
+ * - Harvested: Final stage indicating crop completion
+ * 
+ * @validation_categories
+ * - Transition Rules: Valid forward/backward stage movements
+ * - Required Fields: Mandatory data for each agricultural stage
+ * - Timing Constraints: Minimum/maximum durations based on recipes
+ * - Recipe Compliance: Stage requirements based on variety specifications
+ * - Batch Consistency: Group operation validation for efficiency
+ * - Dependency Checks: Prevents data corruption during stage changes
+ * 
+ * @business_rules
+ * - Stage transitions must follow agricultural progression order
+ * - Recipe requirements override default stage durations
+ * - Batch operations require consistent timing and stage alignment
+ * - Reversions require careful dependency validation
+ * - Historical data integrity must be preserved
+ * 
+ * @agricultural_flexibility
+ * - 10% early advancement tolerance for operational needs
+ * - Recipe-specific stage skipping (e.g., no blackout for some varieties)
+ * - Batch timing variations within acceptable windows
+ * - Administrative overrides for quality control corrections
+ * 
+ * @example
+ * // Validate crop stage advancement
+ * $validator = new CropStageValidationService();
+ * $result = $validator->canAdvanceToStage($crop, $nextStage, now());
+ * 
+ * if ($result['valid']) {
+ *     // Proceed with stage transition
+ * } else {
+ *     // Handle validation errors: $result['errors']
+ * }
+ * 
+ * // Validate batch operations
+ * $batchResult = $validator->validateBatchConsistency($crops);
+ * 
+ * @features
+ * - Comprehensive agricultural rule enforcement
+ * - Recipe-based timing validation
+ * - Batch operation consistency checking
+ * - Dependency-aware stage reversion
+ * - Detailed error and warning reporting
+ * - Flexible tolerance for operational needs
+ * 
+ * @see Crop For crop model and agricultural data structure
+ * @see CropStage For stage definitions and progression rules
+ * @see Recipe For variety-specific growing requirements
+ * @see CropStageTransitionService For actual transition execution
+ */
 class CropStageValidationService
 {
     /**
-     * Stage progression rules
+     * Agricultural stage progression rules and constraints for microgreens production.
+     * 
+     * Defines comprehensive business rules governing crop lifecycle transitions,
+     * including valid advancement paths, reversion capabilities, required data
+     * fields, and validation checkpoints for each agricultural stage.
+     * 
+     * @business_context Core agricultural workflow rules for production quality
+     * @agricultural_logic Enforces microgreens-specific growing stage requirements
+     * @production_safety Prevents invalid transitions that compromise crop quality
+     * 
+     * @rule_structure
+     * - can_advance_to: Valid forward stage transitions
+     * - can_revert_to: Permitted backward stage corrections
+     * - required_fields: Mandatory data for stage completion validation
+     * - validates_on_advance: Additional checks before allowing transition
+     * 
+     * @agricultural_constraints
+     * - Soaking: Must complete before germination, requires tray allocation
+     * - Germination: Entry point for non-soaking varieties, requires planting timestamp
+     * - Blackout: Optional stage (recipe-dependent), enables root establishment
+     * - Light: Photosynthetic growth phase, final growing stage before harvest
+     * - Harvested: Terminal stage, limited reversion to prevent data corruption
      */
     private const STAGE_RULES = [
         'soaking' => [
@@ -47,12 +137,60 @@ class CropStageValidationService
     ];
 
     /**
-     * Validate if a crop can advance to the next stage
-     *
-     * @param Crop $crop
-     * @param CropStage $targetStage
-     * @param Carbon $transitionTime
-     * @return array Validation result with errors if any
+     * Validate agricultural crop stage advancement against comprehensive business rules.
+     * 
+     * Performs complete validation of proposed crop stage transition, checking
+     * agricultural timing constraints, recipe compliance, required field completion,
+     * and workflow progression rules. Prevents production errors that could
+     * compromise crop quality or violate microgreens growing standards.
+     * 
+     * @business_purpose Enforce agricultural quality standards and prevent production errors
+     * @agricultural_validation Comprehensive crop lifecycle transition rule enforcement
+     * @production_safety Protects against invalid transitions that damage crops or operations
+     * 
+     * @param Crop $crop Agricultural crop requiring stage transition validation
+     * @param CropStage $targetStage Desired agricultural stage for transition
+     * @param Carbon $transitionTime Proposed timestamp for agricultural transition
+     * @return array Comprehensive validation results with errors, warnings, and approval status
+     *   - 'valid' (bool): Whether transition meets all agricultural requirements
+     *   - 'errors' (array): Blocking issues preventing agricultural transition
+     *   - 'warnings' (array): Non-blocking concerns about timing or conditions
+     * 
+     * @validation_checks
+     * - Transition Permission: Verifies stage advancement is agriculturally valid
+     * - Required Fields: Ensures current stage completion data is present
+     * - Timing Constraints: Validates minimum agricultural stage duration
+     * - Timestamp Sequence: Maintains chronological agricultural progression
+     * - Recipe Compliance: Enforces variety-specific growing requirements
+     * 
+     * @agricultural_rules
+     * - Must follow defined stage progression (soaking→germination→blackout→light→harvested)
+     * - Minimum stage durations based on recipe specifications
+     * - Required agricultural data completion before advancement
+     * - Recipe-specific stage skipping permissions (blackout bypass)
+     * - 10% early advancement tolerance for operational flexibility
+     * 
+     * @example
+     * // Validate advancing from germination to light stage
+     * $result = $validator->canAdvanceToStage($crop, $lightStage, now());
+     * 
+     * if ($result['valid']) {
+     *     // Safe to advance crop stage
+     *     $crop->advanceToStage($lightStage);
+     * } else {
+     *     // Review blocking errors
+     *     foreach ($result['errors'] as $error) {
+     *         Log::warning("Stage advancement blocked: $error");
+     *     }
+     * }
+     * 
+     * // Check for operational warnings
+     * if (!empty($result['warnings'])) {
+     *     // Log concerns but allow advancement
+     *     foreach ($result['warnings'] as $warning) {
+     *         Log::info("Agricultural concern: $warning");
+     *     }
+     * }
      */
     public function canAdvanceToStage(Crop $crop, CropStage $targetStage, Carbon $transitionTime): array
     {
@@ -270,7 +408,7 @@ class CropStageValidationService
             return null;
         }
 
-        // Allow some flexibility (e.g., 10% early)
+        // Allow 10% early advancement for agricultural operational flexibility
         $minimumDuration = $expectedDuration * 0.9;
         
         if ($actualDuration < $minimumDuration) {
@@ -368,7 +506,7 @@ class CropStageValidationService
             $dependencies[] = 'harvest records';
         }
 
-        // Check for active task schedules that shouldn't be disrupted
+        // Check for active agricultural task schedules that shouldn't be disrupted
         $criticalTasks = TaskSchedule::where('resource_type', 'crops')
             ->where('conditions->crop_id', $crop->id)
             ->where('is_active', true)

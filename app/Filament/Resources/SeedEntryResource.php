@@ -2,29 +2,33 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Schemas\Schema;
+use Filament\Actions\EditAction;
+use App\Filament\Resources\SeedEntryResource\Pages\ListSeedEntries;
+use App\Filament\Resources\SeedEntryResource\Pages\CreateSeedEntry;
+use App\Filament\Resources\SeedEntryResource\Pages\EditSeedEntry;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\SeedEntryResource\Forms\SeedEntryForm;
 use App\Filament\Resources\SeedEntryResource\Pages;
 use App\Filament\Resources\SeedEntryResource\Tables\SeedEntryTable;
 use App\Models\SeedEntry;
-use Filament\Forms\Form;
 use Filament\Tables\Table;
 
 class SeedEntryResource extends BaseResource
 {
     protected static ?string $model = SeedEntry::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-identification';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-identification';
     
     protected static ?string $navigationLabel = 'Seeds';
     
-    protected static ?string $navigationGroup = 'Products & Inventory';
+    protected static string | \UnitEnum | null $navigationGroup = 'Products & Inventory';
     
     protected static ?int $navigationSort = 1;
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form->schema(SeedEntryForm::schema());
+        return $schema->components(SeedEntryForm::schema());
     }
 
     public static function table(Table $table): Table
@@ -40,9 +44,9 @@ class SeedEntryResource extends BaseResource
                 ...static::getTimestampColumns(),
             ])
             ->filters(SeedEntryTable::filters())
-            ->actions(SeedEntryTable::actions())
-            ->bulkActions(SeedEntryTable::bulkActions())
-            ->recordAction(\Filament\Tables\Actions\EditAction::class);
+            ->recordActions(SeedEntryTable::actions())
+            ->toolbarActions(SeedEntryTable::bulkActions())
+            ->recordAction(EditAction::class);
     }
 
     public static function getRelations(): array
@@ -55,9 +59,9 @@ class SeedEntryResource extends BaseResource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListSeedEntries::route('/'),
-            'create' => Pages\CreateSeedEntry::route('/create'),
-            'edit' => Pages\EditSeedEntry::route('/{record}/edit'),
+            'index' => ListSeedEntries::route('/'),
+            'create' => CreateSeedEntry::route('/create'),
+            'edit' => EditSeedEntry::route('/{record}/edit'),
         ];
     }
 } 

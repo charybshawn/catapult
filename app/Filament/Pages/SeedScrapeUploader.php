@@ -2,23 +2,32 @@
 
 namespace App\Filament\Pages;
 
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Grid;
+use App\Models\SupplierType;
+use Exception;
+use Filament\Schemas\Components\Actions;
+use Filament\Actions\Action;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\ViewAction;
+use Illuminate\Support\HtmlString;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
 use App\Models\SeedScrapeUpload;
 use App\Models\Supplier;
 use App\Models\SupplierSourceMapping;
 use App\Services\SeedScrapeImporter;
 use App\Services\SupplierMatchingService;
-use Filament\Forms\Components\Actions;
-use Filament\Forms\Components\Actions\Action;
 use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Placeholder;
-use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
-use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Tables;
@@ -33,13 +42,13 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
     use InteractsWithForms;
     use InteractsWithTable;
 
-    protected static ?string $navigationIcon = 'heroicon-o-arrow-up-tray';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-arrow-up-tray';
 
-    protected static string $view = 'filament.pages.seed-scrape-uploader';
+    protected string $view = 'filament.pages.seed-scrape-uploader';
 
     protected static ?string $title = 'Upload Seed Data';
 
-    protected static ?string $navigationGroup = 'Products & Inventory';
+    protected static string | \UnitEnum | null $navigationGroup = 'Products & Inventory';
 
     protected static ?int $navigationSort = 6;
 
@@ -79,10 +88,10 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
         $this->form->fill();
     }
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 Section::make('Upload Seed Data')
                     ->description('Upload JSON files scraped from seed supplier websites. The system will help you match suppliers intelligently.')
                     ->schema([
@@ -150,7 +159,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                                 return $options;
                             })
                             ->searchable()
-                            ->live(onBlur: true)()
+                            ->live(onBlur: true)
                             ->placeholder('Select a supplier or create new...')
                             ->helperText('Choose an existing supplier or create a new one. Match confidence and reasons are shown.')
                             ->createOptionForm([
@@ -212,10 +221,10 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                                 ]);
 
                                 // Look up the supplier type ID based on the type code
-                                $supplierType = \App\Models\SupplierType::findByCode($data['type']);
+                                $supplierType = SupplierType::findByCode($data['type']);
 
                                 if (! $supplierType) {
-                                    throw new \Exception("Invalid supplier type: {$data['type']}");
+                                    throw new Exception("Invalid supplier type: {$data['type']}");
                                 }
 
                                 $supplier = Supplier::create([
@@ -401,7 +410,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                         ->send();
                 }
 
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 Log::error('SeedScrapeUploader: Error processing uploaded file', [
                     'error' => $e->getMessage(),
                     'error_class' => get_class($e),
@@ -448,7 +457,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                 Log::error('SeedScrapeUploader: Supplier not found', [
                     'supplier_id' => $this->selectedSupplier,
                 ]);
-                throw new \Exception('Supplier not found');
+                throw new Exception('Supplier not found');
             }
 
             Log::info('SeedScrapeUploader: Creating supplier source mapping', [
@@ -471,7 +480,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
             Log::info('SeedScrapeUploader: Batch processing completed, resetting state');
             $this->resetSupplierSelection();
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('SeedScrapeUploader: Error processing files with supplier', [
                 'error' => $e->getMessage(),
                 'error_class' => get_class($e),
@@ -549,7 +558,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                 ->success()
                 ->send();
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('SeedScrapeUploader: Error processing individual file', [
                 'error' => $e->getMessage(),
                 'error_class' => get_class($e),
@@ -723,7 +732,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                 'successful_entries' => $scrapeUpload->successful_entries,
             ]);
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->uploadOutput .= "\n❌ ERROR: ".$e->getMessage()."\n";
             $this->uploadRunning = false;
             $this->uploadSuccess = false;
@@ -822,7 +831,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                         $this->uploadOutput .= "\n";
                     }
 
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     $this->uploadOutput .= "❌ Error processing {$fileName}: ".$e->getMessage()."\n\n";
                     $failCount++;
 
@@ -849,7 +858,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
 
             $this->uploadRunning = false;
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->uploadOutput .= "\n❌ BATCH ERROR: ".$e->getMessage()."\n";
             $this->uploadRunning = false;
             $this->uploadSuccess = false;
@@ -866,14 +875,14 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
         return $table
             ->query(SeedScrapeUpload::query()->with(['supplier.supplierType', 'uploadedBy']))
             ->columns([
-                Tables\Columns\TextColumn::make('filename')
+                TextColumn::make('filename')
                     ->label('File')
                     ->searchable()
                     ->sortable()
                     ->icon('heroicon-o-document-text')
                     ->weight('medium'),
 
-                Tables\Columns\TextColumn::make('supplier.name')
+                TextColumn::make('supplier.name')
                     ->label('Supplier')
                     ->searchable()
                     ->sortable()
@@ -881,7 +890,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                     ->placeholder('Not assigned')
                     ->color('gray'),
 
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Status')
                     ->badge()
                     ->icon(fn (string $state): string => match ($state) {
@@ -899,7 +908,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                         default => 'gray',
                     }),
 
-                Tables\Columns\TextColumn::make('progress')
+                TextColumn::make('progress')
                     ->label('Import Results')
                     ->state(function (SeedScrapeUpload $record): string {
                         if ($record->status === SeedScrapeUpload::STATUS_PENDING) {
@@ -976,13 +985,13 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                         return 'heroicon-o-minus-circle';
                     }),
 
-                Tables\Columns\TextColumn::make('uploaded_at')
+                TextColumn::make('uploaded_at')
                     ->label('Uploaded')
                     ->dateTime('M j, Y g:i A')
                     ->description(fn (SeedScrapeUpload $record): string => $record->uploadedBy ? "by {$record->uploadedBy->name}" : 'Unknown user'
                     ),
 
-                Tables\Columns\TextColumn::make('processed_at')
+                TextColumn::make('processed_at')
                     ->label('Completed')
                     ->dateTime('M j, Y g:i A')
                     ->placeholder('Not processed')
@@ -996,7 +1005,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                         return "took {$duration}";
                     }),
 
-                Tables\Columns\TextColumn::make('error_summary')
+                TextColumn::make('error_summary')
                     ->label('Issues')
                     ->state(function (SeedScrapeUpload $record): ?string {
                         if ($record->status === SeedScrapeUpload::STATUS_ERROR && $record->notes) {
@@ -1032,9 +1041,9 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
             ->filters([
                 //
             ])
-            ->actions([
-                Tables\Actions\ActionGroup::make([
-                    Tables\Actions\ViewAction::make()
+            ->recordActions([
+                ActionGroup::make([
+                    ViewAction::make()
                         ->label('View Details')
                         ->modalHeading(fn (SeedScrapeUpload $record): string => "Upload Details: {$record->filename}")
                         ->modalContent(function (SeedScrapeUpload $record) {
@@ -1067,24 +1076,24 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
 
                             $content .= '</div>';
 
-                            return new \Illuminate\Support\HtmlString($content);
+                            return new HtmlString($content);
                         }),
 
-                    Tables\Actions\Action::make('view_seed_entries')
+                    Action::make('view_seed_entries')
                         ->label('View Seed Entries')
                         ->url(fn () => route('filament.admin.resources.seed-entries.index'))
                         ->icon('heroicon-o-list-bullet')
                         ->openUrlInNewTab()
                         ->visible(fn (SeedScrapeUpload $record): bool => $record->successful_entries > 0),
 
-                    Tables\Actions\Action::make('view_variations')
+                    Action::make('view_variations')
                         ->label('View Variations')
                         ->url(fn () => route('filament.admin.resources.seed-variations.index'))
                         ->icon('heroicon-o-squares-plus')
                         ->openUrlInNewTab()
                         ->visible(fn (SeedScrapeUpload $record): bool => $record->successful_entries > 0),
 
-                    Tables\Actions\Action::make('manage_failed')
+                    Action::make('manage_failed')
                         ->label('Manage Failed Entries')
                         ->url(fn () => route('filament.admin.pages.manage-failed-seed-entries'))
                         ->icon('heroicon-o-exclamation-triangle')
@@ -1092,7 +1101,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                         ->openUrlInNewTab()
                         ->visible(fn (SeedScrapeUpload $record): bool => $record->failed_entries_count > 0),
 
-                    Tables\Actions\Action::make('retry_processing')
+                    Action::make('retry_processing')
                         ->label('Retry Processing')
                         ->icon('heroicon-o-arrow-path')
                         ->color('info')
@@ -1100,7 +1109,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                         ->visible(fn (SeedScrapeUpload $record): bool => $record->status === SeedScrapeUpload::STATUS_ERROR || $record->failed_entries_count > 0
                         ),
 
-                    Tables\Actions\DeleteAction::make()
+                    DeleteAction::make()
                         ->label('Delete Upload Record')
                         ->modalHeading('Delete Upload Record')
                         ->modalDescription('This will only delete the upload record, not the imported data.')
@@ -1109,9 +1118,9 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                     ->icon('heroicon-o-ellipsis-vertical')
                     ->tooltip('Actions'),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ])
             ->defaultSort('id', 'desc')
@@ -1161,7 +1170,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
             ]);
 
             if (! $record->supplier) {
-                throw new \Exception('No supplier assigned to this upload record');
+                throw new Exception('No supplier assigned to this upload record');
             }
 
             $importer = new SeedScrapeImporter;
@@ -1206,7 +1215,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                         unlink($tempFile);
                     }
 
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     $this->uploadOutput .= '  ✗ Failed: '.$e->getMessage()."\n";
                     $stillFailed[] = [
                         'index' => $entryIndex,
@@ -1273,7 +1282,7 @@ class SeedScrapeUploader extends Page implements HasForms, HasTable
                     ->send();
             }
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->uploadOutput .= "\n\nRetry Error: ".$e->getMessage();
             $this->uploadRunning = false;
             $this->uploadSuccess = false;

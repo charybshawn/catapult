@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ActivityResource\Pages;
 
+use Filament\Actions\Action;
 use App\Filament\Resources\ActivityResource;
 use App\Models\Activity;
 use Filament\Resources\Pages\Page;
@@ -13,11 +14,11 @@ class ActivityTimeline extends Page
 {
     protected static string $resource = ActivityResource::class;
 
-    protected static string $view = 'filament.resources.activity-resource.pages.activity-timeline';
+    protected string $view = 'filament.resources.activity-resource.pages.activity-timeline';
     
     protected static ?string $title = 'Activity Timeline';
     
-    protected static ?string $navigationIcon = 'heroicon-o-clock';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-clock';
     
     public Collection $activities;
     public array $filters = [
@@ -81,7 +82,7 @@ class ActivityTimeline extends Page
     protected function getHeaderActions(): array
     {
         return [
-            Actions\Action::make('refresh')
+            Action::make('refresh')
                 ->label('Refresh')
                 ->icon('heroicon-o-arrow-path')
                 ->action('loadActivities'),

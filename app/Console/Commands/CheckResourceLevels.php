@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Exception;
 use App\Models\TaskSchedule;
 use App\Services\ResourceMonitorService;
 use Illuminate\Console\Command;
@@ -59,7 +60,7 @@ class CheckResourceLevels extends Command
                 
                 // Mark the task as run regardless of the result to avoid repeated processing
                 $task->markAsRun();
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $this->error("  - Error processing task: {$e->getMessage()}");
                 Log::error("Error processing task {$task->id}: {$e->getMessage()}", [
                     'task' => $task->toArray(),

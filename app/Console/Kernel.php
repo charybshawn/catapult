@@ -2,13 +2,33 @@
 
 namespace App\Console;
 
+use App\Models\Recipe;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
+/**
+ * Console kernel for Catapult agricultural management system.
+ * Defines scheduled tasks for automated farm operations including crop monitoring,
+ * resource management, data maintenance, and agricultural workflow automation.
+ *
+ * @business_domain Agricultural automation and farm operation scheduling
+ * @scheduled_tasks Crop monitoring, lot depletion, database maintenance, planning reminders
+ * @automation_scope Resource checks, time tracking, optimization, recurring processes
+ * @agricultural_workflows Crop lifecycle automation and farm operation notifications
+ */
 class Kernel extends ConsoleKernel
 {
     /**
-     * Define the application's command schedule.
+     * Define scheduled tasks for automated agricultural operations and system maintenance.
+     * Configures comprehensive automation for farm management including crop monitoring,
+     * resource tracking, database optimization, and agricultural workflow notifications.
+     *
+     * @crop_monitoring Hourly resource checks, 15-minute crop time updates and task processing
+     * @inventory_management Daily lot depletion checks with automatic marking and notifications
+     * @planning_automation Daily crop plan reminders and status checks for production scheduling
+     * @system_maintenance Weekly database optimization, schema cache updates, record pruning
+     * @business_context All schedules aligned with farm operation hours and workflow needs
+     * @return void
      */
     protected function schedule(Schedule $schedule): void
     {
@@ -81,7 +101,15 @@ class Kernel extends ConsoleKernel
     }
 
     /**
-     * Register the commands for the application.
+     * Register console commands for agricultural farm management operations.
+     * Loads all application commands and defines specialized agricultural commands
+     * for recipe management and farm operation utilities.
+     *
+     * @command_loading Automatic discovery of commands in Commands directory
+     * @recipe_management Custom command for updating germination parameters
+     * @agricultural_context Commands tailored for microgreens production workflows
+     * @console_routes Additional console route registration for complex commands
+     * @return void
      */
     protected function commands(): void
     {
@@ -89,7 +117,7 @@ class Kernel extends ConsoleKernel
         
         // Define a simple command to update a recipe's germination days
         $this->command('recipe:set-germination {recipe_id} {days}', function (int $recipeId, float $days) {
-            $recipe = \App\Models\Recipe::find($recipeId);
+            $recipe = Recipe::find($recipeId);
             
             if (!$recipe) {
                 $this->error("Recipe with ID {$recipeId} not found");

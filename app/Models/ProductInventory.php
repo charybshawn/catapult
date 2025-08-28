@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Exception;
+use DateTime;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -44,9 +46,9 @@ class ProductInventory extends Model
         // Validate that price variation belongs to product
         static::saving(function ($inventory) {
             if ($inventory->price_variation_id && $inventory->product_id) {
-                $priceVariation = \App\Models\PriceVariation::find($inventory->price_variation_id);
+                $priceVariation = PriceVariation::find($inventory->price_variation_id);
                 if ($priceVariation && $priceVariation->product_id != $inventory->product_id) {
-                    throw new \Exception("Price variation does not belong to the selected product.");
+                    throw new Exception("Price variation does not belong to the selected product.");
                 }
             }
         });
@@ -54,7 +56,7 @@ class ProductInventory extends Model
         // Prevent deletion of inventory with quantities
         static::deleting(function ($inventory) {
             if ($inventory->quantity > 0 || $inventory->reserved_quantity > 0) {
-                throw new \Exception("Cannot delete inventory batch '{$inventory->batch_number}' because it has {$inventory->quantity} units ({$inventory->reserved_quantity} reserved). Please reduce quantities to zero first.");
+                throw new Exception("Cannot delete inventory batch '{$inventory->batch_number}' because it has {$inventory->quantity} units ({$inventory->reserved_quantity} reserved). Please reduce quantities to zero first.");
             }
         });
 
@@ -165,7 +167,7 @@ class ProductInventory extends Model
 
         // Get the transaction type ID
         $typeCode = $transactionData['type'] ?? 'adjustment';
-        $transactionType = \App\Models\InventoryTransactionType::where('code', $typeCode)->first();
+        $transactionType = InventoryTransactionType::where('code', $typeCode)->first();
 
         return $this->recordTransaction(
             transactionTypeId: $transactionType?->id,
@@ -183,7 +185,7 @@ class ProductInventory extends Model
     public function removeStock(float $quantity, array $transactionData = []): InventoryTransaction
     {
         if ($quantity > $this->available_quantity) {
-            throw new \Exception("Insufficient stock. Available: {$this->available_quantity}, Requested: {$quantity}");
+            throw new Exception("Insufficient stock. Available: {$this->available_quantity}, Requested: {$quantity}");
         }
 
         $this->quantity -= $quantity;
@@ -191,7 +193,7 @@ class ProductInventory extends Model
 
         // Get the transaction type ID
         $typeCode = $transactionData['type'] ?? 'adjustment';
-        $transactionType = \App\Models\InventoryTransactionType::where('code', $typeCode)->first();
+        $transactionType = InventoryTransactionType::where('code', $typeCode)->first();
 
         return $this->recordTransaction(
             transactionTypeId: $transactionType?->id,
@@ -206,10 +208,10 @@ class ProductInventory extends Model
     /**
      * Reserve stock for an order.
      */
-    public function reserveStock(float $quantity, int $orderId, int $orderItemId, ?\DateTime $expiresAt = null): InventoryReservation
+    public function reserveStock(float $quantity, int $orderId, int $orderItemId, ?DateTime $expiresAt = null): InventoryReservation
     {
         if ($quantity > $this->available_quantity) {
-            throw new \Exception("Insufficient stock for reservation. Available: {$this->available_quantity}, Requested: {$quantity}");
+            throw new Exception("Insufficient stock for reservation. Available: {$this->available_quantity}, Requested: {$quantity}");
         }
 
         $this->reserved_quantity += $quantity;
@@ -225,7 +227,7 @@ class ProductInventory extends Model
             'expires_at' => $expiresAt ?? now()->addHours(24),
         ]);
 
-        $reservationType = \App\Models\InventoryTransactionType::where('code', 'reservation')->first();
+        $reservationType = InventoryTransactionType::where('code', 'reservation')->first();
         $this->recordTransaction(
             transactionTypeId: $reservationType?->id,
             quantity: $quantity,
@@ -245,7 +247,7 @@ class ProductInventory extends Model
         $this->reserved_quantity = max(0, $this->reserved_quantity - $quantity);
         $this->save();
 
-        $releaseType = \App\Models\InventoryTransactionType::where('code', 'release')->first();
+        $releaseType = InventoryTransactionType::where('code', 'release')->first();
         $this->recordTransaction(
             transactionTypeId: $releaseType?->id,
             quantity: -$quantity,
@@ -297,12 +299,12 @@ class ProductInventory extends Model
             ->first();
 
         $statusCode = $this->calculateStockStatus($totals->total_quantity ?? 0, $totals->total_reserved ?? 0, $product->reorder_threshold);
-        $stockStatus = \App\Models\ProductStockStatus::findByCode($statusCode);
+        $stockStatus = ProductStockStatus::findByCode($statusCode);
         
         // Fallback to first available status if none found
         $stockStatusId = $stockStatus?->id ?? 
-                        \App\Models\ProductStockStatus::findByCode('in_stock')?->id ?? 
-                        \App\Models\ProductStockStatus::first()?->id ?? 
+                        ProductStockStatus::findByCode('in_stock')?->id ?? 
+                        ProductStockStatus::first()?->id ?? 
                         1; // Ultimate fallback
         
         $product->update([

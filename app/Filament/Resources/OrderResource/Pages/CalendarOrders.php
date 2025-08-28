@@ -11,13 +11,13 @@ class CalendarOrders extends Page
 {
     protected static string $resource = OrderResource::class;
 
-    protected static string $view = 'filament.resources.order-resource.pages.calendar-orders';
+    protected string $view = 'filament.resources.order-resource.pages.calendar-orders';
 
     protected static ?string $title = 'Orders Calendar';
 
     protected static ?string $navigationLabel = 'Calendar';
 
-    protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-calendar-days';
 
     protected function getHeaderActions(): array
     {

@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\CropAlertResource\Pages;
 
+use Filament\Actions\Action;
+use Filament\Actions\DeleteAction;
 use App\Filament\Resources\CropAlertResource;
 use App\Services\CropTaskManagementService;
 use Filament\Actions;
@@ -20,7 +22,7 @@ class EditCropAlert extends BaseEditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\Action::make('execute_now')
+            Action::make('execute_now')
                 ->label('Execute Now')
                 ->icon('heroicon-o-bolt')
                 ->action(function () {
@@ -47,7 +49,7 @@ class EditCropAlert extends BaseEditRecord
                 ->requiresConfirmation()
                 ->modalHeading('Execute Alert Now')
                 ->modalDescription('Are you sure you want to execute this alert now? This will advance the crop to the next stage immediately.'),
-            Actions\DeleteAction::make(),
+            DeleteAction::make(),
         ];
     }
 } 

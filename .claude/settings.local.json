@@ -40,8 +40,62 @@
       "mcp__serena__check_onboarding_performed",
       "mcp__serena__onboarding",
       "mcp__serena__write_memory",
-      "mcp__serena__think_about_task_adherence"
+      "mcp__serena__think_about_task_adherence",
+      "WebSearch",
+      "Bash(git checkout:*)",
+      "Bash(vendor/bin/filament-v4:*)",
+      "Bash(curl:*)",
+      "Bash(npm install)",
+      "Bash(npm run build:*)",
+      "WebFetch(domain:filamentphp.com)",
+      "Bash(sed:*)"
     ],
     "deny": []
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.claude/hooks/validate-php-documentation.sh \"$CLAUDE_TOOL_ARGS\" \"created/modified\"",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command", 
+            "command": "./.claude/hooks/validate-php-documentation.sh \"$CLAUDE_TOOL_ARGS\" \"edited\"",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.claude/hooks/validate-php-documentation.sh \"$CLAUDE_TOOL_ARGS\" \"batch-edited\"", 
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [[ \"$CLAUDE_TOOL_ARGS\" == *\"enhanced-documentation-auditor\"* ]]; then echo \"🤖 Launching documentation auditor agent - ensuring comprehensive agricultural business context\"; fi",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
   }
 }

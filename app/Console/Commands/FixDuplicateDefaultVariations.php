@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Exception;
 use App\Models\Product;
 use App\Models\PriceVariation;
 use App\Models\ProductInventory;
@@ -119,7 +120,7 @@ class FixDuplicateDefaultVariations extends Command
                 $this->info("\nSUCCESS - Fixed {$fixedCount} products");
             }
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             DB::rollBack();
             $this->error("Error: " . $e->getMessage());
             return 1;

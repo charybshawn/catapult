@@ -2,6 +2,25 @@
 
 namespace App\Filament\Resources\CropResource\Tables;
 
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\ViewColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\ViewAction;
+use Filament\Actions\Action;
+use App\Filament\Resources\CropResource;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Exception;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Tables\Grouping\Group;
+use Filament\Forms\Components\DateTimePicker;
+use App\Models\TaskSchedule;
+use Filament\Actions\BulkAction;
+use Illuminate\Validation\ValidationException;
+use Filament\Forms\Components\Textarea;
 use App\Models\Crop;
 use App\Models\CropBatch;
 use App\Models\Order;
@@ -12,7 +31,6 @@ use App\Filament\Resources\CropResource\Actions\CropBatchDebugAction;
 use App\Services\CropTaskManagementService;
 use Filament\Forms;
 use Filament\Tables;
-use Filament\Tables\Actions\Action;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -31,41 +49,41 @@ class CropBatchTable
     public static function columns(): array
     {
         return [
-            Tables\Columns\TextColumn::make('recipe_name')
+            TextColumn::make('recipe_name')
                 ->label('Recipe')
                 ->weight('bold')
                 ->searchable()
                 ->sortable(),
-            Tables\Columns\ViewColumn::make('tray_numbers')
+            ViewColumn::make('tray_numbers')
                 ->label('Trays')
                 ->view('components.tray-badges')
                 ->searchable()
                 ->sortable(false)
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('planting_at')
+            TextColumn::make('planting_at')
                 ->label('Planted')
                 ->date()
                 ->sortable()
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('current_stage_name')
+            TextColumn::make('current_stage_name')
                 ->label('Current Stage')
                 ->badge()
                 ->color(fn ($record) => $record->current_stage_color ?? 'gray')
                 ->searchable()
                 ->sortable(),
-            Tables\Columns\TextColumn::make('stage_age_display')
+            TextColumn::make('stage_age_display')
                 ->label('Time in Stage')
                 ->sortable(false)
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('time_to_next_stage_display')
+            TextColumn::make('time_to_next_stage_display')
                 ->label('Time to Next Stage')
                 ->sortable(false)
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('total_age_display')
+            TextColumn::make('total_age_display')
                 ->label('Total Age')
                 ->sortable(false)
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('expected_harvest_at')
+            TextColumn::make('expected_harvest_at')
                 ->label('Expected Harvest')
                 ->date()
                 ->sortable()
@@ -79,10 +97,10 @@ class CropBatchTable
     public static function filters(): array
     {
         return [
-            Tables\Filters\SelectFilter::make('current_stage_id')
+            SelectFilter::make('current_stage_id')
                 ->label('Stage')
                 ->options(CropStageCache::all()->pluck('name', 'id')),
-            Tables\Filters\TernaryFilter::make('active_crops')
+            TernaryFilter::make('active_crops')
                 ->label('Active Crops')
                 ->placeholder('All Crops')
                 ->trueLabel('Active Only')
@@ -102,15 +120,15 @@ class CropBatchTable
     public static function actions(): array
     {
         return [
-            Tables\Actions\ActionGroup::make([
-                Tables\Actions\ViewAction::make()
+            ActionGroup::make([
+                ViewAction::make()
                 ->tooltip('View crop details')
                 ->modalHeading('Crop Details')
                 ->modalWidth('sm')
                 ->slideOver()
                 ->modalIcon('heroicon-o-eye')
                 ->extraModalFooterActions([
-                    Tables\Actions\Action::make('advance_stage')
+                    Action::make('advance_stage')
                         ->label('Advance Stage')
                         ->icon('heroicon-o-chevron-double-right')
                         ->color('success')
@@ -122,16 +140,16 @@ class CropBatchTable
                             // Close the view modal and trigger the main advance stage action
                             $livewire->mountTableAction('advanceStage', $record->id);
                         }),
-                    Tables\Actions\Action::make('edit_crop')
+                    Action::make('edit_crop')
                         ->label('Edit Crop')
                         ->icon('heroicon-o-pencil-square')
                         ->color('primary')
-                        ->url(fn ($record) => \App\Filament\Resources\CropResource::getUrl('edit', ['record' => $record])),
-                    Tables\Actions\Action::make('view_all_crops')
+                        ->url(fn ($record) => CropResource::getUrl('edit', ['record' => $record])),
+                    Action::make('view_all_crops')
                         ->label('View All Crops')
                         ->icon('heroicon-o-list-bullet')
                         ->color('gray')
-                        ->url(fn ($record) => \App\Filament\Resources\CropResource::getUrl('index')),
+                        ->url(fn ($record) => CropResource::getUrl('index')),
                 ]),
             CropBatchDebugAction::make(),
             static::getFixTimestampsAction(),
@@ -140,8 +158,8 @@ class CropBatchTable
             StageTransitionActions::harvest(),
             StageTransitionActions::rollbackStage(),
             static::getSuspendWateringAction(),
-            Tables\Actions\EditAction::make(),
-            Tables\Actions\DeleteAction::make()
+            EditAction::make(),
+            DeleteAction::make()
                 ->requiresConfirmation()
                 ->modalHeading('Delete Entire Grow Batch?')
                 ->modalDescription(fn ($record) => "This will delete all {$record->crop_count} trays in this batch.")
@@ -153,23 +171,23 @@ class CropBatchTable
                     try {
                         // Get all tray numbers and delete crops in this batch
                         $trayNumbers = $record->tray_numbers_array;
-                        $count = \App\Models\Crop::where('crop_batch_id', $record->id)->delete();
+                        $count = Crop::where('crop_batch_id', $record->id)->delete();
                         
                         // Also delete the batch itself
-                        \App\Models\CropBatch::destroy($record->id);
+                        CropBatch::destroy($record->id);
                         
                         DB::commit();
                         
                         // Show a detailed notification
-                        \Filament\Notifications\Notification::make()
+                        Notification::make()
                             ->title('Grow Batch Deleted')
                             ->body("Successfully deleted {$count} tray(s): " . implode(', ', $trayNumbers))
                             ->success()
                             ->send();
-                    } catch (\Exception $e) {
+                    } catch (Exception $e) {
                         DB::rollBack();
                         
-                        \Filament\Notifications\Notification::make()
+                        Notification::make()
                             ->title('Error')
                             ->body('Failed to delete grow batch: ' . $e->getMessage())
                             ->danger()
@@ -191,8 +209,8 @@ class CropBatchTable
     public static function bulkActions(): array
     {
         return [
-            Tables\Actions\BulkActionGroup::make([
-                Tables\Actions\DeleteBulkAction::make(),
+            BulkActionGroup::make([
+                DeleteBulkAction::make(),
                 static::getAdvanceStagesBulkAction(),
                 static::getRollbackStagesBulkAction(),
             ]),
@@ -205,12 +223,12 @@ class CropBatchTable
     public static function groups(): array
     {
         return [
-            Tables\Grouping\Group::make('recipe.name')
+            Group::make('recipe.name')
                 ->label('Recipe'),
-            Tables\Grouping\Group::make('planting_at')
+            Group::make('planting_at')
                 ->label('Plant Date')
                 ->date(),
-            Tables\Grouping\Group::make('current_stage_name')
+            Group::make('current_stage_name')
                 ->label('Growth Stage'),
         ];
     }
@@ -221,17 +239,17 @@ class CropBatchTable
      */
     protected static function getFixTimestampsAction(): Action
     {
-        return Tables\Actions\Action::make('fix_timestamps')
+        return Action::make('fix_timestamps')
             ->label('')
             ->icon('heroicon-o-wrench-screwdriver')
             ->tooltip('Fix Missing Timestamps')
             ->action(function ($record) {
                 $fixedCount = 0;
                 // Since CropBatchListView is a view, we need to query crops directly
-                $crops = \App\Models\Crop::where('crop_batch_id', $record->id)->get();
+                $crops = Crop::where('crop_batch_id', $record->id)->get();
                 
                 foreach ($crops as $crop) {
-                    $fixed = app(\App\Services\CropTaskManagementService::class)->fixMissingStageTimestamps($crop);
+                    $fixed = app(CropTaskManagementService::class)->fixMissingStageTimestamps($crop);
                     if ($fixed) {
                         $fixedCount++;
                     }
@@ -260,8 +278,8 @@ class CropBatchTable
             ->requiresConfirmation()
             ->modalHeading('Suspend Watering?')
             ->modalDescription('This will mark watering as suspended for all crops in this batch.')
-            ->form([
-                Forms\Components\DateTimePicker::make('suspension_timestamp')
+            ->schema([
+                DateTimePicker::make('suspension_timestamp')
                     ->label('When was watering suspended?')
                     ->default(now())
                     ->seconds(false)
@@ -275,7 +293,7 @@ class CropBatchTable
                 
                 try {
                     // Get all crops in this batch
-                    $crops = \App\Models\Crop::where('crop_batch_id', $record->id)->get();
+                    $crops = Crop::where('crop_batch_id', $record->id)->get();
                     
                     $count = $crops->count();
                     $trayNumbers = $crops->pluck('tray_number')->toArray();
@@ -287,7 +305,7 @@ class CropBatchTable
                         $crop->suspendWatering($suspensionTime);
                         
                         // Deactivate the corresponding TaskSchedule
-                        $task = \App\Models\TaskSchedule::where('resource_type', 'crops')
+                        $task = TaskSchedule::where('resource_type', 'crops')
                             ->where('conditions->crop_id', $crop->id)
                             ->where('task_name', 'suspend_watering') // Match the task name
                             ->where('is_active', true)
@@ -303,15 +321,15 @@ class CropBatchTable
                     
                     DB::commit();
                     
-                    \Filament\Notifications\Notification::make()
+                    Notification::make()
                         ->title('Watering Suspended for Batch')
                         ->body("Successfully suspended watering for {$count} tray(s).")
                         ->success()
                         ->send();
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     DB::rollBack();
                     
-                    \Filament\Notifications\Notification::make()
+                    Notification::make()
                         ->title('Error')
                         ->body('Failed to suspend watering: ' . $e->getMessage())
                         ->danger()
@@ -323,9 +341,9 @@ class CropBatchTable
     /**
      * Get advance stages bulk action
      */
-    protected static function getAdvanceStagesBulkAction(): Tables\Actions\BulkAction
+    protected static function getAdvanceStagesBulkAction(): BulkAction
     {
-        return Tables\Actions\BulkAction::make('advance_stage_bulk')
+        return BulkAction::make('advance_stage_bulk')
             ->label('Advance Stage')
             ->icon('heroicon-o-arrow-right')
             ->before(function ($records, $action) {
@@ -333,7 +351,7 @@ class CropBatchTable
                 foreach ($records as $record) {
                     $stage = CropStageCache::find($record->current_stage_id);
                     if ($stage?->code === 'soaking') {
-                        \Filament\Notifications\Notification::make()
+                        Notification::make()
                             ->title('Cannot Bulk Advance Soaking Crops')
                             ->body('Crops in the soaking stage require individual tray number assignment. Please use the individual "Advance Stage" action for each soaking batch.')
                             ->warning()
@@ -344,7 +362,7 @@ class CropBatchTable
                 }
             })
             ->form([
-                Forms\Components\DateTimePicker::make('advancement_timestamp')
+                DateTimePicker::make('advancement_timestamp')
                     ->label('When did this advancement occur?')
                     ->default(now())
                     ->seconds(false)
@@ -353,22 +371,22 @@ class CropBatchTable
                     ->helperText('Specify the actual time when the stage advancement happened'),
             ])
             ->action(function ($records, array $data) {
-                $transitionService = app(\App\Services\CropTaskManagementService::class);
+                $transitionService = app(CropTaskManagementService::class);
                 $totalCount = 0;
                 $batchCount = 0;
                 $successfulBatches = 0;
                 $failedBatches = 0;
                 $warnings = [];
                 
-                $transitionTime = \Carbon\Carbon::parse($data['advancement_timestamp']);
+                $transitionTime = Carbon::parse($data['advancement_timestamp']);
                 
                 foreach ($records as $record) {
                     try {
                         // Use the first crop from the batch as the transition target
                         // The service will automatically find all crops in the batch
-                        $firstCrop = \App\Models\Crop::where('crop_batch_id', $record->id)->first();
+                        $firstCrop = Crop::where('crop_batch_id', $record->id)->first();
                         if (!$firstCrop) {
-                            throw new \Exception('No crops found in batch');
+                            throw new Exception('No crops found in batch');
                         }
                         $result = $transitionService->advanceStage($firstCrop, $transitionTime);
                         
@@ -379,10 +397,10 @@ class CropBatchTable
                         if (!empty($result['warnings'])) {
                             $warnings = array_merge($warnings, $result['warnings']);
                         }
-                    } catch (\Illuminate\Validation\ValidationException $e) {
+                    } catch (ValidationException $e) {
                         $failedBatches++;
                         $warnings[] = "Batch {$record->batch_number}: " . implode(', ', $e->errors()['stage'] ?? $e->errors()['target'] ?? ['Unknown error']);
-                    } catch (\Exception $e) {
+                    } catch (Exception $e) {
                         $failedBatches++;
                         $warnings[] = "Batch {$record->batch_number}: " . $e->getMessage();
                     }
@@ -395,13 +413,13 @@ class CropBatchTable
                 }
                 
                 if ($successfulBatches > 0) {
-                    \Filament\Notifications\Notification::make()
+                    Notification::make()
                         ->title('Batches Advanced')
                         ->body($message)
                         ->success()
                         ->send();
                 } else {
-                    \Filament\Notifications\Notification::make()
+                    Notification::make()
                         ->title('No Batches Advanced')
                         ->body($message)
                         ->danger()
@@ -410,7 +428,7 @@ class CropBatchTable
                 
                 // Show warnings if any
                 if (!empty($warnings)) {
-                    \Filament\Notifications\Notification::make()
+                    Notification::make()
                         ->title('Warnings')
                         ->body(implode("\n", array_slice($warnings, 0, 5)) . (count($warnings) > 5 ? "\n...and " . (count($warnings) - 5) . " more" : ''))
                         ->warning()
@@ -426,20 +444,20 @@ class CropBatchTable
     /**
      * Get rollback stages bulk action
      */
-    protected static function getRollbackStagesBulkAction(): Tables\Actions\BulkAction
+    protected static function getRollbackStagesBulkAction(): BulkAction
     {
-        return Tables\Actions\BulkAction::make('rollback_stage_bulk')
+        return BulkAction::make('rollback_stage_bulk')
             ->label('Rollback Stage')
             ->icon('heroicon-o-arrow-uturn-left')
             ->color('warning')
             ->form([
-                Forms\Components\Textarea::make('reason')
+                Textarea::make('reason')
                     ->label('Reason for rollback (optional)')
                     ->rows(3)
                     ->helperText('Provide a reason for rolling back these batches'),
             ])
             ->action(function ($records, array $data) {
-                $transitionService = app(\App\Services\CropTaskManagementService::class);
+                $transitionService = app(CropTaskManagementService::class);
                 $totalCount = 0;
                 $batchCount = 0;
                 $successfulBatches = 0;
@@ -453,9 +471,9 @@ class CropBatchTable
                     try {
                         // Use the first crop from the batch as the transition target
                         // The service will automatically find all crops in the batch
-                        $firstCrop = \App\Models\Crop::where('crop_batch_id', $record->id)->first();
+                        $firstCrop = Crop::where('crop_batch_id', $record->id)->first();
                         if (!$firstCrop) {
-                            throw new \Exception('No crops found in batch');
+                            throw new Exception('No crops found in batch');
                         }
                         $result = $transitionService->revertStage($firstCrop, $reason);
                         
@@ -466,7 +484,7 @@ class CropBatchTable
                         if (!empty($result['warnings'])) {
                             $warnings = array_merge($warnings, $result['warnings']);
                         }
-                    } catch (\Illuminate\Validation\ValidationException $e) {
+                    } catch (ValidationException $e) {
                         $errors = $e->errors();
                         if (isset($errors['stage']) && str_contains($errors['stage'][0], 'already at first stage')) {
                             $skippedCount++;
@@ -474,7 +492,7 @@ class CropBatchTable
                             $failedBatches++;
                             $warnings[] = "Batch {$record->batch_number}: " . implode(', ', $errors['stage'] ?? $errors['target'] ?? ['Unknown error']);
                         }
-                    } catch (\Exception $e) {
+                    } catch (Exception $e) {
                         $failedBatches++;
                         $warnings[] = "Batch {$record->batch_number}: " . $e->getMessage();
                     }
@@ -490,19 +508,19 @@ class CropBatchTable
                 }
                 
                 if ($successfulBatches > 0) {
-                    \Filament\Notifications\Notification::make()
+                    Notification::make()
                         ->title('Batches Rolled Back')
                         ->body($message)
                         ->success()
                         ->send();
                 } else if ($skippedCount > 0) {
-                    \Filament\Notifications\Notification::make()
+                    Notification::make()
                         ->title('No Changes Made')
                         ->body($message)
                         ->warning()
                         ->send();
                 } else {
-                    \Filament\Notifications\Notification::make()
+                    Notification::make()
                         ->title('Rollback Failed')
                         ->body($message)
                         ->danger()
@@ -511,7 +529,7 @@ class CropBatchTable
                 
                 // Show warnings if any
                 if (!empty($warnings)) {
-                    \Filament\Notifications\Notification::make()
+                    Notification::make()
                         ->title('Warnings')
                         ->body(implode("\n", array_slice($warnings, 0, 5)) . (count($warnings) > 5 ? "\n...and " . (count($warnings) - 5) . " more" : ''))
                         ->warning()

@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\SeedScrapeUploadResource\Pages;
 
+use Filament\Actions\ViewAction;
+use Filament\Actions\DeleteAction;
 use App\Filament\Resources\SeedScrapeUploadResource;
 use App\Filament\Pages\Base\BaseEditRecord;
 use Filament\Actions;
@@ -13,8 +15,8 @@ class EditSeedScrapeUpload extends BaseEditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\ViewAction::make(),
-            Actions\DeleteAction::make(),
+            ViewAction::make(),
+            DeleteAction::make(),
         ];
     }
 } 

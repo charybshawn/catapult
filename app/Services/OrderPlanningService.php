@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Exception;
 use App\Models\Order;
 use App\Models\CropPlan;
 use App\Models\User;
@@ -86,7 +87,7 @@ class OrderPlanningService
                 'issues' => []
             ];
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             DB::rollBack();
             Log::error('Failed to generate crop plans for order', [
                 'order_id' => $order->id,
@@ -158,7 +159,7 @@ class OrderPlanningService
                     : 'Failed to update crop plans: ' . implode(', ', $result['issues'])
             ];
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             DB::rollBack();
             Log::error('Failed to update crop plans for order', [
                 'order_id' => $order->id,
@@ -271,7 +272,7 @@ class OrderPlanningService
                 'message' => "Approved {$draftPlans->count()} crop plans"
             ];
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             DB::rollBack();
             return [
                 'success' => false,

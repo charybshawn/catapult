@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use Exception;
+use App\Models\User;
 use App\Services\InvoiceConsolidationService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -34,7 +36,7 @@ class GenerateConsolidatedInvoices extends Command
         
         try {
             $forDate = $dateOption ? Carbon::parse($dateOption) : now();
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error('Invalid date format. Please use YYYY-MM-DD format.');
             return Command::FAILURE;
         }
@@ -65,7 +67,7 @@ class GenerateConsolidatedInvoices extends Command
             
             return Command::SUCCESS;
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error('Error generating consolidated invoices: ' . $e->getMessage());
             return Command::FAILURE;
         }
@@ -106,7 +108,7 @@ class GenerateConsolidatedInvoices extends Command
      */
     protected function getCustomersNeedingConsolidatedInvoices(Carbon $forDate)
     {
-        return \App\Models\User::whereHas('orders', function ($query) use ($forDate) {
+        return User::whereHas('orders', function ($query) use ($forDate) {
             $query->where('order_type', 'b2b')
                 ->where('billing_frequency', '<>', 'immediate')
                 ->where('requires_invoice', true)
@@ -130,7 +132,7 @@ class GenerateConsolidatedInvoices extends Command
     /**
      * Get orders to consolidate for a customer (duplicate of service method for dry-run).
      */
-    protected function getOrdersToConsolidate(\App\Models\User $customer, Carbon $forDate)
+    protected function getOrdersToConsolidate(User $customer, Carbon $forDate)
     {
         return $customer->orders()
             ->where('order_type', 'b2b')

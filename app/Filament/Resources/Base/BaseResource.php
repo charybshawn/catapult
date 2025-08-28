@@ -2,6 +2,10 @@
 
 namespace App\Filament\Resources\Base;
 
+use Filament\Actions\BulkActionGroup;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Table;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use App\Filament\Tables\Components\Common as TableCommon;
@@ -19,7 +23,7 @@ abstract class BaseResource extends Resource
     /**
      * Get default bulk actions (Delete + Active/Inactive)
      */
-    protected static function getDefaultBulkActions(): Tables\Actions\BulkActionGroup
+    protected static function getDefaultBulkActions(): BulkActionGroup
     {
         return TableCommon::defaultBulkActions();
     }
@@ -35,7 +39,7 @@ abstract class BaseResource extends Resource
     /**
      * Get active/inactive badge column
      */
-    protected static function getActiveBadgeColumn(): Tables\Columns\IconColumn
+    protected static function getActiveBadgeColumn(): IconColumn
     {
         return TableCommon::activeBadge();
     }
@@ -43,7 +47,7 @@ abstract class BaseResource extends Resource
     /**
      * Get status badge column with standard color mapping
      */
-    protected static function getStatusBadgeColumn(string $field = 'status'): Tables\Columns\TextColumn
+    protected static function getStatusBadgeColumn(string $field = 'status'): TextColumn
     {
         return TableCommon::statusBadge($field);
     }
@@ -55,7 +59,7 @@ abstract class BaseResource extends Resource
         string $field,
         string $label,
         string $attribute = 'name'
-    ): Tables\Columns\TextColumn {
+    ): TextColumn {
         return TableCommon::relationshipColumn($field, $label, $attribute);
     }
 
@@ -66,14 +70,14 @@ abstract class BaseResource extends Resource
         string $field = 'price',
         string $label = 'Price',
         string $currency = 'USD'
-    ): Tables\Columns\TextColumn {
+    ): TextColumn {
         return TableCommon::priceColumn($field, $label, $currency);
     }
 
     /**
      * Get date column
      */
-    protected static function getDateColumn(string $field, string $label): Tables\Columns\TextColumn
+    protected static function getDateColumn(string $field, string $label): TextColumn
     {
         return TableCommon::dateColumn($field, $label);
     }
@@ -81,7 +85,7 @@ abstract class BaseResource extends Resource
     /**
      * Get datetime column
      */
-    protected static function getDateTimeColumn(string $field, string $label): Tables\Columns\TextColumn
+    protected static function getDateTimeColumn(string $field, string $label): TextColumn
     {
         return TableCommon::datetimeColumn($field, $label);
     }
@@ -94,14 +98,14 @@ abstract class BaseResource extends Resource
         string $label,
         int $decimalPlaces = 2,
         ?string $suffix = null
-    ): Tables\Columns\TextColumn {
+    ): TextColumn {
         return TableCommon::numericColumn($field, $label, $decimalPlaces, $suffix);
     }
 
     /**
      * Get searchable text column
      */
-    protected static function getTextColumn(string $field, string $label): Tables\Columns\TextColumn
+    protected static function getTextColumn(string $field, string $label): TextColumn
     {
         return TableCommon::textColumn($field, $label);
     }
@@ -113,7 +117,7 @@ abstract class BaseResource extends Resource
         string $field,
         string $label,
         int $limit = 50
-    ): Tables\Columns\TextColumn {
+    ): TextColumn {
         return TableCommon::truncatedTextColumn($field, $label, $limit);
     }
 
@@ -129,7 +133,7 @@ abstract class BaseResource extends Resource
     /**
      * Configure table with default settings
      */
-    protected static function configureTableDefaults(Tables\Table $table): Tables\Table
+    protected static function configureTableDefaults(Table $table): Table
     {
         return $table
             ->defaultSort('created_at', 'desc')

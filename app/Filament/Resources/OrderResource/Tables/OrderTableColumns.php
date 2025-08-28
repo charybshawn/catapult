@@ -2,6 +2,10 @@
 
 namespace App\Filament\Resources\OrderResource\Tables;
 
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\SelectColumn;
+use Closure;
+use Filament\Tables\Columns\IconColumn;
 use App\Models\Order;
 use App\Models\OrderStatus;
 use Filament\Tables;
@@ -47,9 +51,9 @@ class OrderTableColumns
     /**
      * Order ID column with sorting
      */
-    protected static function getOrderIdColumn(): Tables\Columns\TextColumn
+    protected static function getOrderIdColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('id')
+        return TextColumn::make('id')
             ->label('Order ID')
             ->sortable();
     }
@@ -57,9 +61,9 @@ class OrderTableColumns
     /**
      * Customer column with business name and contact name formatting
      */
-    protected static function getCustomerColumn(): Tables\Columns\TextColumn
+    protected static function getCustomerColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('customer.contact_name')
+        return TextColumn::make('customer.contact_name')
             ->label('Customer')
             ->formatStateUsing(function ($state, Order $record) {
                 if (!$record->customer) {
@@ -85,9 +89,9 @@ class OrderTableColumns
     /**
      * Order type column with badge styling
      */
-    protected static function getOrderTypeColumn(): Tables\Columns\TextColumn
+    protected static function getOrderTypeColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('order_type_display')
+        return TextColumn::make('order_type_display')
             ->label('Type')
             ->badge()
             ->color(fn (Order $record): string => match ($record->orderType?->code) {
@@ -101,9 +105,9 @@ class OrderTableColumns
     /**
      * Editable status select column with validation and notifications
      */
-    protected static function getStatusSelectColumn(): Tables\Columns\SelectColumn
+    protected static function getStatusSelectColumn(): SelectColumn
     {
-        return Tables\Columns\SelectColumn::make('status_id')
+        return SelectColumn::make('status_id')
             ->label('Status')
             ->options(function () {
                 return OrderStatus::getOptionsForDropdown(false, false);
@@ -113,7 +117,7 @@ class OrderTableColumns
                 $record instanceof Order && ($record->status?->code === 'template' || $record->status?->is_final)
             )
             ->rules([
-                fn ($record): \Closure => function (string $attribute, $value, \Closure $fail) use ($record) {
+                fn ($record): Closure => function (string $attribute, $value, Closure $fail) use ($record) {
                     if (!($record instanceof Order) || !$record->status) {
                         return;
                     }
@@ -165,9 +169,9 @@ class OrderTableColumns
     /**
      * Read-only status display column with badge and stage info
      */
-    protected static function getStatusDisplayColumn(): Tables\Columns\TextColumn
+    protected static function getStatusDisplayColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('status.name')
+        return TextColumn::make('status.name')
             ->label('Status')
             ->badge()
             ->color(fn (Order $record): string => $record->status?->badge_color ?? 'gray')
@@ -180,9 +184,9 @@ class OrderTableColumns
     /**
      * Icon column showing if order requires crop production
      */
-    protected static function getRequiresCropsColumn(): Tables\Columns\IconColumn
+    protected static function getRequiresCropsColumn(): IconColumn
     {
-        return Tables\Columns\IconColumn::make('requiresCrops')
+        return IconColumn::make('requiresCrops')
             ->label('Needs Growing')
             ->boolean()
             ->getStateUsing(fn (Order $record) => $record->requiresCropProduction())
@@ -196,9 +200,9 @@ class OrderTableColumns
     /**
      * Payment status badge column
      */
-    protected static function getPaymentStatusColumn(): Tables\Columns\TextColumn
+    protected static function getPaymentStatusColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('paymentStatus')
+        return TextColumn::make('paymentStatus')
             ->label('Payment')
             ->badge()
             ->getStateUsing(fn (Order $record) => $record->isPaid() ? 'Paid' : 'Unpaid')
@@ -217,9 +221,9 @@ class OrderTableColumns
     /**
      * Delivery timeline column with color coding based on urgency
      */
-    protected static function getDeliveryTimelineColumn(): Tables\Columns\TextColumn
+    protected static function getDeliveryTimelineColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('daysUntilDelivery')
+        return TextColumn::make('daysUntilDelivery')
             ->label('Delivery In')
             ->getStateUsing(function (Order $record) {
                 if (!$record->delivery_date) {
@@ -260,9 +264,9 @@ class OrderTableColumns
     /**
      * Parent template column for recurring orders
      */
-    protected static function getParentTemplateColumn(): Tables\Columns\TextColumn
+    protected static function getParentTemplateColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('parent_template')
+        return TextColumn::make('parent_template')
             ->label('Template')
             ->getStateUsing(fn (Order $record) => $record->parent_recurring_order_id ? "Template #{$record->parent_recurring_order_id}" : null)
             ->placeholder('Regular Order')
@@ -274,9 +278,9 @@ class OrderTableColumns
     /**
      * Total amount column with money formatting
      */
-    protected static function getTotalAmountColumn(): Tables\Columns\TextColumn
+    protected static function getTotalAmountColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('totalAmount')
+        return TextColumn::make('totalAmount')
             ->label('Total')
             ->money('USD')
             ->getStateUsing(fn (Order $record) => $record->totalAmount());
@@ -285,9 +289,9 @@ class OrderTableColumns
     /**
      * Harvest date column
      */
-    protected static function getHarvestDateColumn(): Tables\Columns\TextColumn
+    protected static function getHarvestDateColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('harvest_date')
+        return TextColumn::make('harvest_date')
             ->dateTime()
             ->sortable();
     }
@@ -295,9 +299,9 @@ class OrderTableColumns
     /**
      * Delivery date column
      */
-    protected static function getDeliveryDateColumn(): Tables\Columns\TextColumn
+    protected static function getDeliveryDateColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('delivery_date')
+        return TextColumn::make('delivery_date')
             ->dateTime()
             ->sortable();
     }
@@ -305,9 +309,9 @@ class OrderTableColumns
     /**
      * Created at column (toggleable, hidden by default)
      */
-    protected static function getCreatedAtColumn(): Tables\Columns\TextColumn
+    protected static function getCreatedAtColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('created_at')
+        return TextColumn::make('created_at')
             ->dateTime()
             ->sortable()
             ->toggleable(isToggledHiddenByDefault: true);

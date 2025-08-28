@@ -2,14 +2,50 @@
 
 namespace App\Filament\Traits;
 
+use Filament\Actions\ViewAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\BulkAction;
+use Filament\Actions\RestoreAction;
+use Filament\Actions\ForceDeleteAction;
+use Filament\Actions\RestoreBulkAction;
+use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Tables;
 use Filament\Actions;
 use Filament\Notifications\Notification;
 
+/**
+ * Has Standard Actions Trait
+ * 
+ * Standardized action patterns for agricultural Filament resources providing
+ * consistent CRUD operations, export functionality, and soft delete management.
+ * Ensures uniform action behavior across all agricultural resource tables.
+ * 
+ * @filament_trait Standard action patterns for agricultural resource management
+ * @agricultural_use Consistent CRUD actions across agricultural entities (products, crops, orders, inventory)
+ * @action_consistency Uniform table and bulk actions for agricultural resource management
+ * @soft_delete_support Restore and force delete actions for agricultural entity lifecycle
+ * 
+ * Key features:
+ * - Standard table actions (view, edit, delete) with agricultural tooltips
+ * - Bulk operations for agricultural entity management
+ * - CSV export functionality for agricultural data analysis
+ * - Soft delete support with restore capabilities
+ * - Consistent notification patterns for agricultural workflows
+ * 
+ * @package App\Filament\Traits
+ * @author Shawn
+ * @since 2024
+ */
 trait HasStandardActions
 {
     /**
-     * Get standard table actions
+     * Get standard table actions for agricultural resources.
+     * 
+     * @agricultural_context Standard view, edit, delete actions for agricultural entities
+     * @return array Standard table actions with agricultural-appropriate tooltips
+     * @consistency Provides uniform action patterns across agricultural resources
      */
     public static function getStandardTableActions(): array
     {
@@ -23,9 +59,9 @@ trait HasStandardActions
     /**
      * Get view table action
      */
-    public static function getViewTableAction(): Tables\Actions\ViewAction
+    public static function getViewTableAction(): ViewAction
     {
-        return Tables\Actions\ViewAction::make()
+        return ViewAction::make()
             ->tooltip('View record')
             ->icon('heroicon-m-eye');
     }
@@ -33,9 +69,9 @@ trait HasStandardActions
     /**
      * Get edit table action
      */
-    public static function getEditTableAction(): Tables\Actions\EditAction
+    public static function getEditTableAction(): EditAction
     {
-        return Tables\Actions\EditAction::make()
+        return EditAction::make()
             ->tooltip('Edit record')
             ->icon('heroicon-m-pencil-square');
     }
@@ -43,9 +79,9 @@ trait HasStandardActions
     /**
      * Get delete table action
      */
-    public static function getDeleteTableAction(): Tables\Actions\DeleteAction
+    public static function getDeleteTableAction(): DeleteAction
     {
-        return Tables\Actions\DeleteAction::make()
+        return DeleteAction::make()
             ->tooltip('Delete record')
             ->icon('heroicon-m-trash')
             ->successNotification(
@@ -69,9 +105,9 @@ trait HasStandardActions
     /**
      * Get delete bulk action
      */
-    public static function getDeleteBulkAction(): Tables\Actions\DeleteBulkAction
+    public static function getDeleteBulkAction(): DeleteBulkAction
     {
-        return Tables\Actions\DeleteBulkAction::make()
+        return DeleteBulkAction::make()
             ->successNotification(
                 Notification::make()
                     ->success()
@@ -81,11 +117,16 @@ trait HasStandardActions
     }
     
     /**
-     * Get export bulk action
+     * Get basic CSV export bulk action for agricultural data.
+     * 
+     * @agricultural_context Basic CSV export for agricultural data analysis and reporting
+     * @param string $filename Base filename for export (timestamp will be appended)
+     * @return BulkAction Bulk action for exporting selected agricultural records to CSV
+     * @note Consider using CsvExportAction trait for more advanced export features
      */
-    public static function getExportBulkAction(string $filename = 'export'): Tables\Actions\BulkAction
+    public static function getExportBulkAction(string $filename = 'export'): BulkAction
     {
-        return Tables\Actions\BulkAction::make('export')
+        return BulkAction::make('export')
             ->label('Export Selected')
             ->icon('heroicon-o-arrow-down-tray')
             ->action(function ($records) use ($filename) {
@@ -110,11 +151,15 @@ trait HasStandardActions
     }
     
     /**
-     * Get restore action for soft deletes
+     * Get restore action for soft-deleted agricultural entities.
+     * 
+     * @agricultural_context Restore capability for accidentally deleted agricultural entities
+     * @return RestoreAction Restore action for recovering soft-deleted agricultural records
+     * @soft_delete_support Allows recovery of agricultural entities without data loss
      */
-    public static function getRestoreAction(): Tables\Actions\RestoreAction
+    public static function getRestoreAction(): RestoreAction
     {
-        return Tables\Actions\RestoreAction::make()
+        return RestoreAction::make()
             ->tooltip('Restore record')
             ->successNotification(
                 Notification::make()
@@ -127,9 +172,9 @@ trait HasStandardActions
     /**
      * Get force delete action for soft deletes
      */
-    public static function getForceDeleteAction(): Tables\Actions\ForceDeleteAction
+    public static function getForceDeleteAction(): ForceDeleteAction
     {
-        return Tables\Actions\ForceDeleteAction::make()
+        return ForceDeleteAction::make()
             ->tooltip('Permanently delete record')
             ->successNotification(
                 Notification::make()
@@ -142,9 +187,9 @@ trait HasStandardActions
     /**
      * Get restore bulk action for soft deletes
      */
-    public static function getRestoreBulkAction(): Tables\Actions\RestoreBulkAction
+    public static function getRestoreBulkAction(): RestoreBulkAction
     {
-        return Tables\Actions\RestoreBulkAction::make()
+        return RestoreBulkAction::make()
             ->successNotification(
                 Notification::make()
                     ->success()
@@ -156,9 +201,9 @@ trait HasStandardActions
     /**
      * Get force delete bulk action for soft deletes
      */
-    public static function getForceDeleteBulkAction(): Tables\Actions\ForceDeleteBulkAction
+    public static function getForceDeleteBulkAction(): ForceDeleteBulkAction
     {
-        return Tables\Actions\ForceDeleteBulkAction::make()
+        return ForceDeleteBulkAction::make()
             ->successNotification(
                 Notification::make()
                     ->success()

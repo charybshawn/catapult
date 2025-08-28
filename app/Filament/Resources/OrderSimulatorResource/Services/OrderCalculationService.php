@@ -10,13 +10,112 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Agricultural Order Calculation Service for Microgreens Variety Requirements
+ * 
+ * This service transforms customer order data into detailed agricultural production
+ * requirements, calculating precise seed variety quantities needed for microgreens
+ * production. It handles complex agricultural business logic including variety
+ * calculations, product mix distributions, and package sizing conversions.
+ * 
+ * Core Agricultural Functions:
+ * - Order item analysis: Convert customer orders to production requirements
+ * - Variety calculation: Determine seed quantities needed for each microgreens variety
+ * - Mix distribution: Calculate variety percentages for blended microgreens products
+ * - Weight conversion: Transform package quantities to growing weight requirements
+ * - Production validation: Identify missing data that prevents accurate calculations
+ * 
+ * Business Context:
+ * - Customer orders specify product quantities but production requires seed variety weights
+ * - Package fill weights represent finished product weight driving backward seed calculations
+ * - Product mixes require percentage-based variety distribution calculations
+ * - Single variety products have direct product-to-variety mapping
+ * - Missing fill weights prevent accurate production planning and must be flagged
+ * 
+ * Agricultural Calculation Logic:
+ * - Single products: Direct multiplication of quantity × package fill weight
+ * - Mix products: Percentage distribution of total weight across constituent varieties
+ * - Variety aggregation: Sum requirements across all products needing same variety
+ * - Weight precision: Round to 2 decimal places for practical agricultural measurements
+ * - Error detection: Identify incomplete product configurations preventing calculations
+ * 
+ * Integration Points:
+ * - Order Simulator: UI interface for agricultural production planning
+ * - Product Management: Variety and mix configuration for production calculations
+ * - Price Variations: Package sizing and fill weight specifications
+ * - Production Planning: Seed procurement and growing schedule generation
+ * 
+ * @business_domain Agricultural microgreens production planning and variety calculation
+ * @agricultural_context Seed-to-harvest weight conversions and variety distribution
+ * @order_management Customer order analysis and production requirement translation
+ * @production_planning Seed procurement calculations and growing schedule support
+ * 
+ * @see \App\Filament\Resources\OrderSimulatorResource For UI integration and order simulation
+ * @see \App\Models\Product For agricultural product definitions and variety relationships
+ * @see \App\Models\ProductMix For blend composition and percentage calculations
+ * @see \App\Models\PriceVariation For package sizing and fill weight specifications
+ */
 class OrderCalculationService
 {
     /**
-     * Calculate variety requirements for an order
+     * Calculate agricultural variety requirements for customer order simulation
      * 
-     * @param array $orderItems Array of order items with product_id, price_variation_id, and quantity
-     * @return array Array of variety requirements with totals
+     * Transforms customer order items into detailed agricultural production requirements,
+     * providing farmers with precise seed variety quantities needed for microgreens
+     * production. This method handles complex agricultural business logic including
+     * single variety products, multi-variety mixes, and package sizing conversions.
+     * 
+     * Agricultural Calculation Process:
+     * 1. Order Item Validation: Verify complete product and pricing information
+     * 2. Product Analysis: Determine if product is single variety or mix
+     * 3. Weight Calculation: Convert package quantities to production weights
+     * 4. Variety Distribution: Calculate individual variety requirements
+     * 5. Aggregation: Sum variety needs across all order items
+     * 6. Error Detection: Identify missing fill weights preventing calculations
+     * 
+     * Business Logic:
+     * - Single variety products: Direct quantity × fill_weight calculation
+     * - Mix products: Total weight distributed by percentage across varieties
+     * - Variety aggregation: Sum requirements for same variety from multiple products
+     * - Missing data handling: Flag incomplete product configurations
+     * - Precision rounding: 2 decimal places for practical agricultural measurements
+     * 
+     * Agricultural Context:
+     * - Fill weights represent finished microgreens product weight per package
+     * - Variety calculations enable seed procurement and growing space planning
+     * - Mix percentages ensure proper blend ratios in finished products
+     * - Weight totals drive tray allocation and growing resource requirements
+     * - Error identification prevents inaccurate production planning
+     * 
+     * Production Planning Applications:
+     * - Seed procurement: Exact variety quantities needed for order fulfillment
+     * - Growing space allocation: Tray and growing area requirements by variety
+     * - Harvest planning: Expected yield calculations for delivery scheduling
+     * - Quality control: Proper variety ratios for consistent product quality
+     * - Resource optimization: Minimize waste through accurate quantity calculations
+     * 
+     * @param array $orderItems Array of order line items containing:
+     *                          - product_id: Product identifier for variety lookup
+     *                          - price_variation_id: Package size and fill weight reference
+     *                          - quantity: Number of packages ordered
+     *                          Items missing any field are skipped with validation logging
+     * 
+     * @return array Comprehensive agricultural production analysis containing:
+     *               - variety_totals: Aggregated seed requirements by variety with product breakdown
+     *               - item_breakdown: Individual order item analysis with variety distributions
+     *               - summary: Order totals (varieties, items, total grams)
+     *               - missing_fill_weights: Products lacking fill weight data
+     *               - has_errors: Boolean indicating calculation completeness
+     * 
+     * @business_workflow Order simulation and agricultural production planning
+     * @agricultural_planning Seed procurement and growing resource allocation
+     * @quality_control Variety ratio verification for product consistency
+     * @error_handling Missing data identification for production planning accuracy
+     * 
+     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException If referenced models don't exist
+     * @see \App\Models\Product::masterSeedCatalog For single variety product relationships
+     * @see \App\Models\ProductMix::masterSeedCatalogs For multi-variety mix compositions
+     * @see \App\Models\PriceVariation::fill_weight_grams For package weight specifications
      */
     public function calculateVarietyRequirements(array $orderItems): array
     {

@@ -2,6 +2,9 @@
 
 namespace App\Filament\Resources\CropPlanResource\Pages;
 
+use App\Services\CropPlanningService;
+use App\Models\Order;
+use Exception;
 use App\Filament\Resources\CropPlanResource;
 use App\Filament\Widgets\CropPlanCalendarWidget;
 use Filament\Actions\Action;
@@ -12,13 +15,13 @@ class CalendarCropPlans extends Page
 {
     protected static string $resource = CropPlanResource::class;
 
-    protected static string $view = 'filament.resources.crop-plan-resource.pages.calendar-crop-plans';
+    protected string $view = 'filament.resources.crop-plan-resource.pages.calendar-crop-plans';
 
     protected static ?string $title = 'Crop Planning Calendar';
 
     protected static ?string $navigationLabel = 'Calendar';
 
-    protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-calendar-days';
 
     protected function getHeaderActions(): array
     {
@@ -30,14 +33,14 @@ class CalendarCropPlans extends Page
                 ->modalHeading('Crop Plan Generation Results')
                 ->modalWidth('4xl')
                 ->action(function () {
-                    $cropPlanningService = app(\App\Services\CropPlanningService::class);
+                    $cropPlanningService = app(CropPlanningService::class);
                     
                     try {
                         $startDate = now()->toDateString();
                         $endDate = now()->addDays(30)->toDateString();
                         
                         // First, check what orders are available
-                        $orders = \App\Models\Order::with(['customer', 'status'])
+                        $orders = Order::with(['customer', 'status'])
                             ->where('harvest_date', '>=', $startDate)
                             ->where('harvest_date', '<=', $endDate)
                             ->where('is_recurring', false)
@@ -73,7 +76,7 @@ class CalendarCropPlans extends Page
                         // Redirect to show modal
                         $this->dispatch('open-results-modal');
                             
-                    } catch (\Exception $e) {
+                    } catch (Exception $e) {
                         session([
                             'crop_plan_results' => [
                                 'success' => false,

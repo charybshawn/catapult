@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use Exception;
+use InvalidArgumentException;
 use App\Actions\Crops\RecordStageHistory;
 use App\Models\Crop;
 use App\Models\CropBatch;
@@ -17,8 +19,73 @@ use Illuminate\Validation\ValidationException;
 use App\Notifications\ResourceActionRequired;
 
 /**
- * Unified service for managing crop tasks and lifecycle operations
- * Consolidates functionality from CropTaskService, CropLifecycleService, and TaskFactoryService
+ * Comprehensive agricultural production task automation service for microgreens cultivation.
+ * 
+ * This unified service orchestrates the complete crop lifecycle from seed soaking through
+ * harvest, providing automated task scheduling, batch coordination, and stage transition
+ * management. Consolidates functionality from multiple specialized services into a single,
+ * cohesive agricultural workflow automation system.
+ * 
+ * @service_domain Agricultural production automation and crop lifecycle management
+ * @business_purpose Automates complex multi-stage growing processes with precise timing
+ * @agricultural_focus Microgreens cultivation with recipe-based timing calculations
+ * @batch_coordination Ensures synchronized processing of multiple trays per variety
+ * @automation_scope Task scheduling, stage transitions, watering control, harvest timing
+ * 
+ * Key Agricultural Workflows:
+ * - **Recipe-Based Automation**: Calculates stage transition timing from agricultural recipes
+ * - **Batch Coordination**: Synchronizes multiple trays of same variety for efficient processing
+ * - **Stage Lifecycle Management**: Automates soaking → germination → blackout → light → harvest
+ * - **Task Scheduling**: Creates automated reminders and transition notifications
+ * - **Quality Control Integration**: Enforces proper stage sequencing and timing validation
+ * - **Watering Automation**: Manages suspension and resumption based on harvest timing
+ * 
+ * Crop Production Stages and Automation:
+ * - **Soaking Stage**: Automated timing for seed hydration with completion warnings
+ * - **Germination Stage**: Transition scheduling based on recipe specifications
+ * - **Blackout Stage**: Light exclusion period management with automated advancement
+ * - **Light Stage**: Final growing phase with harvest date calculations
+ * - **Harvest Stage**: Automated harvest alerts and watering suspension coordination
+ * 
+ * Business Value and Operational Efficiency:
+ * - **Labor Optimization**: Reduces manual monitoring through automated notifications
+ * - **Quality Consistency**: Enforces standardized timing across all production batches
+ * - **Batch Integrity**: Maintains synchronized processing for operational efficiency
+ * - **Resource Management**: Coordinates watering schedules and growing space utilization
+ * - **Traceability**: Complete audit trail of stage transitions and timing decisions
+ * - **Scalability**: Handles multiple simultaneous batches with different timing requirements
+ * 
+ * Technical Architecture:
+ * - **Database Integration**: Uses TaskSchedule model for persistent task management
+ * - **Event-Driven Processing**: Leverages Laravel notifications for user alerts
+ * - **Transaction Safety**: Ensures data consistency during batch operations
+ * - **Memory Optimization**: Implements safeguards for large-scale batch processing
+ * - **Recipe Integration**: Connects with Recipe models for agricultural timing calculations
+ * - **History Tracking**: Records all stage transitions for compliance and analysis
+ * 
+ * Integration Points:
+ * - CropPlanningService: Receives timing requirements from production planning
+ * - RecordStageHistory: Maintains complete audit trail of all stage transitions
+ * - NotificationSetting: Configurable alerts for different agricultural events
+ * - TaskSchedule: Persistent storage for scheduled agricultural tasks
+ * - CropStage: Stage definition and validation for proper lifecycle management
+ * 
+ * Performance Considerations:
+ * - Memory monitoring during bulk operations to prevent resource exhaustion
+ * - Batch processing optimization for handling large numbers of simultaneous crops
+ * - Database transaction management for consistency during complex operations
+ * - Eager loading of relationships to prevent N+1 query problems
+ * 
+ * Error Handling and Recovery:
+ * - Comprehensive validation of stage transitions and timing calculations
+ * - Graceful handling of missing recipe data with appropriate fallbacks
+ * - Transaction rollback for failed batch operations to maintain data integrity
+ * - Detailed logging for troubleshooting agricultural automation issues
+ * 
+ * @consolidates_services CropTaskService, CropLifecycleService, TaskFactoryService
+ * @dependencies Recipe, Crop, CropStage, TaskSchedule, NotificationSetting
+ * @notifications ResourceActionRequired for stage transitions and soaking warnings
+ * @logging Comprehensive agricultural operation logging for compliance and debugging
  */
 class CropTaskManagementService
 {
@@ -34,7 +101,51 @@ class CropTaskManagementService
     ];
 
     /**
-     * Schedule all stage transition tasks for a crop
+     * Schedule comprehensive automated task sequence for crop lifecycle management.
+     * 
+     * Creates complete task automation schedule for a crop from current stage through
+     * harvest, including stage transitions, watering management, and batch coordination.
+     * Calculates precise timing based on agricultural recipes and creates persistent
+     * task schedules for automated execution and user notifications.
+     * 
+     * @param Crop $crop The crop to schedule tasks for with recipe and timing data
+     * @return void Tasks created and persisted to TaskSchedule table
+     * 
+     * @agricultural_timing Uses recipe specifications for stage duration calculations
+     * @batch_coordination Creates batch-wide tasks for synchronized processing
+     * @memory_management Monitors memory usage to prevent issues during bulk operations
+     * @task_types Stage transitions, soaking warnings, watering suspension
+     * @validation Requires recipe and germination timing for proper calculations
+     * 
+     * Agricultural Task Scheduling Logic:
+     * - **Recipe Validation**: Ensures crop has recipe for timing calculations
+     * - **Stage Progression**: Schedules only future stages from current position
+     * - **Timing Calculations**: Uses recipe hours/days for precise scheduling
+     * - **Batch Identification**: Groups crops by recipe, date, and stage for coordination
+     * - **Soaking Handling**: Special logic for crops requiring pre-germination soaking
+     * - **Watering Management**: Schedules suspension before harvest if specified
+     * 
+     * Memory Safety and Performance:
+     * - Monitors memory usage before scheduling to prevent exhaustion
+     * - Configurable memory limits for large-scale operations
+     * - Efficient database operations with minimal relationship loading
+     * - Logging for troubleshooting scheduling issues
+     * 
+     * Task Types Created:
+     * - Stage transition tasks for automated advancement notifications
+     * - Soaking completion warnings for day-of-completion alerts
+     * - Watering suspension tasks for harvest preparation
+     * - Batch coordination tasks for synchronized processing
+     * 
+     * Business Rules:
+     * - Only schedules tasks for crops with valid recipes
+     * - Respects current stage position in lifecycle progression
+     * - Handles both soaking and non-soaking crop varieties
+     * - Maintains batch integrity for operational efficiency
+     * 
+     * @throws None - Gracefully handles missing data with appropriate logging
+     * @side_effects Creates TaskSchedule records, logs scheduling activities
+     * @performance Includes memory monitoring for large-scale operations
      */
     public function scheduleAllStageTasks(Crop $crop): void
     {
@@ -214,9 +325,54 @@ class CropTaskManagementService
     }
 
     /**
-     * Advance a crop to the next stage in its lifecycle
-     * IMPORTANT: This advances ALL crops in the batch to maintain batch integrity
-     * Records stage history and validates transitions properly
+     * Advance crop to next lifecycle stage with comprehensive batch coordination.
+     * 
+     * Performs validated stage advancement for individual crop that automatically
+     * includes all crops in the same batch to maintain synchronized processing.
+     * Records complete stage transition history and validates proper agricultural
+     * sequencing with full error handling and recovery mechanisms.
+     * 
+     * @param Crop $crop The crop to advance (triggers batch-wide advancement)
+     * @param Carbon|null $timestamp Optional timestamp for transition (defaults to now)
+     * @return void Stage advancement completed with history recording
+     * 
+     * @throws ValidationException If stage transition validation fails
+     * @throws Exception If advancement process encounters system errors
+     * 
+     * @batch_coordination Advances ALL crops in batch for synchronized processing
+     * @stage_validation Enforces proper agricultural stage sequencing
+     * @history_tracking Records complete audit trail via RecordStageHistory
+     * @agricultural_integrity Maintains proper crop lifecycle progression
+     * 
+     * Batch Processing Logic:
+     * - **Batch Identification**: Finds all crops in same batch using recipe, date, stage
+     * - **Synchronized Advancement**: Ensures all batch crops advance together
+     * - **Stage Validation**: Verifies advancement follows proper agricultural sequence
+     * - **Timestamp Management**: Updates appropriate stage timestamp fields
+     * - **History Recording**: Creates audit trail for all stage transitions
+     * - **Error Recovery**: Handles individual crop failures within batch context
+     * 
+     * Agricultural Validation:
+     * - Ensures advancement follows natural growing progression
+     * - Validates stage transitions match recipe specifications
+     * - Maintains data integrity across all related crops
+     * - Prevents invalid or backwards stage transitions
+     * 
+     * Business Impact:
+     * - **Operational Efficiency**: Batch processing reduces labor requirements
+     * - **Quality Control**: Synchronized advancement ensures uniform processing
+     * - **Traceability**: Complete history for compliance and analysis
+     * - **Error Prevention**: Validation prevents costly agricultural mistakes
+     * 
+     * Error Handling:
+     * - ValidationException for agricultural rule violations
+     * - Comprehensive logging for troubleshooting batch operations
+     * - Transaction safety for data consistency during failures
+     * - Detailed error context for operational teams
+     * 
+     * @delegates_to advanceStageWithHistory() for core advancement logic
+     * @logging Records advancement success, batch sizes, and error conditions
+     * @performance Efficient batch processing with minimal database queries
      */
     public function advanceStage(Crop $crop, ?Carbon $timestamp = null): void
     {
@@ -238,7 +394,7 @@ class CropTaskManagementService
                 'errors' => $e->errors()
             ]);
             throw $e;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Crop stage advancement failed', [
                 'crop_id' => $crop->id,
                 'error' => $e->getMessage()
@@ -248,7 +404,56 @@ class CropTaskManagementService
     }
 
     /**
-     * Advance stage with full history recording and validation
+     * Execute comprehensive stage advancement with complete validation and history tracking.
+     * 
+     * Performs atomic stage transition operation within database transaction, including
+     * full agricultural validation, batch coordination, history recording, and error
+     * recovery. Handles both individual crops and crop batches with consistent
+     * processing logic and comprehensive audit trail creation.
+     * 
+     * @param Crop|CropBatch $target The crop or batch to advance
+     * @param Carbon $transitionTime Timestamp for the stage transition
+     * @param array $options Additional options (tray_numbers for soaking transitions)
+     * @return array Results with counts and details of advancement operation
+     * 
+     * @throws ValidationException If no crops found or invalid stage transition
+     * @throws Exception If database transaction or advancement logic fails
+     * 
+     * @database_transaction Ensures atomic operation for data consistency
+     * @agricultural_validation Complete stage sequencing and timing validation
+     * @batch_processing Handles multiple crops with synchronized advancement
+     * @history_recording Uses RecordStageHistory for complete audit trail
+     * 
+     * Transaction Processing Flow:
+     * - **Target Resolution**: Determines crops to advance (individual or batch)
+     * - **Stage Validation**: Verifies current stage and calculates next stage
+     * - **Agricultural Rules**: Ensures advancement follows proper growing sequence
+     * - **Batch Coordination**: Processes all related crops simultaneously
+     * - **History Recording**: Creates complete audit trail for all transitions
+     * - **Error Recovery**: Handles failures with appropriate rollback
+     * 
+     * Return Structure:
+     * - 'advanced': Number of crops successfully advanced
+     * - 'failed': Number of crops that failed advancement
+     * - 'affected_count': Total crops processed in operation
+     * - 'warnings': Any issues encountered during processing
+     * - 'crops': Detailed results for each individual crop
+     * 
+     * Agricultural Business Rules:
+     * - Validates stage progression follows natural growing sequence
+     * - Ensures timing consistency across batch for synchronized processing
+     * - Maintains tray number assignments during soaking transitions
+     * - Records complete history for traceability and compliance
+     * 
+     * Error Handling and Recovery:
+     * - ValidationException for agricultural rule violations
+     * - Individual crop error handling within batch context
+     * - Transaction rollback for system-level failures
+     * - Comprehensive error logging for operational troubleshooting
+     * 
+     * @performance Database transaction optimization for batch operations
+     * @consistency Atomic operations ensure data integrity across all crops
+     * @traceability Complete audit trail via RecordStageHistory integration
      */
     public function advanceStageWithHistory($target, Carbon $transitionTime, array $options = []): array
     {
@@ -277,7 +482,63 @@ class CropTaskManagementService
     }
 
     /**
-     * Process a crop stage transition task
+     * Execute scheduled crop stage transition task with comprehensive processing logic.
+     * 
+     * Processes automated task schedules created by task scheduling system, handling
+     * various task types including stage transitions, soaking warnings, and batch
+     * coordination. Provides intelligent routing based on task conditions and
+     * maintains proper agricultural workflow automation.
+     * 
+     * @param TaskSchedule $task The scheduled task to process with conditions and timing
+     * @return array Processing results with success status and detailed messages
+     * 
+     * @task_routing Intelligently routes to appropriate processing method based on task type
+     * @agricultural_automation Executes scheduled agricultural operations automatically
+     * @batch_processing Handles both individual crops and batch operations seamlessly
+     * @notification_management Integrates with notification system for user alerts
+     * 
+     * Task Processing Logic:
+     * - **Task Analysis**: Extracts conditions and parameters from scheduled task
+     * - **Type Detection**: Identifies task type (stage transition, soaking warning, etc.)
+     * - **Routing Decision**: Delegates to appropriate specialized processing method
+     * - **Batch Coordination**: Handles batch operations when batch identifier present
+     * - **Individual Processing**: Falls back to single crop processing when needed
+     * - **Result Compilation**: Returns standardized processing results
+     * 
+     * Supported Task Types:
+     * - **Stage Transitions**: Automated advancement through growing stages
+     * - **Soaking Warnings**: Day-of-completion alerts for soaking operations
+     * - **Watering Suspension**: Pre-harvest watering management
+     * - **Batch Coordination**: Synchronized processing for multiple trays
+     * 
+     * Task Condition Parameters:
+     * - crop_id: Individual crop identifier for single-crop tasks
+     * - batch_identifier: Batch grouping for coordinated operations
+     * - target_stage: Destination stage for advancement tasks
+     * - tray_numbers: Array of tray numbers for batch processing
+     * - warning_type: Specific warning category for notification tasks
+     * 
+     * Business Value:
+     * - **Automation**: Reduces manual monitoring and intervention requirements
+     * - **Consistency**: Ensures standardized timing across all production batches
+     * - **Efficiency**: Batch processing optimizes operational workflows
+     * - **Quality Control**: Automated enforcement of proper agricultural timing
+     * - **Scalability**: Handles multiple simultaneous crops and batches
+     * 
+     * Return Structure:
+     * - success: Boolean indicating overall task processing success
+     * - message: Detailed description of processing results and actions taken
+     * - Additional context depending on specific task type processed
+     * 
+     * Error Handling:
+     * - Validates task conditions before processing
+     * - Graceful fallback from batch to individual processing
+     * - Comprehensive error messages for troubleshooting
+     * - Logging for agricultural automation audit trails
+     * 
+     * @delegates_to Multiple specialized processing methods based on task type
+     * @agricultural_timing Respects recipe-based timing for all automated operations
+     * @performance Efficient task processing with minimal database overhead
      */
     public function processCropStageTask(TaskSchedule $task): array
     {
@@ -310,8 +571,56 @@ class CropTaskManagementService
     }
 
     /**
-     * Suspend watering for a crop
-     * IMPORTANT: This suspends watering for ALL crops in the batch
+     * Suspend watering for entire crop batch to prepare for harvest operations.
+     * 
+     * Coordinates watering suspension across all crops in the same production batch
+     * to ensure proper harvest preparation and quality optimization. Batch-wide
+     * operation maintains synchronized processing while providing detailed tracking
+     * of suspension status for each individual crop.
+     * 
+     * @param Crop $crop Representative crop from batch (triggers batch-wide suspension)
+     * @param Carbon|null $timestamp Optional timestamp for suspension (defaults to now)
+     * @return void Watering suspended for entire batch with logging
+     * 
+     * @batch_coordination Suspends watering for ALL crops in production batch
+     * @harvest_preparation Pre-harvest watering management for quality optimization
+     * @agricultural_timing Coordinated suspension based on recipe specifications
+     * @status_tracking Individual crop suspension status and batch-wide reporting
+     * 
+     * Agricultural Watering Management:
+     * - **Batch Identification**: Finds all crops in same production batch
+     * - **Synchronized Suspension**: Applies watering suspension to entire batch
+     * - **Status Tracking**: Records suspension timestamp for each crop
+     * - **Duplicate Prevention**: Skips crops already suspended to avoid conflicts
+     * - **Quality Control**: Ensures uniform harvest preparation across batch
+     * 
+     * Batch Processing Logic:
+     * - Locates all crops sharing recipe, planting date, and current stage
+     * - Applies watering_suspended_at timestamp to all batch crops
+     * - Maintains individual crop status while coordinating batch operation
+     * - Provides comprehensive logging for operational transparency
+     * 
+     * Quality and Consistency Benefits:
+     * - **Uniform Processing**: Ensures all crops in batch receive identical treatment
+     * - **Harvest Quality**: Proper pre-harvest preparation improves product quality
+     * - **Operational Efficiency**: Batch coordination reduces labor requirements
+     * - **Traceability**: Complete tracking of watering management decisions
+     * 
+     * Business Impact:
+     * - **Product Quality**: Proper watering suspension improves harvest characteristics
+     * - **Operational Coordination**: Synchronized processing for efficient workflows
+     * - **Resource Management**: Coordinated watering schedules optimize resource usage
+     * - **Compliance**: Documented watering management for quality standards
+     * 
+     * Status Reporting:
+     * - Counts newly suspended crops vs. already suspended crops
+     * - Provides batch size and processing statistics
+     * - Logs suspension activity for audit and troubleshooting
+     * - Records recipe and timing context for operational review
+     * 
+     * @agricultural_best_practices Follows microgreens production standards
+     * @logging Comprehensive watering management activity logging
+     * @performance Efficient batch processing with minimal database operations
      */
     public function suspendWatering(Crop $crop, ?Carbon $timestamp = null): void
     {
@@ -343,8 +652,55 @@ class CropTaskManagementService
     }
 
     /**
-     * Resume watering for a crop
-     * IMPORTANT: This resumes watering for ALL crops in the batch
+     * Resume watering for entire crop batch after suspension period.
+     * 
+     * Coordinates watering resumption across all crops in the same production batch
+     * when suspension needs to be reversed or harvest timing changes. Batch-wide
+     * operation ensures synchronized watering management while providing detailed
+     * tracking of resumption status for operational transparency.
+     * 
+     * @param Crop $crop Representative crop from batch (triggers batch-wide resumption)
+     * @return void Watering resumed for entire batch with comprehensive logging
+     * 
+     * @batch_coordination Resumes watering for ALL crops in production batch
+     * @watering_management Reverses previous suspension for operational flexibility
+     * @agricultural_recovery Supports dynamic watering schedule adjustments
+     * @status_tracking Individual crop resumption status and batch-wide reporting
+     * 
+     * Watering Resumption Logic:
+     * - **Batch Identification**: Finds all crops in same production batch
+     * - **Synchronized Resumption**: Clears suspension status for entire batch
+     * - **Status Validation**: Identifies already active crops to avoid conflicts
+     * - **Operational Flexibility**: Supports dynamic schedule changes as needed
+     * - **Quality Assurance**: Maintains uniform watering management across batch
+     * 
+     * Agricultural Use Cases:
+     * - **Schedule Adjustments**: When harvest timing changes require continued watering
+     * - **Quality Optimization**: Resume watering if suspension was premature
+     * - **Operational Corrections**: Reverse accidental or incorrect suspensions
+     * - **Dynamic Management**: Adapt to changing growing conditions or requirements
+     * 
+     * Batch Processing Benefits:
+     * - **Operational Consistency**: Uniform watering management across entire batch
+     * - **Labor Efficiency**: Batch coordination reduces manual intervention
+     * - **Quality Control**: Synchronized treatment ensures product consistency
+     * - **Flexibility**: Supports dynamic agricultural management decisions
+     * 
+     * Business Value:
+     * - **Operational Agility**: Ability to adjust watering schedules as conditions change
+     * - **Quality Management**: Ensures optimal growing conditions throughout production
+     * - **Resource Coordination**: Synchronized watering schedules optimize system usage
+     * - **Decision Support**: Provides flexibility for experienced growers
+     * 
+     * Status Reporting and Logging:
+     * - Tracks newly resumed crops vs. crops already active
+     * - Provides comprehensive batch processing statistics
+     * - Logs resumption activity for operational audit trails
+     * - Records batch context for agricultural decision tracking
+     * 
+     * @agricultural_flexibility Supports dynamic watering management decisions
+     * @logging Detailed watering resumption activity for operational transparency
+     * @performance Efficient batch processing with optimized database operations
      */
     public function resumeWatering(Crop $crop): void
     {
@@ -375,17 +731,68 @@ class CropTaskManagementService
     }
 
     /**
-     * Reset a crop to a specific stage
+     * Reset crop to specific lifecycle stage with complete timestamp management.
+     * 
+     * Provides manual override capability to reset crop to any valid stage in the
+     * agricultural lifecycle, properly managing all associated timestamps and stage
+     * relationships. Essential for correcting processing errors or handling
+     * exceptional growing conditions that require stage adjustments.
+     * 
+     * @param Crop $crop The crop to reset with current stage and timing data
+     * @param string $targetStageCode Valid stage code (soaking, germination, blackout, light, harvested)
+     * @return void Crop reset to target stage with proper timestamp management
+     * 
+     * @throws InvalidArgumentException If target stage code is invalid or not found
+     * 
+     * @manual_override Allows experienced growers to correct automated stage assignments
+     * @timestamp_management Properly handles all stage-related timestamps
+     * @agricultural_flexibility Supports exceptional growing conditions and corrections
+     * @data_integrity Maintains proper stage relationships and timing consistency
+     * 
+     * Stage Reset Logic:
+     * - **Stage Validation**: Ensures target stage exists and is valid
+     * - **Timestamp Management**: Clears future stage timestamps, sets current if missing
+     * - **Stage Assignment**: Updates crop to target stage with proper relationships
+     * - **Data Consistency**: Maintains agricultural lifecycle integrity
+     * - **Audit Logging**: Records manual reset operations for operational tracking
+     * 
+     * Timestamp Management Rules:
+     * - **Future Stages**: Clears all timestamps for stages after target stage
+     * - **Current Stage**: Sets timestamp if not already present
+     * - **Previous Stages**: Preserves existing timestamps for historical accuracy
+     * - **Data Integrity**: Ensures timestamp sequence matches stage progression
+     * 
+     * Agricultural Use Cases:
+     * - **Error Correction**: Fix incorrect automated stage assignments
+     * - **Exceptional Conditions**: Handle unusual growing situations requiring stage adjustments
+     * - **Quality Control**: Reset crops that don't meet stage advancement criteria
+     * - **Operational Flexibility**: Support experienced grower decision-making
+     * 
+     * Business Value:
+     * - **Operational Control**: Provides manual override for automated systems
+     * - **Quality Assurance**: Enables correction of stage assignment errors
+     * - **Flexibility**: Supports experienced agricultural decision-making
+     * - **Error Recovery**: Allows correction of system or operator mistakes
+     * 
+     * Data Integrity Considerations:
+     * - Validates target stage against defined agricultural stages
+     * - Maintains proper timestamp relationships and sequencing
+     * - Preserves historical data while enabling forward corrections
+     * - Logs reset operations for audit and troubleshooting purposes
+     * 
+     * @agricultural_stages Uses defined STAGES constant for validation
+     * @logging Records stage reset operations with context and timing
+     * @data_consistency Maintains proper timestamp relationships
      */
     public function resetToStage(Crop $crop, string $targetStageCode): void
     {
         if (!in_array($targetStageCode, self::STAGES)) {
-            throw new \InvalidArgumentException("Invalid stage: {$targetStageCode}");
+            throw new InvalidArgumentException("Invalid stage: {$targetStageCode}");
         }
 
         $targetStage = CropStage::findByCode($targetStageCode);
         if (!$targetStage) {
-            throw new \InvalidArgumentException("Stage not found: {$targetStageCode}");
+            throw new InvalidArgumentException("Stage not found: {$targetStageCode}");
         }
 
         $crop->current_stage_id = $targetStage->id;
@@ -415,7 +822,54 @@ class CropTaskManagementService
     }
 
     /**
-     * Calculate the expected harvest date for a crop
+     * Calculate expected harvest date based on agricultural recipe and planting timing.
+     * 
+     * Determines anticipated harvest date by combining crop's germination timestamp
+     * with recipe-specified growing duration. Essential for production planning,
+     * resource allocation, and customer delivery scheduling in agricultural operations.
+     * 
+     * @param Crop $crop The crop with recipe and germination timing data
+     * @return Carbon|null Expected harvest date or null if insufficient data
+     * 
+     * @agricultural_calculation Uses recipe specifications for timing predictions
+     * @production_planning Essential for resource allocation and scheduling
+     * @customer_service Supports delivery date planning and customer communications
+     * @recipe_integration Leverages recipe totalDays() method for duration calculations
+     * 
+     * Harvest Date Calculation Logic:
+     * - **Recipe Validation**: Ensures crop has associated recipe with timing data
+     * - **Germination Base**: Uses germination_at timestamp as calculation starting point
+     * - **Duration Calculation**: Applies recipe's totalDays() for complete growing period
+     * - **Validation Checks**: Returns null for invalid or insufficient data
+     * - **Date Arithmetic**: Adds growing days to germination date for harvest prediction
+     * 
+     * Data Requirements:
+     * - Valid recipe association with duration specifications
+     * - Germination timestamp indicating when actual growing began
+     * - Recipe must have positive totalDays() value for valid calculation
+     * 
+     * Business Applications:
+     * - **Production Planning**: Schedule harvest labor and processing resources
+     * - **Customer Service**: Provide accurate delivery date estimates
+     * - **Inventory Management**: Plan storage and packaging resource allocation
+     * - **Quality Control**: Time quality inspections and harvest preparation
+     * - **Automation Support**: Trigger automated harvest-related tasks and notifications
+     * 
+     * Agricultural Context:
+     * - Based on standardized microgreens growing cycles and timing
+     * - Accounts for complete agricultural lifecycle from germination to harvest
+     * - Supports different crop varieties with varying growing periods
+     * - Provides foundation for automated agricultural workflow management
+     * 
+     * Error Handling:
+     * - Returns null if recipe is missing or invalid
+     * - Returns null if germination timestamp is not set
+     * - Returns null if recipe duration is zero or negative
+     * - Graceful handling of missing data without exceptions
+     * 
+     * @returns Carbon|null Calculated harvest date or null for insufficient data
+     * @recipe_dependency Requires valid recipe with totalDays() method
+     * @timing_accuracy Based on standardized agricultural growing periods
      */
     public function calculateExpectedHarvestDate(Crop $crop): ?Carbon
     {
@@ -434,7 +888,57 @@ class CropTaskManagementService
     }
 
     /**
-     * Calculate how many days the crop has been in its current stage
+     * Calculate duration crop has spent in current agricultural stage.
+     * 
+     * Determines number of days elapsed since crop entered its current stage by
+     * comparing current timestamp with stage entry timestamp. Critical for monitoring
+     * agricultural progress, identifying stage duration anomalies, and supporting
+     * quality control decisions in microgreens production.
+     * 
+     * @param Crop $crop The crop with current stage and timing data
+     * @return int Number of complete days in current stage (0 if no timestamp)
+     * 
+     * @agricultural_monitoring Tracks stage duration for quality control
+     * @progress_tracking Monitors crop development against expected timelines
+     * @quality_control Identifies crops with unusual stage duration patterns
+     * @performance_analysis Supports agricultural efficiency measurements
+     * 
+     * Stage Duration Calculation Logic:
+     * - **Current Stage Detection**: Identifies crop's current agricultural stage
+     * - **Timestamp Retrieval**: Gets stage entry timestamp from appropriate field
+     * - **Duration Calculation**: Calculates complete days between stage entry and now
+     * - **Error Handling**: Returns zero for crops without valid stage timestamps
+     * - **Precision**: Uses complete days for agricultural planning consistency
+     * 
+     * Agricultural Applications:
+     * - **Quality Control**: Identify crops spending too long in any single stage
+     * - **Progress Monitoring**: Track development against recipe specifications
+     * - **Performance Analysis**: Analyze stage duration patterns for optimization
+     * - **Alert Systems**: Trigger notifications for unusual stage duration
+     * - **Compliance**: Document proper stage progression for quality standards
+     * 
+     * Business Value:
+     * - **Quality Assurance**: Early detection of crops with development issues
+     * - **Operational Efficiency**: Optimize stage transition timing and labor allocation
+     * - **Production Planning**: Better understand actual vs. expected growing times
+     * - **Customer Service**: More accurate delivery estimates based on real progress
+     * - **Continuous Improvement**: Data for refining agricultural processes
+     * 
+     * Data Dependencies:
+     * - Requires valid current stage assignment
+     * - Needs appropriate stage timestamp (soaking_at, germination_at, etc.)
+     * - Uses getCurrentStageTimestamp() for proper timestamp field selection
+     * - Handles missing timestamps gracefully with zero return
+     * 
+     * Measurement Precision:
+     * - Returns complete days only (not fractional days)
+     * - Uses Carbon date arithmetic for accurate calculations
+     * - Consistent with agricultural planning practices
+     * - Suitable for stage duration monitoring and alerts
+     * 
+     * @delegates_to getCurrentStageTimestamp() for appropriate timestamp field
+     * @precision Complete days suitable for agricultural monitoring
+     * @error_handling Returns zero for missing timestamps without exceptions
      */
     public function calculateDaysInCurrentStage(Crop $crop): int
     {
@@ -448,7 +952,56 @@ class CropTaskManagementService
     }
 
     /**
-     * Check if watering should be suspended for this crop
+     * Determine if crop requires watering suspension based on harvest timing.
+     * 
+     * Evaluates whether crop has reached the point where watering should be suspended
+     * in preparation for harvest, based on recipe specifications and calculated harvest
+     * timing. Essential for automated harvest preparation and product quality optimization
+     * in microgreens production.
+     * 
+     * @param Crop $crop The crop with recipe and timing data for evaluation
+     * @return bool True if watering should be suspended, false otherwise
+     * 
+     * @agricultural_automation Supports automated watering management decisions
+     * @harvest_preparation Pre-harvest quality optimization through watering control
+     * @recipe_compliance Follows recipe specifications for watering suspension timing
+     * @quality_control Improves product characteristics through proper timing
+     * 
+     * Watering Suspension Logic:
+     * - **Recipe Validation**: Ensures crop has recipe with suspension specifications
+     * - **Timing Calculation**: Determines suspension point based on harvest timing
+     * - **Current Time Comparison**: Evaluates if suspension time has been reached
+     * - **Quality Optimization**: Follows agricultural best practices for product quality
+     * - **Automation Support**: Enables automated watering system integration
+     * 
+     * Decision Criteria:
+     * - Recipe must specify suspend_watering_hours > 0
+     * - Harvest date must be calculable from recipe and germination timing
+     * - Current time must be at or after calculated suspension point
+     * - All timing calculations must be valid and realistic
+     * 
+     * Agricultural Benefits:
+     * - **Product Quality**: Proper suspension timing improves harvest characteristics
+     * - **Automation**: Enables automated watering system control
+     * - **Consistency**: Standardized suspension timing across all production
+     * - **Efficiency**: Reduces manual monitoring requirements
+     * - **Compliance**: Follows established microgreens production protocols
+     * 
+     * Business Value:
+     * - **Quality Improvement**: Better product characteristics through proper timing
+     * - **Operational Automation**: Reduces labor requirements for watering management
+     * - **Consistency**: Uniform product quality through standardized processes
+     * - **Resource Optimization**: Efficient water usage and system management
+     * 
+     * Error Handling:
+     * - Returns false if crop has no recipe
+     * - Returns false if recipe has no suspension specification
+     * - Returns false if harvest date cannot be calculated
+     * - Graceful handling of timing calculation failures
+     * 
+     * @recipe_dependency Requires recipe with suspend_watering_hours specification
+     * @timing_accuracy Based on calculateExpectedHarvestDate() method
+     * @agricultural_standards Follows microgreens production best practices
      */
     public function shouldSuspendWatering(Crop $crop): bool
     {
@@ -474,7 +1027,48 @@ class CropTaskManagementService
     }
 
     /**
-     * Delete all tasks for a specific crop
+     * Delete all scheduled tasks associated with a specific crop and its batch.
+     * 
+     * Removes all automated task schedules related to crop's agricultural lifecycle,
+     * including stage transitions, watering management, and batch coordination tasks.
+     * Essential for task cleanup when crop processing changes or crop is removed
+     * from production systems.
+     * 
+     * @param Crop $crop The crop whose tasks should be deleted
+     * @return int Number of tasks successfully deleted from task schedule
+     * 
+     * @cleanup_operation Removes obsolete tasks to prevent automated execution
+     * @batch_coordination Deletes both individual and batch-related tasks
+     * @agricultural_automation Maintains clean task schedule for active crops only
+     * @data_integrity Prevents execution of tasks for modified or deleted crops
+     * 
+     * Task Deletion Logic:
+     * - **Batch Identification**: Creates batch identifier for comprehensive cleanup
+     * - **Individual Tasks**: Removes tasks specific to individual crop ID
+     * - **Batch Tasks**: Removes tasks associated with crop's production batch
+     * - **Comprehensive Cleanup**: Ensures no orphaned tasks remain in system
+     * - **Stage Handling**: Manages cases where stage relationships may be null
+     * 
+     * Batch Identifier Construction:
+     * - Combines recipe_id, germination date, and current stage code
+     * - Handles null stage relationships with 'unknown' fallback
+     * - Ensures proper task identification across batch coordination system
+     * 
+     * Business Applications:
+     * - **Crop Modifications**: Clean up tasks when crop processing changes
+     * - **Error Recovery**: Remove tasks for crops with processing errors
+     * - **System Maintenance**: Prevent accumulation of obsolete automated tasks
+     * - **Data Consistency**: Maintain alignment between crops and their tasks
+     * 
+     * Agricultural Context:
+     * - Removes stage transition automation for modified crops
+     * - Cleans up watering management tasks when processing changes
+     * - Ensures batch coordination tasks remain relevant and accurate
+     * - Prevents automated notifications for crops no longer in production
+     * 
+     * @database_operation Uses TaskSchedule model for persistent task management
+     * @batch_aware Deletes both individual and batch-coordinated tasks
+     * @defensive_programming Handles null stage relationships gracefully
      */
     public function deleteTasksForCrop(Crop $crop): int
     {
@@ -492,7 +1086,53 @@ class CropTaskManagementService
     }
 
     /**
-     * Create a batch stage transition task
+     * Create automated task for coordinated batch stage transition.
+     * 
+     * Generates persistent task schedule for synchronized stage advancement across
+     * entire crop batch, ensuring uniform processing and operational efficiency.
+     * Includes comprehensive batch metadata and conditions for intelligent task
+     * execution and user notification systems.
+     * 
+     * @param Crop $crop Representative crop from batch for task creation
+     * @param string $targetStage Agricultural stage to transition to
+     * @param Carbon $transitionTime When the stage transition should occur
+     * @return TaskSchedule Created task with batch coordination data
+     * 
+     * @batch_coordination Creates single task for entire production batch
+     * @agricultural_automation Enables scheduled stage transitions
+     * @notification_system Supports automated user alerts for stage changes
+     * @operational_efficiency Batch processing reduces manual intervention
+     * 
+     * Task Creation Logic:
+     * - **Batch Discovery**: Finds all crops sharing recipe, date, and stage
+     * - **Metadata Collection**: Gathers variety names and tray numbers for context
+     * - **Condition Assembly**: Creates comprehensive task execution conditions
+     * - **Schedule Configuration**: Sets timing and execution parameters
+     * - **Persistence**: Saves task to TaskSchedule for automated execution
+     * 
+     * Task Conditions Structure:
+     * - crop_id: Representative crop for batch identification
+     * - batch_identifier: Unique identifier for batch coordination
+     * - target_stage: Destination stage for advancement
+     * - tray_numbers: Array of all tray numbers in batch
+     * - variety: Agricultural variety name for user notifications
+     * - tray_count and tray_list: Batch size and display information
+     * 
+     * Batch Coordination Benefits:
+     * - **Synchronized Processing**: All crops advance together for efficiency
+     * - **Reduced Labor**: Single task manages multiple crops simultaneously
+     * - **Consistency**: Uniform timing ensures product quality
+     * - **Resource Optimization**: Coordinated operations improve workflow
+     * 
+     * Agricultural Context:
+     * - Supports microgreens production batch processing requirements
+     * - Maintains variety-specific processing with proper identification
+     * - Enables efficient use of growing space and labor resources
+     * - Ensures consistent product quality through synchronized advancement
+     * 
+     * @persistent_storage Creates TaskSchedule record for automated execution
+     * @variety_identification Includes agricultural variety names for context
+     * @timing_precision Uses exact Carbon timestamps for agricultural timing
      */
     protected function createBatchStageTransitionTask(Crop $crop, string $targetStage, Carbon $transitionTime): TaskSchedule
     {
@@ -537,7 +1177,56 @@ class CropTaskManagementService
     }
 
     /**
-     * Create a soaking completion warning task
+     * Create early warning task for soaking stage completion.
+     * 
+     * Generates automated alert task to notify production staff when seed soaking
+     * will complete, enabling timely preparation for germination stage transition.
+     * Critical for maintaining proper agricultural timing in automated microgreens
+     * production systems.
+     * 
+     * @param Crop $crop Representative crop from soaking batch
+     * @param Carbon $warningTime When the warning notification should be sent
+     * @return TaskSchedule Created warning task with batch coordination data
+     * 
+     * @early_warning Provides advance notice for time-critical operations
+     * @agricultural_timing Supports precise timing for seed germination
+     * @batch_coordination Manages warnings for entire production batch
+     * @quality_control Ensures proper transition timing for product quality
+     * 
+     * Warning Task Logic:
+     * - **Batch Discovery**: Identifies all crops in same soaking batch
+     * - **Timing Calculation**: Schedules warning before actual completion
+     * - **Metadata Assembly**: Includes variety and tray information for context
+     * - **Notification Preparation**: Sets up conditions for user alert system
+     * - **Task Persistence**: Saves warning schedule for automated execution
+     * 
+     * Agricultural Importance:
+     * - **Timing Critical**: Soaking duration directly affects germination success
+     * - **Quality Impact**: Proper timing ensures optimal growing conditions
+     * - **Labor Coordination**: Allows staff to prepare for stage transition
+     * - **Process Optimization**: Reduces risk of over or under-soaking
+     * 
+     * Warning Conditions:
+     * - warning_type: 'soaking_completion' for notification system routing
+     * - minutes_until_completion: Default 30 minutes advance warning
+     * - batch_identifier: Coordination across all crops in soaking batch
+     * - variety and tray information: Context for production staff
+     * 
+     * Business Value:
+     * - **Quality Assurance**: Prevents timing errors that affect product quality
+     * - **Operational Efficiency**: Enables proactive preparation for transitions
+     * - **Labor Optimization**: Coordinates staff activities with production timing
+     * - **Risk Mitigation**: Reduces chance of missed critical timing windows
+     * 
+     * Notification Integration:
+     * - Designed for integration with notification system
+     * - Provides rich context for meaningful user alerts
+     * - Supports both individual and batch processing workflows
+     * - Enables customizable warning timing based on operational needs
+     * 
+     * @timing_critical Essential for maintaining agricultural timing precision
+     * @batch_aware Coordinates warnings across entire production batch
+     * @notification_ready Prepared for integration with alert systems
      */
     protected function createSoakingWarningTask(Crop $crop, Carbon $warningTime): TaskSchedule
     {
@@ -579,7 +1268,56 @@ class CropTaskManagementService
     }
 
     /**
-     * Create a watering suspension task
+     * Create automated task for pre-harvest watering suspension.
+     * 
+     * Generates scheduled task to suspend watering at optimal timing before harvest,
+     * improving product quality and shelf life according to agricultural best practices.
+     * Essential component of automated harvest preparation workflow in microgreens
+     * production systems.
+     * 
+     * @param Crop $crop The crop requiring watering suspension
+     * @param Carbon $suspendTime When watering should be suspended
+     * @return TaskSchedule Created suspension task with timing and crop data
+     * 
+     * @harvest_preparation Optimizes product quality through timing control
+     * @agricultural_automation Enables automated watering system integration
+     * @quality_control Follows best practices for microgreens production
+     * @resource_management Coordinates watering schedules with harvest timing
+     * 
+     * Suspension Task Logic:
+     * - **Quality Optimization**: Times suspension for improved product characteristics
+     * - **Automation Integration**: Creates task compatible with watering systems
+     * - **Context Preservation**: Includes variety and tray information
+     * - **Schedule Management**: Sets precise timing for suspension execution
+     * - **Task Persistence**: Saves schedule for automated system execution
+     * 
+     * Agricultural Benefits:
+     * - **Product Quality**: Proper suspension timing improves harvest characteristics
+     * - **Shelf Life**: Reduced moisture content extends product freshness
+     * - **Consistency**: Standardized suspension timing across all production
+     * - **Automation**: Enables integration with automated watering systems
+     * 
+     * Task Conditions:
+     * - crop_id: Individual crop identifier for specific suspension
+     * - tray_number: Physical location for manual or automated operations
+     * - variety: Agricultural variety name for operational context
+     * - Timing specifications for precise execution
+     * 
+     * Business Applications:
+     * - **Automated Systems**: Integration with irrigation control systems
+     * - **Manual Operations**: Alerts for manual watering suspension
+     * - **Quality Assurance**: Ensures consistent pre-harvest preparation
+     * - **Resource Optimization**: Coordinates water usage with harvest scheduling
+     * 
+     * Integration Considerations:
+     * - Compatible with both automated and manual watering systems
+     * - Provides necessary context for operational decision-making
+     * - Supports scalable implementation across multiple production areas
+     * - Enables tracking and verification of suspension execution
+     * 
+     * @individual_crop Handles single crop suspension rather than batch operation
+     * @timing_precision Uses exact timestamps for agricultural timing requirements
+     * @automation_ready Designed for integration with automated watering systems
      */
     protected function createWateringSuspensionTask(Crop $crop, Carbon $suspendTime): TaskSchedule
     {
@@ -945,7 +1683,7 @@ class CropTaskManagementService
             'blackout' => 'blackout_at',
             'light' => 'light_at',
             'harvested' => 'harvested_at',
-            default => throw new \InvalidArgumentException("Unknown stage: {$stage}")
+            default => throw new InvalidArgumentException("Unknown stage: {$stage}")
         };
     }
 
@@ -1004,7 +1742,7 @@ class CropTaskManagementService
             return $target->crops()->with(['recipe', 'currentStage'])->get();
         }
 
-        throw new \InvalidArgumentException('Target must be Crop or CropBatch instance');
+        throw new InvalidArgumentException('Target must be Crop or CropBatch instance');
     }
 
     /**
@@ -1072,7 +1810,7 @@ class CropTaskManagementService
                     'status' => 'success'
                 ];
 
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 Log::error("Failed to advance crop {$crop->id}", [
                     'error' => $e->getMessage(),
                     'crop_id' => $crop->id
@@ -1213,7 +1951,7 @@ class CropTaskManagementService
                     'status' => 'success'
                 ];
 
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 Log::error("Failed to revert crop {$crop->id}", [
                     'error' => $e->getMessage(),
                     'crop_id' => $crop->id,

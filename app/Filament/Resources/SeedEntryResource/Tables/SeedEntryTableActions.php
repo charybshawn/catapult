@@ -2,6 +2,15 @@
 
 namespace App\Filament\Resources\SeedEntryResource\Tables;
 
+use Filament\Actions\ActionGroup;
+use Filament\Actions\ViewAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Notifications\Notification;
+use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
+use Filament\Actions\DeleteBulkAction;
 use App\Actions\SeedEntry\ImportToMasterCatalogAction;
 use App\Actions\SeedEntry\ToggleSeedEntryStatusAction;
 use App\Actions\SeedEntry\ValidateSeedEntryDeletionAction;
@@ -17,9 +26,9 @@ class SeedEntryTableActions
     public static function actions(): array
     {
         return [
-            Tables\Actions\ActionGroup::make([
-                Tables\Actions\ViewAction::make()->tooltip('View record'),
-                Tables\Actions\EditAction::make()->tooltip('Edit record'),
+            ActionGroup::make([
+                ViewAction::make()->tooltip('View record'),
+                EditAction::make()->tooltip('Edit record'),
                 static::getDeleteAction(),
                 static::getDeactivateAction(),
                 static::getActivateAction(),
@@ -39,21 +48,21 @@ class SeedEntryTableActions
     public static function bulkActions(): array
     {
         return [
-            Tables\Actions\BulkActionGroup::make([
+            BulkActionGroup::make([
                 static::getImportToMasterCatalogBulkAction(),
                 static::getDeleteBulkAction(),
             ]),
         ];
     }
 
-    protected static function getDeleteAction(): Tables\Actions\DeleteAction
+    protected static function getDeleteAction(): DeleteAction
     {
-        return Tables\Actions\DeleteAction::make()
+        return DeleteAction::make()
             ->tooltip('Delete record')
             ->requiresConfirmation()
             ->modalHeading('Delete Seed Entry')
             ->modalDescription('Are you sure you want to delete this seed entry?')
-            ->before(function (Tables\Actions\DeleteAction $action, SeedEntry $record) {
+            ->before(function (DeleteAction $action, SeedEntry $record) {
                 // Check for active relationships that would prevent deletion
                 $issues = app(ValidateSeedEntryDeletionAction::class)->execute($record);
                 
@@ -61,7 +70,7 @@ class SeedEntryTableActions
                     // Cancel the action and show the issues
                     $action->cancel();
                     
-                    \Filament\Notifications\Notification::make()
+                    Notification::make()
                         ->title('Cannot Delete Seed Entry')
                         ->body(
                             'This seed entry cannot be deleted because it is actively being used:' . 
@@ -75,9 +84,9 @@ class SeedEntryTableActions
             });
     }
 
-    protected static function getDeactivateAction(): Tables\Actions\Action
+    protected static function getDeactivateAction(): Action
     {
-        return Tables\Actions\Action::make('deactivate')
+        return Action::make('deactivate')
             ->label('Deactivate')
             ->icon('heroicon-o-eye-slash')
             ->color('warning')
@@ -87,7 +96,7 @@ class SeedEntryTableActions
             ->action(function (SeedEntry $record) {
                 app(ToggleSeedEntryStatusAction::class)->deactivate($record);
                 
-                \Filament\Notifications\Notification::make()
+                Notification::make()
                     ->title('Seed Entry Deactivated')
                     ->body("'{$record->common_name} - {$record->cultivar_name}' has been deactivated.")
                     ->success()
@@ -96,16 +105,16 @@ class SeedEntryTableActions
             ->visible(fn (SeedEntry $record) => $record->is_active ?? true);
     }
 
-    protected static function getActivateAction(): Tables\Actions\Action
+    protected static function getActivateAction(): Action
     {
-        return Tables\Actions\Action::make('activate')
+        return Action::make('activate')
             ->label('Activate')
             ->icon('heroicon-o-eye')
             ->color('success')
             ->action(function (SeedEntry $record) {
                 app(ToggleSeedEntryStatusAction::class)->activate($record);
                 
-                \Filament\Notifications\Notification::make()
+                Notification::make()
                     ->title('Seed Entry Activated')
                     ->body("'{$record->common_name} - {$record->cultivar_name}' has been activated.")
                     ->success()
@@ -114,9 +123,9 @@ class SeedEntryTableActions
             ->visible(fn (SeedEntry $record) => !($record->is_active ?? true));
     }
 
-    protected static function getVisitUrlAction(): Tables\Actions\Action
+    protected static function getVisitUrlAction(): Action
     {
-        return Tables\Actions\Action::make('visit_url')
+        return Action::make('visit_url')
             ->label('Visit URL')
             ->icon('heroicon-o-arrow-top-right-on-square')
             ->url(fn (SeedEntry $record) => $record->url)
@@ -124,9 +133,9 @@ class SeedEntryTableActions
             ->visible(fn (SeedEntry $record) => !empty($record->url));
     }
 
-    protected static function getImportToMasterCatalogBulkAction(): Tables\Actions\BulkAction
+    protected static function getImportToMasterCatalogBulkAction(): BulkAction
     {
-        return Tables\Actions\BulkAction::make('import_to_master_catalog')
+        return BulkAction::make('import_to_master_catalog')
             ->label('Import to Master Catalog')
             ->icon('heroicon-o-arrow-up-tray')
             ->color('success')
@@ -146,7 +155,7 @@ class SeedEntryTableActions
                         $message[] = "{$result['updated']} existing entries updated with new cultivars";
                     }
                     
-                    \Filament\Notifications\Notification::make()
+                    Notification::make()
                         ->title('Import Successful')
                         ->body(implode('<br>', $message))
                         ->success()
@@ -154,7 +163,7 @@ class SeedEntryTableActions
                 }
                 
                 if (!empty($result['errors'])) {
-                    \Filament\Notifications\Notification::make()
+                    Notification::make()
                         ->title('Some imports failed')
                         ->body('Errors:<br>' . implode('<br>', array_slice($result['errors'], 0, 5)) . 
                                (count($result['errors']) > 5 ? '<br>...and ' . (count($result['errors']) - 5) . ' more errors' : ''))
@@ -165,13 +174,13 @@ class SeedEntryTableActions
             });
     }
 
-    protected static function getDeleteBulkAction(): Tables\Actions\DeleteBulkAction
+    protected static function getDeleteBulkAction(): DeleteBulkAction
     {
-        return Tables\Actions\DeleteBulkAction::make()
+        return DeleteBulkAction::make()
             ->requiresConfirmation()
             ->modalHeading('Delete Selected Seed Entries')
             ->modalDescription('Are you sure you want to delete the selected seed entries?')
-            ->before(function (Tables\Actions\DeleteBulkAction $action, Collection $records) {
+            ->before(function (DeleteBulkAction $action, Collection $records) {
                 // Check each record for deletion safety
                 $protectedEntries = [];
                 $allIssues = [];
@@ -191,7 +200,7 @@ class SeedEntryTableActions
                     $entryList = implode(', ', $protectedEntries);
                     $issueList = array_unique($allIssues);
                     
-                    \Filament\Notifications\Notification::make()
+                    Notification::make()
                         ->title('Cannot Delete Some Seed Entries')
                         ->body(
                             'The following seed entries cannot be deleted because they are actively being used:' . 

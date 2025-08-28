@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Exception;
 use Illuminate\Console\Command;
 use App\Services\LightweightSchemaChecker;
 use Illuminate\Support\Facades\Cache;
@@ -48,7 +49,7 @@ class UpdateMigrationSchemaCache extends Command
             
             return Command::SUCCESS;
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error("Failed to update migration schema cache: " . $e->getMessage());
             return Command::FAILURE;
         }

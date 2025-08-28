@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\TimeCardResource\Pages;
 
+use Filament\Actions\DeleteAction;
+use Illuminate\Database\Eloquent\Model;
 use App\Filament\Resources\TimeCardResource;
 use Filament\Actions;
 use App\Filament\Pages\Base\BaseEditRecord;
@@ -13,7 +15,7 @@ class EditTimeCard extends BaseEditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            DeleteAction::make(),
         ];
     }
 
@@ -25,7 +27,7 @@ class EditTimeCard extends BaseEditRecord
         return $data;
     }
 
-    protected function handleRecordUpdate(\Illuminate\Database\Eloquent\Model $record, array $data): \Illuminate\Database\Eloquent\Model
+    protected function handleRecordUpdate(Model $record, array $data): Model
     {
         // Get the task names from the form
         $taskNames = $this->data['taskNames'] ?? [];

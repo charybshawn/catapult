@@ -2,6 +2,10 @@
 
 namespace App\Filament\Resources\RecurringOrderResource\Tables;
 
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
 use App\Models\Order;
 use Filament\Tables;
 use Illuminate\Database\Eloquent\Builder;
@@ -49,9 +53,9 @@ class RecurringOrderTable
     /**
      * Template ID column
      */
-    protected static function getTemplateIdColumn(): Tables\Columns\TextColumn
+    protected static function getTemplateIdColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('id')
+        return TextColumn::make('id')
             ->label('Template ID')
             ->sortable();
     }
@@ -59,9 +63,9 @@ class RecurringOrderTable
     /**
      * Customer column with business name and contact name formatting
      */
-    protected static function getCustomerColumn(): Tables\Columns\TextColumn
+    protected static function getCustomerColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('customer.contact_name')
+        return TextColumn::make('customer.contact_name')
             ->label('Customer')
             ->formatStateUsing(function ($state, Order $record) {
                 if (!$record->customer) {
@@ -83,9 +87,9 @@ class RecurringOrderTable
     /**
      * Order type column with badge colors
      */
-    protected static function getOrderTypeColumn(): Tables\Columns\TextColumn
+    protected static function getOrderTypeColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('order_type_display')
+        return TextColumn::make('order_type_display')
             ->label('Type')
             ->badge()
             ->color(fn (?Order $record): string => match ($record?->orderType?->code) {
@@ -99,9 +103,9 @@ class RecurringOrderTable
     /**
      * Recurring frequency column
      */
-    protected static function getRecurringFrequencyColumn(): Tables\Columns\TextColumn
+    protected static function getRecurringFrequencyColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('recurring_frequency_display')
+        return TextColumn::make('recurring_frequency_display')
             ->label('Delivery Frequency')
             ->badge()
             ->color('primary');
@@ -110,9 +114,9 @@ class RecurringOrderTable
     /**
      * Billing frequency column
      */
-    protected static function getBillingFrequencyColumn(): Tables\Columns\TextColumn
+    protected static function getBillingFrequencyColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('billing_frequency_display')
+        return TextColumn::make('billing_frequency_display')
             ->label('Billing')
             ->badge()
             ->color(fn (?Order $record): string => match ($record?->billing_frequency) {
@@ -128,9 +132,9 @@ class RecurringOrderTable
     /**
      * Is active status column
      */
-    protected static function getIsActiveColumn(): Tables\Columns\IconColumn
+    protected static function getIsActiveColumn(): IconColumn
     {
-        return Tables\Columns\IconColumn::make('is_recurring_active')
+        return IconColumn::make('is_recurring_active')
             ->label('Active')
             ->boolean()
             ->trueIcon('heroicon-o-play')
@@ -142,9 +146,9 @@ class RecurringOrderTable
     /**
      * Generated orders count column
      */
-    protected static function getGeneratedCountColumn(): Tables\Columns\TextColumn
+    protected static function getGeneratedCountColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('generated_orders_count')
+        return TextColumn::make('generated_orders_count')
             ->label('Generated')
             ->numeric()
             ->tooltip('Number of orders generated from this template');
@@ -153,9 +157,9 @@ class RecurringOrderTable
     /**
      * Next generation date column
      */
-    protected static function getNextGenerationColumn(): Tables\Columns\TextColumn
+    protected static function getNextGenerationColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('next_generation_date')
+        return TextColumn::make('next_generation_date')
             ->label('Next Generation')
             ->dateTime()
             ->placeholder('Not scheduled')
@@ -165,9 +169,9 @@ class RecurringOrderTable
     /**
      * Start date column
      */
-    protected static function getStartDateColumn(): Tables\Columns\TextColumn
+    protected static function getStartDateColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('recurring_start_date')
+        return TextColumn::make('recurring_start_date')
             ->label('Start Date')
             ->date()
             ->sortable()
@@ -177,9 +181,9 @@ class RecurringOrderTable
     /**
      * End date column
      */
-    protected static function getEndDateColumn(): Tables\Columns\TextColumn
+    protected static function getEndDateColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('recurring_end_date')
+        return TextColumn::make('recurring_end_date')
             ->label('End Date')
             ->date()
             ->placeholder('Indefinite')
@@ -190,9 +194,9 @@ class RecurringOrderTable
     /**
      * Created at column
      */
-    protected static function getCreatedAtColumn(): Tables\Columns\TextColumn
+    protected static function getCreatedAtColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('created_at')
+        return TextColumn::make('created_at')
             ->dateTime()
             ->sortable()
             ->toggleable(isToggledHiddenByDefault: true);
@@ -213,9 +217,9 @@ class RecurringOrderTable
     /**
      * Order type filter
      */
-    protected static function getOrderTypeFilter(): Tables\Filters\SelectFilter
+    protected static function getOrderTypeFilter(): SelectFilter
     {
-        return Tables\Filters\SelectFilter::make('order_type_id')
+        return SelectFilter::make('order_type_id')
             ->label('Order Type')
             ->relationship('orderType', 'name');
     }
@@ -223,9 +227,9 @@ class RecurringOrderTable
     /**
      * Active status filter
      */
-    protected static function getStatusFilter(): Tables\Filters\TernaryFilter
+    protected static function getStatusFilter(): TernaryFilter
     {
-        return Tables\Filters\TernaryFilter::make('is_recurring_active')
+        return TernaryFilter::make('is_recurring_active')
             ->label('Status')
             ->placeholder('All templates')
             ->trueLabel('Active templates')
@@ -235,9 +239,9 @@ class RecurringOrderTable
     /**
      * Recurring frequency filter
      */
-    protected static function getRecurringFrequencyFilter(): Tables\Filters\SelectFilter
+    protected static function getRecurringFrequencyFilter(): SelectFilter
     {
-        return Tables\Filters\SelectFilter::make('recurring_frequency')
+        return SelectFilter::make('recurring_frequency')
             ->label('Delivery Frequency')
             ->options([
                 'weekly' => 'Weekly',

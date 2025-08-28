@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use Exception;
+use Filament\Actions\Action;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Recipe;
@@ -19,7 +21,42 @@ use Filament\Notifications\Notification;
 use App\Models\User;
 
 /**
- * Service for generating crop plans from orders
+ * Agricultural Crop Planning Service - Core Production Planning Engine
+ * 
+ * This service implements automated production planning algorithms for microgreens
+ * cultivation, translating customer orders into detailed crop production plans with
+ * precise timing, resource requirements, and growth stage calculations.
+ * 
+ * The service handles complex agricultural workflows including:
+ * - Variety-specific recipe matching and yield calculations
+ * - Growth stage timing (germination, blackout, light cycles)
+ * - Seed soaking schedules and pre-planting requirements
+ * - Production aggregation and buffer management
+ * - Live tray vs. harvested product planning
+ * - Product mix decomposition into individual varieties
+ * - Resource availability validation
+ * 
+ * @service_layer Core Agricultural Operations
+ * @business_domain Microgreens production planning and automation
+ * @dependencies HarvestYieldCalculator, RecipeService, InventoryManagementService
+ * @integration_points Orders, Products, Recipes, MasterSeedCatalog, CropPlans
+ * 
+ * @agricultural_concepts
+ * - Recipe: Growth parameters and resource requirements for specific varieties
+ * - Yield Planning: Expected harvest weight per growing tray with buffers
+ * - Growth Stages: Germination → Blackout → Light → Harvest progression
+ * - Seed Soaking: Pre-germination treatment for faster/uniform sprouting
+ * - Buffer Management: Production overages to account for loss and variation
+ * - Variety Aggregation: Combining multiple orders for efficient production batching
+ * 
+ * @performance_considerations
+ * - Eager loads relationships to prevent N+1 queries
+ * - Caches recipe lookups for repeated variety calculations
+ * - Aggregates orders by variety/date to minimize production runs
+ * - Uses database transactions for atomic crop plan creation
+ * 
+ * @author Agricultural Production System
+ * @since 2024 Crop Planning Module
  */
 class CropPlanningService
 {
@@ -27,6 +64,18 @@ class CropPlanningService
     protected RecipeService $recipeService;
     protected InventoryManagementService $inventoryService;
 
+    /**
+     * Initialize crop planning service with agricultural calculation dependencies.
+     * 
+     * @param HarvestYieldCalculator $yieldCalculator Calculates expected yields and planning weights
+     * @param RecipeService $recipeService Manages recipe matching and validation
+     * @param InventoryManagementService $inventoryService Validates seed/resource availability
+     * 
+     * @business_context Service composition follows agricultural workflow:
+     *   1. Recipe matching determines growth parameters
+     *   2. Yield calculation determines tray requirements
+     *   3. Inventory service validates resource availability
+     */
     public function __construct(
         HarvestYieldCalculator $yieldCalculator,
         RecipeService $recipeService,
@@ -38,12 +87,36 @@ class CropPlanningService
     }
 
     /**
-     * Generate individual crop plans for all valid orders in a date range
-     * Each order gets its own crop plans, which can then be grouped in the UI
+     * Generate automated crop plans for all valid orders in a date range.
+     * 
+     * This is the primary entry point for production planning automation. The method
+     * processes all confirmed orders within the date range and creates optimized
+     * crop plans that aggregate varieties by harvest date for efficient production.
      * 
      * @param string|null $startDate Start date for order range (default: today)
      * @param string|null $endDate End date for order range (default: 30 days ahead)
-     * @return Collection
+     * @return Collection<CropPlan> Generated crop plans with agricultural timing
+     * 
+     * @business_workflow
+     * 1. Query orders with agricultural product relationships
+     * 2. Filter for production-ready orders (draft/pending/confirmed/in_production)
+     * 3. Exclude recurring templates (process only actual orders)
+     * 4. Aggregate varieties by harvest date for efficient batching
+     * 5. Apply production buffers and calculate resource requirements
+     * 6. Generate plans with precise agricultural timing
+     * 
+     * @agricultural_logic
+     * - Aggregates orders by variety and harvest date to minimize production runs
+     * - Applies recipe-specific buffers to account for agricultural variation
+     * - Calculates backward from harvest date through all growth stages
+     * - Handles both live tray delivery and harvested product orders
+     * 
+     * @performance_optimization
+     * - Eager loads order relationships to prevent N+1 queries
+     * - Uses single query for date range filtering
+     * - Batches crop plan creation for database efficiency
+     * 
+     * @throws Exception When agricultural calculations fail or data is inconsistent
      */
     public function generateIndividualPlansForAllOrders(?string $startDate = null, ?string $endDate = null): Collection
     {
@@ -69,11 +142,41 @@ class CropPlanningService
     }
 
     /**
-     * Generate aggregated crop plans for multiple orders
-     * Groups orders by variety and harvest date, applies buffer to aggregated totals
+     * Generate aggregated crop plans optimized for efficient agricultural production.
      * 
-     * @param Collection $orders
-     * @return Collection
+     * Implements variety aggregation algorithm that combines multiple customer orders
+     * for the same variety and harvest date into single production runs. This reduces
+     * setup time, improves resource utilization, and minimizes production complexity.
+     * 
+     * @param Collection<Order> $orders Orders with loaded agricultural relationships
+     * @return Collection<CropPlan> Optimized crop plans with aggregated quantities
+     * 
+     * @algorithm Variety Aggregation Process:
+     * 1. Delete existing draft/cancelled plans to prevent duplicates
+     * 2. Analyze each order's variety requirements (handles mixes)
+     * 3. Group requirements by variety_id + harvest_date combination
+     * 4. Sum total grams needed across all orders for each group
+     * 5. Apply single buffer percentage to aggregated total (more efficient)
+     * 6. Create one crop plan per aggregated group with detailed audit trail
+     * 
+     * @business_benefits
+     * - Reduces number of separate production runs
+     * - Optimizes growing space utilization
+     * - Simplifies harvest and packaging workflows
+     * - Maintains detailed order traceability
+     * 
+     * @agricultural_considerations
+     * - Buffer applied to total aggregated weight (not per order)
+     * - Recipe matching prioritizes variety-specific growing parameters
+     * - Timing calculations based on longest growth cycle in group
+     * - Seed soaking schedules coordinated across aggregated volume
+     * 
+     * @data_integrity
+     * - Maintains order_items_included array for traceability
+     * - Stores calculation_details JSON for audit and debugging
+     * - Links primary order as main record for administrative purposes
+     * 
+     * @throws Exception When recipe matching fails or calculations are invalid
      */
     public function generateAggregatedPlansForOrders(Collection $orders): Collection
     {
@@ -129,10 +232,50 @@ class CropPlanningService
     }
 
     /**
-     * Analyze order requirements without creating individual crop plans
+     * Analyze order's agricultural requirements for production planning.
      * 
-     * @param Order $order
-     * @return array
+     * Decomposes complex orders into specific variety requirements, handling
+     * product mixes, live tray orders, and weight-based calculations. This analysis
+     * forms the foundation for aggregated crop planning algorithms.
+     * 
+     * @param Order $order Order with loaded product and pricing relationships
+     * @return array Agricultural requirements array with variety breakdowns
+     * 
+     * @return_structure
+     * [
+     *   [
+     *     'variety_id' => int,        // MasterSeedCatalog ID
+     *     'grams_needed' => float,    // Total weight for this variety
+     *     'cultivar' => string|null,  // Specific cultivar if from mix
+     *     'product' => Product,       // Source product object
+     *     'recipe' => Recipe|null,    // Matched growing recipe
+     *     'is_live_tray' => bool,     // Live delivery vs harvested
+     *     'trays_requested' => int    // For live tray orders
+     *   ]
+     * ]
+     * 
+     * @agricultural_logic
+     * - Groups order items by product to aggregate quantities
+     * - Distinguishes live tray delivery from harvested products
+     * - Decomposes product mixes into constituent varieties
+     * - Matches variety-specific recipes for growing parameters
+     * - Converts between trays and weight based on expected yields
+     * 
+     * @weight_calculations
+     * - Uses fill_weight from price variations for harvested products
+     * - Calculates equivalent grams for live tray orders using recipe yields
+     * - Handles mixed units within single orders
+     * - Falls back to quantity as grams when fill weight unavailable
+     * 
+     * @mix_decomposition
+     * - Breaks product mixes into percentage-based variety components
+     * - Maintains cultivar specificity for mix components
+     * - Preserves traceability to source product and order items
+     * 
+     * @error_handling
+     * - Continues processing when individual products fail
+     * - Logs warnings for missing recipes or invalid data
+     * - Excludes invalid products from requirements array
      */
     protected function analyzeOrderRequirements(Order $order): array
     {
@@ -176,13 +319,43 @@ class CropPlanningService
     }
 
     /**
-     * Add product requirements to the requirements array
+     * Add agricultural product requirements to the planning analysis.
      * 
-     * @param array &$requirements
-     * @param Order $order
-     * @param Product $product
-     * @param float $totalGramsNeeded
-     * @return void
+     * Processes individual products into variety-specific requirements, handling
+     * both single varieties and complex product mixes. This method is central
+     * to converting customer orders into actionable agricultural production data.
+     * 
+     * @param array &$requirements Reference to requirements array being built
+     * @param Order $order Source order for traceability
+     * @param Product $product Product being analyzed
+     * @param float $totalGramsNeeded Total weight needed across all order items
+     * @return void Modifies requirements array by reference
+     * 
+     * @agricultural_processing
+     * - Single varieties: Direct mapping to master seed catalog
+     * - Product mixes: Decomposition into constituent varieties with percentages
+     * - Recipe matching: Finds active growing recipes for each variety
+     * - Cultivar preservation: Maintains specific cultivar information from mixes
+     * 
+     * @mix_handling
+     * - Uses breakdownProductMix() for percentage-based decomposition
+     * - Preserves cultivar specificity from mix component definitions
+     * - Maintains audit trail linking varieties back to source products
+     * 
+     * @recipe_integration
+     * - Prioritizes component-specific recipes for mix varieties
+     * - Falls back to product-level recipe definitions
+     * - Uses variety-based recipe matching as final fallback
+     * 
+     * @business_rules
+     * - Products must have either master_seed_catalog_id OR product_mix_id
+     * - Mix components inherit recipe specificity when available
+     * - Recipe absence creates incomplete plans requiring manual attention
+     * 
+     * @data_validation
+     * - Skips products without valid seed catalog references
+     * - Logs warnings for missing recipe matches
+     * - Preserves partial data for administrative review
      */
     protected function addProductRequirements(array &$requirements, Order $order, Product $product, float $totalGramsNeeded): void
     {
@@ -218,13 +391,46 @@ class CropPlanningService
     }
 
     /**
-     * Add live tray requirements to the requirements array
+     * Add live tray delivery requirements to agricultural planning analysis.
      * 
-     * @param array &$requirements
-     * @param Order $order
-     * @param Product $product
-     * @param int $totalTrays
-     * @return void
+     * Live tray orders require different handling than harvested products because
+     * they're delivered as growing trays rather than cut microgreens. This affects
+     * timing, packaging, and resource calculations throughout the production cycle.
+     * 
+     * @param array &$requirements Reference to requirements array being built
+     * @param Order $order Source order for traceability
+     * @param Product $product Live tray product being analyzed
+     * @param int $totalTrays Number of growing trays requested
+     * @return void Modifies requirements array by reference
+     * 
+     * @live_tray_specifics
+     * - Trays delivered as living plants, not harvested microgreens
+     * - Growing continues at customer location after delivery
+     * - Different packaging and handling requirements
+     * - Modified timing for delivery vs harvest windows
+     * 
+     * @weight_conversion
+     * - Converts tray count to equivalent grams for planning consistency
+     * - Uses recipe-specific planning yields when available
+     * - Falls back to default 75g per tray for unknown varieties
+     * - Maintains both tray count and gram equivalents for flexibility
+     * 
+     * @agricultural_considerations
+     * - Live trays need optimal growing conditions at delivery
+     * - Timing more critical than harvested products
+     * - Quality standards focus on plant health vs harvest weight
+     * - Customer education may be required for growing continuation
+     * 
+     * @production_impact
+     * - Same growing process as harvested products until delivery
+     * - Modified packaging requirements (trays vs containers)
+     * - Different delivery window constraints
+     * - Special handling to maintain plant viability
+     * 
+     * @recipe_dependency
+     * - Uses findActiveRecipeForProduct() for growth parameters
+     * - Planning yield calculation accounts for continued growth
+     * - Recipe absence creates incomplete plans requiring manual review
      */
     protected function addLiveTrayRequirement(array &$requirements, Order $order, Product $product, int $totalTrays): void
     {
@@ -248,10 +454,57 @@ class CropPlanningService
     }
 
     /**
-     * Create aggregated crop plan with buffer applied to total grams
+     * Create optimized aggregated crop plan from multiple order requirements.
      * 
-     * @param array $requirement
-     * @return CropPlan|null
+     * This method implements the core agricultural production optimization by creating
+     * single crop plans that serve multiple customer orders. Buffer percentages are
+     * applied to aggregated totals rather than individual orders for maximum efficiency.
+     * 
+     * @param array $requirement Aggregated variety requirement data
+     * @return CropPlan|null Created crop plan or null if creation fails
+     * 
+     * @requirement_structure
+     * [
+     *   'variety_id' => int,           // MasterSeedCatalog ID
+     *   'harvest_date' => Carbon,      // Target harvest date
+     *   'total_grams' => float,        // Aggregated weight across orders
+     *   'orders' => array,             // Source orders with individual quantities
+     *   'recipe' => Recipe|null        // Matched growing recipe
+     * ]
+     * 
+     * @agricultural_optimization
+     * - Applies buffer to aggregated total (more efficient than per-order)
+     * - Calculates tray requirements once for entire batch
+     * - Uses recipe-specific expected yields for accurate planning
+     * - Backward-calculates all planting dates from harvest target
+     * 
+     * @buffer_management
+     * - Buffer percentage from recipe (default 10%)
+     * - Applied to total aggregated grams before tray calculation
+     * - Accounts for agricultural variation, handling loss, measurement error
+     * - More efficient than individual order buffers
+     * 
+     * @timing_calculations
+     * - Plant by date: harvest_date - recipe.totalDays()
+     * - Seed soak date: plant_date - recipe.seed_soak_hours
+     * - All dates calculated to start of day for consistency
+     * 
+     * @audit_trail
+     * - calculation_details JSON stores complete algorithm trace
+     * - order_items_included array maintains order traceability
+     * - Aggregated order information preserved for customer service
+     * 
+     * @incomplete_plan_handling
+     * - Missing recipes trigger createIncompletePlan() workflow
+     * - Incomplete plans flagged for manual review
+     * - Notification sent to administrative users
+     * 
+     * @performance_considerations
+     * - Single database insert per aggregated variety
+     * - Efficient JSON storage for complex calculation data
+     * - Detailed logging for production monitoring
+     * 
+     * @throws Exception When required data is invalid or database constraints fail
      */
     protected function createAggregatedCropPlan(array $requirement): ?CropPlan
     {
@@ -351,14 +604,51 @@ class CropPlanningService
     }
 
     /**
-     * Create incomplete crop plan when no recipe is found
+     * Create incomplete crop plan when agricultural recipe is missing.
      * 
-     * @param Order $order
-     * @param int $varietyId
-     * @param float $totalGrams
-     * @param Collection $orders
-     * @param CropPlanStatus $draftStatus
-     * @return CropPlan
+     * When no active recipe exists for a variety, production cannot be automated.
+     * This method creates a placeholder crop plan that flags the missing recipe
+     * and provides reasonable defaults for manual completion by agricultural staff.
+     * 
+     * @param Order $order Primary order for the crop plan record
+     * @param int $varietyId MasterSeedCatalog ID for the variety
+     * @param float $totalGrams Total weight needed across all orders
+     * @param Collection $orders All orders requiring this variety
+     * @param CropPlanStatus $draftStatus Draft status for incomplete plans
+     * @return CropPlan Incomplete crop plan flagged for manual attention
+     * 
+     * @incomplete_plan_characteristics
+     * - is_missing_recipe flag set to true
+     * - trays_needed set to 0 (cannot calculate without yield data)
+     * - plant_by_date estimated at 14 days before harvest (conservative default)
+     * - missing_recipe_notes field explains the issue
+     * 
+     * @default_assumptions
+     * - 14-day growth cycle (conservative estimate for most microgreens)
+     * - No seed soaking required (null seed_soak_date)
+     * - Zero grams per tray (calculation impossible without recipe)
+     * 
+     * @administrative_workflow
+     * - Plan appears in draft status requiring staff attention
+     * - missing_recipe_notes provide clear action items
+     * - calculation_details include aggregated order information
+     * - order_items_included maintains full traceability
+     * 
+     * @business_impact
+     * - Prevents order processing from being blocked by missing recipes
+     * - Creates visible action items for agricultural staff
+     * - Maintains customer order integrity and traceability
+     * - Enables partial automation while flagging manual intervention needs
+     * 
+     * @follow_up_actions
+     * - Agricultural staff must create recipe for the variety
+     * - Crop plan must be manually updated with correct calculations
+     * - Production timing may need adjustment based on actual recipe
+     * 
+     * @audit_considerations
+     * - Clearly documents which orders are affected
+     * - Preserves original weight requirements for later calculation
+     * - Links to creating user and timestamp for accountability
      */
     protected function createIncompletePlan(Order $order, int $varietyId, float $totalGrams, Collection $orders, CropPlanStatus $draftStatus): CropPlan
     {
@@ -395,12 +685,46 @@ class CropPlanningService
     }
 
     /**
-     * Generate notes for aggregated crop plan
+     * Generate descriptive notes for aggregated crop plans.
      * 
-     * @param Recipe $recipe
-     * @param Collection $orders
-     * @param Carbon|null $seedSoakDate
-     * @return string|null
+     * Creates human-readable notes that help agricultural staff understand
+     * the aggregated crop plan's scope, timing requirements, and customer context.
+     * These notes appear in the production interface and planning documents.
+     * 
+     * @param Recipe $recipe Growing recipe with timing and treatment requirements
+     * @param Collection $orders Orders aggregated into this crop plan
+     * @param Carbon|null $seedSoakDate Calculated seed soaking start time
+     * @return string|null Generated notes or null if no special conditions
+     * 
+     * @note_components
+     * - Seed soak timing: Critical pre-planting requirements
+     * - Order aggregation: Customer context and order count
+     * - Customer list: Names for production staff reference
+     * 
+     * @agricultural_timing_notes
+     * - Seed soak dates formatted for easy staff reference
+     * - Emphasizes time-sensitive pre-planting activities
+     * - Provides clear action dates for production scheduling
+     * 
+     * @aggregation_context
+     * - Shows when multiple orders are combined
+     * - Lists customer names for context and quality control
+     * - Helps staff understand production volume sources
+     * 
+     * @production_workflow_benefits
+     * - Staff can quickly understand special requirements
+     * - Customer context helps with quality prioritization
+     * - Timing reminders prevent missed agricultural deadlines
+     * 
+     * @examples
+     * "Seed soak required starting Mar 15, 2024"
+     * "Aggregated from 3 orders: Fresh Farm Co, Green Grocer, Local Market"
+     * "Seed soak required starting Mar 15, 2024. Aggregated from 2 orders: Farm A, Farm B"
+     * 
+     * @formatting_standards
+     * - Dates use readable format (Mar j, Y) vs technical formats
+     * - Customer names comma-separated for easy reading
+     * - Sentences properly punctuated for professional appearance
      */
     protected function generateAggregatedPlanNotes(Recipe $recipe, Collection $orders, ?Carbon $seedSoakDate): ?string
     {
@@ -420,10 +744,43 @@ class CropPlanningService
     }
 
     /**
-     * Get all order item IDs from aggregated orders
+     * Extract order item IDs from aggregated orders for complete traceability.
      * 
-     * @param Collection $orders
-     * @return array
+     * Maintains detailed traceability by collecting all order item IDs that
+     * contribute to an aggregated crop plan. This enables complete audit trails
+     * and supports customer service inquiries about specific order fulfillment.
+     * 
+     * @param Collection $orders Order data arrays from aggregation process
+     * @return array Unique order item IDs contributing to this crop plan
+     * 
+     * @traceability_importance
+     * - Links crop plans back to specific customer order line items
+     * - Enables detailed fulfillment tracking and reporting
+     * - Supports customer inquiries about order status
+     * - Required for accurate inventory reservation and release
+     * 
+     * @aggregation_structure
+     * Each order array contains:
+     * - 'order' => Order object with loaded relationships
+     * - 'product' => Product object for variety matching
+     * - 'grams' => Contribution to total requirement
+     * 
+     * @deduplication
+     * - Uses array_unique() to prevent duplicate item IDs
+     * - Handles cases where same product appears multiple times
+     * - Ensures clean data for downstream processing
+     * 
+     * @business_applications
+     * - Order fulfillment status tracking
+     * - Customer service order inquiries
+     * - Quality control issue tracing
+     * - Inventory reservation management
+     * - Billing and invoicing reconciliation
+     * 
+     * @data_integrity
+     * - Preserves complete order item relationships
+     * - Supports partial fulfillment scenarios
+     * - Enables order modification impact analysis
      */
     protected function getAggregatedOrderItemIds(Collection $orders): array
     {
@@ -440,10 +797,60 @@ class CropPlanningService
     }
 
     /**
-     * Generate crop plans from an order
+     * Generate individual crop plans from a single customer order.
      * 
-     * @param Order $order
-     * @return Collection Collection of CropPlan models
+     * Creates detailed production plans for all varieties required by an order,
+     * handling complex product mixes, live tray orders, and precise agricultural
+     * timing calculations. This method serves as the foundation for both individual
+     * and aggregated crop planning workflows.
+     * 
+     * @param Order $order Order with loaded product and pricing relationships
+     * @return Collection<CropPlan> Generated crop plans for all order varieties
+     * 
+     * @agricultural_workflow
+     * 1. Load complete order relationships (products, mixes, pricing)
+     * 2. Delete existing draft/cancelled plans to prevent duplicates
+     * 3. Group order items by product for quantity aggregation
+     * 4. Distinguish live tray vs harvested product requirements
+     * 5. Decompose product mixes into constituent varieties
+     * 6. Generate variety-specific crop plans with timing
+     * 7. Apply deduplication to prevent variety conflicts
+     * 
+     * @product_type_handling
+     * - Single varieties: Direct recipe matching and plan generation
+     * - Product mixes: Decomposition into percentage-based varieties
+     * - Live trays: Tray-count based planning vs weight-based
+     * - Harvested products: Weight-based planning with yield calculations
+     * 
+     * @deduplication_strategy
+     * - Uses processedVarieties array to track variety + harvest date combinations
+     * - Prevents multiple plans for same variety on same harvest date
+     * - Maintains order item traceability across deduplication
+     * 
+     * @timing_precision
+     * - Backward calculation from harvest date through all growth stages
+     * - Seed soak scheduling for varieties requiring pre-treatment
+     * - Plant-by dates accounting for complete growth cycles
+     * - Delivery date preservation for logistics coordination
+     * 
+     * @error_resilience
+     * - Continues processing when individual products fail
+     * - Creates incomplete plans for missing recipes
+     * - Logs detailed error information for troubleshooting
+     * - Preserves partial success for manual completion
+     * 
+     * @business_rules
+     * - Products must have master_seed_catalog_id OR product_mix_id
+     * - Live tray identification based on packaging type names
+     * - Recipe matching prioritizes product-specific then variety-general
+     * - Buffer percentages applied per recipe specifications
+     * 
+     * @performance_optimization
+     * - Eager loads all required relationships in single query
+     * - Groups items by product to minimize processing loops
+     * - Caches recipe lookups for repeated varieties
+     * 
+     * @throws Exception When critical agricultural data is invalid or missing
      */
     public function generatePlanFromOrder(Order $order): Collection
     {
@@ -549,11 +956,59 @@ class CropPlanningService
     }
 
     /**
-     * Calculate total grams needed for a collection of order items
-     * This method is only called for harvested products, not live trays
+     * Calculate total grams needed for harvested product order items.
      * 
-     * @param Collection $items
-     * @return float
+     * Performs complex weight calculations for harvested microgreens orders,
+     * handling multiple unit types, fill weights, and conversion scenarios.
+     * This method is NOT used for live tray orders which have different
+     * calculation requirements.
+     * 
+     * @param Collection $items OrderItem collection for a single product
+     * @return float Total grams needed for agricultural production planning
+     * 
+     * @calculation_priority_order
+     * 1. quantity_in_grams (explicit gram specification)
+     * 2. Live tray detection and conversion (special case)
+     * 3. fill_weight from price variation (container weight)
+     * 4. fill_weight_grams from price variation (alternative field)
+     * 5. Quantity as grams (fallback assumption)
+     * 
+     * @live_tray_detection
+     * - Checks both packaging type name and price variation name
+     * - Case-insensitive "live tray" string matching
+     * - Converts tray count to grams using recipe yields
+     * - Falls back to default 75g per tray when recipe unavailable
+     * 
+     * @weight_conversion_logic
+     * - Uses recipe-based planning yields for accurate conversion
+     * - Accounts for agricultural buffers in yield calculations
+     * - Logs conversion factors for audit and debugging
+     * - Handles missing recipe scenarios gracefully
+     * 
+     * @fill_weight_handling
+     * - Prioritizes fill_weight over fill_weight_grams (legacy support)
+     * - Multiplies quantity by container fill weight
+     * - Handles different packaging sizes within same order
+     * 
+     * @fallback_behavior
+     * - Assumes quantity represents grams when no other data available
+     * - Logs warnings for unclear quantity specifications
+     * - Continues processing to prevent order blocking
+     * 
+     * @agricultural_considerations
+     * - Live tray conversion accounts for continued growth potential
+     * - Harvested weights based on mature microgreen yields
+     * - Buffer percentages handled at recipe level, not in base calculations
+     * 
+     * @logging_strategy
+     * - Info level: Successful calculations with parameters
+     * - Warning level: Missing data requiring assumptions
+     * - Detailed parameter logging for agricultural staff debugging
+     * 
+     * @data_validation
+     * - Handles null price variations gracefully
+     * - Validates recipe existence before yield calculations
+     * - Preserves order processing even with incomplete data
      */
     protected function calculateTotalGramsForProduct(Collection $items): float
     {
@@ -657,10 +1112,48 @@ class CropPlanningService
     }
 
     /**
-     * Check if order items are for live trays
+     * Detect if order items are for live tray delivery vs harvested products.
      * 
-     * @param Collection $items
-     * @return bool
+     * Live tray orders have fundamentally different production, packaging, and
+     * delivery requirements compared to harvested microgreens. This detection
+     * is critical for proper agricultural planning and resource allocation.
+     * 
+     * @param Collection $items OrderItem collection to analyze
+     * @return bool True if items are for live tray delivery
+     * 
+     * @detection_strategy
+     * - Examines first item as representative of entire product group
+     * - Checks packaging type name for "live tray" string
+     * - Checks price variation name as secondary indicator
+     * - Case-insensitive string matching for flexibility
+     * 
+     * @live_tray_characteristics
+     * - Delivered as living, growing plants in trays
+     * - Continue growing at customer location
+     * - Different packaging and handling requirements
+     * - Modified delivery timing (plants must be healthy)
+     * - Customer education often required
+     * 
+     * @agricultural_implications
+     * - Same growing process until delivery point
+     * - Different quality criteria (plant health vs harvest weight)
+     * - Modified timing windows (plant viability critical)
+     * - Special handling during transport
+     * 
+     * @business_logic
+     * - All items in a product group assumed same type
+     * - Consistent packaging within single products
+     * - Different pricing structures for live vs harvested
+     * 
+     * @fallback_behavior
+     * - Returns false when no items present (safe default)
+     * - Returns false when price variation data unavailable
+     * - Assumes harvested product when detection unclear
+     * 
+     * @integration_points
+     * - Used by calculateTotalGramsForProduct() for conversion logic
+     * - Influences crop plan generation workflows
+     * - Affects packaging and delivery scheduling
      */
     protected function isLiveTrayOrder(Collection $items): bool
     {
@@ -687,10 +1180,46 @@ class CropPlanningService
     }
     
     /**
-     * Calculate total trays needed for a collection of order items
+     * Calculate total growing trays needed for live tray order items.
      * 
-     * @param Collection $items
-     * @return int
+     * For live tray orders, the quantity directly represents the number of
+     * growing trays required. This method aggregates tray counts across
+     * multiple order line items for the same product.
+     * 
+     * @param Collection $items OrderItem collection for live tray product
+     * @return int Total number of growing trays needed
+     * 
+     * @live_tray_quantity_logic
+     * - Each order item quantity = number of trays for that line
+     * - Sum all quantities to get total tray requirement
+     * - Cast to integer since partial trays not meaningful
+     * 
+     * @agricultural_context
+     * - Each tray represents one growing unit
+     * - Standard tray sizes used across production facility
+     * - Trays delivered with living plants ready for continued growth
+     * - Customer continues growing process at their location
+     * 
+     * @business_applications
+     * - Production planning: How many trays to plant
+     * - Space planning: Growing area requirements
+     * - Packaging: Number of delivery trays needed
+     * - Logistics: Transport capacity planning
+     * 
+     * @quality_considerations
+     * - All trays must meet living plant quality standards
+     * - Timing critical for plant health at delivery
+     * - Growing conditions must support continued growth
+     * 
+     * @integration_with_planning
+     * - Used by generatePlanForLiveTrays() for crop plan creation
+     * - Converted to equivalent grams for resource planning consistency
+     * - Tray count preserved for production scheduling
+     * 
+     * @data_assumptions
+     * - Order quantity always represents tray count for live products
+     * - No fractional trays (business rule)
+     * - Consistent tray sizing across facility
      */
     protected function calculateTotalTraysForProduct(Collection $items): int
     {
@@ -705,13 +1234,62 @@ class CropPlanningService
     }
 
     /**
-     * Generate crop plans for a product mix
+     * Generate crop plans for complex product mixes with multiple varieties.
      * 
-     * @param Order $order
-     * @param Product $product
-     * @param float $totalGramsNeeded
-     * @param array &$processedVarieties
-     * @return Collection
+     * Product mixes contain multiple varieties combined in specific percentages.
+     * This method decomposes the mix into individual variety requirements and
+     * creates separate crop plans for each component while maintaining traceability
+     * back to the original mixed product order.
+     * 
+     * @param Order $order Source order requiring the product mix
+     * @param Product $product Product mix with defined variety percentages
+     * @param float $totalGramsNeeded Total weight for the complete mix
+     * @param array &$processedVarieties Deduplication tracking array
+     * @return Collection<CropPlan> Crop plans for all mix components
+     * 
+     * @mix_decomposition_process
+     * 1. Load product mix with variety components and percentages
+     * 2. Use breakdownProductMix() to calculate variety-specific weights
+     * 3. Generate individual crop plan for each variety component
+     * 4. Apply deduplication to prevent variety conflicts
+     * 5. Maintain audit trail linking components to source mix
+     * 
+     * @agricultural_complexity
+     * - Each variety may have different growing requirements
+     * - Recipe matching per variety, not per mix
+     * - Timing coordination across multiple growth cycles
+     * - Harvest synchronization for mix assembly
+     * 
+     * @percentage_calculations
+     * - Uses ProductMix percentage definitions
+     * - Calculates variety-specific grams from total requirement
+     * - Maintains cultivar specificity when defined in mix
+     * - Handles rounding in agricultural contexts
+     * 
+     * @deduplication_strategy
+     * - Checks processedVarieties for variety_id + harvest_date combinations
+     * - Prevents multiple plans for same variety on same date
+     * - Allows same variety in different mixes or harvest dates
+     * - Maintains order item traceability across deduplication
+     * 
+     * @error_resilience
+     * - Continues processing when individual varieties fail
+     * - Logs detailed error information for troubleshooting
+     * - Returns partial collection for successful varieties
+     * - Preserves mix integrity where possible
+     * 
+     * @business_applications
+     * - Custom salad mixes with specific variety ratios
+     * - Seasonal blend products
+     * - Restaurant-specific mix formulations
+     * - Standardized house blend products
+     * 
+     * @quality_control
+     * - Each variety must meet individual quality standards
+     * - Timing coordination critical for fresh mix assembly
+     * - Harvest synchronization across multiple growing cycles
+     * 
+     * @throws Exception When mix decomposition fails or variety data invalid
      */
     protected function generatePlansForProductMix(Order $order, Product $product, float $totalGramsNeeded, array &$processedVarieties): Collection
     {
@@ -750,7 +1328,7 @@ class CropPlanningService
                             'cultivar' => $componentData['cultivar']
                         ]);
                     }
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Log::error('Failed to generate crop plan for mix component', [
                         'order_id' => $order->id,
                         'product_id' => $product->id,
@@ -770,14 +1348,68 @@ class CropPlanningService
     }
 
     /**
-     * Generate a crop plan for a single variety
+     * Generate comprehensive crop plan for a single agricultural variety.
      * 
-     * @param Order $order
-     * @param Product $product
-     * @param int $masterSeedCatalogId
-     * @param float $gramsNeeded
-     * @param string|null $cultivar
-     * @return CropPlan|null
+     * This is the core method for creating detailed production plans that translate
+     * customer orders into actionable agricultural production schedules. It handles
+     * recipe matching, yield calculations, timing coordination, and resource validation.
+     * 
+     * @param Order $order Source order requiring this variety
+     * @param Product $product Source product (may be single variety or mix component)
+     * @param int $masterSeedCatalogId Variety identifier for seed catalog lookup
+     * @param float $gramsNeeded Target harvest weight for this variety
+     * @param string|null $cultivar Specific cultivar if from product mix
+     * @return CropPlan|null Complete crop plan or null if creation fails
+     * 
+     * @agricultural_calculation_flow
+     * 1. Validate variety exists in master seed catalog
+     * 2. Find active recipe with growing parameters
+     * 3. Calculate backward timing from harvest date
+     * 4. Determine tray requirements using yield calculations
+     * 5. Schedule seed soaking if required by recipe
+     * 6. Create complete crop plan with audit trail
+     * 
+     * @recipe_matching_priority
+     * - Product-specific recipes (highest priority)
+     * - Variety-specific recipes from master catalog
+     * - Fuzzy matching on variety names (fallback)
+     * - Creates incomplete plan if no recipe found
+     * 
+     * @timing_calculations
+     * - Plant by date: harvest_date - recipe.totalDays()
+     * - Seed soak date: plant_date - recipe.seed_soak_hours
+     * - All dates calculated to start of day for consistency
+     * - Accounts for complete growth cycle stages
+     * 
+     * @yield_and_resource_planning
+     * - Uses HarvestYieldCalculator for accurate tray requirements
+     * - Includes recipe-specific buffer percentages
+     * - Calculates grams per tray for resource allocation
+     * - Validates seed inventory availability
+     * 
+     * @incomplete_plan_handling
+     * - Missing recipes trigger incomplete plan creation
+     * - Default 14-day growth cycle assumption
+     * - Flags for manual agricultural staff attention
+     * - Notification sent to administrative users
+     * 
+     * @audit_trail_creation
+     * - calculation_details JSON stores complete algorithm trace
+     * - Links to source order items for traceability
+     * - Records recipe parameters and yield calculations
+     * - Documents growth stage timing for production staff
+     * 
+     * @agricultural_notes
+     * - Seed soak reminders for time-sensitive varieties
+     * - Special handling requirements from recipes
+     * - Quality control checkpoints
+     * 
+     * @error_handling
+     * - Graceful fallback for missing variety data
+     * - Detailed logging for troubleshooting
+     * - Preserves order integrity even with partial failures
+     * 
+     * @throws Exception When critical agricultural data is invalid
      */
     protected function generatePlanForSingleVariety(
         Order $order, 
@@ -1393,7 +2025,7 @@ class CropPlanningService
             ->warning()
             ->persistent()
             ->actions([
-                \Filament\Notifications\Actions\Action::make('create_recipe')
+                Action::make('create_recipe')
                     ->label('Create Recipe')
                     ->url('/admin/recipes/create?variety=' . $masterSeedCatalog->id)
                     ->openUrlInNewTab(),

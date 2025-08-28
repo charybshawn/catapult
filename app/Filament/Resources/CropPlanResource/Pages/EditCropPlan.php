@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\CropPlanResource\Pages;
 
+use Filament\Actions\DeleteAction;
 use App\Filament\Resources\CropPlanResource;
 use Filament\Actions;
 use App\Filament\Pages\Base\BaseEditRecord;
@@ -13,7 +14,7 @@ class EditCropPlan extends BaseEditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            DeleteAction::make(),
         ];
     }
 }

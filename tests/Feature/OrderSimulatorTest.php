@@ -14,6 +14,24 @@ use Illuminate\Support\Facades\Session;
 use Livewire\Livewire;
 use App\Filament\Resources\OrderSimulatorResource\Pages\ManageOrderSimulator;
 
+/**
+ * Feature tests for Order Simulator in agricultural microgreens business management.
+ * 
+ * Comprehensive testing of order simulation functionality including product filtering,
+ * quantity management, pricing calculations, and user interface interactions for
+ * agricultural production planning. Tests complete workflow from product selection
+ * through requirements calculation for microgreens business operations.
+ *
+ * @covers \App\Filament\Resources\OrderSimulatorResource\Pages\ManageOrderSimulator
+ * @group feature
+ * @group order-simulator
+ * @group agricultural-testing
+ * @group livewire
+ * 
+ * @business_context Agricultural order simulation and production planning for microgreens
+ * @test_category Feature tests for order simulator interface and calculations
+ * @agricultural_workflow Order simulation for microgreens production requirements
+ */
 class OrderSimulatorTest extends TestCase
 {
     use RefreshDatabase;
@@ -29,7 +47,18 @@ class OrderSimulatorTest extends TestCase
         $this->actingAs($this->user);
     }
 
-    /** @test */
+    /**
+     * Test order simulator page display for agricultural production planning interface.
+     * 
+     * Validates that the order simulator page loads correctly and displays appropriate
+     * interface elements for agricultural production planning and microgreens order
+     * simulation workflows.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Agricultural production planner accessing order simulator
+     * @ui_validation Ensures order simulator interface loads correctly
+     */
     public function it_displays_order_simulator_page()
     {
         $response = $this->get('/admin/order-simulator-resources');
@@ -38,7 +67,18 @@ class OrderSimulatorTest extends TestCase
         $response->assertSee('Order Simulator');
     }
 
-    /** @test */
+    /**
+     * Test active retail product display with price variations for agricultural sales.
+     * 
+     * Validates that only active retail products with appropriate price variations
+     * are displayed in the order simulator, filtering out inactive products, wholesale
+     * variations, and live tray options for focused retail microgreens planning.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Retail microgreens product selection for order simulation
+     * @business_validation Ensures proper product and variation filtering for retail focus
+     */
     public function it_shows_active_retail_products_with_price_variations()
     {
         // Create category
@@ -122,7 +162,18 @@ class OrderSimulatorTest extends TestCase
         $component->assertDontSeeText('Inactive - 4oz');
     }
 
-    /** @test */
+    /**
+     * Test wholesale and live tray variation filtering for retail order focus.
+     * 
+     * Validates that order simulator correctly filters out wholesale and live tray
+     * variations from display, maintaining focus on retail packaged microgreens
+     * products for consumer-focused order simulation.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Retail-focused order simulation excluding bulk variations
+     * @business_logic Wholesale and live tray filtering maintains retail focus
+     */
     public function it_filters_out_wholesale_and_live_tray_variations()
     {
         $category = Category::factory()->create(['name' => 'Filter Category']);
@@ -180,7 +231,18 @@ class OrderSimulatorTest extends TestCase
         }
     }
 
-    /** @test */
+    /**
+     * Test product quantity updates for agricultural order simulation.
+     * 
+     * Validates that users can update product quantities in the order simulator
+     * and that changes are properly tracked and persisted for agricultural
+     * production planning and microgreens requirements calculation.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Setting microgreens product quantities for production planning
+     * @business_validation Ensures quantity tracking for agricultural requirements calculation
+     */
     public function it_allows_updating_quantities_for_products()
     {
         // Create test data
@@ -232,7 +294,18 @@ class OrderSimulatorTest extends TestCase
         $this->assertEquals(5, Session::get('order_simulator_quantities')[$compositeKey]);
     }
 
-    /** @test */
+    /**
+     * Test session persistence of product quantities for agricultural planning continuity.
+     * 
+     * Validates that product quantities are properly stored and retrieved from session
+     * storage, enabling agricultural planners to maintain order simulation state
+     * across page interactions in microgreens production planning.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Maintaining order simulation state across user sessions
+     * @session_management Ensures agricultural planning data persistence
+     */
     public function it_persists_quantities_in_session()
     {
         // Set initial quantities in session
@@ -245,7 +318,18 @@ class OrderSimulatorTest extends TestCase
         $this->assertEquals($quantities, $component->get('quantities'));
     }
 
-    /** @test */
+    /**
+     * Test row hiding and restoration for agricultural order simulator interface.
+     * 
+     * Validates that users can hide unwanted product rows and restore them as needed
+     * for focused agricultural order simulation, maintaining clean interface for
+     * microgreens production planning workflows.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Focusing on relevant products by hiding unused options
+     * @ui_functionality Row hiding improves agricultural planning interface focus
+     */
     public function it_can_hide_and_restore_rows()
     {
         // Create test data
@@ -302,7 +386,18 @@ class OrderSimulatorTest extends TestCase
         $component->assertDontSeeText('Show Hidden (1)');
     }
 
-    /** @test */
+    /**
+     * Test quantity removal when hiding rows for agricultural order simulation cleanup.
+     * 
+     * Validates that hiding product rows automatically clears associated quantities
+     * to maintain data consistency in agricultural order simulation and prevent
+     * incorrect microgreens production calculations.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Hiding products removes quantities to prevent calculation errors
+     * @data_consistency Ensures clean agricultural production planning data
+     */
     public function it_removes_quantity_when_hiding_row()
     {
         // Create test data
@@ -346,7 +441,18 @@ class OrderSimulatorTest extends TestCase
         $this->assertArrayNotHasKey($compositeId, $quantities);
     }
 
-    /** @test */
+    /**
+     * Test successful agricultural requirements calculation for microgreens production.
+     * 
+     * Validates that order simulator correctly calculates variety requirements and
+     * production needs based on selected products and quantities for agricultural
+     * planning and microgreens production scheduling.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Calculating seed requirements for microgreens production
+     * @business_validation Ensures accurate agricultural production calculations
+     */
     public function it_calculates_requirements_successfully()
     {
         // Create test data
@@ -394,7 +500,18 @@ class OrderSimulatorTest extends TestCase
         $this->assertArrayHasKey('summary', $results);
     }
 
-    /** @test */
+    /**
+     * Test warning display when no products selected for agricultural calculation.
+     * 
+     * Validates that order simulator shows appropriate warning when attempting
+     * to calculate requirements without selected products, preventing empty
+     * agricultural production planning calculations.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Attempting calculation without product selection
+     * @user_feedback Provides clear guidance for agricultural planning workflow
+     */
     public function it_shows_warning_when_no_products_selected()
     {
         $component = Livewire::test(ManageOrderSimulator::class);
@@ -406,7 +523,18 @@ class OrderSimulatorTest extends TestCase
         $component->assertNotified('No Products Selected');
     }
 
-    /** @test */
+    /**
+     * Test zero quantity handling in agricultural requirements calculation.
+     * 
+     * Validates that order simulator properly ignores products with zero quantities
+     * during calculations, treating them as non-selected for agricultural production
+     * planning and microgreens requirements determination.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Zero quantities treated as unselected products
+     * @calculation_logic Zero quantities excluded from agricultural planning calculations
+     */
     public function it_ignores_zero_quantities_in_calculation()
     {
         // Create test data
@@ -448,7 +576,18 @@ class OrderSimulatorTest extends TestCase
         $component->assertNotified('No Products Selected');
     }
 
-    /** @test */
+    /**
+     * Test complete data clearing for agricultural order simulation reset.
+     * 
+     * Validates that order simulator can completely clear all quantities, hidden rows,
+     * and calculation results, enabling fresh start for new agricultural production
+     * planning sessions and microgreens order simulations.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Resetting order simulator for new planning session
+     * @data_management Complete cleanup enables fresh agricultural planning workflow
+     */
     public function it_clears_all_data_successfully()
     {
         // Create test data and set some state
@@ -480,7 +619,18 @@ class OrderSimulatorTest extends TestCase
         $this->assertNull(Session::get('order_simulator_results'));
     }
 
-    /** @test */
+    /**
+     * Test graceful handling of invalid composite IDs in agricultural order simulator.
+     * 
+     * Validates that order simulator properly handles malformed or invalid product/variation
+     * composite IDs with appropriate error messages, ensuring robust agricultural
+     * production planning interface behavior.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Invalid data handling in agricultural planning interface
+     * @error_handling Graceful failure prevents agricultural workflow interruption
+     */
     public function it_handles_invalid_composite_ids_gracefully()
     {
         $component = Livewire::test(ManageOrderSimulator::class);
@@ -492,7 +642,18 @@ class OrderSimulatorTest extends TestCase
         $component->assertNotified('Error');
     }
 
-    /** @test */
+    /**
+     * Test graceful handling of non-existent products in agricultural order simulator.
+     * 
+     * Validates that order simulator properly handles references to non-existent
+     * products or variations with appropriate error messages, ensuring stable
+     * agricultural production planning workflow behavior.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Missing product data handling in production planning
+     * @error_handling Prevents agricultural workflow errors from invalid references
+     */
     public function it_handles_non_existent_products_gracefully()
     {
         $component = Livewire::test(ManageOrderSimulator::class);
@@ -504,7 +665,18 @@ class OrderSimulatorTest extends TestCase
         $component->assertNotified('Error');
     }
 
-    /** @test */
+    /**
+     * Test hidden panel visibility toggle for agricultural order simulator interface.
+     * 
+     * Validates that hidden product panel can be toggled on/off for agricultural
+     * order simulation interface management, providing flexible view control for
+     * microgreens production planning workflows.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Managing hidden products panel in planning interface
+     * @ui_functionality Panel toggle improves agricultural planning interface flexibility
+     */
     public function it_toggles_hidden_panel_visibility()
     {
         $component = Livewire::test(ManageOrderSimulator::class);
@@ -524,7 +696,18 @@ class OrderSimulatorTest extends TestCase
         $this->assertFalse(Session::get('order_simulator_panel_open'));
     }
 
-    /** @test */
+    /**
+     * Test bulk restoration of all hidden rows in agricultural order simulator.
+     * 
+     * Validates that all hidden product rows can be restored simultaneously
+     * for comprehensive agricultural order simulation, enabling quick return
+     * to full product selection in microgreens production planning.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Restoring all hidden products for complete simulation
+     * @bulk_operations Enables efficient agricultural planning workflow management
+     */
     public function it_restores_all_hidden_rows()
     {
         // Create test data

@@ -2,6 +2,9 @@
 
 namespace App\Filament\Pages;
 
+use Exception;
+use App\Services\SchemaComparisonService;
+use PDO;
 use App\Services\SimpleBackupService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
@@ -16,16 +19,59 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
+/**
+ * Database Console Management Page
+ * 
+ * Administrative interface for database backup, restore, and schema management
+ * operations. Provides comprehensive database maintenance tools including
+ * safe backup creation, file upload restoration, and schema merging capabilities.
+ * 
+ * @filament_page Administrative database management console
+ * @backup_operations Create, restore, archive, and delete database backups
+ * @schema_management Schema comparison, merging, and validation tools
+ * @file_upload Support for uploading and restoring external backup files
+ * @git_integration Safe backup with automated git commit and push operations
+ * @dry_run_support Test operations without making permanent changes
+ * 
+ * @package App\Filament\Pages
+ * @author Catapult Development Team
+ * @version 2.0.0
+ */
 class DatabaseConsole extends Page
 {
-    protected static ?string $navigationIcon = 'heroicon-o-command-line';
+    /**
+     * Navigation icon for database console
+     * 
+     * @var string Command line icon representing database administration
+     */
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-command-line';
 
+    /**
+     * Navigation label for database console
+     * 
+     * @var string Display name in navigation menu
+     */
     protected static ?string $navigationLabel = 'Database Console';
 
-    protected static ?string $navigationGroup = 'System';
+    /**
+     * Navigation group for database console
+     * 
+     * @var string Groups with system administration tools
+     */
+    protected static string | \UnitEnum | null $navigationGroup = 'System';
 
-    protected static string $view = 'filament.pages.database-console';
+    /**
+     * Blade view template for database console
+     * 
+     * @var string Path to database console template
+     */
+    protected string $view = 'filament.pages.database-console';
 
+    /**
+     * Livewire event listeners for file upload handling
+     * 
+     * @var array Event listeners for dynamic file upload responses
+     */
     protected $listeners = ['fileUploaded' => 'handleFileUpload'];
 
     public function handleFileUpload($filename)
@@ -53,7 +99,7 @@ class DatabaseConsole extends Page
             ]);
 
             return $backups;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Failed to get backups', ['error' => $e->getMessage()]);
 
             return [];
@@ -67,7 +113,7 @@ class DatabaseConsole extends Page
                 ->label('Create Backup')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('success')
-                ->form([
+                ->schema([
                     Toggle::make('safe_backup')
                         ->label('Safe Backup (Git Integration)')
                         ->helperText('Create backup, commit changes, and push to git')
@@ -101,7 +147,7 @@ class DatabaseConsole extends Page
                 ->label('Restore Backup')
                 ->icon('heroicon-o-arrow-up-tray')
                 ->color('danger')
-                ->form([
+                ->schema([
                     Select::make('restore_source')
                         ->label('Restore Source')
                         ->options([
@@ -192,7 +238,7 @@ class DatabaseConsole extends Page
                 ->label('Merge Schema File')
                 ->icon('heroicon-o-document-plus')
                 ->color('info')
-                ->form([
+                ->schema([
                     FileUpload::make('schema_file')
                         ->label('Upload Schema File')
                         ->maxSize(51200) // 50MB in KB
@@ -276,7 +322,7 @@ class DatabaseConsole extends Page
                 $this->safeBackupSuccess = ($exitCode === 0);
             } else {
                 // Use backup service directly to avoid Artisan::call environment issues
-                $backupService = new \App\Services\SimpleBackupService;
+                $backupService = new SimpleBackupService;
                 $this->safeBackupOutput = "Creating database backup...\n";
 
                 $filename = $backupService->createBackup();
@@ -290,7 +336,7 @@ class DatabaseConsole extends Page
             if ($this->safeBackupSuccess) {
                 $this->dispatch('refresh-backups');
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->safeBackupOutput .= "\n\nError: ".$e->getMessage();
             $this->safeBackupRunning = false;
             $this->safeBackupSuccess = false;
@@ -357,7 +403,7 @@ class DatabaseConsole extends Page
                     ->body('No schema check report found for this backup.')
                     ->send();
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Notification::make()
                 ->danger()
                 ->title('Error Loading Schema Check')
@@ -386,11 +432,11 @@ class DatabaseConsole extends Page
             $backupPath = base_path('database/backups/'.$backupFileName);
 
             if (! file_exists($backupPath)) {
-                throw new \Exception('Backup file not found');
+                throw new Exception('Backup file not found');
             }
 
             // Use full schema comparison service
-            $schemaComparison = new \App\Services\SchemaComparisonService;
+            $schemaComparison = new SchemaComparisonService;
             $differences = $schemaComparison->compareSchemas();
 
             // Format the full schema comparison report
@@ -451,7 +497,7 @@ class DatabaseConsole extends Page
 
             $this->dispatch('refresh-backups');
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Notification::make()
                 ->danger()
                 ->title('Compatibility Check Failed')
@@ -488,7 +534,7 @@ class DatabaseConsole extends Page
                     }
 
                     if (! $filePath) {
-                        throw new \Exception('No valid file path found in upload data: '.json_encode($uploadedFile));
+                        throw new Exception('No valid file path found in upload data: '.json_encode($uploadedFile));
                     }
 
                     $this->restoreOutput .= "File identifier: {$filePath}\n";
@@ -509,7 +555,7 @@ class DatabaseConsole extends Page
                                         }
                                     }
                                 }
-                            } catch (\Exception $e) {
+                            } catch (Exception $e) {
                                 // Skip directories that don't exist
                             }
                         }
@@ -520,7 +566,7 @@ class DatabaseConsole extends Page
                         foreach ($livewireTmpFiles as $tmpFile) {
                             $this->restoreOutput .= "  - Livewire tmp: {$tmpFile}\n";
                         }
-                    } catch (\Exception $e) {
+                    } catch (Exception $e) {
                         $this->restoreOutput .= '- Error checking storage: '.$e->getMessage()."\n";
                     }
 
@@ -567,12 +613,12 @@ class DatabaseConsole extends Page
                         }
 
                         if (! $fileContents) {
-                            throw new \Exception('Could not locate uploaded file using Storage or direct filesystem access');
+                            throw new Exception('Could not locate uploaded file using Storage or direct filesystem access');
                         }
                         $this->restoreOutput .= 'File size: '.strlen($fileContents)." bytes\n";
 
                         if (strlen($fileContents) == 0) {
-                            throw new \Exception('File is empty - upload may have failed');
+                            throw new Exception('File is empty - upload may have failed');
                         }
 
                         // Show first 200 characters for debugging
@@ -592,8 +638,8 @@ class DatabaseConsole extends Page
 
                         $uploadedFilePath = $tempBackupPath;
 
-                    } catch (\Exception $e) {
-                        throw new \Exception('Could not read uploaded file: '.$e->getMessage());
+                    } catch (Exception $e) {
+                        throw new Exception('Could not read uploaded file: '.$e->getMessage());
                     }
 
                     $this->restoreOutput .= "Analyzing backup file...\n";
@@ -623,7 +669,7 @@ class DatabaseConsole extends Page
                         $this->restoreOutput .= "- Crops: {$preCropCount} records\n";
                         $this->restoreOutput .= "- Users: {$preUserCount} records\n";
                         $this->restoreOutput .= "- Recipes: {$preRecipeCount} records\n";
-                    } catch (\Exception $e) {
+                    } catch (Exception $e) {
                         $this->restoreOutput .= 'Could not get pre-restore counts: '.$e->getMessage()."\n";
                     }
 
@@ -734,7 +780,7 @@ class DatabaseConsole extends Page
                                         $this->restoreOutput .= "⚠️ WARNING: No new records were added. The SQL statements may have failed silently.\n";
                                         $this->restoreOutput .= "Check the backup file format and database schema compatibility.\n";
                                     }
-                                } catch (\Exception $verifyException) {
+                                } catch (Exception $verifyException) {
                                     $this->restoreOutput .= 'Verification failed: '.$verifyException->getMessage()."\n";
                                     $this->restoreSuccess = false;
                                 }
@@ -743,7 +789,7 @@ class DatabaseConsole extends Page
                                 $this->restoreSuccess = false;
                             }
                         }
-                    } catch (\Exception $restoreException) {
+                    } catch (Exception $restoreException) {
                         $this->restoreOutput .= 'Restore exception: '.$restoreException->getMessage()."\n";
                         $this->restoreSuccess = false;
                     }
@@ -757,11 +803,11 @@ class DatabaseConsole extends Page
                     // Clean up the uploaded file from storage
                     try {
                         Storage::delete($filePath);
-                    } catch (\Exception $e) {
+                    } catch (Exception $e) {
                         // Ignore cleanup errors
                     }
                 } else {
-                    throw new \Exception('No file uploaded');
+                    throw new Exception('No file uploaded');
                 }
             } else {
                 // Handle existing backup files or latest
@@ -797,7 +843,7 @@ class DatabaseConsole extends Page
 
             $this->restoreRunning = false;
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->restoreOutput .= "\n\nError: ".$e->getMessage();
             $this->restoreRunning = false;
             $this->restoreSuccess = false;
@@ -817,7 +863,7 @@ class DatabaseConsole extends Page
                 ->send();
 
             $this->dispatch('refresh-backups');
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Notification::make()
                 ->danger()
                 ->title('Delete Failed')
@@ -847,7 +893,7 @@ class DatabaseConsole extends Page
                 $backupService = new SimpleBackupService;
                 $backupService->deleteBackup($filename);
                 $successCount++;
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $failCount++;
                 $errors[] = $filename.': '.$e->getMessage();
             }
@@ -893,7 +939,7 @@ class DatabaseConsole extends Page
                 ->send();
 
             $this->dispatch('refresh-backups');
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Notification::make()
                 ->danger()
                 ->title('Archive Failed')
@@ -923,7 +969,7 @@ class DatabaseConsole extends Page
                 $backupService = new SimpleBackupService;
                 $backupService->archiveBackup($filename);
                 $successCount++;
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $failCount++;
                 $errors[] = $filename.': '.$e->getMessage();
             }
@@ -962,7 +1008,7 @@ class DatabaseConsole extends Page
             $backupService = new SimpleBackupService;
 
             return $backupService->downloadBackup($filename);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Notification::make()
                 ->danger()
                 ->title('Download Failed')
@@ -1017,7 +1063,7 @@ class DatabaseConsole extends Page
                 }
 
                 if (! $filePath) {
-                    throw new \Exception('No valid file path found in upload data: '.json_encode($uploadedFile));
+                    throw new Exception('No valid file path found in upload data: '.json_encode($uploadedFile));
                 }
 
                 // Debug: Check what's actually in storage - check all directories
@@ -1037,7 +1083,7 @@ class DatabaseConsole extends Page
                                     }
                                 }
                             }
-                        } catch (\Exception $e) {
+                        } catch (Exception $e) {
                             // Skip directories that don't exist
                         }
                     }
@@ -1049,10 +1095,10 @@ class DatabaseConsole extends Page
                         foreach ($livewireTmpFiles as $tmpFile) {
                             $debugOutput .= "  - Livewire tmp: {$tmpFile}\n";
                         }
-                    } catch (\Exception $e) {
+                    } catch (Exception $e) {
                         $debugOutput .= "  - No livewire-tmp directory\n";
                     }
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     $debugOutput .= '- Error checking storage: '.$e->getMessage()."\n";
                 }
 
@@ -1099,34 +1145,34 @@ class DatabaseConsole extends Page
                     }
 
                     if (! $schemaContent) {
-                        throw new \Exception("Could not locate uploaded file using Storage or direct filesystem access\n\n".$debugOutput);
+                        throw new Exception("Could not locate uploaded file using Storage or direct filesystem access\n\n".$debugOutput);
                     }
 
                     if (strlen($schemaContent) == 0) {
-                        throw new \Exception('File is empty - upload may have failed');
+                        throw new Exception('File is empty - upload may have failed');
                     }
 
-                } catch (\Exception $e) {
-                    throw new \Exception('Could not read uploaded file: '.$e->getMessage()."\n\n".$debugOutput);
+                } catch (Exception $e) {
+                    throw new Exception('Could not read uploaded file: '.$e->getMessage()."\n\n".$debugOutput);
                 }
             } else {
-                throw new \Exception('No schema file was uploaded');
+                throw new Exception('No schema file was uploaded');
             }
 
             // Validate it's a SQL file
             if (! $this->isValidSqlContent($schemaContent)) {
-                throw new \Exception('Invalid SQL content detected');
+                throw new Exception('Invalid SQL content detected');
             }
 
             // Execute schema merge using PDO (same approach as backup service restore)
             try {
                 // Get database connection
                 $config = config('database.connections.mysql');
-                $pdo = new \PDO(
+                $pdo = new PDO(
                     "mysql:host={$config['host']};port={$config['port']};dbname={$config['database']};charset={$config['charset']}",
                     $config['username'],
                     $config['password'],
-                    [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
+                    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
                 );
 
                 // Configure for schema merge
@@ -1154,7 +1200,7 @@ class DatabaseConsole extends Page
 
                             $pdo->exec($statement);
                             $successCount++;
-                        } catch (\Exception $e) {
+                        } catch (Exception $e) {
                             $failCount++;
                             $errorMsg = $e->getMessage();
                             $stmtPreview = substr($statement, 0, 200).'...';
@@ -1170,16 +1216,16 @@ class DatabaseConsole extends Page
 
                 // Check for significant failures (be more lenient for data merges)
                 if ($successCount === 0) {
-                    throw new \Exception('No SQL statements succeeded. First error: '.($errors[0] ?? 'Unknown error'));
+                    throw new Exception('No SQL statements succeeded. First error: '.($errors[0] ?? 'Unknown error'));
                 } elseif ($failCount > 0 && $successCount < ($failCount * 0.2)) {
                     // Only fail if less than 20% succeeded (most likely a real issue)
-                    throw new \Exception("Too many statements failed ({$failCount}) compared to succeeded ({$successCount}). First error: ".($errors[0] ?? 'Unknown error'));
+                    throw new Exception("Too many statements failed ({$failCount}) compared to succeeded ({$successCount}). First error: ".($errors[0] ?? 'Unknown error'));
                 }
 
                 $returnCode = 0; // Success
                 $output = ["Schema merge completed: {$successCount} successful, {$failCount} failed statements"];
 
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $returnCode = 1; // Failure
                 $output = ['Schema merge failed: '.$e->getMessage()];
             }
@@ -1188,13 +1234,13 @@ class DatabaseConsole extends Page
             if ($filePath) {
                 try {
                     Storage::delete($filePath);
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     // Ignore cleanup errors
                 }
             }
 
             if ($returnCode !== 0) {
-                throw new \Exception('Schema merge failed: '.implode("\n", $output));
+                throw new Exception('Schema merge failed: '.implode("\n", $output));
             }
 
             // Log the merge activity
@@ -1214,7 +1260,7 @@ class DatabaseConsole extends Page
                 ->duration(8000)
                 ->send();
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Schema merge failed', [
                 'error' => $e->getMessage(),
                 'file' => $data['schema_file'] ?? null,

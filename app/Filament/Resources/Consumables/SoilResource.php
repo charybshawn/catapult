@@ -2,6 +2,9 @@
 
 namespace App\Filament\Resources\Consumables;
 
+use Filament\Forms\Components\TextInput;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use App\Filament\Resources\ConsumableResourceBase;
 use App\Models\ConsumableType;
 use App\Models\Consumable;
@@ -17,7 +20,7 @@ class SoilResource extends ConsumableResourceBase
     protected static ?string $navigationLabel = 'Soil & Growing Media';
     protected static ?string $pluralLabel = 'Soil & Growing Media';
     protected static ?string $modelLabel = 'Soil/Growing Media';
-    protected static ?string $navigationIcon = 'heroicon-o-cube-transparent';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-cube-transparent';
     protected static ?int $navigationSort = 4;
 
     public static function getConsumableTypeCode(): string
@@ -32,7 +35,7 @@ class SoilResource extends ConsumableResourceBase
             FormCommon::supplierSelect(),
             
             // Text input for soil name with autocomplete
-            Forms\Components\TextInput::make('name')
+            TextInput::make('name')
                 ->label('Soil/Media Name')
                 ->required()
                 ->maxLength(255)
@@ -54,7 +57,7 @@ class SoilResource extends ConsumableResourceBase
     protected static function getTypeSpecificTableColumns(): array
     {
         return [
-            Tables\Columns\TextColumn::make('quantity_per_unit')
+            TextColumn::make('quantity_per_unit')
                 ->label('Unit Size')
                 ->formatStateUsing(fn($state, $record) => $state ? "{$state} {$record->quantity_unit}" : '-')
                 ->sortable()
@@ -65,7 +68,7 @@ class SoilResource extends ConsumableResourceBase
     protected static function getTypeSpecificFilters(): array
     {
         return [
-            Tables\Filters\SelectFilter::make('quantity_unit')
+            SelectFilter::make('quantity_unit')
                 ->label('Unit of Measurement')
                 ->options([
                     'l' => 'Liters',

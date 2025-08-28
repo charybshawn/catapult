@@ -2,43 +2,73 @@
 
 namespace App\Filament\Resources\SeedEntryResource\Forms;
 
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Grid;
+use Filament\Forms\Components\Select;
+use App\Models\SeedEntry;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TagsInput;
+use Filament\Schemas\Components\Group;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\ViewField;
 use App\Filament\Resources\BaseResource;
 use Filament\Forms;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
 
+/**
+ * Seed entry form schema for agricultural seed catalog management.
+ * Provides comprehensive form configuration for managing seed varieties, supplier information,
+ * pricing variations, and agricultural metadata supporting microgreens production operations.
+ *
+ * @business_domain Agricultural seed catalog and supplier management
+ * @form_architecture Extracted from SeedEntryResource following Filament guidelines
+ * @seed_identification Common name and cultivar selection with dynamic filtering
+ * @supplier_integration Supplier management with inline creation and SKU tracking
+ * @pricing_variations Multiple size/weight options with agricultural pricing context
+ * @metadata_management Tags, descriptions, and images for comprehensive seed information
+ */
 class SeedEntryForm
 {
     /**
-     * Returns Filament form schema for SeedEntry
+     * Returns comprehensive seed entry form schema for agricultural seed catalog management.
+     * Provides structured sections for seed identification, supplier information, metadata,
+     * and pricing variations to support complete microgreens production seed management.
+     *
+     * @seed_identification Common name and cultivar selection with agricultural context
+     * @supplier_management Comprehensive supplier information and product linking
+     * @pricing_structure Multiple variations for different package sizes and weights
+     * @agricultural_metadata Tags, descriptions, and images for production planning
+     * @return array Complete form schema array for seed entry management
      */
     public static function schema(): array
     {
         return [
-            Forms\Components\Section::make('Seed Identification')
+            Section::make('Seed Identification')
                 ->description('Identify the seed type and variety. Both common name and cultivar are required.')
                 ->icon('heroicon-o-identification')
                 ->schema([
-                    Forms\Components\Grid::make(2)
+                    Grid::make(2)
                         ->schema([
                             static::getCommonNameField(),
                             static::getCultivarNameField(),
                         ]),
                 ]),
 
-            Forms\Components\Section::make('Supplier Information')
+            Section::make('Supplier Information')
                 ->description('Specify the supplier and their product details.')
                 ->icon('heroicon-o-building-storefront')
                 ->schema([
                     static::getSupplierField(),
-                    Forms\Components\Grid::make(2)
+                    Grid::make(2)
                         ->schema([
                             static::getSupplierSkuField(),
                             static::getUrlField(),
                         ]),
                 ]),
 
-            Forms\Components\Section::make('Additional Details')
+            Section::make('Additional Details')
                 ->description('Optional information to enhance the seed entry.')
                 ->icon('heroicon-o-document-text')
                 ->schema([
@@ -51,12 +81,12 @@ class SeedEntryForm
         ];
     }
 
-    protected static function getCommonNameField(): Forms\Components\Select
+    protected static function getCommonNameField(): Select
     {
-        return Forms\Components\Select::make('common_name')
+        return Select::make('common_name')
             ->label('Common Name')
             ->options(function () {
-                return \App\Models\SeedEntry::whereNotNull('common_name')
+                return SeedEntry::whereNotNull('common_name')
                     ->where('common_name', '<>', '')
                     ->distinct()
                     ->orderBy('common_name')
@@ -72,22 +102,22 @@ class SeedEntryForm
             ->createOptionUsing(function (array $data): string {
                 return $data['common_name'];
             })
-            ->live(onBlur: true)()
+            ->live(onBlur: true)
             ->afterStateUpdated(function ($state, Set $set) {
                 // When common name changes, filter cultivar options
                 $set('cultivar_name', null); // Reset cultivar selection
             });
     }
 
-    protected static function getCultivarNameField(): Forms\Components\Select
+    protected static function getCultivarNameField(): Select
     {
-        return Forms\Components\Select::make('cultivar_name')
+        return Select::make('cultivar_name')
             ->required()
             ->label('Cultivar Name')
             ->options(function (Get $get) {
                 $commonName = $get('common_name');
 
-                $query = \App\Models\SeedEntry::whereNotNull('cultivar_name')
+                $query = SeedEntry::whereNotNull('cultivar_name')
                     ->where('cultivar_name', '<>', '');
 
                 if ($commonName) {
@@ -117,9 +147,9 @@ class SeedEntryForm
             ->helperText('Cultivar options will filter based on your common name selection');
     }
 
-    protected static function getSupplierField(): Forms\Components\Select
+    protected static function getSupplierField(): Select
     {
-        return Forms\Components\Select::make('supplier_id')
+        return Select::make('supplier_id')
             ->label('Supplier')
             ->relationship('supplier', 'name')
             ->required()
@@ -127,26 +157,26 @@ class SeedEntryForm
             ->preload()
             ->createOptionForm([
                 BaseResource::getNameField(),
-                Forms\Components\TextInput::make('website')
+                TextInput::make('website')
                     ->url()
                     ->maxLength(255),
-                Forms\Components\Textarea::make('notes')
+                Textarea::make('notes')
                     ->maxLength(65535),
             ]);
     }
 
-    protected static function getSupplierSkuField(): Forms\Components\TextInput
+    protected static function getSupplierSkuField(): TextInput
     {
-        return Forms\Components\TextInput::make('supplier_sku')
+        return TextInput::make('supplier_sku')
             ->maxLength(255)
             ->label('Supplier SKU')
             ->placeholder('e.g., BSL-001, BASIL-25G')
             ->helperText('Supplier\'s product code or identifier');
     }
 
-    protected static function getUrlField(): Forms\Components\TextInput
+    protected static function getUrlField(): TextInput
     {
-        return Forms\Components\TextInput::make('url')
+        return TextInput::make('url')
             ->url()
             ->maxLength(255)
             ->label('Product URL')
@@ -154,9 +184,9 @@ class SeedEntryForm
             ->helperText('Link to supplier\'s product page');
     }
 
-    protected static function getImageUrlField(): Forms\Components\TextInput
+    protected static function getImageUrlField(): TextInput
     {
-        return Forms\Components\TextInput::make('image_url')
+        return TextInput::make('image_url')
             ->url()
             ->maxLength(255)
             ->label('Image URL')
@@ -164,32 +194,43 @@ class SeedEntryForm
             ->helperText('URL to product image');
     }
 
-    protected static function getDescriptionField(): Forms\Components\Textarea
+    protected static function getDescriptionField(): Textarea
     {
-        return Forms\Components\Textarea::make('description')
+        return Textarea::make('description')
             ->maxLength(65535)
             ->rows(3)
             ->placeholder('Optional description of this seed variety...')
             ->columnSpanFull();
     }
 
-    protected static function getTagsField(): Forms\Components\TagsInput
+    protected static function getTagsField(): TagsInput
     {
-        return Forms\Components\TagsInput::make('tags')
+        return TagsInput::make('tags')
             ->placeholder('organic, heirloom, fast-growing')
             ->helperText('Add tags to categorize this seed')
             ->columnSpanFull();
     }
 
-    protected static function getSeedVariationsSection(): Forms\Components\Section
+    /**
+     * Seed variations section for agricultural pricing and package management.
+     * Provides comprehensive variation management for different seed package sizes,
+     * weights, and pricing options to support diverse microgreens production needs.
+     *
+     * @pricing_variations Multiple package sizes with agricultural pricing context
+     * @create_edit_modes Different UI presentation for creation vs editing workflows
+     * @package_management Size, weight, and availability options for production planning
+     * @agricultural_context Variations tailored for microgreens production requirements
+     * @return Section Seed variations and pricing configuration section
+     */
+    protected static function getSeedVariationsSection(): Section
     {
-        return Forms\Components\Section::make('Seed Variations & Pricing')
+        return Section::make('Seed Variations & Pricing')
             ->description('Manage different sizes, weights, and pricing options for this seed entry.')
             ->schema([
                 // Show different UI for create vs edit mode (following ProductResource pattern)
-                Forms\Components\Group::make([
+                Group::make([
                     // For create mode: show simple info message
-                    Forms\Components\Placeholder::make('create_mode_info')
+                    Placeholder::make('create_mode_info')
                         ->label('Price Variations')
                         ->content('Save the seed entry first, then you can add price variations for different sizes and weights.')
                         ->extraAttributes(['class' => 'text-sm text-gray-600'])
@@ -201,10 +242,10 @@ class SeedEntryForm
                         }),
 
                     // For edit mode: show the full variations management
-                    Forms\Components\Group::make([
-                        Forms\Components\Grid::make(2)
+                    Group::make([
+                        Grid::make(2)
                             ->schema([
-                                Forms\Components\Placeholder::make('variations_count')
+                                Placeholder::make('variations_count')
                                     ->label('Seed Variations')
                                     ->content(function ($record) {
                                         if (! $record) {
@@ -215,7 +256,7 @@ class SeedEntryForm
 
                                         return "{$activeCount} available / {$count} total";
                                     }),
-                                Forms\Components\Placeholder::make('default_variation_display')
+                                Placeholder::make('default_variation_display')
                                     ->label('Primary Variation')
                                     ->content(function ($record) {
                                         if (! $record) {
@@ -228,7 +269,7 @@ class SeedEntryForm
                                             : 'No variations created';
                                     }),
                             ]),
-                        Forms\Components\Placeholder::make('variations_info')
+                        Placeholder::make('variations_info')
                             ->content(function ($record) {
                                 $content = 'Seed variations allow you to offer different package sizes, weights, and prices for the same seed type.';
 
@@ -243,7 +284,7 @@ class SeedEntryForm
                             })
                             ->columnSpanFull()
                             ->extraAttributes(['class' => 'prose']),
-                        Forms\Components\ViewField::make('seed_variations_panel')
+                        ViewField::make('seed_variations_panel')
                             ->view('filament.resources.seed-entry-resource.partials.seed-variations')
                             ->columnSpanFull(),
                     ])->visible(function ($livewire) {

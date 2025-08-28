@@ -2,6 +2,9 @@
 
 namespace App\Filament\Resources\ProductResource\Pages;
 
+use Filament\Actions\ViewAction;
+use Filament\Actions\DeleteAction;
+use Exception;
 use App\Filament\Resources\ProductResource;
 use App\Filament\Pages\Base\BaseEditRecord;
 use App\Models\PriceVariation;
@@ -18,8 +21,8 @@ class EditProduct extends BaseEditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\ViewAction::make(),
-            Actions\DeleteAction::make(),
+            ViewAction::make(),
+            DeleteAction::make(),
         ];
     }
     
@@ -373,7 +376,7 @@ class EditProduct extends BaseEditRecord
                 ->success()
                 ->send();
                 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Notification::make()
                 ->title('Error deleting variation')
                 ->body('An error occurred while deleting the price variation.')

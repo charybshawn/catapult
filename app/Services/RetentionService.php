@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Exception;
 use App\Models\Activity;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -114,7 +115,7 @@ class RetentionService
     public function restoreFromArchive(string $filename): int
     {
         if (!Storage::exists($filename)) {
-            throw new \Exception("Archive file not found: {$filename}");
+            throw new Exception("Archive file not found: {$filename}");
         }
 
         // Read and decompress the file
@@ -123,7 +124,7 @@ class RetentionService
         $data = json_decode($json, true);
 
         if (!$data) {
-            throw new \Exception("Invalid archive file format");
+            throw new Exception("Invalid archive file format");
         }
 
         $restored = 0;

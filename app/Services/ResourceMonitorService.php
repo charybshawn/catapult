@@ -11,13 +11,33 @@ use App\Notifications\ResourceActionRequired;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 
+/**
+ * Agricultural resource monitoring and automated task processing service.
+ * 
+ * Manages critical agricultural inventory monitoring, crop stage transitions,
+ * and automated notifications for resource management. Processes scheduled
+ * tasks to ensure continuous operation of agricultural systems including
+ * consumable stock levels, crop lifecycle management, and operational alerts.
+ *
+ * @business_domain Agricultural resource monitoring and automation
+ * @related_services CropTaskManagementService, NotificationSetting
+ * @used_by Scheduled task system, automated monitoring, resource alerts
+ * @agricultural_context Prevents disruption of agricultural operations through proactive monitoring
+ */
 class ResourceMonitorService
 {
     /**
-     * Process a scheduled task.
+     * Process a scheduled agricultural resource monitoring task.
+     * 
+     * Central dispatcher for various resource monitoring tasks including
+     * consumable inventory checks, crop stage transitions, order monitoring,
+     * and product availability alerts. Ensures agricultural operations
+     * continue smoothly through automated resource management.
      *
-     * @param TaskSchedule $task
-     * @return array
+     * @param TaskSchedule $task The scheduled task to process
+     * @return array Processing result with success status and message
+     * @agricultural_context Supports automated agricultural workflow management
+     * @supported_types consumables, crops, orders, products, invoices
      */
     public function processTask(TaskSchedule $task): array
     {
@@ -36,10 +56,16 @@ class ResourceMonitorService
     }
     
     /**
-     * Process a consumables task.
+     * Process agricultural consumable inventory monitoring tasks.
+     * 
+     * Handles automated monitoring of agricultural supplies including seeds,
+     * soil amendments, nutrients, packaging materials, and other consumables
+     * essential for continuous agricultural production.
      *
-     * @param TaskSchedule $task
-     * @return array
+     * @param TaskSchedule $task The consumables task to process
+     * @return array Processing result including items monitored
+     * @agricultural_context Prevents production delays due to supply shortages
+     * @supported_tasks check_low_stock
      */
     protected function processConsumablesTask(TaskSchedule $task): array
     {
@@ -55,10 +81,17 @@ class ResourceMonitorService
     }
     
     /**
-     * Check for low stock consumable items.
+     * Monitor consumable inventory levels and trigger restock notifications.
+     * 
+     * Identifies agricultural supplies that have reached restock thresholds
+     * or are completely out of stock. Sends automated notifications to
+     * farm managers to prevent production interruptions due to supply shortages.
      *
-     * @param TaskSchedule $task
-     * @return array
+     * @param TaskSchedule $task The low stock monitoring task configuration
+     * @return array Processing results including notification counts
+     * @agricultural_context Critical for maintaining continuous agricultural production
+     * @notifications Sends email alerts with direct links to filtered inventory views
+     * @thresholds Uses consumable-specific restock_threshold values
      */
     protected function checkLowStockConsumables(TaskSchedule $task): array
     {
@@ -151,10 +184,17 @@ class ResourceMonitorService
     }
     
     /**
-     * Process a crops task.
+     * Process automated crop lifecycle and stage transition tasks.
+     * 
+     * Handles scheduled agricultural crop operations including automated
+     * stage transitions (soaking to germinating, growing to ready),
+     * crop health monitoring, and harvest scheduling. Delegates complex
+     * crop operations to specialized crop management services.
      *
-     * @param TaskSchedule $task
-     * @return array
+     * @param TaskSchedule $task The crop management task to process
+     * @return array Processing result from crop task management
+     * @agricultural_context Automates time-sensitive crop lifecycle operations
+     * @delegation Uses CropTaskManagementService for complex crop operations
      */
     protected function processCropsTask(TaskSchedule $task): array
     {
@@ -171,10 +211,16 @@ class ResourceMonitorService
     }
     
     /**
-     * Process an orders task.
+     * Process agricultural order monitoring and management tasks.
+     * 
+     * Handles automated order processing tasks including delivery reminders,
+     * recurring order generation, invoice preparation, and customer
+     * communication automation. Currently a placeholder for future implementation.
      *
-     * @param TaskSchedule $task
-     * @return array
+     * @param TaskSchedule $task The order task to process
+     * @return array Processing result (currently not implemented)
+     * @todo Implement order automation tasks
+     * @agricultural_context Will automate customer order lifecycle management
      */
     protected function processOrdersTask(TaskSchedule $task): array
     {
@@ -186,10 +232,16 @@ class ResourceMonitorService
     }
     
     /**
-     * Process a products task.
+     * Process agricultural product monitoring and availability tasks.
+     * 
+     * Handles automated product management including inventory level monitoring,
+     * price update notifications, seasonal availability updates, and
+     * product catalog maintenance. Currently a placeholder for future implementation.
      *
-     * @param TaskSchedule $task
-     * @return array
+     * @param TaskSchedule $task The product task to process
+     * @return array Processing result (currently not implemented)
+     * @todo Implement product monitoring tasks
+     * @agricultural_context Will automate product catalog and availability management
      */
     protected function processProductsTask(TaskSchedule $task): array
     {
@@ -201,10 +253,16 @@ class ResourceMonitorService
     }
     
     /**
-     * Process an invoices task.
+     * Process agricultural invoice and billing automation tasks.
+     * 
+     * Handles automated invoice processing including consolidated invoice
+     * generation, payment reminders, overdue account notifications, and
+     * billing cycle management. Currently a placeholder for future implementation.
      *
-     * @param TaskSchedule $task
-     * @return array
+     * @param TaskSchedule $task The invoice task to process
+     * @return array Processing result (currently not implemented)
+     * @todo Implement invoice automation tasks
+     * @agricultural_context Will automate customer billing and payment processes
      */
     protected function processInvoicesTask(TaskSchedule $task): array
     {

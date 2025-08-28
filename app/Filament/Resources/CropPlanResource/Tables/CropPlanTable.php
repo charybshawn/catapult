@@ -2,6 +2,18 @@
 
 namespace App\Filament\Resources\CropPlanResource\Tables;
 
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\BadgeColumn;
+use Filament\Tables\Columns\Summarizers\Sum;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\Filter;
+use Filament\Actions\Action;
+use Filament\Actions\ViewAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\BulkAction;
+use Filament\Tables\Grouping\Group;
 use Filament\Tables;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
@@ -11,44 +23,93 @@ use App\Actions\CropPlan\RecalculateCropPlanAction;
 use App\Actions\CropPlan\ApproveCropPlanAction;
 
 /**
- * Table component for CropPlan resource following Filament Resource Architecture Guide
- * Returns Filament table components - organized Filament components, not custom table system
+ * Table configuration class for agricultural crop planning interface with
+ * production timeline visualization, resource summaries, and workflow management.
+ *
+ * This class handles sophisticated table presentation for crop planning management,
+ * including timeline urgency indicators, resource aggregation, workflow actions,
+ * and agricultural production coordination features. Supports both detailed list
+ * views and calendar-based planning interfaces.
+ *
+ * @filament_table_class Dedicated table builder for CropPlanResource
+ * @business_domain Agricultural production planning and timeline coordination
+ * @agricultural_concepts Plan timelines, resource requirements, production urgency
+ * 
+ * @table_features
+ * - Timeline visualization with urgency indicators (days until planting)
+ * - Resource summaries with totals for trays and grams needed
+ * - Missing recipe detection with workflow integration
+ * - Customer and order context for production coordination
+ * - Status indicators with agricultural workflow color coding
+ * 
+ * @agricultural_intelligence
+ * - Automatic urgency calculation with color-coded deadline warnings
+ * - Resource aggregation supporting production capacity planning
+ * - Timeline grouping for efficient production scheduling
+ * - Variety grouping for cultivation coordination and efficiency
+ * 
+ * @workflow_integration
+ * - Approval actions with agricultural validation and business rules
+ * - Recipe creation workflow for completing missing cultivation instructions
+ * - Bulk operations for production scheduling efficiency
+ * - Plan generation automation for order-driven production planning
+ * 
+ * @production_management
+ * - Overdue and urgent filtering for critical production deadlines
+ * - Status-based filtering for workflow state management
+ * - Missing recipe filtering for cultivation workflow completion
+ * - Resource summaries supporting production capacity analysis
+ * 
+ * @performance_optimization
+ * - Eager loading of complex relationships prevents N+1 queries
+ * - Efficient grouping and summarization for large production datasets
+ * - Optimized urgency calculations with cached date comparisons
+ * - Session persistence for production workflow continuity
  */
 class CropPlanTable
 {
     /**
-     * Returns Filament table columns array
+     * Get table columns optimized for agricultural production planning display.
+     *
+     * Provides comprehensive column set showing essential production planning
+     * information including timelines, resource requirements, urgency indicators,
+     * and workflow status needed for effective agricultural production coordination.
+     *
+     * @return array Column definitions with agricultural production context
+     * @agricultural_display Timeline urgency, resource summaries, variety information
+     * @business_intelligence Customer context, order linkage, production requirements
+     * @workflow_visualization Status indicators and approval tracking
      */
     public static function columns(): array
     {
         return [
-            Tables\Columns\TextColumn::make('id')
+            TextColumn::make('id')
                 ->label('Plan #')
                 ->sortable(),
 
-            Tables\Columns\TextColumn::make('order.id')
+            TextColumn::make('order.id')
                 ->label('Order')
                 ->formatStateUsing(fn ($record) => $record->order ? "#{$record->order->id}" : "#{$record->order_id}")
                 ->url(fn ($record) => $record->order_id ? route('filament.admin.resources.orders.edit', $record->order_id) : null)
                 ->sortable(),
 
-            Tables\Columns\TextColumn::make('order.customer.contact_name')
+            TextColumn::make('order.customer.contact_name')
                 ->label('Customer')
                 ->formatStateUsing(fn ($record) => $record->order?->customer?->contact_name ?? 'Unknown')
                 ->searchable()
                 ->sortable(),
             
-            Tables\Columns\TextColumn::make('variety.common_name')
+            TextColumn::make('variety.common_name')
                 ->label('Variety')
                 ->searchable()
                 ->sortable(),
             
-            Tables\Columns\TextColumn::make('recipe.cultivar_name')
+            TextColumn::make('recipe.cultivar_name')
                 ->label('Cultivar')
                 ->searchable()
                 ->sortable(),
 
-            Tables\Columns\TextColumn::make('recipe.name')
+            TextColumn::make('recipe.name')
                 ->label('Recipe')
                 ->searchable()
                 ->sortable()
@@ -57,31 +118,31 @@ class CropPlanTable
                 ->weight(fn ($record) => $record->is_missing_recipe ? 'bold' : 'normal')
                 ->description(fn ($record) => $record->is_missing_recipe ? $record->missing_recipe_notes : null),
 
-            Tables\Columns\BadgeColumn::make('status.name')
+            BadgeColumn::make('status.name')
                 ->label('Status')
                 ->getStateUsing(fn ($record) => $record->is_missing_recipe ? 'Incomplete' : $record->status?->name)
                 ->color(fn ($record) => $record->is_missing_recipe ? 'danger' : ($record->status?->color ?? 'gray'))
                 ->sortable(),
 
-            Tables\Columns\TextColumn::make('trays_needed')
+            TextColumn::make('trays_needed')
                 ->label('Trays')
                 ->numeric()
                 ->sortable()
-                ->summarize(Tables\Columns\Summarizers\Sum::make()),
+                ->summarize(Sum::make()),
                 
-            Tables\Columns\TextColumn::make('grams_needed')
+            TextColumn::make('grams_needed')
                 ->label('Grams')
                 ->numeric()
                 ->formatStateUsing(fn ($state) => number_format($state, 1) . 'g')
                 ->sortable()
-                ->summarize(Tables\Columns\Summarizers\Sum::make()),
+                ->summarize(Sum::make()),
 
-            Tables\Columns\TextColumn::make('plant_by_date')
+            TextColumn::make('plant_by_date')
                 ->label('Plant By')
                 ->date()
                 ->sortable(),
 
-            Tables\Columns\TextColumn::make('days_until_planting')
+            TextColumn::make('days_until_planting')
                 ->label('Days Until')
                 ->getStateUsing(fn ($record) => $record->days_until_planting)
                 ->color(fn ($state) => match (true) {
@@ -91,7 +152,7 @@ class CropPlanTable
                 })
                 ->weight(fn ($state) => $state <= 2 ? 'bold' : 'normal'),
 
-            Tables\Columns\TextColumn::make('created_at')
+            TextColumn::make('created_at')
                 ->label('Created')
                 ->dateTime()
                 ->sortable()
@@ -100,36 +161,54 @@ class CropPlanTable
     }
 
     /**
-     * Returns Filament table filters array
+     * Get table filters for agricultural production workflow management.
+     *
+     * Provides essential filtering capabilities for production planning including
+     * status-based workflow filtering, urgency-based deadline management, and
+     * missing recipe identification for cultivation workflow completion.
+     *
+     * @return array Filter definitions with agricultural production workflow context
+     * @agricultural_filtering Status, urgency, and timeline-based production filtering
+     * @business_workflow Missing recipe and deadline management filtering
+     * @production_coordination Efficient filtering for large production planning datasets
      */
     public static function filters(): array
     {
         return [
-            Tables\Filters\SelectFilter::make('status_id')
+            SelectFilter::make('status_id')
                 ->label('Status')
                 ->relationship('status', 'name'),
 
-            Tables\Filters\Filter::make('urgent')
+            Filter::make('urgent')
                 ->label('Urgent (Plant within 2 days)')
                 ->query(fn (Builder $query) => $query->where('plant_by_date', '<=', now()->addDays(2))),
 
-            Tables\Filters\Filter::make('overdue')
+            Filter::make('overdue')
                 ->label('Overdue')
                 ->query(fn (Builder $query) => $query->where('plant_by_date', '<', now())),
 
-            Tables\Filters\Filter::make('missing_recipe')
+            Filter::make('missing_recipe')
                 ->label('Missing Recipe')
                 ->query(fn (Builder $query) => $query->where('is_missing_recipe', true)),
         ];
     }
 
     /**
-     * Returns Filament header actions array
+     * Get header actions for automated crop plan generation and management.
+     *
+     * Provides essential header actions for production planning automation including
+     * bulk crop plan generation from orders and agricultural planning workflow
+     * coordination with comprehensive result reporting.
+     *
+     * @return array Header action definitions with agricultural automation features
+     * @agricultural_automation Bulk plan generation from order analysis
+     * @business_efficiency Automated production planning for order fulfillment
+     * @workflow_integration Modal-based result reporting with generation details
      */
     public static function headerActions(): array
     {
         return [
-            Tables\Actions\Action::make('generate_crop_plans')
+            Action::make('generate_crop_plans')
                 ->label('Generate Crop Plans')
                 ->icon('heroicon-o-arrow-path')
                 ->color('primary')
@@ -148,12 +227,21 @@ class CropPlanTable
     }
 
     /**
-     * Returns Filament table actions array
+     * Get row-level actions for crop plan workflow management and coordination.
+     *
+     * Provides comprehensive actions for individual crop plan management including
+     * approval workflows, recalculation with updated data, crop generation,
+     * and recipe creation integration for complete production planning.
+     *
+     * @return array Action definitions with agricultural workflow integration
+     * @agricultural_actions Approval, recalculation, crop generation workflows
+     * @business_operations Recipe creation, plan validation, production coordination
+     * @workflow_integration Status-based action visibility with agricultural context
      */
     public static function actions(): array
     {
         return [
-            Tables\Actions\Action::make('approve')
+            Action::make('approve')
                 ->label('Approve')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
@@ -176,7 +264,7 @@ class CropPlanTable
                 })
                 ->requiresConfirmation(),
 
-            Tables\Actions\Action::make('recalculate')
+            Action::make('recalculate')
                 ->label('Recalculate with Latest Harvest Data')
                 ->icon('heroicon-o-calculator')
                 ->color('warning')
@@ -201,7 +289,7 @@ class CropPlanTable
                 ->requiresConfirmation()
                 ->modalDescription('This will update the crop plan using the latest harvest data and current buffer settings.'),
 
-            Tables\Actions\Action::make('generate_crops')
+            Action::make('generate_crops')
                 ->label('Generate Crops')
                 ->icon('heroicon-o-plus-circle')
                 ->color('primary')
@@ -214,7 +302,7 @@ class CropPlanTable
                         ->send();
                 }),
 
-            Tables\Actions\Action::make('create_recipe')
+            Action::make('create_recipe')
                 ->label('Create Recipe')
                 ->icon('heroicon-o-plus-circle')
                 ->color('warning')
@@ -222,21 +310,30 @@ class CropPlanTable
                 ->url(fn ($record) => '/admin/recipes/create?variety=' . $record->variety_id)
                 ->openUrlInNewTab(),
 
-            Tables\Actions\ViewAction::make(),
-            Tables\Actions\EditAction::make(),
+            ViewAction::make(),
+            EditAction::make(),
         ];
     }
 
     /**
-     * Returns Filament bulk actions array
+     * Get bulk operations for efficient crop plan workflow management.
+     *
+     * Provides efficient bulk operations for production planning including
+     * bulk approval workflows and batch deletion with appropriate agricultural
+     * validation and business rule enforcement.
+     *
+     * @return array Bulk action definitions with agricultural workflow efficiency
+     * @agricultural_efficiency Bulk approval for production authorization
+     * @business_operations Batch processing for large production planning datasets
+     * @workflow_coordination Efficient approval workflows for production scheduling
      */
     public static function bulkActions(): array
     {
         return [
-            Tables\Actions\BulkActionGroup::make([
-                Tables\Actions\DeleteBulkAction::make(),
+            BulkActionGroup::make([
+                DeleteBulkAction::make(),
 
-                Tables\Actions\BulkAction::make('approve_selected')
+                BulkAction::make('approve_selected')
                     ->label('Approve Selected')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
@@ -262,19 +359,28 @@ class CropPlanTable
     }
 
     /**
-     * Returns Filament table groups array
+     * Get table grouping options for agricultural production organization.
+     *
+     * Provides intelligent grouping capabilities for production planning including
+     * variety-based cultivation coordination, timeline-based production scheduling,
+     * and harvest-based fulfillment organization.
+     *
+     * @return array Group definitions with agricultural production organization
+     * @agricultural_organization Variety grouping for cultivation coordination
+     * @production_scheduling Timeline grouping for efficient production planning
+     * @harvest_coordination Date-based grouping for fulfillment scheduling
      */
     public static function groups(): array
     {
         return [
-            Tables\Grouping\Group::make('variety.common_name')
+            Group::make('variety.common_name')
                 ->label('Variety')
                 ->collapsible(),
-            Tables\Grouping\Group::make('plant_by_date')
+            Group::make('plant_by_date')
                 ->label('Plant Date')
                 ->date()
                 ->collapsible(),
-            Tables\Grouping\Group::make('expected_harvest_date')
+            Group::make('expected_harvest_date')
                 ->label('Harvest Date')
                 ->date()
                 ->collapsible(),
@@ -282,7 +388,17 @@ class CropPlanTable
     }
 
     /**
-     * Configure table query modifications
+     * Configure query optimizations for agricultural production planning display.
+     *
+     * Implements eager loading strategies to prevent N+1 queries when displaying
+     * crop planning information including orders, customers, recipes, and approval
+     * tracking. Essential for performance with large production planning datasets.
+     *
+     * @param Builder $query Base Eloquent query builder
+     * @return Builder Optimized query with agricultural relationship eager loading
+     * @performance_optimization Prevents N+1 queries for related production data
+     * @relationship_loading Orders, customers, recipes, approval tracking
+     * @agricultural_efficiency Optimized display of complex production relationships
      */
     public static function modifyQuery(Builder $query): Builder
     {

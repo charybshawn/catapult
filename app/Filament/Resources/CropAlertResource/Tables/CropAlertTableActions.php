@@ -2,6 +2,15 @@
 
 namespace App\Filament\Resources\CropAlertResource\Tables;
 
+use Filament\Actions\ActionGroup;
+use Filament\Actions\ViewAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\Action;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Actions\BulkAction;
 use App\Actions\CropAlert\DebugCropAlert;
 use App\Actions\CropAlert\ExecuteCropAlert;
 use App\Actions\CropAlert\RescheduleCropAlert;
@@ -18,15 +27,15 @@ class CropAlertTableActions
     public static function actions(): array
     {
         return [
-            Tables\Actions\ActionGroup::make([
-                Tables\Actions\ViewAction::make()
+            ActionGroup::make([
+                ViewAction::make()
                     ->tooltip('View record'),
-                Tables\Actions\EditAction::make()
+                EditAction::make()
                     ->tooltip('Edit record'),
                 static::getDebugAction(),
                 static::getExecuteNowAction(),
                 static::getRescheduleAction(),
-                Tables\Actions\DeleteAction::make()
+                DeleteAction::make()
                     ->tooltip('Delete record')
                     ->modalDescription('Are you sure you want to delete this alert? This will stop the automatic stage transition alerts for this crop.'),
             ])
@@ -44,9 +53,9 @@ class CropAlertTableActions
     public static function bulkActions(): array
     {
         return [
-            Tables\Actions\BulkActionGroup::make([
+            BulkActionGroup::make([
                 static::getExecuteSelectedBulkAction(),
-                Tables\Actions\DeleteBulkAction::make()
+                DeleteBulkAction::make()
                     ->modalDescription('Are you sure you want to delete these alerts? This will stop the automatic stage transition alerts for these crops.'),
             ]),
         ];
@@ -55,9 +64,9 @@ class CropAlertTableActions
     /**
      * Debug action for troubleshooting alerts
      */
-    protected static function getDebugAction(): Tables\Actions\Action
+    protected static function getDebugAction(): Action
     {
-        return Tables\Actions\Action::make('debug')
+        return Action::make('debug')
             ->label('Debug Info')
             ->icon('heroicon-o-code-bracket')
             ->tooltip('Debug Info')
@@ -69,7 +78,7 @@ class CropAlertTableActions
                     ->body($debugInfo['html'])
                     ->persistent()
                     ->actions([
-                        \Filament\Notifications\Actions\Action::make('close')
+                        Action::make('close')
                             ->label('Close')
                             ->color('gray')
                     ])
@@ -80,9 +89,9 @@ class CropAlertTableActions
     /**
      * Execute now action for immediate processing
      */
-    protected static function getExecuteNowAction(): Tables\Actions\Action
+    protected static function getExecuteNowAction(): Action
     {
-        return Tables\Actions\Action::make('execute_now')
+        return Action::make('execute_now')
             ->label('Execute Now')
             ->icon('heroicon-o-bolt')
             ->action(function (CropAlert $record) {
@@ -110,13 +119,13 @@ class CropAlertTableActions
     /**
      * Reschedule action for changing alert timing
      */
-    protected static function getRescheduleAction(): Tables\Actions\Action
+    protected static function getRescheduleAction(): Action
     {
-        return Tables\Actions\Action::make('reschedule')
+        return Action::make('reschedule')
             ->label('Reschedule')
             ->icon('heroicon-o-calendar-days')
-            ->form([
-                Forms\Components\DateTimePicker::make('new_time')
+            ->schema([
+                DateTimePicker::make('new_time')
                     ->label('New time')
                     ->required()
                     ->default(function (CropAlert $record) {
@@ -137,9 +146,9 @@ class CropAlertTableActions
     /**
      * Bulk action for executing multiple alerts
      */
-    protected static function getExecuteSelectedBulkAction(): Tables\Actions\BulkAction
+    protected static function getExecuteSelectedBulkAction(): BulkAction
     {
-        return Tables\Actions\BulkAction::make('execute_selected')
+        return BulkAction::make('execute_selected')
             ->label('Execute Selected')
             ->action(function ($records) {
                 $successCount = 0;

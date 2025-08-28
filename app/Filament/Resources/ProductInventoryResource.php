@@ -2,13 +2,19 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Schemas\Schema;
+use App\Filament\Resources\ProductInventoryResource\RelationManagers\TransactionsRelationManager;
+use App\Filament\Resources\ProductInventoryResource\RelationManagers\ReservationsRelationManager;
+use App\Filament\Resources\ProductInventoryResource\Pages\ListProductInventories;
+use App\Filament\Resources\ProductInventoryResource\Pages\CreateProductInventory;
+use App\Filament\Resources\ProductInventoryResource\Pages\ViewProductInventory;
+use App\Filament\Resources\ProductInventoryResource\Pages\EditProductInventory;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\ProductInventoryResource\Forms\ProductInventoryForm;
 use App\Filament\Resources\ProductInventoryResource\Pages;
 use App\Filament\Resources\ProductInventoryResource\RelationManagers;
 use App\Filament\Resources\ProductInventoryResource\Tables\ProductInventoryTable;
 use App\Models\ProductInventory;
-use Filament\Forms\Form;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -16,7 +22,7 @@ class ProductInventoryResource extends BaseResource
 {
     protected static ?string $model = ProductInventory::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-cube';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-cube';
 
     protected static ?string $navigationLabel = 'Product Inventory';
 
@@ -24,11 +30,11 @@ class ProductInventoryResource extends BaseResource
 
     protected static ?int $navigationSort = 30;
 
-    protected static ?string $navigationGroup = 'Products';
+    protected static string | \UnitEnum | null $navigationGroup = 'Products';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form->schema(ProductInventoryForm::schema());
+        return $schema->components(ProductInventoryForm::schema());
     }
 
     public static function table(Table $table): Table
@@ -39,8 +45,8 @@ class ProductInventoryResource extends BaseResource
             ->columns(ProductInventoryTable::columns())
             ->defaultSort('created_at', 'desc')
             ->filters(ProductInventoryTable::filters())
-            ->actions(ProductInventoryTable::actions())
-            ->bulkActions(ProductInventoryTable::bulkActions())
+            ->recordActions(ProductInventoryTable::actions())
+            ->toolbarActions(ProductInventoryTable::bulkActions())
             ->emptyStateHeading($emptyStateConfig['heading'])
             ->emptyStateDescription($emptyStateConfig['description'])
             ->emptyStateIcon($emptyStateConfig['icon']);
@@ -49,18 +55,18 @@ class ProductInventoryResource extends BaseResource
     public static function getRelations(): array
     {
         return [
-            RelationManagers\TransactionsRelationManager::class,
-            RelationManagers\ReservationsRelationManager::class,
+            TransactionsRelationManager::class,
+            ReservationsRelationManager::class,
         ];
     }
 
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListProductInventories::route('/'),
-            'create' => Pages\CreateProductInventory::route('/create'),
-            'view' => Pages\ViewProductInventory::route('/{record}'),
-            'edit' => Pages\EditProductInventory::route('/{record}/edit'),
+            'index' => ListProductInventories::route('/'),
+            'create' => CreateProductInventory::route('/create'),
+            'view' => ViewProductInventory::route('/{record}'),
+            'edit' => EditProductInventory::route('/{record}/edit'),
         ];
     }
 

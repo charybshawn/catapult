@@ -2,6 +2,8 @@
 
 namespace App\Actions\SeedEntry;
 
+use Exception;
+use App\Models\MasterCultivar;
 use App\Models\SeedEntry;
 use App\Models\MasterSeedCatalog;
 use Illuminate\Database\Eloquent\Collection;
@@ -26,7 +28,7 @@ class ImportToMasterCatalogAction
                 } elseif ($result['updated']) {
                     $updated++;
                 }
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $errors[] = "{$seedEntry->common_name} - {$seedEntry->cultivar_name}: " . $e->getMessage();
             }
         }
@@ -54,13 +56,13 @@ class ImportToMasterCatalogAction
     protected function updateExistingEntry(MasterSeedCatalog $masterCatalog, SeedEntry $seedEntry): array
     {
         // Check if cultivar already exists for this catalog (case-insensitive)
-        $cultivarExists = \App\Models\MasterCultivar::where('master_seed_catalog_id', $masterCatalog->id)
+        $cultivarExists = MasterCultivar::where('master_seed_catalog_id', $masterCatalog->id)
             ->whereRaw('LOWER(cultivar_name) = ?', [strtolower(trim($seedEntry->cultivar_name))])
             ->exists();
         
         if (!$cultivarExists) {
             // Create new cultivar for this catalog
-            \App\Models\MasterCultivar::create([
+            MasterCultivar::create([
                 'master_seed_catalog_id' => $masterCatalog->id,
                 'cultivar_name' => $seedEntry->cultivar_name,
                 'is_active' => true,
@@ -74,7 +76,7 @@ class ImportToMasterCatalogAction
     protected function createNewEntry(SeedEntry $seedEntry): array
     {
         // Create new cultivar first
-        $cultivar = \App\Models\MasterCultivar::create([
+        $cultivar = MasterCultivar::create([
             'master_seed_catalog_id' => null, // Will be set below
             'cultivar_name' => $seedEntry->cultivar_name,
             'is_active' => true,

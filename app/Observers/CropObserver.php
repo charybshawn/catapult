@@ -2,6 +2,8 @@
 
 namespace App\Observers;
 
+use DateInterval;
+use App\Models\CropStage;
 use App\Models\Crop;
 use App\Events\OrderCropPlanted;
 use App\Events\AllCropsReady;
@@ -9,10 +11,33 @@ use App\Events\OrderHarvested;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Comprehensive crop lifecycle observer for agricultural workflow automation.
+ * 
+ * Monitors crop model lifecycle events to automatically trigger agricultural
+ * business events based on crop stage transitions. Handles crop planting detection,
+ * harvest readiness evaluation, and harvest completion tracking. Critical component
+ * for automated order progression through microgreens production workflow.
+ * 
+ * @business_domain Agricultural crop lifecycle monitoring and workflow automation
+ * @agricultural_process Crop stage transition detection and business event triggering
+ * @workflow_automation Order progression based on crop milestone achievements
+ * @event_driven Triggers business events for crop planting, readiness, and harvest
+ */
 class CropObserver
 {
     /**
-     * Handle the Crop "saving" event.
+     * Handle crop model saving event with calculated column updates.
+     * 
+     * Processes crop model before persistence to update calculated fields
+     * and ensure data consistency for agricultural production tracking.
+     * Maintains tray count and other derived fields.
+     * 
+     * @param Crop $crop Crop model being saved
+     * @return void
+     * 
+     * @data_integrity Ensures calculated fields are updated before persistence
+     * @agricultural_tracking Maintains crop production metadata consistency
      */
     public function saving(Crop $crop): void
     {
@@ -20,7 +45,18 @@ class CropObserver
     }
 
     /**
-     * Update all calculated columns for the crop.
+     * Update calculated columns and derived fields for agricultural crop tracking.
+     * 
+     * Ensures calculated fields are properly set for crop production monitoring.
+     * Handles recipe relationship loading and tray count calculations while
+     * respecting migration to crop batch list view for complex calculations.
+     * 
+     * @param Crop $crop Crop model to update calculated fields for
+     * @return void
+     * 
+     * @calculation_management Updates derived fields for agricultural tracking
+     * @performance_optimization Handles recipe loading to prevent lazy loading issues
+     * @migration_aware Respects move of complex calculations to crop batch views
      */
     protected function updateCalculatedColumns(Crop $crop): void
     {
@@ -41,9 +77,19 @@ class CropObserver
     }
 
     /**
-     * Format a DateInterval into a human-readable duration.
+     * Format date intervals into human-readable duration strings for agricultural timing.
+     * 
+     * Converts DateInterval objects to readable duration strings for crop timing
+     * displays in agricultural production monitoring. Prioritizes larger time units
+     * and provides fallback for short durations.
+     * 
+     * @param DateInterval $interval Time interval to format
+     * @return string Human-readable duration string (e.g., '2d 4h', '45m')
+     * 
+     * @agricultural_timing Formats crop stage durations for production monitoring
+     * @user_interface Provides readable time displays for agricultural staff
      */
-    public function formatDuration(\DateInterval $interval): string
+    public function formatDuration(DateInterval $interval): string
     {
         $parts = [];
         
@@ -61,14 +107,25 @@ class CropObserver
     }
     
     /**
-     * Handle the Crop "updated" event.
+     * Handle crop model update event with agricultural workflow automation.
+     * 
+     * Monitors crop stage changes to automatically trigger agricultural business
+     * events including order crop planted, all crops ready, and order harvested.
+     * Essential for automated order progression through microgreens production workflow.
+     * 
+     * @param Crop $crop Updated crop model with potential stage changes
+     * @return void
+     * 
+     * @workflow_automation Triggers business events based on crop stage milestones
+     * @agricultural_events Planting detection, harvest readiness, completion tracking
+     * @order_integration Links crop lifecycle to order fulfillment workflow
      */
     public function updated(Crop $crop): void
     {
         // Check if crop stage was changed (crop was planted/advanced)
         if ($crop->wasChanged('current_stage_id') && $crop->current_stage_id && $crop->order_id) {
             // If moving to germination stage, it means crop was planted
-            $germinationStage = \App\Models\CropStage::findByCode('germination');
+            $germinationStage = CropStage::findByCode('germination');
             if ($germinationStage && $crop->current_stage_id == $germinationStage->id) {
                 event(new OrderCropPlanted($crop->order, $crop));
             }

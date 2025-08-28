@@ -10,6 +10,25 @@ use App\Models\Recipe;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
+/**
+ * Unit tests for CropValidationService in agricultural microgreens production.
+ * 
+ * Tests comprehensive crop validation functionality including timestamp sequence validation,
+ * crop initialization, stage timestamp adjustments, and data validation for agricultural
+ * workflow management. Validates business rules and data integrity for microgreens
+ * production lifecycle management.
+ *
+ * @covers \App\Services\CropValidationService
+ * @group unit
+ * @group services
+ * @group crops
+ * @group validation
+ * @group agricultural-testing
+ * 
+ * @business_context Agricultural crop validation and data integrity for microgreens production
+ * @test_category Unit tests for crop validation service functionality
+ * @agricultural_workflow Crop lifecycle validation and business rule enforcement
+ */
 class CropValidationServiceTest extends TestCase
 {
     use RefreshDatabase;
@@ -28,7 +47,18 @@ class CropValidationServiceTest extends TestCase
         CropStage::create(['code' => 'harvested', 'name' => 'Harvested', 'order' => 4]);
     }
 
-    /** @test */
+    /**
+     * Test timestamp sequence validation for agricultural crop growth stages.
+     * 
+     * Validates that crop growth stage timestamps maintain proper chronological order
+     * for agricultural production workflow integrity. Tests both valid sequences and
+     * invalid sequences that would violate microgreens production timelines.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Growth stage timing validation for production workflow
+     * @business_validation Ensures chronological integrity of crop growth stages
+     */
     public function it_validates_timestamp_sequence_correctly(): void
     {
         // Valid sequence
@@ -56,7 +86,18 @@ class CropValidationServiceTest extends TestCase
         $this->service->validateTimestampSequence($crop);
     }
 
-    /** @test */
+    /**
+     * Test new crop initialization with default agricultural parameters.
+     * 
+     * Validates that new crops are properly initialized with default timestamps,
+     * stage information, and timing calculations for agricultural production
+     * workflow management. Tests setup of initial microgreens crop state.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario New crop initialization with production defaults
+     * @business_logic Default values enable immediate agricultural workflow integration
+     */
     public function it_initializes_new_crop_with_defaults(): void
     {
         $crop = new Crop();
@@ -75,7 +116,18 @@ class CropValidationServiceTest extends TestCase
         $this->assertEquals('0m', $crop->total_age_display);
     }
 
-    /** @test */
+    /**
+     * Test stage timestamp adjustment for agricultural production schedule changes.
+     * 
+     * Validates that changing crop planting dates properly cascades timestamp
+     * adjustments through all growth stages for agricultural production planning
+     * flexibility. Tests schedule modification impact on microgreens workflows.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Production schedule adjustment requiring date cascade
+     * @business_logic Planting date changes propagate through all growth stages
+     */
     public function it_adjusts_stage_timestamps_when_planting_date_changes(): void
     {
         $recipe = Recipe::factory()->create();
@@ -109,7 +161,18 @@ class CropValidationServiceTest extends TestCase
         );
     }
 
-    /** @test */
+    /**
+     * Test comprehensive crop data validation for agricultural business rules.
+     * 
+     * Validates that crop data meets agricultural business requirements including
+     * recipe validation, tray count constraints, harvest weight validation, and
+     * stage consistency for microgreens production data integrity.
+     *
+     * @test
+     * @return void
+     * @agricultural_scenario Crop data validation against agricultural business rules
+     * @business_validation Ensures crop data meets production requirements
+     */
     public function it_validates_crop_data(): void
     {
         // Valid crop

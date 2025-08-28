@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Closure;
 use Illuminate\Cache\Repository;
 use Illuminate\Support\Collection;
 
@@ -73,7 +74,7 @@ class CacheService
     /**
      * Remember a value in cache
      */
-    public function remember(string $key, int $ttl, \Closure $callback)
+    public function remember(string $key, int $ttl, Closure $callback)
     {
         $prefixedKey = $this->prefixKey($key);
         

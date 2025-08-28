@@ -2,12 +2,14 @@
 
 namespace App\Filament\Pages;
 
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
+use Illuminate\Support\HtmlString;
 use App\Filament\Widgets\SeedPriceTrendsWidget;
 use App\Models\SeedEntry;
-use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Radio;
-use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -19,13 +21,13 @@ class SeedPriceTrends extends Page implements HasForms
 {
     use InteractsWithForms;
 
-    protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-chart-bar';
 
-    protected static string $view = 'filament.pages.seed-price-trends';
+    protected string $view = 'filament.pages.seed-price-trends';
 
     protected static ?string $title = 'Seed Price Trends';
 
-    protected static ?string $navigationGroup = 'Products & Inventory';
+    protected static string | \UnitEnum | null $navigationGroup = 'Products & Inventory';
 
     protected static ?int $navigationSort = 2;
 
@@ -53,10 +55,10 @@ class SeedPriceTrends extends Page implements HasForms
         ]);
     }
 
-    public function form(\Filament\Forms\Form $form): \Filament\Forms\Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 Grid::make(2)
                     ->schema([
                         Select::make('selectedCommonName')
@@ -64,7 +66,7 @@ class SeedPriceTrends extends Page implements HasForms
                             ->options($this->getCommonNameOptions())
                             ->searchable()
                             ->placeholder('All common names')
-                            ->live(onBlur: true)()
+                            ->live(onBlur: true)
                             ->afterStateUpdated(function ($state) {
                                 $this->selectedCultivars = [];
                             }),
@@ -93,7 +95,7 @@ class SeedPriceTrends extends Page implements HasForms
                             ->multiple()
                             ->searchable()
                             ->placeholder('Select cultivars to compare')
-                            ->live(onBlur: true)()
+                            ->live(onBlur: true)
                             ->reactive()
                             ->dehydrated()
                             ->afterStateUpdated(function ($state) {
@@ -117,7 +119,7 @@ class SeedPriceTrends extends Page implements HasForms
                             ])
                             ->default('kg')
                             ->inline()
-                            ->live(onBlur: true)()
+                            ->live(onBlur: true)
                             ->afterStateUpdated(function ($state) {
                                 $this->priceUnit = $state;
                                 // Update widget when unit changes
@@ -132,7 +134,7 @@ class SeedPriceTrends extends Page implements HasForms
                             ->step(0.01)
                             ->placeholder('e.g., 25 for 25 grams')
                             ->suffix('grams')
-                            ->live(onBlur: true)()
+                            ->live(onBlur: true)
                             ->afterStateUpdated(function ($state) {
                                 $this->customGramAmount = $state;
                                 // Update widget when custom amount changes
@@ -144,7 +146,7 @@ class SeedPriceTrends extends Page implements HasForms
                         Toggle::make('separateBySupplier')
                             ->label('Separate lines by supplier')
                             ->helperText('Show separate lines for each supplier-cultivar combination')
-                            ->live(onBlur: true)()
+                            ->live(onBlur: true)
                             ->afterStateUpdated(function ($state) {
                                 $this->separateBySupplier = $state;
                                 // Update widget when toggle changes
@@ -155,7 +157,7 @@ class SeedPriceTrends extends Page implements HasForms
                         Toggle::make('mergeSimilarCultivars')
                             ->label('Merge similar cultivars')
                             ->helperText('Combine data from cultivars that appear to be the same variety with different names')
-                            ->live(onBlur: true)()
+                            ->live(onBlur: true)
                             ->afterStateUpdated(function ($state) {
                                 $this->mergeSimilarCultivars = $state;
                                 // Update widget when toggle changes
@@ -199,7 +201,7 @@ class SeedPriceTrends extends Page implements HasForms
                                 }
                                 $html .= '</div>';
 
-                                return new \Illuminate\Support\HtmlString($html);
+                                return new HtmlString($html);
                             })
                             ->hidden(fn (callable $get) => empty($get('selectedCultivars'))),
                     ]),

@@ -2,13 +2,33 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\ColorPicker;
+use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\Select;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Forms\Components\Placeholder;
+use Filament\Schemas\Components\Utilities\Get;
+use App\Models\CropStage;
+use Filament\Forms\Components\Checkbox;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use App\Filament\Resources\SettingsResource\Pages\ListSettings;
+use App\Filament\Resources\SettingsResource\Pages\CreateSetting;
+use App\Filament\Resources\SettingsResource\Pages\EditSetting;
+use App\Filament\Resources\SettingsResource\Pages\RecipeUpdates;
 use App\Filament\Resources\SettingsResource\Pages;
 use App\Models\Crop;
 use App\Models\Recipe;
 use App\Models\Setting;
 use Filament\Forms;
-use Filament\Forms\Components\Tabs;
-use Filament\Forms\Form;
 use App\Filament\Resources\Base\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -17,11 +37,11 @@ class SettingsResource extends BaseResource
 {
     protected static ?string $model = Setting::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-cog-6-tooth';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-cog-6-tooth';
 
     protected static ?string $navigationLabel = 'Advanced Settings';
 
-    protected static ?string $navigationGroup = 'System';
+    protected static string | \UnitEnum | null $navigationGroup = 'System';
 
     protected static ?int $navigationSort = 10;
 
@@ -29,42 +49,42 @@ class SettingsResource extends BaseResource
 
     protected static ?string $recordTitleAttribute = 'key';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 Tabs::make('Settings')
                     ->tabs([
-                        Tabs\Tab::make('General Settings')
+                        Tab::make('General Settings')
                             ->icon('heroicon-o-cog')
                             ->schema([
-                                Forms\Components\TextInput::make('site_name')
+                                TextInput::make('site_name')
                                     ->label('Site Name')
                                     ->default(function () {
                                         return Setting::getValue('site_name', 'Catapult Microgreens');
                                     }),
-                                Forms\Components\ColorPicker::make('primary_color')
+                                ColorPicker::make('primary_color')
                                     ->label('Primary Color')
                                     ->default(function () {
                                         return Setting::getValue('primary_color', '#4f46e5');
                                     }),
                             ]),
 
-                        Tabs\Tab::make('Recipe Changes')
+                        Tab::make('Recipe Changes')
                             ->icon('heroicon-o-arrow-path')
                             ->schema([
-                                Forms\Components\Section::make('Update Existing Grows with Recipe Changes')
+                                Section::make('Update Existing Grows with Recipe Changes')
                                     ->description('This tool allows you to update existing grows with changes from their recipes. Use with caution as this will modify existing data.')
                                     ->schema([
-                                        Forms\Components\Select::make('recipe_id')
+                                        Select::make('recipe_id')
                                             ->label('Recipe')
                                             ->options(Recipe::pluck('name', 'id'))
                                             ->searchable()
                                             ->required()
-                                            ->live(onBlur: true)()
-                                            ->afterStateUpdated(fn (Forms\Set $set) => $set('affected_grows_count', null)),
+                                            ->live(onBlur: true)
+                                            ->afterStateUpdated(fn (Set $set) => $set('affected_grows_count', null)),
 
-                                        Forms\Components\Select::make('current_stage')
+                                        Select::make('current_stage')
                                             ->label('Current Stage Filter')
                                             ->options([
                                                 'all' => 'All Stages',
@@ -74,12 +94,12 @@ class SettingsResource extends BaseResource
                                             ])
                                             ->default('all')
                                             ->required()
-                                            ->live(onBlur: true)()
-                                            ->afterStateUpdated(fn (Forms\Set $set) => $set('affected_grows_count', null)),
+                                            ->live(onBlur: true)
+                                            ->afterStateUpdated(fn (Set $set) => $set('affected_grows_count', null)),
 
-                                        Forms\Components\Placeholder::make('affected_grows_count')
+                                        Placeholder::make('affected_grows_count')
                                             ->label('Affected Grows')
-                                            ->content(function (Forms\Get $get, Forms\Set $set) {
+                                            ->content(function (Get $get, Set $set) {
                                                 $recipeId = $get('recipe_id');
                                                 $stage = $get('current_stage');
 
@@ -87,12 +107,12 @@ class SettingsResource extends BaseResource
                                                     return 'Please select a recipe';
                                                 }
 
-                                                $harvestedStage = \App\Models\CropStage::findByCode('harvested');
+                                                $harvestedStage = CropStage::findByCode('harvested');
                                                 $query = Crop::where('recipe_id', $recipeId)
                                                     ->where('current_stage_id', '!=', $harvestedStage?->id);
 
                                                 if ($stage !== 'all') {
-                                                    $stageRecord = \App\Models\CropStage::findByCode($stage);
+                                                    $stageRecord = CropStage::findByCode($stage);
                                                     if ($stageRecord) {
                                                         $query->where('current_stage_id', $stageRecord->id);
                                                     }
@@ -103,23 +123,23 @@ class SettingsResource extends BaseResource
                                                 return "{$count} grows will be affected";
                                             }),
 
-                                        Forms\Components\Checkbox::make('update_germination_days')
+                                        Checkbox::make('update_germination_days')
                                             ->label('Update Germination Days'),
 
-                                        Forms\Components\Checkbox::make('update_blackout_days')
+                                        Checkbox::make('update_blackout_days')
                                             ->label('Update Blackout Days'),
 
-                                        Forms\Components\Checkbox::make('update_light_days')
+                                        Checkbox::make('update_light_days')
                                             ->label('Update Light Days'),
 
-                                        Forms\Components\Checkbox::make('update_days_to_maturity')
+                                        Checkbox::make('update_days_to_maturity')
                                             ->label('Update Days to Maturity'),
 
-                                        Forms\Components\Checkbox::make('update_expected_harvest_dates')
+                                        Checkbox::make('update_expected_harvest_dates')
                                             ->label('Update Expected Harvest Dates')
                                             ->helperText('This will recalculate harvest dates based on the recipe settings'),
 
-                                        Forms\Components\Checkbox::make('confirm_updates')
+                                        Checkbox::make('confirm_updates')
                                             ->label('I understand this will modify existing grows')
                                             ->required()
                                             ->helperText('This action cannot be undone. Please back up your data before proceeding.'),
@@ -137,21 +157,21 @@ class SettingsResource extends BaseResource
             ->persistSortInSession()
             ->persistColumnSearchesInSession()
             ->persistSearchInSession()->columns([
-                Tables\Columns\TextColumn::make('key')
+                TextColumn::make('key')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('value')
+                TextColumn::make('value')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('description')
+                TextColumn::make('description')
                     ->searchable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('type')
+                TextColumn::make('type')
                     ->badge(),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->dateTime()
                     ->sortable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('type')
+                SelectFilter::make('type')
                     ->options([
                         'string' => 'String',
                         'integer' => 'Integer',
@@ -160,13 +180,13 @@ class SettingsResource extends BaseResource
                         'json' => 'JSON',
                     ]),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+            ->recordActions([
+                EditAction::make(),
+                DeleteAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }
@@ -181,10 +201,10 @@ class SettingsResource extends BaseResource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListSettings::route('/'),
-            'create' => Pages\CreateSetting::route('/create'),
-            'edit' => Pages\EditSetting::route('/{record}/edit'),
-            'recipe-updates' => Pages\RecipeUpdates::route('/recipe-updates'),
+            'index' => ListSettings::route('/'),
+            'create' => CreateSetting::route('/create'),
+            'edit' => EditSetting::route('/{record}/edit'),
+            'recipe-updates' => RecipeUpdates::route('/recipe-updates'),
         ];
     }
 }

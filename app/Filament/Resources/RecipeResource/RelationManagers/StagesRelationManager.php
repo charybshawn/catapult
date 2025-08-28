@@ -2,8 +2,18 @@
 
 namespace App\Filament\Resources\RecipeResource\RelationManagers;
 
+use Filament\Schemas\Schema;
+use Filament\Forms\Components\Select;
+use Filament\Schemas\Components\Grid;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Textarea;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Actions\CreateAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
 use Filament\Forms;
-use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -16,11 +26,11 @@ class StagesRelationManager extends RelationManager
 
     protected static ?string $recordTitleAttribute = 'stage';
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Select::make('stage')
+        return $schema
+            ->components([
+                Select::make('stage')
                     ->options([
                         'germination' => 'Germination',
                         'blackout' => 'Blackout',
@@ -28,31 +38,31 @@ class StagesRelationManager extends RelationManager
                     ])
                     ->required(),
                     
-                Forms\Components\Grid::make()
+                Grid::make()
                     ->schema([
-                        Forms\Components\TextInput::make('temperature_min_celsius')
+                        TextInput::make('temperature_min_celsius')
                             ->label('Min Temp (°C)')
                             ->numeric()
                             ->step(0.1)
                             ->required(),
                             
-                        Forms\Components\TextInput::make('temperature_max_celsius')
+                        TextInput::make('temperature_max_celsius')
                             ->label('Max Temp (°C)')
                             ->numeric()
                             ->step(0.1)
                             ->required(),
                     ]),
                     
-                Forms\Components\Grid::make()
+                Grid::make()
                     ->schema([
-                        Forms\Components\TextInput::make('humidity_min_percent')
+                        TextInput::make('humidity_min_percent')
                             ->label('Min Humidity (%)')
                             ->numeric()
                             ->minValue(0)
                             ->maxValue(100)
                             ->required(),
                             
-                        Forms\Components\TextInput::make('humidity_max_percent')
+                        TextInput::make('humidity_max_percent')
                             ->label('Max Humidity (%)')
                             ->numeric()
                             ->minValue(0)
@@ -60,7 +70,7 @@ class StagesRelationManager extends RelationManager
                             ->required(),
                     ]),
                     
-                Forms\Components\Textarea::make('notes')
+                Textarea::make('notes')
                     ->maxLength(65535),
             ]);
     }
@@ -69,7 +79,7 @@ class StagesRelationManager extends RelationManager
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('stage')
+                TextColumn::make('stage')
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => ucfirst($state))
                     ->color(fn (string $state): string => match ($state) {
@@ -79,23 +89,23 @@ class StagesRelationManager extends RelationManager
                         default => 'gray',
                     }),
                     
-                Tables\Columns\TextColumn::make('temperature_min_celsius')
+                TextColumn::make('temperature_min_celsius')
                     ->label('Min Temp')
                     ->suffix(' °C'),
                     
-                Tables\Columns\TextColumn::make('temperature_max_celsius')
+                TextColumn::make('temperature_max_celsius')
                     ->label('Max Temp')
                     ->suffix(' °C'),
                     
-                Tables\Columns\TextColumn::make('humidity_min_percent')
+                TextColumn::make('humidity_min_percent')
                     ->label('Min Humidity')
                     ->suffix('%'),
                     
-                Tables\Columns\TextColumn::make('humidity_max_percent')
+                TextColumn::make('humidity_max_percent')
                     ->label('Max Humidity')
                     ->suffix('%'),
                     
-                Tables\Columns\TextColumn::make('notes')
+                TextColumn::make('notes')
                     ->limit(30)
                     ->wrap(),
             ])
@@ -103,15 +113,15 @@ class StagesRelationManager extends RelationManager
                 //
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make(),
+                CreateAction::make(),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+            ->recordActions([
+                EditAction::make(),
+                DeleteAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

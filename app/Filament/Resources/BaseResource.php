@@ -2,26 +2,70 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\Action;
+use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Placeholder;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\Filter;
+use Filament\Forms\Components\DatePicker;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\ViewAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\BulkAction;
+use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\Select;
+use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Forms;
-use Filament\Forms\Form;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 
+/**
+ * Base Resource for Agricultural Operations
+ * 
+ * Abstract foundation class for all Filament resources in the Catapult agricultural
+ * management system. Provides standardized form components, table configurations,
+ * and common agricultural business patterns for microgreens farm operations.
+ * 
+ * @filament_base_resource Foundation for all Catapult Filament resources
+ * @agricultural_standards Common patterns for farm management interfaces
+ * @ui_consistency Standardized components, actions, and table behaviors
+ * @performance_optimization Session persistence, query optimization patterns
+ * 
+ * @package App\Filament\Resources
+ * @author Catapult Development Team
+ * @version 1.0.0
+ */
 abstract class BaseResource extends Resource
 {
     /**
      * Configure default table settings with persistence
+     * 
+     * Applies standard table configuration including session persistence for filters,
+     * column searches, and general search state. Provides striped styling for
+     * improved readability across all agricultural resource tables.
+     * 
+     * @filament_table_config Standard table persistence and styling
+     * @session_persistence Maintains user preferences across sessions
+     * @ui_standards Consistent table appearance for agricultural data
+     * 
+     * @param Table $table Filament table instance to configure
+     * @return Table Configured table with persistence and styling
      */
     public static function configureTableDefaults(Table $table): Table
     {
         return $table
             ->persistFiltersInSession()
-            ->persistSortInSession()
             ->persistColumnSearchesInSession()
             ->persistSearchInSession()
             ->striped();
@@ -29,6 +73,22 @@ abstract class BaseResource extends Resource
     
     /**
      * Configure standard table with common features
+     * 
+     * Builds a complete table configuration combining custom columns, filters, and actions
+     * with standardized agricultural resource patterns. Merges provided components with
+     * default components based on model capabilities (active status, timestamps, etc.).
+     * 
+     * @filament_table_builder Complete table configuration system
+     * @agricultural_patterns Standard columns, filters, and actions for farm data
+     * @component_merging Combines custom and standard components intelligently
+     * @model_introspection Adds components based on model trait capabilities
+     * 
+     * @param Table $table Filament table instance to configure
+     * @param array $columns Custom columns to include in table
+     * @param array $filters Custom filters to include in table
+     * @param array $actions Custom record actions (empty array uses standard)
+     * @param array $bulkActions Custom bulk actions to merge with standard
+     * @return Table Fully configured table with all features
      */
     public static function configureStandardTable(Table $table, array $columns = [], array $filters = [], array $actions = [], array $bulkActions = []): Table
     {
@@ -46,14 +106,14 @@ abstract class BaseResource extends Resource
                 $filters,
                 $standardFilters
             ))
-            ->actions(empty($actions) ? $standardActions : $actions)
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make(
+            ->recordActions(empty($actions) ? $standardActions : $actions)
+            ->toolbarActions([
+                BulkActionGroup::make(
                     empty($bulkActions) ? $standardBulkActions : array_merge($bulkActions, $standardBulkActions)
                 ),
             ])
             ->toggleColumnsTriggerAction(
-                fn (Tables\Actions\Action $action) => $action
+                fn (Action $action) => $action
                     ->button()
                     ->label('Columns')
                     ->icon('heroicon-m-view-columns')
@@ -76,16 +136,16 @@ abstract class BaseResource extends Resource
     /**
      * Get basic information section
      */
-    protected static function getBasicInformationSection(array $schema = []): Forms\Components\Section
+    protected static function getBasicInformationSection(array $schema = []): Section
     {
         $defaultSchema = [
-            Forms\Components\TextInput::make('name')
+            TextInput::make('name')
                 ->required()
                 ->maxLength(255),
             static::getActiveToggleField(),
         ];
         
-        return Forms\Components\Section::make('Basic Information')
+        return Section::make('Basic Information')
             ->schema(array_merge($defaultSchema, $schema))
             ->columns(2);
     }
@@ -93,27 +153,27 @@ abstract class BaseResource extends Resource
     /**
      * Get contact information section
      */
-    protected static function getContactInformationSection(array $schema = []): Forms\Components\Section
+    protected static function getContactInformationSection(array $schema = []): Section
     {
         $defaultSchema = [
-            Forms\Components\TextInput::make('contact_name')
+            TextInput::make('contact_name')
                 ->label('Contact Name')
                 ->maxLength(255),
-            Forms\Components\TextInput::make('contact_email')
+            TextInput::make('contact_email')
                 ->label('Contact Email')
                 ->email()
                 ->maxLength(255),
-            Forms\Components\TextInput::make('contact_phone')
+            TextInput::make('contact_phone')
                 ->label('Contact Phone')
                 ->tel()
                 ->maxLength(255),
-            Forms\Components\Textarea::make('address')
+            Textarea::make('address')
                 ->label('Address')
                 ->rows(3)
                 ->columnSpanFull(),
         ];
         
-        return Forms\Components\Section::make('Contact Information')
+        return Section::make('Contact Information')
             ->schema(array_merge($defaultSchema, $schema))
             ->columns(2);
     }
@@ -121,27 +181,27 @@ abstract class BaseResource extends Resource
     /**
      * Get additional information section
      */
-    protected static function getAdditionalInformationSection(array $schema = []): Forms\Components\Section
+    protected static function getAdditionalInformationSection(array $schema = []): Section
     {
         $defaultSchema = [
             static::getNotesField(),
         ];
         
-        return Forms\Components\Section::make('Additional Information')
+        return Section::make('Additional Information')
             ->schema(array_merge($defaultSchema, $schema));
     }
     
     /**
      * Get timestamps section
      */
-    protected static function getTimestampsSection(): Forms\Components\Section
+    protected static function getTimestampsSection(): Section
     {
-        return Forms\Components\Section::make('System Information')
+        return Section::make('System Information')
             ->schema([
-                Forms\Components\Placeholder::make('created_at')
+                Placeholder::make('created_at')
                     ->label('Created')
                     ->content(fn ($record): string => $record ? $record->created_at->format('M d, Y H:i') : 'Not created yet'),
-                Forms\Components\Placeholder::make('updated_at')
+                Placeholder::make('updated_at')
                     ->label('Last Updated')
                     ->content(fn ($record): string => $record ? $record->updated_at->format('M d, Y H:i') : 'Not updated yet'),
             ])
@@ -193,9 +253,9 @@ abstract class BaseResource extends Resource
     /**
      * Get active status filter
      */
-    protected static function getActiveStatusFilter(): Tables\Filters\TernaryFilter
+    protected static function getActiveStatusFilter(): TernaryFilter
     {
-        return Tables\Filters\TernaryFilter::make('is_active')
+        return TernaryFilter::make('is_active')
             ->label('Active Status')
             ->boolean()
             ->trueLabel('Active only')
@@ -206,14 +266,14 @@ abstract class BaseResource extends Resource
     /**
      * Get date range filter
      */
-    protected static function getDateRangeFilter(string $field, string $label): Tables\Filters\Filter
+    protected static function getDateRangeFilter(string $field, string $label): Filter
     {
-        return Tables\Filters\Filter::make($field)
+        return Filter::make($field)
             ->label($label)
-            ->form([
-                Forms\Components\DatePicker::make($field . '_from')
+            ->schema([
+                DatePicker::make($field . '_from')
                     ->label('From'),
-                Forms\Components\DatePicker::make($field . '_until')
+                DatePicker::make($field . '_until')
                     ->label('Until'),
             ])
             ->query(function (Builder $query, array $data) use ($field): Builder {
@@ -232,9 +292,9 @@ abstract class BaseResource extends Resource
     /**
      * Get select filter for relationships
      */
-    protected static function getRelationshipFilter(string $relationship, string $label, string $titleAttribute = 'name'): Tables\Filters\SelectFilter
+    protected static function getRelationshipFilter(string $relationship, string $label, string $titleAttribute = 'name'): SelectFilter
     {
-        return Tables\Filters\SelectFilter::make($relationship . '_id')
+        return SelectFilter::make($relationship . '_id')
             ->label($label)
             ->relationship($relationship, $titleAttribute)
             ->searchable()
@@ -247,12 +307,12 @@ abstract class BaseResource extends Resource
     protected static function getStandardTableActions(): array
     {
         return [
-            Tables\Actions\ActionGroup::make([
-                Tables\Actions\ViewAction::make()
+            ActionGroup::make([
+                ViewAction::make()
                     ->tooltip('View record'),
-                Tables\Actions\EditAction::make()
+                EditAction::make()
                     ->tooltip('Edit record'),
-                Tables\Actions\DeleteAction::make()
+                DeleteAction::make()
                     ->tooltip('Delete record'),
             ])
             ->label('Actions')
@@ -269,7 +329,7 @@ abstract class BaseResource extends Resource
     protected static function getStandardBulkActions(): array
     {
         $actions = [
-            Tables\Actions\DeleteBulkAction::make(),
+            DeleteBulkAction::make(),
         ];
         
         // Check if model uses HasActiveStatus trait
@@ -286,7 +346,7 @@ abstract class BaseResource extends Resource
     protected static function getActiveStatusBulkActions(): array
     {
         return [
-            Tables\Actions\BulkAction::make('activate')
+            BulkAction::make('activate')
                 ->label('Activate')
                 ->icon('heroicon-o-check-circle')
                 ->action(function (Collection $records) {
@@ -296,7 +356,7 @@ abstract class BaseResource extends Resource
                 ->color('success')
                 ->deselectRecordsAfterCompletion(),
                 
-            Tables\Actions\BulkAction::make('deactivate')
+            BulkAction::make('deactivate')
                 ->label('Deactivate')
                 ->icon('heroicon-o-x-circle')
                 ->action(function (Collection $records) {
@@ -311,9 +371,9 @@ abstract class BaseResource extends Resource
     /**
      * Get an active toggle field for forms
      */
-    protected static function getActiveToggleField(): Forms\Components\Toggle
+    protected static function getActiveToggleField(): Toggle
     {
-        return Forms\Components\Toggle::make('is_active')
+        return Toggle::make('is_active')
             ->label('Active')
             ->default(true)
             ->helperText('Toggle to activate or deactivate this record')
@@ -330,7 +390,7 @@ abstract class BaseResource extends Resource
         bool $sortable = true,
         bool $toggleable = true
     ): TextColumn {
-        return Tables\Columns\TextColumn::make($field)
+        return TextColumn::make($field)
             ->label($label)
             ->searchable($searchable)
             ->sortable($sortable)
@@ -342,7 +402,7 @@ abstract class BaseResource extends Resource
      */
     protected static function getNameColumn(string $label = 'Name', bool $sortable = true, bool $searchable = true): TextColumn
     {
-        return Tables\Columns\TextColumn::make('name')
+        return TextColumn::make('name')
             ->label($label)
             ->searchable($searchable)
             ->sortable($sortable)
@@ -354,7 +414,7 @@ abstract class BaseResource extends Resource
      */
     protected static function getClickableNameColumn(string $label = 'Name', string $color = 'primary'): TextColumn
     {
-        return Tables\Columns\TextColumn::make('name')
+        return TextColumn::make('name')
             ->label($label)
             ->searchable()
             ->sortable()
@@ -368,7 +428,7 @@ abstract class BaseResource extends Resource
      */
     protected static function getActiveBadgeColumn(): IconColumn
     {
-        return Tables\Columns\IconColumn::make('is_active')
+        return IconColumn::make('is_active')
             ->label('Active')
             ->boolean()
             ->sortable()
@@ -381,12 +441,12 @@ abstract class BaseResource extends Resource
     protected static function getTimestampColumns(): array
     {
         return [
-            Tables\Columns\TextColumn::make('created_at')
+            TextColumn::make('created_at')
                 ->label('Created')
                 ->dateTime()
                 ->sortable()
                 ->toggleable(isToggledHiddenByDefault: true),
-            Tables\Columns\TextColumn::make('updated_at')
+            TextColumn::make('updated_at')
                 ->label('Updated')
                 ->dateTime()
                 ->sortable()
@@ -417,7 +477,7 @@ abstract class BaseResource extends Resource
         string $field = 'status',
         string $label = 'Status',
         array $colorMap = []
-    ): Tables\Columns\TextColumn {
+    ): TextColumn {
         $defaultColorMap = [
             'active' => 'success',
             'inactive' => 'danger',
@@ -433,7 +493,7 @@ abstract class BaseResource extends Resource
 
         $colors = array_merge($defaultColorMap, $colorMap);
 
-        return Tables\Columns\TextColumn::make($field)
+        return TextColumn::make($field)
             ->label($label)
             ->badge()
             ->color(fn (string $state): string => $colors[$state] ?? 'gray')
@@ -448,7 +508,7 @@ abstract class BaseResource extends Resource
         string $label = 'Price',
         string $currency = 'USD'
     ): TextColumn {
-        return Tables\Columns\TextColumn::make($field)
+        return TextColumn::make($field)
             ->label($label)
             ->money($currency)
             ->sortable()
@@ -464,7 +524,7 @@ abstract class BaseResource extends Resource
         bool $searchable = true,
         bool $sortable = true
     ): TextColumn {
-        return Tables\Columns\TextColumn::make($field)
+        return TextColumn::make($field)
             ->label($label)
             ->searchable($searchable)
             ->sortable($sortable)
@@ -481,8 +541,8 @@ abstract class BaseResource extends Resource
         string $falseLabel = 'No',
         string $trueColor = 'success',
         string $falseColor = 'danger'
-    ): Tables\Columns\TextColumn {
-        return Tables\Columns\TextColumn::make($field)
+    ): TextColumn {
+        return TextColumn::make($field)
             ->label($label)
             ->badge()
             ->formatStateUsing(fn (bool $state): string => $state ? $trueLabel : $falseLabel)
@@ -494,9 +554,9 @@ abstract class BaseResource extends Resource
     /**
      * Get standard notes/description form field
      */
-    protected static function getNotesField(string $field = 'notes', string $label = 'Notes'): Forms\Components\Textarea
+    protected static function getNotesField(string $field = 'notes', string $label = 'Notes'): Textarea
     {
-        return Forms\Components\Textarea::make($field)
+        return Textarea::make($field)
             ->label($label)
             ->rows(3)
             ->columnSpanFull();
@@ -505,9 +565,9 @@ abstract class BaseResource extends Resource
     /**
      * Get description textarea field
      */
-    protected static function getDescriptionField(string $field = 'description', string $label = 'Description'): Forms\Components\Textarea
+    protected static function getDescriptionField(string $field = 'description', string $label = 'Description'): Textarea
     {
-        return Forms\Components\Textarea::make($field)
+        return Textarea::make($field)
             ->label($label)
             ->rows(3)
             ->maxLength(65535)
@@ -518,9 +578,9 @@ abstract class BaseResource extends Resource
     /**
      * Get a standard name field with optional custom label
      */
-    protected static function getNameField(string $label = 'Name', bool $required = true, int $maxLength = 255): Forms\Components\TextInput
+    protected static function getNameField(string $label = 'Name', bool $required = true, int $maxLength = 255): TextInput
     {
-        return Forms\Components\TextInput::make('name')
+        return TextInput::make('name')
             ->label($label)
             ->required($required)
             ->maxLength($maxLength);
@@ -529,9 +589,9 @@ abstract class BaseResource extends Resource
     /**
      * Get a name field with uniqueness validation
      */
-    protected static function getUniqueNameField(string $label = 'Name', bool $required = true, string $ignoreColumn = 'id'): Forms\Components\TextInput
+    protected static function getUniqueNameField(string $label = 'Name', bool $required = true, string $ignoreColumn = 'id'): TextInput
     {
-        return Forms\Components\TextInput::make('name')
+        return TextInput::make('name')
             ->label($label)
             ->required($required)
             ->maxLength(255)
@@ -541,19 +601,19 @@ abstract class BaseResource extends Resource
     /**
      * Get supplier select field (commonly used across consumables)
      */
-    protected static function getSupplierSelect(string $label = 'Supplier', bool $required = false): Forms\Components\Select
+    protected static function getSupplierSelect(string $label = 'Supplier', bool $required = false): Select
     {
-        return Forms\Components\Select::make('supplier_id')
+        return Select::make('supplier_id')
             ->label($label)
             ->relationship('supplier', 'name')
             ->searchable()
             ->preload()
             ->required($required)
             ->createOptionForm([
-                Forms\Components\TextInput::make('name')
+                TextInput::make('name')
                     ->required()
                     ->maxLength(255),
-                Forms\Components\TextInput::make('contact_email')
+                TextInput::make('contact_email')
                     ->email()
                     ->maxLength(255),
             ]);
@@ -562,9 +622,9 @@ abstract class BaseResource extends Resource
     /**
      * Get category select field
      */
-    protected static function getCategorySelect(string $label = 'Category', bool $required = false): Forms\Components\Select
+    protected static function getCategorySelect(string $label = 'Category', bool $required = false): Select
     {
-        return Forms\Components\Select::make('category_id')
+        return Select::make('category_id')
             ->label($label)
             ->relationship('category', 'name')
             ->searchable()
@@ -575,9 +635,9 @@ abstract class BaseResource extends Resource
     /**
      * Get email field
      */
-    protected static function getEmailField(string $field = 'email', string $label = 'Email', bool $required = false): Forms\Components\TextInput
+    protected static function getEmailField(string $field = 'email', string $label = 'Email', bool $required = false): TextInput
     {
-        return Forms\Components\TextInput::make($field)
+        return TextInput::make($field)
             ->label($label)
             ->email()
             ->maxLength(255)
@@ -587,9 +647,9 @@ abstract class BaseResource extends Resource
     /**
      * Get phone field
      */
-    protected static function getPhoneField(string $field = 'phone', string $label = 'Phone', bool $required = false): Forms\Components\TextInput
+    protected static function getPhoneField(string $field = 'phone', string $label = 'Phone', bool $required = false): TextInput
     {
-        return Forms\Components\TextInput::make($field)
+        return TextInput::make($field)
             ->label($label)
             ->tel()
             ->maxLength(255)
@@ -599,9 +659,9 @@ abstract class BaseResource extends Resource
     /**
      * Get URL field
      */
-    protected static function getUrlField(string $field = 'website', string $label = 'Website', bool $required = false): Forms\Components\TextInput
+    protected static function getUrlField(string $field = 'website', string $label = 'Website', bool $required = false): TextInput
     {
-        return Forms\Components\TextInput::make($field)
+        return TextInput::make($field)
             ->label($label)
             ->url()
             ->maxLength(255)
@@ -611,9 +671,9 @@ abstract class BaseResource extends Resource
     /**
      * Get price field with currency formatting
      */
-    protected static function getPriceField(string $field = 'price', string $label = 'Price', string $prefix = '$', bool $required = false): Forms\Components\TextInput
+    protected static function getPriceField(string $field = 'price', string $label = 'Price', string $prefix = '$', bool $required = false): TextInput
     {
-        return Forms\Components\TextInput::make($field)
+        return TextInput::make($field)
             ->label($label)
             ->numeric()
             ->prefix($prefix)
@@ -625,9 +685,9 @@ abstract class BaseResource extends Resource
     /**
      * Get quantity field
      */
-    protected static function getQuantityField(string $field = 'quantity', string $label = 'Quantity', bool $required = true, float $step = 1): Forms\Components\TextInput
+    protected static function getQuantityField(string $field = 'quantity', string $label = 'Quantity', bool $required = true, float $step = 1): TextInput
     {
-        return Forms\Components\TextInput::make($field)
+        return TextInput::make($field)
             ->label($label)
             ->numeric()
             ->minValue(0)
@@ -644,8 +704,8 @@ abstract class BaseResource extends Resource
         string $label = null,
         bool $required = false,
         bool $searchable = true
-    ): Forms\Components\Select {
-        return Forms\Components\Select::make($relationship . '_id')
+    ): Select {
+        return Select::make($relationship . '_id')
             ->label($label ?? ucfirst(str_replace('_', ' ', $relationship)))
             ->relationship($relationship, $titleAttribute)
             ->searchable($searchable)
@@ -689,7 +749,7 @@ abstract class BaseResource extends Resource
         int $length = 50,
         bool $searchable = true
     ): TextColumn {
-        return Tables\Columns\TextColumn::make($field)
+        return TextColumn::make($field)
             ->label($label)
             ->limit($length)
             ->tooltip(function (TextColumn $column) use ($length): ?string {
@@ -725,7 +785,7 @@ abstract class BaseResource extends Resource
     ): TextColumn {
         $label = $label ?? ucfirst(str_replace('_', ' ', $relationship));
         
-        return Tables\Columns\TextColumn::make($relationship . '_count')
+        return TextColumn::make($relationship . '_count')
             ->label($label)
             ->counts($relationship)
             ->sortable()
@@ -736,7 +796,7 @@ abstract class BaseResource extends Resource
     /**
      * Get standard form with sections and custom content
      */
-    protected static function getStandardForm(Form $form, array $customSchema = []): Form
+    protected static function getStandardForm(Schema $form, array $customSchema = []): Schema
     {
         $sections = static::getStandardFormSections();
         $schema = [];
@@ -756,7 +816,7 @@ abstract class BaseResource extends Resource
             $schema[] = $sections['timestamps'];
         }
         
-        return $form->schema($schema);
+        return $form->components($schema);
     }
     
     /**
@@ -768,7 +828,7 @@ abstract class BaseResource extends Resource
         int $decimals = 0,
         bool $sortable = true
     ): TextColumn {
-        return Tables\Columns\TextColumn::make($field)
+        return TextColumn::make($field)
             ->label($label)
             ->numeric($decimals)
             ->sortable($sortable)
@@ -784,7 +844,7 @@ abstract class BaseResource extends Resource
         string $format = null,
         bool $sortable = true
     ): TextColumn {
-        $column = Tables\Columns\TextColumn::make($field)
+        $column = TextColumn::make($field)
             ->label($label)
             ->sortable($sortable)
             ->toggleable();
@@ -806,7 +866,7 @@ abstract class BaseResource extends Resource
         string $label,
         bool $sortable = true
     ): TextColumn {
-        return Tables\Columns\TextColumn::make($field)
+        return TextColumn::make($field)
             ->label($label)
             ->dateTime()
             ->sortable($sortable)
@@ -842,11 +902,11 @@ abstract class BaseResource extends Resource
     protected static function getModalActions(): array
     {
         return [
-            Tables\Actions\Action::make('save')
+            Action::make('save')
                 ->label('Save')
                 ->color('primary')
                 ->submit(),
-            Tables\Actions\Action::make('cancel')
+            Action::make('cancel')
                 ->label('Cancel')
                 ->color('gray')
                 ->cancel(),
@@ -862,7 +922,7 @@ abstract class BaseResource extends Resource
         array $formatStates = [],
         array $colors = []
     ): TextColumn {
-        $column = Tables\Columns\TextColumn::make($field)
+        $column = TextColumn::make($field)
             ->label($label)
             ->badge()
             ->sortable()

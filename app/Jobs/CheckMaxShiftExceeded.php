@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use Exception;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use App\Models\TimeCard;
@@ -10,12 +11,41 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Filament\Notifications\Notification;
 
+/**
+ * Background job for monitoring agricultural workforce shift duration compliance.
+ * 
+ * Automatically monitors agricultural worker time cards to identify shifts exceeding
+ * 8-hour limits during crop cultivation, order processing, inventory management, and
+ * seed handling operations. Provides automated notifications to workers and management
+ * for labor compliance and worker safety in agricultural microgreens production.
+ *
+ * @package App\Jobs
+ * @author Catapult Development Team
+ * @since 1.0.0
+ * 
+ * @agricultural_workforce Crop cultivation staff, order fulfillment team, inventory managers
+ * @compliance_monitoring 8-hour shift limit enforcement, labor law compliance
+ * @safety_features Worker fatigue prevention, shift duration alerts
+ * 
+ * @notification_system Email alerts to workers, admin dashboard notifications
+ * @queue_processing Background execution for continuous agricultural workforce monitoring
+ * 
+ * @related_models TimeCard, User For workforce time tracking and notification delivery
+ */
 class CheckMaxShiftExceeded implements ShouldQueue
 {
     use Queueable;
 
     /**
-     * Create a new job instance.
+     * Initialize agricultural workforce shift monitoring job.
+     * 
+     * Creates background job instance for monitoring agricultural worker shift durations
+     * during crop cultivation, order processing, inventory management, and seed handling
+     * activities. Operates autonomously to ensure continuous compliance monitoring
+     * for agricultural workforce safety and labor regulations.
+     *
+     * @agricultural_monitoring Continuous shift duration tracking for farm operations
+     * @workforce_safety Proactive detection of excessive work hours for agricultural staff
      */
     public function __construct()
     {
@@ -23,7 +53,20 @@ class CheckMaxShiftExceeded implements ShouldQueue
     }
 
     /**
-     * Execute the job.
+     * Execute agricultural workforce shift monitoring and compliance checking.
+     * 
+     * Processes all active agricultural worker time cards to identify shifts exceeding
+     * 8-hour limits during crop cultivation, order processing, inventory management,
+     * and seed handling operations. Automatically flags violations, sends notifications
+     * to affected workers, and alerts management for compliance review and intervention.
+     *
+     * @return void Processes workforce compliance monitoring and notification delivery
+     * 
+     * @throws Exception Logged exceptions for workforce monitoring system stability
+     * 
+     * @agricultural_operations Crop work shifts, order fulfillment periods, inventory tasks
+     * @compliance_checking 8-hour limit validation, automatic flagging system
+     * @notification_delivery Worker alerts, management notifications, audit logging
      */
     public function handle(): void
     {
@@ -53,7 +96,21 @@ class CheckMaxShiftExceeded implements ShouldQueue
     }
 
     /**
-     * Send notification to user that their shift exceeded 8 hours
+     * Send comprehensive notifications for agricultural workforce shift violations.
+     * 
+     * Delivers multi-channel notifications when agricultural workers exceed 8-hour shift
+     * limits during crop cultivation, order processing, inventory management, or seed
+     * handling activities. Includes email alerts to workers and Filament notifications
+     * to management for prompt compliance review and corrective action.
+     *
+     * @param TimeCard $timeCard Agricultural worker time card exceeding shift duration limits
+     * @return void Sends notifications through multiple channels for workforce compliance
+     * 
+     * @throws Exception Logged exceptions for notification delivery failures
+     * 
+     * @notification_channels Email alerts to agricultural workers, admin dashboard notifications
+     * @compliance_context Shift duration details, clock-in time, elapsed work duration
+     * @management_alerts Persistent notifications to administrators for compliance review
      */
     private function sendUserNotification(TimeCard $timeCard): void
     {
@@ -86,7 +143,7 @@ class CheckMaxShiftExceeded implements ShouldQueue
                     ->sendToDatabase($admin);
             }
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error("Failed to send notification for time card {$timeCard->id}: " . $e->getMessage());
         }
     }

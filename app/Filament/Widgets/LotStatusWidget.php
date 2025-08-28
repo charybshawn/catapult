@@ -8,7 +8,7 @@ use Illuminate\Support\Carbon;
 
 class LotStatusWidget extends Widget
 {
-    protected static string $view = 'filament.widgets.lot-status-widget';
+    protected string $view = 'filament.widgets.lot-status-widget';
     
     // Set the default widget positioning
     protected static ?int $sort = 3;

@@ -11,15 +11,33 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Service for creating and managing aggregated crop plans
+ * Agricultural crop plan aggregation service for efficient batch production.
+ * 
+ * Combines individual crop plans into optimized batch aggregations for efficient
+ * agricultural production. Consolidates multiple orders requiring the same variety
+ * and harvest timing into single production batches, reducing complexity and
+ * improving resource utilization in microgreens production operations.
+ *
+ * @business_domain Agricultural batch production planning and optimization
+ * @related_models CropPlan, CropPlanAggregate, Recipe
+ * @used_by Crop planning workflows, production scheduling, batch management
+ * @optimization Reduces production complexity by batching similar requirements
+ * @agricultural_context Optimizes growing space utilization and seed usage efficiency
  */
 class CropPlanAggregateService
 {
     /**
-     * Process new crop plans and aggregate them
+     * Process individual crop plans into optimized agricultural batch aggregations.
      * 
-     * @param Collection $cropPlans
-     * @return Collection
+     * Groups crop plans by variety, plant date, and harvest date to create
+     * efficient production batches. Reduces agricultural complexity by consolidating
+     * multiple orders into single growing operations while maintaining traceability
+     * to original customer orders.
+     *
+     * @param Collection $cropPlans Collection of individual crop plans to aggregate
+     * @return Collection Aggregated crop plans for batch production
+     * @agricultural_context Optimizes growing space and reduces seed waste through batching
+     * @transaction Atomic operation ensures data consistency during aggregation
      */
     public function processAndAggregatePlans(Collection $cropPlans): Collection
     {
@@ -113,10 +131,15 @@ class CropPlanAggregateService
     }
 
     /**
-     * Recalculate an aggregated plan based on its linked crop plans
+     * Recalculate agricultural batch aggregation based on current crop plan status.
      * 
-     * @param CropPlanAggregate $aggregatedPlan
-     * @return CropPlanAggregate
+     * Updates aggregated totals when individual crop plans are modified or cancelled.
+     * Ensures batch production quantities accurately reflect current customer
+     * requirements and maintains data integrity throughout the agricultural workflow.
+     *
+     * @param CropPlanAggregate $aggregatedPlan Batch aggregation to recalculate
+     * @return CropPlanAggregate Updated aggregated plan with current totals
+     * @agricultural_context Maintains accurate batch sizes for production planning
      */
     public function recalculateAggregation(CropPlanAggregate $aggregatedPlan): CropPlanAggregate
     {
@@ -143,11 +166,16 @@ class CropPlanAggregateService
     }
 
     /**
-     * Get aggregated requirements for a date range
+     * Retrieve aggregated agricultural production requirements for planning period.
      * 
-     * @param Carbon $startDate
-     * @param Carbon $endDate
-     * @return Collection
+     * Provides comprehensive view of batch production requirements across specified
+     * time period including variety needs, batch sizes, and timing requirements.
+     * Essential for resource allocation and production capacity planning.
+     *
+     * @param Carbon $startDate Start of planning period
+     * @param Carbon $endDate End of planning period
+     * @return Collection Formatted aggregation data for production planning
+     * @agricultural_context Supports weekly and monthly production planning cycles
      */
     public function getAggregatedRequirements(Carbon $startDate, Carbon $endDate): Collection
     {
@@ -173,10 +201,16 @@ class CropPlanAggregateService
     }
 
     /**
-     * Remove a crop plan from aggregation and recalculate
+     * Remove individual crop plan from batch aggregation with cleanup.
      * 
-     * @param CropPlan $cropPlan
+     * Safely removes crop plan from batch aggregation when orders are cancelled
+     * or modified. Recalculates batch totals and manages aggregate lifecycle
+     * including cancellation of empty batches.
+     *
+     * @param CropPlan $cropPlan Individual crop plan to remove from batch
      * @return void
+     * @agricultural_context Maintains batch integrity when individual orders change
+     * @cleanup Automatically cancels empty batches after removal
      */
     public function removeFromAggregation(CropPlan $cropPlan): void
     {

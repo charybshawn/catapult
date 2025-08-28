@@ -2,24 +2,27 @@
 
 namespace App\Filament\Resources\RecipeResource\Pages;
 
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Section;
+use App\Models\ConsumableType;
+use Filament\Forms\Components\Hidden;
+use Filament\Schemas\Components\Utilities\Get;
 use App\Filament\Pages\BaseCreateRecord;
 use App\Filament\Resources\RecipeResource;
 use App\Models\Consumable;
 use Filament\Forms;
-use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Forms\Form;
 
 class CreateRecipe extends BaseCreateRecord
 {
     protected static string $resource = RecipeResource::class;
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form->schema([
+        return $schema->components([
             Section::make('Basic Information')
                 ->description('Enter the basic recipe information')
                 ->schema([
@@ -141,7 +144,7 @@ class CreateRecipe extends BaseCreateRecord
                         ->required()
                         ->createOptionForm(Consumable::getSoilFormSchema())
                         ->createOptionUsing(function (array $data) {
-                            $soilTypeId = \App\Models\ConsumableType::where('code', 'soil')->value('id');
+                            $soilTypeId = ConsumableType::where('code', 'soil')->value('id');
                             $data['consumable_type_id'] = $soilTypeId;
                             $data['consumed_quantity'] = 0;
 
@@ -160,7 +163,7 @@ class CreateRecipe extends BaseCreateRecord
                         ->columnSpan(1),
 
                     // Hidden fields for legacy compatibility
-                    Forms\Components\Hidden::make('seed_consumable_id')
+                    Hidden::make('seed_consumable_id')
                         ->default(null),
 
                     TextInput::make('expected_yield_grams')
@@ -206,7 +209,7 @@ class CreateRecipe extends BaseCreateRecord
                         ->default(config('crops.stage_durations.germination', 2) + config('crops.stage_durations.blackout', 3) + config('crops.stage_durations.light', 7))
                         ->required()
                         ->live(onBlur: true)
-                        ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
+                        ->afterStateUpdated(function ($state, callable $set, Get $get) {
                             $germ = floatval($get('germination_days') ?? 0);
                             $blackout = floatval($get('blackout_days') ?? 0);
                             $dtm = floatval($state ?? 0);
@@ -231,7 +234,7 @@ class CreateRecipe extends BaseCreateRecord
                         ->step(0.1)
                         ->default(config('crops.stage_durations.germination', 2))
                         ->live(onBlur: true)
-                        ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
+                        ->afterStateUpdated(function ($state, callable $set, Get $get) {
                             $germ = floatval($state ?? 0);
                             $blackout = floatval($get('blackout_days') ?? 0);
                             $dtm = floatval($get('days_to_maturity') ?? 0);
@@ -250,7 +253,7 @@ class CreateRecipe extends BaseCreateRecord
                         ->step(0.1)
                         ->default(config('crops.stage_durations.blackout', 3))
                         ->live(onBlur: true)
-                        ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
+                        ->afterStateUpdated(function ($state, callable $set, Get $get) {
                             $germ = floatval($get('germination_days') ?? 0);
                             $blackout = floatval($state ?? 0);
                             $dtm = floatval($get('days_to_maturity') ?? 0);
@@ -269,7 +272,7 @@ class CreateRecipe extends BaseCreateRecord
                         ->disabled()
                         ->dehydrated(true)
                         ->helperText('Automatically calculated from DTM - (germination + blackout)')
-                        ->afterStateHydrated(function (Forms\Components\TextInput $component, $state, callable $set, Forms\Get $get) {
+                        ->afterStateHydrated(function (TextInput $component, $state, callable $set, Get $get) {
                             // Calculate initial value when form loads
                             if ($get('days_to_maturity')) {
                                 $germ = floatval($get('germination_days') ?? 0);

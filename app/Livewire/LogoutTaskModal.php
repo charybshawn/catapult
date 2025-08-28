@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use Filament\Schemas\Schema;
 use Livewire\Component;
 use App\Models\TaskType;
 use App\Models\TimeCard;
@@ -9,7 +10,6 @@ use Illuminate\Support\Facades\Auth;
 use Filament\Forms\Components\TagsInput;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
-use Filament\Forms\Form;
 
 class LogoutTaskModal extends Component implements HasForms
 {
@@ -29,10 +29,10 @@ class LogoutTaskModal extends Component implements HasForms
         $this->form->fill();
     }
     
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 TagsInput::make('selectedTasks')
                     ->label('What did you work on?')
                     ->placeholder('Select tasks or type custom tasks...')

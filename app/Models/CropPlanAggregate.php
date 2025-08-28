@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Exception;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -135,7 +136,7 @@ class CropPlanAggregate extends Model
     public function confirm()
     {
         if (!$this->canBeConfirmed()) {
-            throw new \Exception('This aggregated plan cannot be confirmed.');
+            throw new Exception('This aggregated plan cannot be confirmed.');
         }
 
         $this->update([
@@ -160,7 +161,7 @@ class CropPlanAggregate extends Model
     public function generateCrops()
     {
         if ($this->status !== 'confirmed') {
-            throw new \Exception('Only confirmed aggregated plans can generate crops.');
+            throw new Exception('Only confirmed aggregated plans can generate crops.');
         }
 
         $this->update([

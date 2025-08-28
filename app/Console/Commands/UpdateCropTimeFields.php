@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Exception;
 use Illuminate\Console\Command;
 use App\Models\Crop;
 use App\Services\CropTimeCalculator;
@@ -106,7 +107,7 @@ class UpdateCropTimeFields extends Command
                             }
                         }
                         
-                    } catch (\Exception $e) {
+                    } catch (Exception $e) {
                         $errorCount++;
                         Log::error('Failed to update crop time fields', [
                             'crop_id' => $crop->id,

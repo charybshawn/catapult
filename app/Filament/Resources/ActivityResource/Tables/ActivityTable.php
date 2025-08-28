@@ -2,6 +2,12 @@
 
 namespace App\Filament\Resources\ActivityResource\Tables;
 
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\Filter;
+use Filament\Forms\Components\DatePicker;
+use Filament\Tables\Filters\TernaryFilter;
 use App\Filament\Resources\ActivityResource\Tables\ActivityTableActions;
 use App\Models\Activity;
 use Carbon\Carbon;
@@ -9,10 +15,32 @@ use Filament\Forms;
 use Filament\Tables;
 use Illuminate\Database\Eloquent\Builder;
 
+/**
+ * Comprehensive activity table builder for agricultural system monitoring and audit trails.
+ *
+ * Provides complete table configuration for activity logs including columns for
+ * timestamps, users, activity types, events, descriptions, and model relationships.
+ * Features advanced filtering by date ranges, activity types, users, and detail
+ * presence for thorough agricultural system analysis and compliance monitoring.
+ *
+ * @filament_table Table builder for activity log display and analysis
+ * @business_domain Agricultural system activity monitoring and audit compliance
+ * @filtering_features Date ranges, activity types, users, and detail presence
+ * @column_organization Timestamps, users, types, events, descriptions, models
+ * @audit_context Comprehensive system activity tracking for agricultural operations
+ */
 class ActivityTable
 {
     /**
-     * Get table columns for ActivityResource
+     * Generate comprehensive table columns for activity log display.
+     *
+     * Assembles complete column set covering timestamps, user attribution,
+     * activity types, events, descriptions, and model relationships for
+     * thorough agricultural system activity monitoring and analysis.
+     *
+     * @return array Filament table columns for complete activity log display
+     * @column_coverage Timestamps, users, types, events, descriptions, models
+     * @audit_display Comprehensive activity information for system monitoring
      */
     public static function columns(): array
     {
@@ -29,7 +57,15 @@ class ActivityTable
     }
 
     /**
-     * Get table filters for ActivityResource
+     * Generate advanced filtering options for focused activity analysis.
+     *
+     * Provides comprehensive filtering capabilities including activity types,
+     * events, users, date ranges, and detail presence for targeted agricultural
+     * system analysis and operational intelligence gathering.
+     *
+     * @return array Filament table filters for focused activity analysis
+     * @filtering_scope Types, events, users, dates, and detail presence
+     * @operational_intelligence Enables targeted analysis of system activities
      */
     public static function filters(): array
     {
@@ -43,7 +79,9 @@ class ActivityTable
     }
 
     /**
-     * Get table actions for ActivityResource
+     * Configure table actions for activity log workflow support.
+     *
+     * @return array Filament table actions for activity log operations
      */
     public static function actions(): array
     {
@@ -53,7 +91,9 @@ class ActivityTable
     }
 
     /**
-     * Get bulk actions for ActivityResource
+     * Configure bulk actions for activity log management.
+     *
+     * @return array Filament bulk actions for activity log operations
      */
     public static function bulkActions(): array
     {
@@ -63,7 +103,9 @@ class ActivityTable
     }
 
     /**
-     * Get header actions for ActivityResource
+     * Configure header actions for activity log functionality.
+     *
+     * @return array Filament header actions for activity log operations
      */
     public static function headerActions(): array
     {
@@ -71,11 +113,17 @@ class ActivityTable
     }
 
     /**
-     * Created At column with timestamp formatting
+     * Generate created at timestamp column for activity chronology.
+     *
+     * Creates formatted timestamp column showing when activities occurred
+     * for agricultural system monitoring and audit trail chronology.
+     *
+     * @return TextColumn Filament text column with formatted timestamps
+     * @timestamp_format Month day, year with time for operational context
      */
-    protected static function getCreatedAtColumn(): Tables\Columns\TextColumn
+    protected static function getCreatedAtColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('created_at')
+        return TextColumn::make('created_at')
             ->label('Time')
             ->dateTime('M j, Y g:i:s A')
             ->sortable()
@@ -84,11 +132,18 @@ class ActivityTable
     }
 
     /**
-     * Causer column with user name and icon
+     * Generate causer column for user attribution and accountability.
+     *
+     * Creates column showing who initiated activities with appropriate icons
+     * for user versus system actions. Essential for agricultural operations
+     * accountability and audit trail analysis.
+     *
+     * @return TextColumn Filament text column with user attribution and icons
+     * @accountability_context User names with system/user icon differentiation
      */
-    protected static function getCauserColumn(): Tables\Columns\TextColumn
+    protected static function getCauserColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('causer.name')
+        return TextColumn::make('causer.name')
             ->label('User')
             ->searchable()
             ->default('System')
@@ -101,11 +156,18 @@ class ActivityTable
     }
 
     /**
-     * Log name column with badge styling
+     * Generate log name column with color-coded badge styling for activity categorization.
+     *
+     * Creates badge column showing activity categories (auth, error, api, job,
+     * query, timecard) with color coding for quick visual identification
+     * in agricultural system monitoring.
+     *
+     * @return TextColumn Filament text column with color-coded activity type badges
+     * @visual_categorization Color-coded badges for auth, error, api, job types
      */
-    protected static function getLogNameColumn(): Tables\Columns\TextColumn
+    protected static function getLogNameColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('log_name')
+        return TextColumn::make('log_name')
             ->label('Type')
             ->badge()
             ->formatStateUsing(fn ($state) => ucfirst($state ?? 'default'))
@@ -124,9 +186,9 @@ class ActivityTable
     /**
      * Event column with badge styling
      */
-    protected static function getEventColumn(): Tables\Columns\TextColumn
+    protected static function getEventColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('event')
+        return TextColumn::make('event')
             ->label('Action')
             ->badge()
             ->color(fn (string $state): string => match ($state) {
@@ -145,13 +207,13 @@ class ActivityTable
     /**
      * Description column with tooltip for long text
      */
-    protected static function getDescriptionColumn(): Tables\Columns\TextColumn
+    protected static function getDescriptionColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('description')
+        return TextColumn::make('description')
             ->label('Description')
             ->searchable()
             ->limit(50)
-            ->tooltip(function (Tables\Columns\TextColumn $column): ?string {
+            ->tooltip(function (TextColumn $column): ?string {
                 $state = $column->getState();
                 return strlen($state) > 50 ? $state : null;
             });
@@ -160,9 +222,9 @@ class ActivityTable
     /**
      * Subject type column with class basename formatting
      */
-    protected static function getSubjectTypeColumn(): Tables\Columns\TextColumn
+    protected static function getSubjectTypeColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('subject_type')
+        return TextColumn::make('subject_type')
             ->label('Model')
             ->formatStateUsing(fn ($state) => $state ? class_basename($state) : '-')
             ->searchable()
@@ -172,9 +234,9 @@ class ActivityTable
     /**
      * Subject ID column
      */
-    protected static function getSubjectIdColumn(): Tables\Columns\TextColumn
+    protected static function getSubjectIdColumn(): TextColumn
     {
-        return Tables\Columns\TextColumn::make('subject_id')
+        return TextColumn::make('subject_id')
             ->label('Model ID')
             ->searchable()
             ->toggleable(isToggledHiddenByDefault: true);
@@ -183,9 +245,9 @@ class ActivityTable
     /**
      * Properties column with icon indicator
      */
-    protected static function getPropertiesColumn(): Tables\Columns\IconColumn
+    protected static function getPropertiesColumn(): IconColumn
     {
-        return Tables\Columns\IconColumn::make('properties')
+        return IconColumn::make('properties')
             ->label('Details')
             ->boolean()
             ->trueIcon('heroicon-o-document-text')
@@ -196,9 +258,9 @@ class ActivityTable
     /**
      * Log name filter
      */
-    protected static function getLogNameFilter(): Tables\Filters\SelectFilter
+    protected static function getLogNameFilter(): SelectFilter
     {
-        return Tables\Filters\SelectFilter::make('log_name')
+        return SelectFilter::make('log_name')
             ->label('Type')
             ->multiple()
             ->options(function () {
@@ -213,9 +275,9 @@ class ActivityTable
     /**
      * Event filter
      */
-    protected static function getEventFilter(): Tables\Filters\SelectFilter
+    protected static function getEventFilter(): SelectFilter
     {
-        return Tables\Filters\SelectFilter::make('event')
+        return SelectFilter::make('event')
             ->label('Action')
             ->multiple()
             ->options(function () {
@@ -230,9 +292,9 @@ class ActivityTable
     /**
      * Causer filter
      */
-    protected static function getCauserFilter(): Tables\Filters\SelectFilter
+    protected static function getCauserFilter(): SelectFilter
     {
-        return Tables\Filters\SelectFilter::make('causer_id')
+        return SelectFilter::make('causer_id')
             ->label('User')
             ->options(function () {
                 return Activity::query()
@@ -252,13 +314,13 @@ class ActivityTable
     /**
      * Date range filter
      */
-    protected static function getDateRangeFilter(): Tables\Filters\Filter
+    protected static function getDateRangeFilter(): Filter
     {
-        return Tables\Filters\Filter::make('created_at')
-            ->form([
-                Forms\Components\DatePicker::make('created_from')
+        return Filter::make('created_at')
+            ->schema([
+                DatePicker::make('created_from')
                     ->label('From'),
-                Forms\Components\DatePicker::make('created_until')
+                DatePicker::make('created_until')
                     ->label('Until')
                     ->default(now()),
             ])
@@ -288,9 +350,9 @@ class ActivityTable
     /**
      * Properties filter
      */
-    protected static function getPropertiesFilter(): Tables\Filters\TernaryFilter
+    protected static function getPropertiesFilter(): TernaryFilter
     {
-        return Tables\Filters\TernaryFilter::make('has_properties')
+        return TernaryFilter::make('has_properties')
             ->label('Has Details')
             ->placeholder('All activities')
             ->trueLabel('With details')

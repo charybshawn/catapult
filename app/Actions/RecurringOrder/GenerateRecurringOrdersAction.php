@@ -2,6 +2,7 @@
 
 namespace App\Actions\RecurringOrder;
 
+use Exception;
 use App\Models\Order;
 use Illuminate\Support\Facades\Log;
 
@@ -38,7 +39,7 @@ class GenerateRecurringOrdersAction
                 'message' => 'Check template settings and end date',
             ];
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Failed to generate recurring orders', [
                 'template_id' => $template->id,
                 'error' => $e->getMessage(),

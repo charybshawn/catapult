@@ -2,6 +2,7 @@
 
 namespace App\Actions\Order;
 
+use Exception;
 use App\Models\Order;
 use App\Services\OrderPlanningService;
 use Filament\Notifications\Notification;
@@ -9,15 +10,56 @@ use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Handle business logic when orders are created through Filament
- * Extracted from OrderObserver to work WITH Filament patterns
+ * Handles post-creation workflows for agricultural customer orders.
+ * 
+ * Manages automated crop plan generation and user feedback when new orders
+ * are created through Filament interfaces. Integrates with production planning
+ * services to automatically generate cultivation schedules and provides
+ * comprehensive user notifications about planning results.
+ * 
+ * @business_domain Agricultural Order Processing and Production Planning
+ * @order_lifecycle Post-creation workflow automation for agricultural orders
+ * @production_integration Automatic crop plan generation for order fulfillment
+ * 
+ * @architecture Extracted from OrderObserver to work WITH Filament patterns
+ * @filament_integration Designed for Filament CreateRecord page integration
+ * 
+ * @author Catapult System
+ * @since 1.0.0
  */
 class HandleOrderCreationAction
 {
+    /**
+     * Initialize HandleOrderCreationAction with order planning service dependency.
+     * 
+     * @param OrderPlanningService $orderPlanningService Service for automated crop plan generation
+     */
     public function __construct(
         private OrderPlanningService $orderPlanningService
     ) {}
 
+    /**
+     * Execute post-creation workflow for newly created agricultural orders.
+     * 
+     * Determines if automatic crop plan generation is appropriate for the new order
+     * and executes planning workflow with comprehensive user feedback. Handles
+     * planning success, partial success, and failure scenarios with detailed
+     * notifications and audit logging.
+     * 
+     * @business_process Order Post-Creation Workflow
+     * @agricultural_context Automated production planning for microgreens orders
+     * @filament_context Integrates with Filament CreateRecord page for user feedback
+     * 
+     * @param Order $order Newly created order requiring processing
+     * @param CreateRecord $page Filament page context for user notifications
+     * 
+     * @workflow_logic Generates plans only for eligible orders requiring crop production
+     * @feedback_system Comprehensive success/warning/error notifications
+     * @audit_logging Detailed logging for planning operations and failures
+     * 
+     * @usage Called from OrderResource CreateRecord hooks after order creation
+     * @error_handling Graceful error handling with user-friendly notifications
+     */
     public function execute(Order $order, CreateRecord $page): void
     {
         if ($this->shouldGeneratePlans($order)) {
@@ -43,7 +85,7 @@ class HandleOrderCreationAction
             } else {
                 $this->handlePlanningFailure($result, $order);
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Failed to generate crop plans for new order', [
                 'order_id' => $order->id,
                 'error' => $e->getMessage()

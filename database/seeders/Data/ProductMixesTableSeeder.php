@@ -142,7 +142,7 @@ class ProductMixesTableSeeder extends Seeder
             ],
             // Brassica Mix components
             [
-                'id' => 10,
+                'id' => 13,
                 'product_mix_id' => 3,
                 'master_seed_catalog_id' => 6,
                 'percentage' => 34.00000,
@@ -151,7 +151,7 @@ class ProductMixesTableSeeder extends Seeder
                 'updated_at' => '2025-07-08 19:17:09',
             ],
             [
-                'id' => 11,
+                'id' => 14,
                 'product_mix_id' => 3,
                 'master_seed_catalog_id' => 7,
                 'percentage' => 33.00000,
@@ -160,7 +160,7 @@ class ProductMixesTableSeeder extends Seeder
                 'updated_at' => '2025-07-08 19:17:09',
             ],
             [
-                'id' => 12,
+                'id' => 15,
                 'product_mix_id' => 3,
                 'master_seed_catalog_id' => 14,
                 'percentage' => 28.00000,

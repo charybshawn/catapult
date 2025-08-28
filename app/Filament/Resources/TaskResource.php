@@ -2,11 +2,27 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Schemas\Schema;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\Filter;
+use Filament\Actions\Action;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\BulkAction;
+use Filament\Actions\DeleteBulkAction;
+use App\Filament\Resources\TaskResource\Pages\ListTasks;
+use App\Filament\Resources\TaskResource\Pages\CreateTask;
+use App\Filament\Resources\TaskResource\Pages\EditTask;
 use App\Filament\Resources\TaskResource\Pages;
 use App\Filament\Resources\TaskResource\RelationManagers;
 use App\Models\Task;
 use Filament\Forms;
-use Filament\Forms\Form;
 use App\Filament\Resources\Base\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -17,9 +33,9 @@ class TaskResource extends BaseResource
 {
     protected static ?string $model = Task::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-clipboard-document-check';
     
-    protected static ?string $navigationGroup = 'Production';
+    protected static string | \UnitEnum | null $navigationGroup = 'Production';
     
     protected static ?int $navigationSort = 3;
     
@@ -28,26 +44,26 @@ class TaskResource extends BaseResource
         return true;
     }
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Select::make('crop_id')
+        return $schema
+            ->components([
+                Select::make('crop_id')
                     ->relationship('crop', 'tray_number')
                     ->searchable()
                     ->preload(),
                     
-                Forms\Components\TextInput::make('title')
+                TextInput::make('title')
                     ->required()
                     ->maxLength(255),
                     
-                Forms\Components\Textarea::make('description')
+                Textarea::make('description')
                     ->rows(3)
                     ->columnSpanFull(),
                     
-                Forms\Components\DateTimePicker::make('due_date'),
+                DateTimePicker::make('due_date'),
                 
-                Forms\Components\Select::make('status')
+                Select::make('status')
                     ->options([
                         'pending' => 'Pending',
                         'in_progress' => 'In Progress',
@@ -57,7 +73,7 @@ class TaskResource extends BaseResource
                     ->default('pending')
                     ->required(),
                     
-                Forms\Components\Select::make('priority')
+                Select::make('priority')
                     ->options([
                         'low' => 'Low',
                         'medium' => 'Medium',
@@ -67,12 +83,12 @@ class TaskResource extends BaseResource
                     ->default('medium')
                     ->required(),
                     
-                Forms\Components\Select::make('assigned_to')
+                Select::make('assigned_to')
                     ->relationship('assignedUser', 'name')
                     ->searchable()
                     ->preload(),
                     
-                Forms\Components\DateTimePicker::make('completed_at')
+                DateTimePicker::make('completed_at')
                     ->label('Completed At')
                     ->hidden(fn ($record) => $record && $record->status !== 'completed'),
             ]);
@@ -89,20 +105,20 @@ class TaskResource extends BaseResource
             ->persistSortInSession()
             ->persistColumnSearchesInSession()
             ->persistSearchInSession()            ->columns([
-                Tables\Columns\TextColumn::make('title')
+                TextColumn::make('title')
                     ->searchable()
                     ->sortable(),
                     
-                Tables\Columns\TextColumn::make('crop.tray_number')
+                TextColumn::make('crop.tray_number')
                     ->label('Tray')
                     ->searchable()
                     ->sortable(),
                     
-                Tables\Columns\TextColumn::make('due_date')
+                TextColumn::make('due_date')
                     ->dateTime()
                     ->sortable(),
                     
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         'pending' => 'gray',
@@ -114,7 +130,7 @@ class TaskResource extends BaseResource
                     ->searchable()
                     ->sortable(),
                     
-                Tables\Columns\TextColumn::make('priority')
+                TextColumn::make('priority')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         'low' => 'gray',
@@ -125,17 +141,17 @@ class TaskResource extends BaseResource
                     })
                     ->sortable(),
                     
-                Tables\Columns\TextColumn::make('assignedUser.name')
+                TextColumn::make('assignedUser.name')
                     ->label('Assigned To')
                     ->searchable()
                     ->sortable(),
                     
-                Tables\Columns\TextColumn::make('completed_at')
+                TextColumn::make('completed_at')
                     ->dateTime()
                     ->sortable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options([
                         'pending' => 'Pending',
                         'in_progress' => 'In Progress',
@@ -143,7 +159,7 @@ class TaskResource extends BaseResource
                         'cancelled' => 'Cancelled',
                     ]),
                     
-                Tables\Filters\SelectFilter::make('priority')
+                SelectFilter::make('priority')
                     ->options([
                         'low' => 'Low',
                         'medium' => 'Medium',
@@ -151,14 +167,14 @@ class TaskResource extends BaseResource
                         'urgent' => 'Urgent',
                     ]),
                     
-                Tables\Filters\Filter::make('due')
+                Filter::make('due')
                     ->query(fn (Builder $query): Builder => $query->where('due_date', '<=', now())),
                     
-                Tables\Filters\Filter::make('completed')
+                Filter::make('completed')
                     ->query(fn (Builder $query): Builder => $query->whereNotNull('completed_at')),
             ])
-            ->actions([
-                Tables\Actions\Action::make('complete')
+            ->recordActions([
+                Action::make('complete')
                     ->icon('heroicon-o-check-circle')
                     ->tooltip('Mark task as completed')
                     ->action(function (Task $record) {
@@ -166,14 +182,14 @@ class TaskResource extends BaseResource
                     })
                     ->visible(fn (Task $record) => !$record->isCompleted()),
                     
-                Tables\Actions\EditAction::make()
+                EditAction::make()
                     ->tooltip('Edit task'),
-                Tables\Actions\DeleteAction::make()
+                DeleteAction::make()
                     ->tooltip('Delete task'),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\BulkAction::make('complete')
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    BulkAction::make('complete')
                         ->label('Mark as Completed')
                         ->icon('heroicon-o-check-circle')
                         ->action(function ($records) {
@@ -183,7 +199,7 @@ class TaskResource extends BaseResource
                         })
                         ->deselectRecordsAfterCompletion(),
                         
-                    Tables\Actions\DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }
@@ -198,9 +214,9 @@ class TaskResource extends BaseResource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListTasks::route('/'),
-            'create' => Pages\CreateTask::route('/create'),
-            'edit' => Pages\EditTask::route('/{record}/edit'),
+            'index' => ListTasks::route('/'),
+            'create' => CreateTask::route('/create'),
+            'edit' => EditTask::route('/{record}/edit'),
         ];
     }
 }

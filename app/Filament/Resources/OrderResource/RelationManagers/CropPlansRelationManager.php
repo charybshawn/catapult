@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\OrderResource\RelationManagers;
 
+use Filament\Schemas\Schema;
 use App\Actions\Order\ApproveAllPlansAction;
 use App\Actions\Order\BulkApprovePlansAction;
 use App\Actions\Order\GenerateOrderPlansAction;
@@ -9,7 +10,6 @@ use App\Actions\Order\ValidateOrderPlanAction;
 use App\Filament\Resources\OrderResource\Forms\CropPlansForm;
 use App\Filament\Resources\OrderResource\Tables\CropPlansTable;
 use App\Models\CropPlan;
-use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Table;
 use Filament\Notifications\Notification;
@@ -21,11 +21,11 @@ class CropPlansRelationManager extends RelationManager
     protected static string $relationship = 'cropPlans';
     protected static ?string $title = 'Crop Plans';
     protected static ?string $navigationLabel = 'Crop Plans';
-    protected static ?string $icon = 'heroicon-o-calendar';
+    protected static string | \BackedEnum | null $icon = 'heroicon-o-calendar';
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form->schema(CropPlansForm::schema());
+        return $schema->components(CropPlansForm::schema());
     }
 
     public function table(Table $table): Table
@@ -36,8 +36,8 @@ class CropPlansRelationManager extends RelationManager
             ->defaultSort('plant_by_date', 'asc')
             ->filters(CropPlansTable::filters())
             ->headerActions($this->getTableHeaderActions())
-            ->actions($this->getTableActions())
-            ->bulkActions($this->getTableBulkActions());
+            ->recordActions($this->getTableActions())
+            ->toolbarActions($this->getTableBulkActions());
     }
 
     public function isReadOnly(): bool

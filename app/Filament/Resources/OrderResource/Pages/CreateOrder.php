@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\OrderResource\Pages;
 
+use App\Actions\Order\HandleOrderCreationAction;
 use App\Filament\Resources\OrderResource;
 use App\Filament\Pages\BaseCreateRecord;
 use Illuminate\Database\Eloquent\Model;
@@ -46,7 +47,7 @@ class CreateOrder extends BaseCreateRecord
         }
         
         // Handle order creation business logic using Filament patterns
-        app(\App\Actions\Order\HandleOrderCreationAction::class)->execute($order, $this);
+        app(HandleOrderCreationAction::class)->execute($order, $this);
         
         return $order;
     }

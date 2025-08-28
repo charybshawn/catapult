@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use Exception;
 use App\Models\SeedScrapeUpload;
 use App\Services\SeedScrapeImporter;
 use Illuminate\Bus\Queueable;
@@ -12,30 +13,60 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Background job for processing agricultural seed catalog data uploads and imports.
+ * 
+ * Handles comprehensive processing of scraped seed catalog data from agricultural suppliers
+ * including variety information, pricing data, availability status, and growing specifications.
+ * Provides automated import workflow with validation, error handling, and performance monitoring
+ * for maintaining up-to-date seed catalog information in agricultural microgreens operations.
+ *
+ * @package App\Jobs
+ * @author Catapult Development Team
+ * @since 1.0.0
+ * 
+ * @agricultural_data Seed varieties, pricing information, supplier catalogs, growing specifications
+ * @import_processing File validation, data parsing, catalog synchronization
+ * @queue_management Background processing with retry logic and error recovery
+ * 
+ * @performance_features Memory usage monitoring, processing time tracking, file system optimization
+ * @error_handling Comprehensive validation, exception logging, graceful failure recovery
+ * 
+ * @related_models SeedScrapeUpload, SeedEntry For seed catalog import tracking and data storage
+ * @related_services SeedScrapeImporter For specialized seed data processing and validation
+ */
 class ProcessSeedScrapeUpload implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     /**
-     * The scrape upload instance.
+     * Agricultural seed catalog upload instance for import processing.
      *
-     * @var \App\Models\SeedScrapeUpload
+     * @var SeedScrapeUpload Model tracking seed catalog upload and import progress
      */
     protected $scrapeUpload;
 
     /**
-     * The file path to process.
+     * File system path to agricultural seed catalog data for processing.
      *
-     * @var string
+     * @var string Absolute path to uploaded seed catalog file for import processing
      */
     protected $filePath;
 
     /**
-     * Create a new job instance.
+     * Initialize agricultural seed catalog processing job with upload context.
+     * 
+     * Creates background job instance for processing scraped seed catalog data including
+     * variety information, pricing details, availability status, and growing specifications.
+     * Associates job with specific upload record for progress tracking and error recovery
+     * in agricultural seed catalog management workflows.
      *
-     * @param  SeedScrapeUpload  $scrapeUpload
-     * @param  string  $filePath
-     * @return void
+     * @param SeedScrapeUpload $scrapeUpload Agricultural seed upload record for processing tracking
+     * @param string $filePath File system path to seed catalog data for import processing
+     * @return void Initializes job for background seed catalog processing
+     * 
+     * @agricultural_context Seed varieties, supplier catalogs, pricing data, growing specifications
+     * @import_workflow File-based seed catalog import with progress tracking
      */
     public function __construct(SeedScrapeUpload $scrapeUpload, string $filePath)
     {
@@ -44,7 +75,20 @@ class ProcessSeedScrapeUpload implements ShouldQueue
     }
 
     /**
-     * Execute the job.
+     * Execute comprehensive agricultural seed catalog import and processing workflow.
+     * 
+     * Processes uploaded seed catalog data through complete validation, parsing, and import
+     * pipeline including file system validation, data structure verification, agricultural
+     * catalog synchronization, and performance monitoring. Provides comprehensive error
+     * handling and recovery for reliable seed catalog management in agricultural operations.
+     *
+     * @return void Processes seed catalog import with status tracking and error handling
+     * 
+     * @throws Exception Comprehensive error handling with detailed agricultural context logging
+     * 
+     * @import_pipeline File validation, data parsing, catalog synchronization, cleanup
+     * @agricultural_processing Seed varieties, pricing updates, availability synchronization
+     * @performance_monitoring Memory usage, processing time, file system optimization
      */
     public function handle(): void
     {
@@ -79,16 +123,16 @@ class ProcessSeedScrapeUpload implements ShouldQueue
         try {
             // Validate file before processing
             if (!file_exists($this->filePath)) {
-                throw new \Exception("File not found at path: {$this->filePath}");
+                throw new Exception("File not found at path: {$this->filePath}");
             }
             
             if (!is_readable($this->filePath)) {
-                throw new \Exception("File is not readable: {$this->filePath}");
+                throw new Exception("File is not readable: {$this->filePath}");
             }
             
             $fileSize = filesize($this->filePath);
             if ($fileSize === 0) {
-                throw new \Exception("File is empty: {$this->filePath}");
+                throw new Exception("File is empty: {$this->filePath}");
             }
             
             Log::info('ProcessSeedScrapeUpload: File validation passed', [
@@ -128,7 +172,7 @@ class ProcessSeedScrapeUpload implements ShouldQueue
                 unlink($this->filePath);
             }
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('ProcessSeedScrapeUpload: Job failed with exception', [
                 'upload_id' => $this->scrapeUpload->id,
                 'error' => $e->getMessage(),

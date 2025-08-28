@@ -2,17 +2,35 @@
 
 namespace App\Traits;
 
+use App\Models\SupplierType;
+use Illuminate\Support\Collection;
 use App\Models\Supplier;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Trait HasSupplier
- *
- * Provides common functionality for models that have a supplier relationship.
- * This trait assumes the model has a 'supplier_id' foreign key.
- *
+ * Has Supplier Trait
+ * 
+ * Comprehensive supplier relationship management for agricultural Eloquent models.
+ * Provides standardized supplier integration, filtering, and relationship handling
+ * essential for agricultural supply chain management.
+ * 
+ * @model_trait Supplier relationship management for agricultural entities
+ * @agricultural_use Supplier tracking for seeds, soil, packaging, and agricultural consumables
+ * @supply_chain Agricultural supply chain relationship management and vendor tracking
+ * @business_context Supplier performance analysis, vendor management, and procurement workflows
+ * 
+ * Key features:
+ * - Automatic supplier relationship setup with proper foreign key handling
+ * - Supplier-based query scopes for agricultural supply filtering
+ * - Active supplier filtering for operational supplier management
+ * - Supplier type-based filtering for agricultural vendor categorization
+ * - Supplier name resolution and automatic supplier creation
+ * - Agricultural supplier analytics and usage tracking
+ * 
  * @package App\Traits
+ * @author Shawn
+ * @since 2024
  */
 trait HasSupplier
 {
@@ -185,7 +203,7 @@ trait HasSupplier
         if (!$supplier) {
             // Get the default supplier type if not provided
             if (!isset($additionalData['supplier_type_id'])) {
-                $otherType = \App\Models\SupplierType::where('code', 'other')->first();
+                $otherType = SupplierType::where('code', 'other')->first();
                 if ($otherType) {
                     $additionalData['supplier_type_id'] = $otherType->id;
                 }
@@ -205,9 +223,9 @@ trait HasSupplier
     /**
      * Get all unique supplier IDs used by this model class.
      *
-     * @return \Illuminate\Support\Collection
+     * @return Collection
      */
-    public static function getUsedSupplierIds(): \Illuminate\Support\Collection
+    public static function getUsedSupplierIds(): Collection
     {
         return static::query()
             ->whereNotNull('supplier_id')
@@ -218,9 +236,9 @@ trait HasSupplier
     /**
      * Get all unique suppliers used by this model class.
      *
-     * @return \Illuminate\Support\Collection
+     * @return Collection
      */
-    public static function getUsedSuppliers(): \Illuminate\Support\Collection
+    public static function getUsedSuppliers(): Collection
     {
         $supplierIds = static::getUsedSupplierIds();
         return Supplier::whereIn('id', $supplierIds)->get();

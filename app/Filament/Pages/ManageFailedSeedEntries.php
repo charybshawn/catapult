@@ -2,16 +2,21 @@
 
 namespace App\Filament\Pages;
 
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Actions\Action;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Actions;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\BulkAction;
+use Exception;
 use App\Models\SeedEntry;
 use App\Models\SeedScrapeUpload;
 use App\Models\Supplier;
 use App\Services\SeedScrapeImporter;
-use Filament\Forms\Components\Actions;
-use Filament\Forms\Components\Actions\Action;
 use Filament\Forms\Components\Checkbox;
-use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Repeater;
-use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -32,15 +37,15 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
     use InteractsWithForms;
     use InteractsWithTable;
     
-    protected static ?string $navigationIcon = 'heroicon-o-exclamation-triangle';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-exclamation-triangle';
     
-    protected static string $view = 'filament.pages.manage-failed-seed-entries';
+    protected string $view = 'filament.pages.manage-failed-seed-entries';
     
     protected static ?string $slug = 'manage-failed-seed-entries';
     
     protected static ?string $title = 'Failed Seed Entries';
     
-    protected static ?string $navigationGroup = 'Products & Inventory';
+    protected static string | \UnitEnum | null $navigationGroup = 'Products & Inventory';
     
     protected static ?int $navigationSort = 7;
     
@@ -52,11 +57,11 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                     ->where('failed_entries_count', '>', 0)
             )
             ->columns([
-                Tables\Columns\TextColumn::make('filename')
+                TextColumn::make('filename')
                     ->label('Upload File')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         SeedScrapeUpload::STATUS_PENDING => 'gray',
@@ -65,34 +70,34 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                         SeedScrapeUpload::STATUS_ERROR => 'danger',
                         default => 'gray',
                     }),
-                Tables\Columns\TextColumn::make('total_entries')
+                TextColumn::make('total_entries')
                     ->label('Total')
                     ->numeric()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('successful_entries')
+                TextColumn::make('successful_entries')
                     ->label('Successful')
                     ->numeric()
                     ->color('success')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('failed_entries_count')
+                TextColumn::make('failed_entries_count')
                     ->label('Failed')
                     ->numeric()
                     ->color('danger')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('processed_at')
+                TextColumn::make('processed_at')
                     ->label('Processed')
                     ->dateTime()
                     ->sortable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options([
                         SeedScrapeUpload::STATUS_COMPLETED => 'Completed (with errors)',
                         SeedScrapeUpload::STATUS_ERROR => 'Failed',
                     ]),
             ])
-            ->actions([
-                Tables\Actions\Action::make('view_failed_entries')
+            ->recordActions([
+                Action::make('view_failed_entries')
                     ->label('Fix Failed Entries')
                     ->icon('heroicon-m-wrench-screwdriver')
                     ->color('warning')
@@ -100,7 +105,7 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                     ->modalDescription(fn (SeedScrapeUpload $record) => "Review and fix {$record->failed_entries_count} failed entries. You can edit the data and retry individual entries or ignore them.")
                     ->modalSubmitAction(false)
                     ->modalCancelAction(false)
-                    ->form([
+                    ->schema([
                         Repeater::make('failed_entries')
                             ->label('Failed Entries')
                             ->schema([
@@ -293,7 +298,7 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                     })
                     ->modalWidth('7xl'),
                     
-                Tables\Actions\Action::make('retry_all')
+                Action::make('retry_all')
                     ->label('Retry All Failed')
                     ->icon('heroicon-m-arrow-path')
                     ->color('warning')
@@ -309,7 +314,7 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                         $this->retryAllFailedEntries($record);
                     }),
                     
-                Tables\Actions\Action::make('clear_failed')
+                Action::make('clear_failed')
                     ->label('Clear Failed')
                     ->icon('heroicon-m-trash')
                     ->color('danger')
@@ -341,9 +346,9 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                             ->send();
                     }),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\BulkAction::make('retry_all_selected')
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    BulkAction::make('retry_all_selected')
                         ->label('Retry All Failed in Selected')
                         ->icon('heroicon-m-arrow-path')
                         ->color('warning')
@@ -434,7 +439,7 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                         'entry_index' => $index,
                         'product_title' => $productData['title'] ?? 'Unknown'
                     ]);
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     // Still failed, keep in failed entries
                     Log::warning('ManageFailedSeedEntries: Entry retry failed', [
                         'upload_id' => $upload->id,
@@ -472,7 +477,7 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
                 ->success()
                 ->send();
                 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('ManageFailedSeedEntries: Error retrying failed entries', [
                 'upload_id' => $upload->id,
                 'error' => $e->getMessage(),
@@ -677,7 +682,7 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
             // Refresh the page to show updated data
             $this->redirect(request()->header('Referer'));
                 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('ManageFailedSeedEntries: Error retrying individual entry', [
                 'upload_id' => $uploadId,
                 'entry_index' => $entryIndex,
@@ -755,7 +760,7 @@ class ManageFailedSeedEntries extends Page implements HasForms, HasTable
             // Refresh the page to show updated data
             $this->redirect(request()->header('Referer'));
                 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('ManageFailedSeedEntries: Error ignoring individual entry', [
                 'upload_id' => $uploadId,
                 'entry_index' => $entryIndex,

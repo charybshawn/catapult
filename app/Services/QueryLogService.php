@@ -6,18 +6,50 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Collection;
 
+/**
+ * Agricultural database query monitoring and performance analysis service.
+ * 
+ * Provides comprehensive query logging, slow query detection, and performance
+ * analysis specifically for agricultural database operations. Monitors crop management,
+ * order processing, and inventory queries to identify optimization opportunities
+ * and ensure reliable agricultural system performance.
+ *
+ * @business_domain Agricultural database performance monitoring
+ * @related_services ActivityLogService, StatisticsService
+ * @used_by Database performance monitoring, optimization analysis, debugging
+ * @performance_focus Slow query detection and duplicate query identification
+ * @agricultural_context Monitors agricultural model queries for optimization
+ */
 class QueryLogService
 {
     protected array $queries = [];
     protected bool $enabled = false;
 
+    /**
+     * Initialize query logging service with configuration-based enablement.
+     * 
+     * Sets up query logging based on application configuration for
+     * agricultural database performance monitoring.
+     */
     public function __construct()
     {
         $this->enabled = config('logging.enable_query_logging', false);
     }
 
     /**
-     * Log a database query.
+     * Log agricultural database query with performance metrics.
+     * 
+     * Records database queries for agricultural operations including execution time,
+     * memory usage, and model context. Automatically detects slow queries that
+     * could impact agricultural system performance during critical operations.
+     *
+     * @param string $sql Raw SQL query executed
+     * @param array $bindings Query parameter bindings
+     * @param float $time Execution time in milliseconds
+     * @param string|null $model Associated agricultural model (Crop, Product, Order)
+     * @return void
+     * @agricultural_context Monitors agricultural model query performance
+     * @slow_query_detection Automatically logs queries exceeding threshold
      */
     public function logQuery(string $sql, array $bindings, float $time, ?string $model = null): void
     {
@@ -48,7 +80,20 @@ class QueryLogService
     }
 
     /**
-     * Log a custom query with context.
+     * Log custom agricultural operation query with detailed context.
+     * 
+     * Records complex agricultural queries with descriptive context for
+     * operations like crop planning calculations, inventory aggregations,
+     * or order processing workflows.
+     *
+     * @param string $description Human-readable operation description
+     * @param string $sql Raw SQL query executed
+     * @param array $bindings Query parameter bindings
+     * @param float|null $time Execution time in milliseconds
+     * @param string|null $model Associated agricultural model
+     * @param mixed $modelId Specific model instance ID
+     * @return void
+     * @agricultural_context Documents complex agricultural operations for analysis
      */
     public function logCustomQuery(
         string $description,
@@ -71,7 +116,18 @@ class QueryLogService
     }
 
     /**
-     * Log a complex operation.
+     * Log complex agricultural workflow operations with comprehensive metrics.
+     * 
+     * Records multi-query agricultural operations like crop plan generation,
+     * recurring order processing, or inventory synchronization with performance
+     * metrics and context for optimization analysis.
+     *
+     * @param string $operation Operation name (e.g., 'crop_plan_generation')
+     * @param array $details Operation-specific details and metrics
+     * @param string|null $model Primary agricultural model involved
+     * @param mixed $modelId Specific model instance ID
+     * @return void
+     * @agricultural_context Tracks complex agricultural workflow performance
      */
     public function logComplexOperation(
         string $operation,
@@ -119,7 +175,17 @@ class QueryLogService
     }
 
     /**
-     * Get query statistics for a model.
+     * Generate performance statistics for specific agricultural models.
+     * 
+     * Analyzes query performance for agricultural models (Crop, Product, Order)
+     * including execution times, query counts, and slow query identification.
+     * Essential for optimizing agricultural database performance.
+     *
+     * @param string $model Agricultural model class name
+     * @param mixed $modelId Specific model instance ID (optional)
+     * @return array Performance statistics including query counts and timing
+     * @caching 5-minute cache for performance analysis
+     * @agricultural_context Analyzes performance for agricultural model operations
      */
     public function getStatisticsForModel(string $model, $modelId = null): array
     {
@@ -195,7 +261,21 @@ class QueryLogService
     }
 
     /**
-     * Get query report.
+     * Generate comprehensive agricultural database query performance report.
+     * 
+     * Creates detailed performance analysis including total execution times,
+     * slow query identification, duplicate query detection, and model-specific
+     * metrics for agricultural database optimization.
+     *
+     * @return array Comprehensive query performance report including:
+     *   - total_queries: Total query count for session
+     *   - total_time: Cumulative execution time
+     *   - average_time: Average query execution time
+     *   - slow_queries: Number of slow queries detected
+     *   - memory_peak: Peak memory usage
+     *   - queries_by_model: Agricultural model query breakdown
+     *   - duplicate_queries: Potential optimization opportunities
+     * @agricultural_context Provides agricultural database optimization insights
      */
     public function getQueryReport(): array
     {
@@ -237,7 +317,14 @@ class QueryLogService
     }
 
     /**
-     * Find duplicate queries.
+     * Identify duplicate queries for agricultural database optimization.
+     * 
+     * Detects repeated queries that could indicate N+1 problems or
+     * inefficient data loading patterns in agricultural operations.
+     * Essential for optimizing crop management and inventory queries.
+     *
+     * @return array Duplicate query analysis with execution counts and times
+     * @agricultural_context Identifies optimization opportunities in agricultural queries
      */
     protected function findDuplicateQueries(): array
     {

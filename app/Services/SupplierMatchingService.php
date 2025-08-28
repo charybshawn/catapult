@@ -6,13 +6,37 @@ use App\Models\Supplier;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Agricultural seed supplier matching and identification service.
+ * 
+ * Intelligently matches scraped seed data with existing agricultural suppliers
+ * using domain analysis, name similarity matching, and business context recognition.
+ * Essential for automating seed catalog management and ensuring accurate
+ * supplier attribution for agricultural product sourcing and pricing.
+ *
+ * @business_domain Agricultural seed supplier management and catalog automation
+ * @related_models Supplier, SeedScrapeUpload, SeedEntry
+ * @used_by Seed scraping system, supplier management, catalog import processes
+ * @agricultural_context Automates supplier identification for seed catalog management
+ */
 class SupplierMatchingService
 {
     /**
-     * Find potential supplier matches for a given source URL
+     * Find potential agricultural supplier matches for scraped seed data sources.
      * 
-     * @param string $sourceUrl The source URL from scraped data
-     * @return array Array of potential matches with confidence scores
+     * Analyzes source URLs from seed scraping operations to identify matching
+     * agricultural suppliers in the system using domain analysis, name matching,
+     * and business context recognition. Critical for automated seed catalog
+     * management and supplier attribution.
+     *
+     * @param string $sourceUrl The source URL from scraped seed data
+     * @return array Array of potential supplier matches including:
+     *   - supplier: Matched Supplier model instance
+     *   - confidence: Match confidence score (0.0 to 1.0)
+     *   - match_reasons: Human-readable explanations for the match
+     * @agricultural_context Automates supplier identification for seed catalog organization
+     * @confidence_threshold Requires >30% confidence for inclusion in results
+     * @logging Comprehensive logging for matching decision transparency
      */
     public function findPotentialMatches(string $sourceUrl): array
     {
@@ -92,7 +116,15 @@ class SupplierMatchingService
     }
     
     /**
-     * Extract domain from URL (e.g., "damseeds.com" from "https://www.damseeds.com/products/...")
+     * Extract clean domain name from agricultural supplier URLs.
+     * 
+     * Parses URLs from seed supplier websites to extract standardized
+     * domain names for matching purposes. Handles common URL formats
+     * from agricultural seed supplier websites.
+     *
+     * @param string $url Full URL from agricultural supplier website
+     * @return string Clean domain name (e.g., "damseeds.com")
+     * @agricultural_context Standardizes domain extraction from seed supplier websites
      */
     public function extractDomain(string $url): string
     {
@@ -116,7 +148,15 @@ class SupplierMatchingService
     }
     
     /**
-     * Extract domain name without TLD (e.g., "damseeds" from "damseeds.com")
+     * Extract base supplier name from domain for matching analysis.
+     * 
+     * Removes top-level domain to get the core business name for
+     * agricultural supplier matching. Essential for fuzzy matching
+     * with supplier names that may not include domain extensions.
+     *
+     * @param string $domain Full domain name (e.g., "damseeds.com")
+     * @return string Base domain name (e.g., "damseeds")
+     * @agricultural_context Facilitates matching with agricultural supplier business names
      */
     public function extractDomainName(string $domain): string
     {
@@ -125,7 +165,20 @@ class SupplierMatchingService
     }
     
     /**
-     * Calculate confidence score for a supplier match
+     * Calculate confidence score for agricultural supplier match accuracy.
+     * 
+     * Uses multiple matching algorithms to determine how likely a supplier
+     * is to match scraped seed data sources. Considers exact domain matches,
+     * name similarity, business context (seed suppliers), and common
+     * agricultural business terminology for comprehensive matching.
+     *
+     * @param Supplier $supplier The agricultural supplier to evaluate
+     * @param string $domain Clean domain from source URL
+     * @param string $domainName Base domain name without TLD
+     * @param string $sourceUrl Original source URL for additional matching
+     * @return float Confidence score from 0.0 (no match) to 1.0 (perfect match)
+     * @agricultural_context Prioritizes seed suppliers and agricultural business patterns
+     * @confidence_factors Exact domain (0.9), domain name (0.8), fuzzy similarity, business terms
      */
     protected function calculateMatchConfidence(Supplier $supplier, string $domain, string $domainName, string $sourceUrl): float
     {
@@ -223,7 +276,18 @@ class SupplierMatchingService
     }
     
     /**
-     * Get human-readable reasons why this supplier matches
+     * Generate human-readable explanations for agricultural supplier matches.
+     * 
+     * Provides transparent explanations of why a supplier was matched
+     * to scraped seed data, enabling users to understand and validate
+     * automated supplier attribution decisions.
+     *
+     * @param Supplier $supplier The matched agricultural supplier
+     * @param string $domain Clean domain from source URL
+     * @param string $domainName Base domain name without TLD
+     * @param string $sourceUrl Original source URL for matching
+     * @return array Human-readable match explanations
+     * @agricultural_context Explains supplier matching logic for seed catalog management
      */
     protected function getMatchReasons(Supplier $supplier, string $domain, string $domainName, string $sourceUrl): array
     {
@@ -256,7 +320,16 @@ class SupplierMatchingService
     }
     
     /**
-     * Create a supplier name suggestion from URL
+     * Generate suggested agricultural supplier name from website URL.
+     * 
+     * Creates intelligent supplier name suggestions based on domain analysis
+     * and agricultural business naming conventions. Useful for creating
+     * new supplier records when no existing match is found.
+     *
+     * @param string $sourceUrl URL from agricultural seed supplier website
+     * @return string Suggested supplier name in proper business format
+     * @agricultural_context Applies agricultural business naming conventions
+     * @naming_rules Converts domain to proper case, adds "Seeds" suffix if needed
      */
     public function suggestSupplierName(string $sourceUrl): string
     {
@@ -289,7 +362,16 @@ class SupplierMatchingService
     }
     
     /**
-     * Extract website URL for a supplier from various name formats
+     * Extract website URL from agricultural supplier name when embedded.
+     * 
+     * Searches supplier names for embedded URLs or domain names that
+     * can be converted to website URLs. Useful for suppliers that
+     * include their website in their business name.
+     *
+     * @param string $supplierName Agricultural supplier business name
+     * @return string|null Extracted or constructed website URL
+     * @agricultural_context Handles agricultural supplier naming patterns with embedded URLs
+     * @url_formats Detects full URLs, domain names, and constructs HTTPS URLs
      */
     public function extractWebsiteFromSupplierName(string $supplierName): ?string
     {

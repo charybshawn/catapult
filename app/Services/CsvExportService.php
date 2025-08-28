@@ -2,16 +2,43 @@
 
 namespace App\Services;
 
+use Exception;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 
+/**
+ * Agricultural data CSV export service with intelligent data filtering.
+ * 
+ * Provides comprehensive CSV export functionality for agricultural data including
+ * crops, products, orders, and inventory information. Features intelligent empty
+ * column filtering, relationship data handling, and agricultural-specific formatting
+ * for reports and data analysis.
+ *
+ * @business_domain Agricultural data export and reporting
+ * @used_by Filament resources, bulk export actions, reporting systems
+ * @file_management Automatic cleanup of old export files
+ * @agricultural_context Handles agricultural data formats and relationships
+ */
 class CsvExportService
 {
     /**
-     * Export data to CSV format
+     * Export agricultural data to CSV format with intelligent optimization.
+     * 
+     * Generates CSV exports from database queries with automatic filename generation,
+     * empty column filtering, and agricultural data formatting. Supports complex
+     * relationships and handles agricultural-specific data types appropriately.
+     *
+     * @param Builder $query Database query builder for data to export
+     * @param array $columns Column names to include in export
+     * @param string|null $filename Custom filename (auto-generated if null)
+     * @param array|null $headers Custom headers (auto-generated if null)
+     * @return string Generated filename for download
+     * @throws Exception If no data available to export
+     * @agricultural_context Optimized for agricultural data relationships and formats
+     * @optimization Automatically filters mostly empty columns to reduce clutter
      */
     public function export(
         Builder $query,
@@ -22,7 +49,7 @@ class CsvExportService
         $data = $query->get();
         
         if ($data->isEmpty()) {
-            throw new \Exception('No data to export');
+            throw new Exception('No data to export');
         }
         
         // Filter out columns that are mostly empty (optional optimization)
@@ -53,7 +80,16 @@ class CsvExportService
     }
     
     /**
-     * Generate CSV content from data
+     * Generate properly formatted CSV content from agricultural data.
+     * 
+     * Creates CSV content with appropriate formatting for agricultural data types
+     * including dates, boolean values, JSON fields, and relationship data.
+     *
+     * @param Collection $data Data collection to export
+     * @param array $columns Column names to include
+     * @param array|null $headers Custom headers (auto-generated if null)
+     * @return string Properly formatted CSV content
+     * @agricultural_context Handles agricultural data formatting requirements
      */
     private function generateCsvContent(
         Collection $data,
@@ -84,7 +120,16 @@ class CsvExportService
     }
     
     /**
-     * Get value for a column from the model
+     * Extract column value from agricultural model with intelligent null handling.
+     * 
+     * Handles dot notation for relationships, differentiates between meaningful
+     * zeros and null values, and applies agricultural context for proper
+     * data interpretation.
+     *
+     * @param Model $item Agricultural model instance
+     * @param string $column Column name (supports dot notation for relationships)
+     * @return mixed Column value with appropriate null handling
+     * @agricultural_context Preserves meaningful agricultural data like quantities and IDs
      */
     private function getColumnValue(Model $item, string $column)
     {
@@ -132,7 +177,14 @@ class CsvExportService
     }
     
     /**
-     * Format value for CSV output
+     * Format values for CSV output with agricultural data considerations.
+     * 
+     * Applies appropriate formatting for agricultural data types including
+     * dates, booleans, JSON fields, and null values.
+     *
+     * @param mixed $value Raw value from model
+     * @return string Formatted value for CSV output
+     * @agricultural_context Formats dates and booleans for agricultural reporting
      */
     private function formatCsvValue($value): string
     {
@@ -178,7 +230,14 @@ class CsvExportService
     }
     
     /**
-     * Get file path for download
+     * Get full file path for agricultural data export download.
+     * 
+     * Returns complete file path for generated agricultural data exports
+     * in the storage/app/exports directory.
+     *
+     * @param string $filename Export filename
+     * @return string Complete file path for download
+     * @agricultural_context Used for downloading agricultural data exports
      */
     public function getFilePath(string $filename): string
     {
@@ -186,7 +245,17 @@ class CsvExportService
     }
     
     /**
-     * Filter out columns that are mostly empty to reduce CSV clutter
+     * Intelligently filter empty columns to optimize agricultural data exports.
+     * 
+     * Removes columns that are mostly empty (80%+ null values) while preserving
+     * essential agricultural data fields like IDs and timestamps. Uses sampling
+     * for performance on large datasets.
+     *
+     * @param Collection $data Data collection to analyze
+     * @param array $columns Column names to evaluate
+     * @return array Filtered column list with empty columns removed
+     * @agricultural_context Preserves essential agricultural data fields regardless of emptiness
+     * @performance Uses sampling to avoid analyzing entire large datasets
      */
     private function filterMostlyEmptyColumns(Collection $data, array $columns): array
     {
@@ -223,7 +292,14 @@ class CsvExportService
     }
     
     /**
-     * Clean up old export files
+     * Clean up old agricultural data export files to manage storage.
+     * 
+     * Removes CSV export files older than specified threshold to prevent
+     * storage accumulation from frequent agricultural data exports.
+     *
+     * @param int $hoursOld Age threshold in hours (default: 24)
+     * @return void
+     * @agricultural_context Manages storage for frequent agricultural export operations
      */
     public function cleanupOldFiles(int $hoursOld = 24): void
     {

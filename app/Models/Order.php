@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
+use Exception;
+use App\Services\StatusTransitionService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,6 +15,106 @@ use Illuminate\Support\Facades\Log;
 use Spatie\Activitylog\LogOptions;
 use App\Traits\Logging\ExtendedLogsActivity;
 
+/**
+ * Agricultural Order Management Model for Catapult Microgreens System
+ *
+ * Represents customer orders in the microgreens agricultural workflow, managing the complete
+ * lifecycle from initial order placement through crop production to final delivery.
+ * Supports both individual orders and complex recurring subscription models essential
+ * for restaurant and wholesale customer relationships.
+ *
+ * @property int $id Primary key identifier
+ * @property int|null $user_id User who created the order
+ * @property int|null $customer_id Customer placing the order
+ * @property Carbon|null $harvest_date Planned agricultural harvest date
+ * @property Carbon|null $delivery_date Customer delivery date
+ * @property int|null $status_id Unified order status (pending, confirmed, growing, etc.)
+ * @property int|null $crop_status_id Agricultural production status
+ * @property int|null $fulfillment_status_id Order fulfillment and shipping status
+ * @property int|null $payment_status_id Payment processing status
+ * @property int|null $delivery_status_id Delivery tracking status
+ * @property string|null $customer_type Customer classification (retail, wholesale, bulk)
+ * @property int|null $order_type_id Order type classification (website, b2b, farmers_market)
+ * @property string|null $billing_frequency B2B billing frequency (immediate, weekly, monthly)
+ * @property bool $requires_invoice Whether order needs formal invoice generation
+ * @property Carbon|null $billing_period_start Start date for consolidated billing periods
+ * @property Carbon|null $billing_period_end End date for consolidated billing periods
+ * @property int|null $consolidated_invoice_id Reference to consolidated invoice
+ * @property array|null $billing_preferences JSON billing configuration
+ * @property string|null $billing_period Billing period classification
+ * @property bool $is_recurring Whether this is a recurring order template
+ * @property int|null $parent_recurring_order_id Parent template for generated orders
+ * @property string|null $recurring_frequency Recurrence pattern (weekly, biweekly, monthly)
+ * @property Carbon|null $recurring_start_date When recurring orders begin
+ * @property Carbon|null $recurring_end_date When recurring orders stop
+ * @property bool $is_recurring_active Whether recurring generation is active
+ * @property array|null $recurring_days_of_week Days for recurring order generation
+ * @property int|null $recurring_interval Interval for recurring patterns (e.g., every 2 weeks)
+ * @property Carbon|null $last_generated_at When last recurring order was generated
+ * @property Carbon|null $next_generation_date When next recurring order should be generated
+ * @property string|null $harvest_day Preferred harvest day of week
+ * @property string|null $delivery_day Preferred delivery day of week
+ * @property int $start_delay_weeks Delay before first recurring order
+ * @property string|null $notes Order-specific notes and instructions
+ *
+ * @property-read float $total_amount Computed order total from line items
+ * @property-read float $remaining_balance Unpaid balance after payments
+ * @property-read string $customer_type_display Formatted customer type name
+ * @property-read string $recurring_frequency_display Formatted recurrence description
+ * @property-read string $combined_status Legacy combined status display
+ * @property-read string $unified_status_display Current unified status with stage
+ * @property-read string $unified_status_color UI color for status display
+ * @property-read int $generated_orders_count Number of orders generated from template
+ *
+ * @relationship user BelongsTo User who created the order
+ * @relationship customer BelongsTo Customer placing the order
+ * @relationship status BelongsTo Unified order status
+ * @relationship orderType BelongsTo Order type classification
+ * @relationship cropStatus BelongsTo Agricultural production status
+ * @relationship fulfillmentStatus BelongsTo Order fulfillment status
+ * @relationship orderItems HasMany Individual product line items
+ * @relationship crops HasMany Agricultural crops for production
+ * @relationship cropPlans HasMany Production planning schedules
+ * @relationship payments HasMany Payment transactions
+ * @relationship invoice HasOne Individual order invoice
+ * @relationship consolidatedInvoice BelongsTo Consolidated billing invoice
+ * @relationship packagingTypes BelongsToMany Packaging requirements with quantities
+ * @relationship parentRecurringOrder BelongsTo Template for recurring orders
+ * @relationship generatedOrders HasMany Orders generated from recurring template
+ *
+ * @business_rule Orders progress through unified status workflow: draft → pending → confirmed → growing → harvesting → packing → ready_for_delivery → out_for_delivery → delivered
+ * @business_rule Recurring templates generate child orders automatically based on schedule
+ * @business_rule B2B orders support consolidated billing with various frequencies
+ * @business_rule Agricultural timing coordinates harvest dates with delivery schedules
+ * @business_rule Order modifications restricted based on production and fulfillment status
+ *
+ * @agricultural_context Orders drive the entire microgreens production workflow.
+ * Harvest dates determine when crops must be planted (accounting for growing time),
+ * delivery dates ensure fresh product reaches customers, and recurring orders
+ * provide predictable production schedules for agricultural planning.
+ *
+ * @usage_example
+ * // Create standard order
+ * $order = Order::create([
+ *     'customer_id' => $customer->id,
+ *     'delivery_date' => Carbon::parse('2024-03-15'),
+ *     'harvest_date' => Carbon::parse('2024-03-13')
+ * ]);
+ *
+ * // Create recurring order template
+ * $recurringOrder = Order::create([
+ *     'customer_id' => $customer->id,
+ *     'is_recurring' => true,
+ *     'recurring_frequency' => 'weekly',
+ *     'recurring_start_date' => Carbon::now(),
+ *     'harvest_day' => 'wednesday',
+ *     'delivery_day' => 'friday'
+ * ]);
+ *
+ * @package App\Models
+ * @author Catapult Development Team
+ * @version 2.0.0
+ */
 class Order extends Model
 {
     use HasFactory, ExtendedLogsActivity;
@@ -78,7 +181,17 @@ class Order extends Model
     ];
     
     /**
-     * Boot the model.
+     * Configure model event listeners for agricultural order workflow.
+     *
+     * Implements critical business logic and automated workflows:
+     * - Sets authenticated user as order creator
+     * - Assigns appropriate default status based on order type
+     * - Manages recurring order template status transitions
+     * - Automatically calculates billing periods for B2B orders
+     * - Sets customer type from customer relationship
+     * - Calculates next generation dates for recurring orders
+     *
+     * @return void
      */
     protected static function boot()
     {
@@ -93,7 +206,7 @@ class Order extends Model
             // Set default status for new orders
             if (!$order->status_id) {
                 $defaultStatusCode = $order->is_recurring ? 'template' : 'pending';
-                $defaultStatus = \App\Models\OrderStatus::where('code', $defaultStatusCode)->first();
+                $defaultStatus = OrderStatus::where('code', $defaultStatusCode)->first();
                 if ($defaultStatus) {
                     $order->status_id = $defaultStatus->id;
                 }
@@ -102,7 +215,7 @@ class Order extends Model
             // Set default unified status for new orders
             if (!$order->status_id) {
                 $defaultStatusCode = $order->is_recurring ? 'template' : 'pending';
-                $defaultUnifiedStatus = \App\Models\OrderStatus::where('code', $defaultStatusCode)->first();
+                $defaultUnifiedStatus = OrderStatus::where('code', $defaultStatusCode)->first();
                 if ($defaultUnifiedStatus) {
                     $order->status_id = $defaultUnifiedStatus->id;
                 }
@@ -120,23 +233,23 @@ class Order extends Model
             $orderTypeCode = $order->orderType?->code ?? null;
             $currentStatus = $order->orderStatus?->code ?? null;
             if ($order->is_recurring && $orderTypeCode !== 'b2b' && $currentStatus !== 'template') {
-                $templateStatus = \App\Models\OrderStatus::where('code', 'template')->first();
+                $templateStatus = OrderStatus::where('code', 'template')->first();
                 if ($templateStatus) {
                     $order->status_id = $templateStatus->id;
                 }
                 // Also update unified status
-                $templateUnifiedStatus = \App\Models\OrderStatus::where('code', 'template')->first();
+                $templateUnifiedStatus = OrderStatus::where('code', 'template')->first();
                 if ($templateUnifiedStatus) {
                     $order->status_id = $templateUnifiedStatus->id;
                 }
             } elseif (!$order->is_recurring && $currentStatus === 'template') {
                 // If no longer recurring, change status from template to pending
-                $pendingStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
+                $pendingStatus = OrderStatus::where('code', 'pending')->first();
                 if ($pendingStatus) {
                     $order->status_id = $pendingStatus->id;
                 }
                 // Also update unified status
-                $pendingUnifiedStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
+                $pendingUnifiedStatus = OrderStatus::where('code', 'pending')->first();
                 if ($pendingUnifiedStatus) {
                     $order->status_id = $pendingUnifiedStatus->id;
                 }
@@ -144,7 +257,7 @@ class Order extends Model
             
             // Automatically set customer_type from customer if not set
             if (!$order->customer_type && $order->customer_id) {
-                $customer = $order->customer_id ? \App\Models\Customer::find($order->customer_id) : null;
+                $customer = $order->customer_id ? Customer::find($order->customer_id) : null;
                 if ($customer) {
                     $order->customer_type = $customer->customer_type ?? 'retail';
                 }
@@ -157,9 +270,9 @@ class Order extends Model
                 $order->delivery_date &&
                 (!$order->billing_period_start || !$order->billing_period_end)) {
                 
-                $deliveryDate = $order->delivery_date instanceof \Carbon\Carbon 
+                $deliveryDate = $order->delivery_date instanceof Carbon 
                     ? $order->delivery_date 
-                    : \Carbon\Carbon::parse($order->delivery_date);
+                    : Carbon::parse($order->delivery_date);
                 
                 switch ($order->billing_frequency) {
                     case 'weekly':
@@ -198,6 +311,12 @@ class Order extends Model
     
     /**
      * Get the user who created this order.
+     *
+     * Relationship to the system user (staff member) who created or manages
+     * this order. Essential for tracking responsibility and agricultural
+     * order workflow accountability.
+     *
+     * @return BelongsTo<User> User who created the order
      */
     public function user(): BelongsTo
     {
@@ -206,6 +325,12 @@ class Order extends Model
     
     /**
      * Get the customer for this order.
+     *
+     * Relationship to the customer entity placing the agricultural order.
+     * Customer data determines pricing, delivery preferences, billing terms,
+     * and agricultural production requirements.
+     *
+     * @return BelongsTo<Customer> Customer placing the order
      */
     public function customer(): BelongsTo
     {
@@ -213,7 +338,13 @@ class Order extends Model
     }
     
     /**
-     * Get the order status for this order.
+     * Get the unified status for this order.
+     *
+     * Relationship to the comprehensive order status that reflects the current
+     * stage across the entire agricultural workflow (production, fulfillment, payment).
+     * Unified status provides single source of truth for order progression.
+     *
+     * @return BelongsTo<OrderStatus> Current unified order status
      */
     public function status(): BelongsTo
     {
@@ -222,6 +353,12 @@ class Order extends Model
     
     /**
      * Get the order type for this order.
+     *
+     * Relationship to order type classification determining billing behavior,
+     * agricultural workflows, and customer interaction patterns.
+     * Types include: website (retail), b2b (wholesale), farmers_market (direct sales).
+     *
+     * @return BelongsTo<OrderType> Order type classification
      */
     public function orderType(): BelongsTo
     {
@@ -229,7 +366,13 @@ class Order extends Model
     }
     
     /**
-     * Get the crop status for this order.
+     * Get the agricultural production status for this order.
+     *
+     * Relationship to crop status tracking agricultural production phases:
+     * not_started → planted → growing → ready_to_harvest → harvested → na (non-agricultural)
+     * Essential for coordinating agricultural timing with customer expectations.
+     *
+     * @return BelongsTo<CropStatus> Current agricultural production status
      */
     public function cropStatus(): BelongsTo
     {
@@ -237,7 +380,13 @@ class Order extends Model
     }
     
     /**
-     * Get the fulfillment status for this order.
+     * Get the order fulfillment and shipping status.
+     *
+     * Relationship to fulfillment status tracking post-harvest activities:
+     * pending → packing → ready_for_delivery → out_for_delivery → delivered
+     * Coordinates with delivery schedules and customer communication.
+     *
+     * @return BelongsTo<FulfillmentStatus> Current fulfillment status
      */
     public function fulfillmentStatus(): BelongsTo
     {
@@ -245,7 +394,13 @@ class Order extends Model
     }
     
     /**
-     * Get the order items for this order.
+     * Get the product line items for this order.
+     *
+     * Relationship to individual products and quantities ordered by the customer.
+     * Each order item references a specific product, price variation, and quantity,
+     * driving agricultural production planning and inventory allocation.
+     *
+     * @return HasMany<OrderItem> Product line items with quantities and pricing
      */
     public function orderItems(): HasMany
     {
@@ -253,7 +408,13 @@ class Order extends Model
     }
     
     /**
-     * Get the crops for this order.
+     * Get the agricultural crops produced for this order.
+     *
+     * Relationship to individual crop batches grown to fulfill this order.
+     * Each crop represents a specific variety planted, grown, and harvested
+     * according to agricultural schedules and customer delivery requirements.
+     *
+     * @return HasMany<Crop> Agricultural crops for order fulfillment
      */
     public function crops(): HasMany
     {
@@ -261,7 +422,13 @@ class Order extends Model
     }
     
     /**
-     * Get the crop plans for this order.
+     * Get the agricultural production plans for this order.
+     *
+     * Relationship to crop planning schedules that coordinate planting times
+     * with harvest dates to ensure timely delivery. Plans account for variety
+     * growth periods, seasonal factors, and production capacity constraints.
+     *
+     * @return HasMany<CropPlan> Agricultural production planning schedules
      */
     public function cropPlans(): HasMany
     {
@@ -269,7 +436,13 @@ class Order extends Model
     }
     
     /**
-     * Get the payments for this order.
+     * Get the payment transactions for this order.
+     *
+     * Relationship to all payment attempts, successes, and refunds associated
+     * with this order. Supports partial payments, installment plans, and
+     * complex B2B payment terms common in agricultural wholesale relationships.
+     *
+     * @return HasMany<Payment> Payment transactions and attempts
      */
     public function payments(): HasMany
     {
@@ -277,7 +450,13 @@ class Order extends Model
     }
     
     /**
-     * Get the invoice for this order.
+     * Get the individual invoice for this order.
+     *
+     * Relationship to single order invoice for immediate billing scenarios.
+     * Used for retail orders and website purchases requiring immediate
+     * payment and invoicing.
+     *
+     * @return HasOne<Invoice> Individual order invoice
      */
     public function invoice(): HasOne
     {
@@ -286,6 +465,13 @@ class Order extends Model
     
     /**
      * Get the consolidated invoice for this order.
+     *
+     * Relationship to consolidated billing invoice for B2B customers with
+     * weekly, monthly, or quarterly billing frequencies. Multiple orders
+     * are combined into single invoices for simplified agricultural
+     * wholesale billing workflows.
+     *
+     * @return BelongsTo<Invoice> Consolidated billing invoice
      */
     public function consolidatedInvoice(): BelongsTo
     {
@@ -293,7 +479,13 @@ class Order extends Model
     }
     
     /**
-     * Get the packaging for this order.
+     * Get the packaging requirements for this order.
+     *
+     * Relationship to specific packaging allocations including container types,
+     * quantities, and special handling requirements. Essential for agricultural
+     * post-harvest processing and customer delivery expectations.
+     *
+     * @return HasMany<OrderPackaging> Packaging requirements and allocations
      */
     public function orderPackagings(): HasMany
     {
@@ -302,6 +494,12 @@ class Order extends Model
     
     /**
      * Get the packaging types for this order.
+     *
+     * Many-to-many relationship to packaging types with pivot data for quantities
+     * and notes. Supports complex packaging requirements where orders need
+     * multiple container types and sizes for different agricultural products.
+     *
+     * @return BelongsToMany<PackagingType> Packaging types with quantities
      */
     public function packagingTypes()
     {
@@ -312,6 +510,13 @@ class Order extends Model
     
     /**
      * Calculate the total amount for this order.
+     *
+     * Computes order total by summing all line items (quantity × price).
+     * Optimized with eager loading to prevent N+1 queries in agricultural
+     * order processing workflows. Essential for payment processing and
+     * agricultural financial reporting.
+     *
+     * @return float Total order amount in dollars
      */
     public function totalAmount(): float
     {
@@ -326,7 +531,13 @@ class Order extends Model
     }
     
     /**
-     * Check if the order is paid.
+     * Check if the order is fully paid.
+     *
+     * Determines payment completion by comparing total completed payments
+     * against order total. Supports partial payments and complex B2B
+     * payment arrangements common in agricultural wholesale relationships.
+     *
+     * @return bool True if total payments >= order total
      */
     public function isPaid(): bool
     {
@@ -337,6 +548,15 @@ class Order extends Model
         return $this->payments()->where('status_id', $completedStatusId)->sum('amount') >= $this->totalAmount();
     }
 
+    /**
+     * Calculate the remaining unpaid balance.
+     *
+     * Computes outstanding amount by subtracting completed payments from
+     * order total. Used for payment reminders, credit management, and
+     * agricultural accounts receivable tracking.
+     *
+     * @return float Remaining balance in dollars (minimum 0)
+     */
     public function remainingBalance(): float
     {
         $total = $this->totalAmount();
@@ -348,6 +568,15 @@ class Order extends Model
         return max(0, $total - $paid);
     }
 
+    /**
+     * Get the consumable supplies for this order.
+     *
+     * Many-to-many relationship to consumable supplies (packaging materials,
+     * growing supplies) required for order fulfillment. Used in agricultural
+     * cost accounting and inventory management for order-specific supplies.
+     *
+     * @return BelongsToMany<Consumable> Consumable supplies with quantities
+     */
     public function consumables()
     {
         return $this->belongsToMany(Consumable::class, 'order_consumables')
@@ -355,6 +584,15 @@ class Order extends Model
             ->withTimestamps();
     }
     
+    /**
+     * Calculate the total packaging cost for this order.
+     *
+     * Computes packaging expenses by summing cost per unit × quantity
+     * for all packaging types. Essential for accurate agricultural
+     * order costing and margin analysis.
+     *
+     * @return float Total packaging cost in dollars
+     */
     public function packagingCost(): float
     {
         return $this->packagingTypes()->sum(function ($packagingType) {
@@ -362,6 +600,20 @@ class Order extends Model
         });
     }
 
+    /**
+     * Automatically assign appropriate packaging to this order.
+     *
+     * Intelligent packaging assignment algorithm for agricultural orders:
+     * 1. Clears existing packaging assignments
+     * 2. Calculates total item quantities
+     * 3. Selects appropriate packaging size (prefers medium containers)
+     * 4. Assigns packaging with auto-generated notes
+     *
+     * Used for streamlined order processing when manual packaging
+     * selection is not required.
+     *
+     * @return void
+     */
     public function autoAssignPackaging()
     {
         // Get all active packaging types
@@ -399,6 +651,12 @@ class Order extends Model
 
     /**
      * Get the parent recurring order template.
+     *
+     * Relationship to the recurring order template that generated this order.
+     * Used for tracking recurring order relationships and maintaining
+     * agricultural subscription consistency across generated orders.
+     *
+     * @return BelongsTo<Order> Parent recurring order template
      */
     public function parentRecurringOrder(): BelongsTo
     {
@@ -407,6 +665,12 @@ class Order extends Model
     
     /**
      * Get the child orders generated from this recurring order template.
+     *
+     * Relationship to all orders automatically generated from this recurring
+     * template. Essential for tracking agricultural subscription fulfillment,
+     * analyzing recurring customer patterns, and managing template modifications.
+     *
+     * @return HasMany<Order> Orders generated from this template
      */
     public function generatedOrders(): HasMany
     {
@@ -415,6 +679,12 @@ class Order extends Model
     
     /**
      * Check if this is a recurring order template.
+     *
+     * Determines if this order serves as a template for generating recurring
+     * agricultural orders. Templates drive automated order creation based on
+     * agricultural schedules and customer delivery preferences.
+     *
+     * @return bool True if this is a recurring template (not a generated order)
      */
     public function isRecurringTemplate(): bool
     {
@@ -423,6 +693,12 @@ class Order extends Model
     
     /**
      * Check if this is a B2B recurring order that can generate new orders.
+     *
+     * Specialized check for B2B recurring templates that support complex
+     * wholesale agricultural subscriptions with consolidated billing and
+     * advanced scheduling options.
+     *
+     * @return bool True if B2B recurring template
      */
     public function isB2BRecurringTemplate(): bool
     {
@@ -433,6 +709,12 @@ class Order extends Model
     
     /**
      * Check if this order was generated from a recurring template.
+     *
+     * Determines if this order was automatically created from a recurring
+     * template rather than manually created. Affects order modification
+     * permissions and agricultural workflow handling.
+     *
+     * @return bool True if generated from recurring template
      */
     public function isGeneratedFromRecurring(): bool
     {
@@ -441,8 +723,17 @@ class Order extends Model
     
     /**
      * Calculate the next generation date based on frequency and settings.
+     *
+     * Complex agricultural scheduling algorithm that determines when the next
+     * recurring order should be generated. Considers:
+     * - Recurring frequency (weekly, biweekly, monthly)
+     * - Start delay weeks for initial order timing
+     * - Last generation date for subsequent orders
+     * - Agricultural timing constraints
+     *
+     * @return Carbon|null Next generation date or null if not applicable
      */
-    public function calculateNextGenerationDate(): ?\Carbon\Carbon
+    public function calculateNextGenerationDate(): ?Carbon
     {
         if (!$this->isRecurringTemplate() || !$this->is_recurring_active) {
             return null;
@@ -450,9 +741,9 @@ class Order extends Model
         
         // If we already have a next_generation_date set, use it
         if ($this->next_generation_date) {
-            return $this->next_generation_date instanceof \Carbon\Carbon 
+            return $this->next_generation_date instanceof Carbon 
                 ? $this->next_generation_date 
-                : \Carbon\Carbon::parse($this->next_generation_date);
+                : Carbon::parse($this->next_generation_date);
         }
         
         $baseStartDate = $this->recurring_start_date;
@@ -461,9 +752,9 @@ class Order extends Model
         }
         
         // Apply the start delay to get the effective start date
-        $effectiveStartDate = $baseStartDate instanceof \Carbon\Carbon 
+        $effectiveStartDate = $baseStartDate instanceof Carbon 
             ? $baseStartDate->copy() 
-            : \Carbon\Carbon::parse($baseStartDate);
+            : Carbon::parse($baseStartDate);
         
         if ($this->start_delay_weeks > 0) {
             $effectiveStartDate->addWeeks($this->start_delay_weeks);
@@ -483,9 +774,9 @@ class Order extends Model
         }
         
         // For subsequent generations, use the last generated date as the base
-        $lastDate = $this->last_generated_at instanceof \Carbon\Carbon 
+        $lastDate = $this->last_generated_at instanceof Carbon 
             ? $this->last_generated_at 
-            : \Carbon\Carbon::parse($this->last_generated_at);
+            : Carbon::parse($this->last_generated_at);
         
         return match($this->recurring_frequency) {
             'weekly' => $lastDate->copy()->addWeek(),
@@ -497,8 +788,16 @@ class Order extends Model
     
     /**
      * Calculate the next occurrence of a specific day from a given date.
+     *
+     * Agricultural timing utility that finds the next occurrence of a specified
+     * day (harvest_day or delivery_day) from a given starting date. Essential
+     * for coordinating agricultural schedules with customer preferences.
+     *
+     * @param string $type Type of day to calculate ('harvest' or 'delivery')
+     * @param Carbon $fromDate Starting date for calculation
+     * @return Carbon Next occurrence of the specified day
      */
-    public function calculateNextDateForDayTime(string $type, \Carbon\Carbon $fromDate): \Carbon\Carbon
+    public function calculateNextDateForDayTime(string $type, Carbon $fromDate): Carbon
     {
         $dayField = $type . '_day';
         $targetDay = $this->{$dayField} ?? null;
@@ -510,16 +809,16 @@ class Order extends Model
         
         // Convert day name to Carbon day constant
         $dayMap = [
-            'sunday' => \Carbon\Carbon::SUNDAY,
-            'monday' => \Carbon\Carbon::MONDAY,
-            'tuesday' => \Carbon\Carbon::TUESDAY,
-            'wednesday' => \Carbon\Carbon::WEDNESDAY,
-            'thursday' => \Carbon\Carbon::THURSDAY,
-            'friday' => \Carbon\Carbon::FRIDAY,
-            'saturday' => \Carbon\Carbon::SATURDAY,
+            'sunday' => Carbon::SUNDAY,
+            'monday' => Carbon::MONDAY,
+            'tuesday' => Carbon::TUESDAY,
+            'wednesday' => Carbon::WEDNESDAY,
+            'thursday' => Carbon::THURSDAY,
+            'friday' => Carbon::FRIDAY,
+            'saturday' => Carbon::SATURDAY,
         ];
         
-        $targetDayConstant = $dayMap[strtolower($targetDay)] ?? \Carbon\Carbon::MONDAY;
+        $targetDayConstant = $dayMap[strtolower($targetDay)] ?? Carbon::MONDAY;
         
         // Find the next occurrence of the target day
         $targetDate = $fromDate->copy()->next($targetDayConstant);
@@ -534,6 +833,15 @@ class Order extends Model
     
     /**
      * Generate multiple orders to catch up to current date plus several weeks ahead.
+     *
+     * Batch generation method for recurring agricultural orders that creates
+     * multiple orders to maintain adequate production pipeline. Generates
+     * 6 weeks ahead to accommodate longer-growing crops like basil (21 days).
+     *
+     * Prevents duplicate orders and manages template state efficiently
+     * for high-volume agricultural subscription processing.
+     *
+     * @return array<Order> Array of generated orders
      */
     public function generateRecurringOrdersCatchUp(): array
     {
@@ -585,9 +893,17 @@ class Order extends Model
 
     /**
      * Generate an order for a specific generation date without updating template state.
+     *
+     * Internal method used by batch generation to create individual recurring orders
+     * for specific dates. Handles agricultural timing calculations, duplicate prevention,
+     * order replication, and price recalculation for current market conditions.
+     *
      * Used internally by generateRecurringOrdersCatchUp().
+     *
+     * @param Carbon $generationDate Target date for order generation
+     * @return Order|null Generated order or null if generation failed/skipped
      */
-    protected function generateOrderForSpecificDate(\Carbon\Carbon $generationDate): ?Order
+    protected function generateOrderForSpecificDate(Carbon $generationDate): ?Order
     {
         if (!$this->isRecurringTemplate() || !$this->is_recurring_active) {
             return null;
@@ -629,12 +945,12 @@ class Order extends Model
         $newOrder->delivery_date = $deliveryDate;
         
         // Set default statuses for generated orders
-        $pendingOrderStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
+        $pendingOrderStatus = OrderStatus::where('code', 'pending')->first();
         if ($pendingOrderStatus) {
             $newOrder->status_id = $pendingOrderStatus->id;
         }
         
-        $pendingPaymentStatus = \App\Models\PaymentStatus::where('code', 'pending')->first();
+        $pendingPaymentStatus = PaymentStatus::where('code', 'pending')->first();
         if ($pendingPaymentStatus) {
             $newOrder->payment_status_id = $pendingPaymentStatus->id;
         }
@@ -657,7 +973,7 @@ class Order extends Model
                         $this->customer, 
                         $item->price_variation_id
                     );
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     // If price calculation fails, use original price
                     Log::warning('Failed to calculate price for recurring order item', [
                         'template_id' => $this->id,
@@ -684,7 +1000,7 @@ class Order extends Model
                     'quantity' => $item->quantity,
                     'price' => $currentPrice,
                 ]);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 Log::error('Failed to create order item for recurring order', [
                     'template_id' => $this->id,
                     'new_order_id' => $newOrder->id,
@@ -708,6 +1024,13 @@ class Order extends Model
 
     /**
      * Generate the next order in the recurring series.
+     *
+     * Creates the next scheduled order from this recurring template with
+     * complete agricultural timing calculations and current pricing.
+     * Updates template generation tracking and handles end-date validation
+     * for agricultural subscription management.
+     *
+     * @return Order|null Generated order or null if generation not applicable
      */
     public function generateNextRecurringOrder(): ?Order
     {
@@ -770,12 +1093,12 @@ class Order extends Model
         $newOrder->delivery_date = $deliveryDate;
         
         // Set default statuses for generated orders
-        $pendingOrderStatus = \App\Models\OrderStatus::where('code', 'pending')->first();
+        $pendingOrderStatus = OrderStatus::where('code', 'pending')->first();
         if ($pendingOrderStatus) {
             $newOrder->status_id = $pendingOrderStatus->id;
         }
         
-        $pendingPaymentStatus = \App\Models\PaymentStatus::where('code', 'pending')->first();
+        $pendingPaymentStatus = PaymentStatus::where('code', 'pending')->first();
         if ($pendingPaymentStatus) {
             $newOrder->payment_status_id = $pendingPaymentStatus->id;
         }
@@ -798,7 +1121,7 @@ class Order extends Model
                         $this->customer, 
                         $item->price_variation_id
                     );
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     // If price calculation fails, use original price
                     Log::warning('Failed to calculate price for recurring order item', [
                         'template_id' => $this->id,
@@ -825,7 +1148,7 @@ class Order extends Model
                     'quantity' => $item->quantity,
                     'price' => $currentPrice,
                 ]);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 Log::error('Failed to create order item for recurring order', [
                     'template_id' => $this->id,
                     'new_order_id' => $newOrder->id,
@@ -869,6 +1192,12 @@ class Order extends Model
     
     /**
      * Get formatted recurring frequency display.
+     *
+     * Provides human-readable description of recurring frequency for
+     * customer communication and agricultural subscription management.
+     * Handles custom intervals (e.g., "Every 2 weeks").
+     *
+     * @return string Formatted frequency description
      */
     public function getRecurringFrequencyDisplayAttribute(): string
     {
@@ -886,6 +1215,12 @@ class Order extends Model
     
     /**
      * Get the total number of generated orders.
+     *
+     * Accessor for counting orders generated from this recurring template.
+     * Used for agricultural subscription analytics, template performance
+     * tracking, and customer relationship management.
+     *
+     * @return int Number of orders generated from this template
      */
     public function getGeneratedOrdersCountAttribute(): int
     {
@@ -893,7 +1228,17 @@ class Order extends Model
     }
 
     /**
-     * Get the customer type (from order or user).
+     * Get the customer type (from order or customer relationship).
+     *
+     * Accessor with fallback hierarchy for customer classification:
+     * 1. Use order-specific customer_type if set
+     * 2. Fall back to customer's default type
+     * 3. Default to 'retail' if no classification available
+     *
+     * Essential for agricultural pricing and workflow decisions.
+     *
+     * @param string|null $value Stored customer type value
+     * @return string Customer type classification
      */
     public function getCustomerTypeAttribute($value)
     {
@@ -908,6 +1253,11 @@ class Order extends Model
     
     /**
      * Get the customer type display name.
+     *
+     * Provides formatted customer type for UI display in agricultural
+     * order management interfaces and customer communications.
+     *
+     * @return string Formatted customer type name
      */
     public function getCustomerTypeDisplayAttribute(): string
     {
@@ -920,6 +1270,11 @@ class Order extends Model
     
     /**
      * Get the order type display name.
+     *
+     * Provides formatted order type for UI display and agricultural
+     * workflow categorization. Falls back to 'Unknown' if type not set.
+     *
+     * @return string Formatted order type name
      */
     public function getOrderTypeDisplayAttribute(): string
     {
@@ -928,6 +1283,11 @@ class Order extends Model
     
     /**
      * Get the billing frequency display name.
+     *
+     * Provides formatted billing frequency for B2B agricultural customer
+     * communications and consolidated billing workflows.
+     *
+     * @return string Formatted billing frequency description
      */
     public function getBillingFrequencyDisplayAttribute(): string
     {
@@ -944,6 +1304,12 @@ class Order extends Model
     
     /**
      * Check if this order requires immediate invoicing.
+     *
+     * Determines if order should be invoiced immediately upon confirmation
+     * rather than included in consolidated billing. Applies to website orders
+     * and orders specifically marked for immediate billing.
+     *
+     * @return bool True if immediate invoicing required
      */
     public function requiresImmediateInvoicing(): bool
     {
@@ -953,6 +1319,12 @@ class Order extends Model
     
     /**
      * Check if this order is part of consolidated billing.
+     *
+     * Determines if order should be included in periodic consolidated invoices
+     * for B2B agricultural customers with weekly, monthly, or quarterly
+     * billing arrangements.
+     *
+     * @return bool True if consolidated billing applies
      */
     public function isConsolidatedBilling(): bool
     {
@@ -962,6 +1334,12 @@ class Order extends Model
     
     /**
      * Check if this order should bypass invoicing completely.
+     *
+     * Determines if order should skip invoice generation entirely,
+     * typically for farmers market sales with cash payments that
+     * don't require formal invoicing processes.
+     *
+     * @return bool True if invoicing should be bypassed
      */
     public function shouldBypassInvoicing(): bool
     {
@@ -969,7 +1347,13 @@ class Order extends Model
     }
     
     /**
-     * Check if the order requires crop production.
+     * Check if the order requires agricultural crop production.
+     *
+     * Determines if order contains products that need agricultural growing
+     * by checking for items with seed varieties (master_seed_catalog_id)
+     * or product mixes requiring crop cultivation.
+     *
+     * @return bool True if agricultural production required
      */
     public function requiresCropProduction(): bool
     {
@@ -983,7 +1367,15 @@ class Order extends Model
     }
     
     /**
-     * Check if order should have crop plans generated
+     * Check if order should have agricultural crop plans generated.
+     *
+     * Determines if order requires crop planning based on:
+     * - Contains products needing agricultural production
+     * - Not in final delivery state
+     * - Not a recurring template
+     * - Not in template status
+     *
+     * @return bool True if crop plans should be generated
      */
     public function shouldHaveCropPlans(): bool
     {
@@ -995,7 +1387,18 @@ class Order extends Model
     }
     
     /**
-     * Update crop status based on related crops.
+     * Update agricultural crop status based on related crops.
+     *
+     * Analyzes all crops associated with this order and determines
+     * appropriate agricultural status:
+     * - 'na': No agricultural production required
+     * - 'not_started': No crops created yet
+     * - 'planted': Crops exist but none planted
+     * - 'growing': Some crops planted
+     * - 'ready_to_harvest': All crops ready for harvest
+     * - 'harvested': All crops harvested
+     *
+     * @return void
      */
     public function updateCropStatus(): void
     {
@@ -1029,7 +1432,17 @@ class Order extends Model
     
     /**
      * Synchronize the unified status based on current order, crop, and fulfillment statuses.
-     * This method determines the most appropriate unified status based on the order's current state.
+     *
+     * Complex agricultural workflow orchestration that determines the most appropriate
+     * unified status by analyzing current state across all order dimensions:
+     * - Order status (draft, pending, confirmed, etc.)
+     * - Crop status (agricultural production phase)
+     * - Fulfillment status (post-harvest processing)
+     *
+     * Provides single source of truth for order progression across
+     * the complete agricultural and fulfillment workflow.
+     *
+     * @return void
      */
     public function syncUnifiedStatus(): void
     {
@@ -1110,6 +1523,13 @@ class Order extends Model
     
     /**
      * Update the unified status by code.
+     *
+     * Internal helper method that sets unified status by looking up
+     * OrderStatus record by code and updating if different from current.
+     * Prevents unnecessary database updates for status synchronization.
+     *
+     * @param string $statusCode Status code to set
+     * @return void
      */
     private function updateUnifiedStatus(string $statusCode): void
     {
@@ -1121,6 +1541,12 @@ class Order extends Model
     
     /**
      * Get a combined status display.
+     *
+     * Legacy method providing combined status display by concatenating
+     * order, crop, and fulfillment statuses. Maintained for backwards
+     * compatibility but superseded by unified status system.
+     *
+     * @return string Combined status description
      */
     public function getCombinedStatusAttribute(): string
     {
@@ -1162,6 +1588,12 @@ class Order extends Model
     
     /**
      * Get the unified status display with stage information.
+     *
+     * Provides comprehensive status display including both status name
+     * and stage information for complete agricultural workflow visibility.
+     * Used in order management interfaces and customer communications.
+     *
+     * @return string Unified status with stage display
      */
     public function getUnifiedStatusDisplayAttribute(): string
     {
@@ -1178,6 +1610,12 @@ class Order extends Model
     
     /**
      * Get the unified status color for UI display.
+     *
+     * Provides color coding for unified status to enable visual order
+     * management in agricultural workflow interfaces. Colors indicate
+     * urgency and stage progression for operational efficiency.
+     *
+     * @return string Color code for UI display (e.g., 'green', 'orange', 'red')
      */
     public function getUnifiedStatusColorAttribute(): string
     {
@@ -1186,6 +1624,12 @@ class Order extends Model
     
     /**
      * Check if the order can be modified based on unified status.
+     *
+     * Determines if order allows modifications based on current workflow stage.
+     * Prevents changes to orders in agricultural production or fulfillment
+     * phases where modifications would disrupt operations.
+     *
+     * @return bool True if order modifications are allowed
      */
     public function canBeModified(): bool
     {
@@ -1194,6 +1638,12 @@ class Order extends Model
     
     /**
      * Check if the order is in a final state.
+     *
+     * Determines if order has reached a terminal status (delivered, cancelled)
+     * where no further agricultural workflow progression is expected.
+     * Used for workflow validation and order management permissions.
+     *
+     * @return bool True if order is in final state
      */
     public function isInFinalState(): bool
     {
@@ -1202,6 +1652,12 @@ class Order extends Model
     
     /**
      * Get valid next unified statuses for this order.
+     *
+     * Returns collection of possible status transitions from current state
+     * based on agricultural workflow rules and business logic.
+     * Used for status transition validation and UI workflow controls.
+     *
+     * @return Collection<OrderStatus> Valid next status options
      */
     public function getValidNextStatuses(): Collection
     {
@@ -1214,6 +1670,12 @@ class Order extends Model
     
     /**
      * Configure the activity log options for this model.
+     *
+     * Defines comprehensive activity logging for agricultural order changes.
+     * Tracks critical order modifications, status transitions, and recurring
+     * order management for audit trails and business intelligence.
+     *
+     * @return LogOptions Configured activity logging options
      */
     public function getActivitylogOptions(): LogOptions
     {
@@ -1231,6 +1693,12 @@ class Order extends Model
 
     /**
      * Get the relationships that should be logged with this model.
+     *
+     * Defines which related models should be included in activity logging
+     * when this order is created, updated, or deleted. Essential for
+     * comprehensive audit trails in agricultural order management.
+     *
+     * @return array<string> Array of relationship method names to log
      */
     public function getLoggedRelationships(): array
     {
@@ -1239,6 +1707,12 @@ class Order extends Model
 
     /**
      * Get specific attributes to include from related models.
+     *
+     * Specifies which attributes from related models should be captured
+     * in activity logs. Optimizes log storage while maintaining sufficient
+     * detail for agricultural order audit and analysis requirements.
+     *
+     * @return array<string, array<string>> Relationship => [attributes] mapping
      */
     public function getRelationshipAttributesToLog(): array
     {
@@ -1255,13 +1729,17 @@ class Order extends Model
     /**
      * Transition the order to a new unified status with validation.
      *
-     * @param string $statusCode
+     * Delegates to StatusTransitionService for complex agricultural workflow
+     * validation and execution. Handles business rules, prerequisite checks,
+     * and cascading updates across the order ecosystem.
+     *
+     * @param string $statusCode Target status code for transition
      * @param array $context Additional context for the transition
-     * @return array ['success' => bool, 'message' => string]
+     * @return array ['success' => bool, 'message' => string] Transition result
      */
     public function transitionTo(string $statusCode, array $context = []): array
     {
-        $statusService = app(\App\Services\StatusTransitionService::class);
+        $statusService = app(StatusTransitionService::class);
         $result = $statusService->transitionTo($this, $statusCode, $context);
         
         if ($result['success']) {
@@ -1275,12 +1753,16 @@ class Order extends Model
     /**
      * Check if the order can transition to a specific status.
      *
-     * @param string $statusCode
-     * @return bool
+     * Validates if transition to target status is allowed based on current
+     * state, agricultural workflow rules, and business constraints.
+     * Uses StatusTransitionService for comprehensive validation logic.
+     *
+     * @param string $statusCode Target status code to validate
+     * @return bool True if transition is allowed
      */
     public function canTransitionTo(string $statusCode): bool
     {
-        $statusService = app(\App\Services\StatusTransitionService::class);
+        $statusService = app(StatusTransitionService::class);
         $validation = $statusService->validateTransition($this, $statusCode);
         return $validation['valid'];
     }
@@ -1288,11 +1770,15 @@ class Order extends Model
     /**
      * Get the status transition history from the activity log.
      *
-     * @return \Illuminate\Support\Collection
+     * Retrieves chronological record of all status transitions for this order,
+     * providing complete agricultural workflow audit trail. Essential for
+     * order troubleshooting, performance analysis, and customer communication.
+     *
+     * @return Collection<Activity> Status transition history
      */
     public function getStatusHistory(): Collection
     {
-        $statusService = app(\App\Services\StatusTransitionService::class);
+        $statusService = app(StatusTransitionService::class);
         return $statusService->getStatusHistory($this);
     }
 }

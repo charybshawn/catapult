@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\OrderSimulatorResource\Pages;
 
+use Illuminate\Database\Eloquent\Model;
 use App\Filament\Resources\OrderSimulatorResource;
 use App\Filament\Resources\OrderSimulatorResource\Services\OrderCalculationService;
 use App\Models\Product;
@@ -14,7 +15,6 @@ use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Page;
 use Filament\Actions\Action as PageAction;
-use Filament\Tables\Actions\Action as TableAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\TextInputColumn;
@@ -28,6 +28,23 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 
+/**
+ * Filament page for managing agricultural order simulation and production planning.
+ *
+ * Provides comprehensive order simulation capabilities with real-time variety calculations,
+ * production planning integration, and agricultural workflow management. Supports
+ * microgreens order planning with complex pricing variations, inventory management,
+ * and session-persistent user interactions for agricultural business operations.
+ *
+ * @filament_page
+ * @business_domain Agricultural order simulation and production planning
+ * @related_models Product, PriceVariation, MasterCultivar, ProductMix
+ * @workflow_support Order simulation, variety calculations, production planning
+ * @session_management Persistent quantities, hidden rows, panel state across sessions
+ * @agricultural_context Microgreens order planning with complex variety calculations
+ * @author Catapult Development Team
+ * @since Laravel 12.x + Filament v4
+ */
 class ManageOrderSimulator extends Page implements HasForms, HasTable
 {
     use InteractsWithForms;
@@ -35,7 +52,7 @@ class ManageOrderSimulator extends Page implements HasForms, HasTable
 
     protected static string $resource = OrderSimulatorResource::class;
 
-    protected static string $view = 'filament.pages.order-simulator';
+    protected string $view = 'filament.pages.order-simulator';
 
     public array $quantities = [];
     public array $hiddenRows = [];
@@ -54,7 +71,7 @@ class ManageOrderSimulator extends Page implements HasForms, HasTable
         Session::put('order_simulator_quantities', $this->quantities);
     }
     
-    public function getTableRecordKey($record): string
+    public function getTableRecordKey(Model|array $record): string
     {
         // Use variation_id directly as the record key
         return (string) $record->variation_id;
@@ -129,8 +146,8 @@ class ManageOrderSimulator extends Page implements HasForms, HasTable
                     ->label('Quantity')
                     ->view('filament.tables.columns.quantity-input'),
             ])
-            ->actions([
-                TableAction::make('hide')
+            ->recordActions([
+                \Filament\Actions\Action::make('hide')
                     ->label('Hide')
                     ->icon('heroicon-o-eye-slash')
                     ->color('gray')
@@ -141,20 +158,20 @@ class ManageOrderSimulator extends Page implements HasForms, HasTable
                     ->tooltip('Hide this row from the list'),
             ])
             ->headerActions([
-                TableAction::make('calculate')
+                \Filament\Actions\Action::make('calculate')
                     ->label('Calculate Requirements')
                     ->action('calculate')
                     ->color('success')
                     ->icon('heroicon-o-calculator'),
                     
-                TableAction::make('clear')
+                \Filament\Actions\Action::make('clear')
                     ->label('Clear All')
                     ->action('clear')
                     ->color('gray')
                     ->icon('heroicon-o-trash')
                     ->requiresConfirmation(),
                     
-                TableAction::make('show_hidden')
+                \Filament\Actions\Action::make('show_hidden')
                     ->label(function () {
                         $hiddenCount = count($this->hiddenRows);
                         return "Show Hidden ({$hiddenCount})";

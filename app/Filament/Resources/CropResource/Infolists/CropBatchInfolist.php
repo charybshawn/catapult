@@ -2,6 +2,10 @@
 
 namespace App\Filament\Resources\CropResource\Infolists;
 
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Group;
+use Filament\Infolists\Components\TextEntry;
+use Carbon\CarbonInterface;
 use App\Models\Recipe;
 use App\Models\CropStageHistory;
 use Filament\Infolists\Components;
@@ -19,47 +23,47 @@ class CropBatchInfolist
     public static function schema(): array
     {
         return [
-            Components\Section::make('Crop Details')
+            Section::make('Crop Details')
                 ->schema([
-                    Components\Group::make([
-                        Components\TextEntry::make('variety')
+                    Group::make([
+                        TextEntry::make('variety')
                             ->label('')
                             ->weight('bold')
                             ->size('xl')
                             ->getStateUsing(function ($record) {
                                 return static::getVarietyName($record);
                             }),
-                        Components\TextEntry::make('recipe.name')
+                        TextEntry::make('recipe.name')
                             ->label('')
                             ->color('gray')
                             ->getStateUsing(fn ($record) => $record->recipe_name ?? 'Unknown Recipe'),
                     ])->columns(1),
                     
-                    Components\Group::make([
-                        Components\TextEntry::make('current_stage_name')
+                    Group::make([
+                        TextEntry::make('current_stage_name')
                             ->label('Status')
                             ->badge()
                             ->color(fn ($record) => $record->current_stage_color ?? 'gray'),
-                        Components\TextEntry::make('crop_count')
+                        TextEntry::make('crop_count')
                             ->label('Tray Count'),
                     ])->columns(2),
                     
-                    Components\TextEntry::make('stage_age_display')
+                    TextEntry::make('stage_age_display')
                         ->label('Time in Stage'),
                         
-                    Components\TextEntry::make('time_to_next_stage_display')
+                    TextEntry::make('time_to_next_stage_display')
                         ->label('Time to Next Stage'),
                         
-                    Components\TextEntry::make('total_age_display')
+                    TextEntry::make('total_age_display')
                         ->label('Total Age'),
                         
-                    Components\TextEntry::make('germination_at')
+                    TextEntry::make('germination_at')
                         ->label('Germination Date')
                         ->getStateUsing(function ($record) {
                             return static::formatGerminationDate($record);
                         }),
                         
-                    Components\TextEntry::make('expected_harvest_at')
+                    TextEntry::make('expected_harvest_at')
                         ->label('Expected Harvest')
                         ->getStateUsing(function ($record) {
                             return static::formatExpectedHarvestDate($record);
@@ -67,9 +71,9 @@ class CropBatchInfolist
                 ]),
                 
 
-            Components\Section::make('Tray Numbers')
+            Section::make('Tray Numbers')
                 ->schema([
-                    Components\TextEntry::make('tray_numbers')
+                    TextEntry::make('tray_numbers')
                         ->label('')
                         ->html()
                         ->getStateUsing(function ($record) {
@@ -77,9 +81,9 @@ class CropBatchInfolist
                         }),
                 ]),
                 
-            Components\Section::make('Stage History')
+            Section::make('Stage History')
                 ->schema([
-                    Components\TextEntry::make('stage_history')
+                    TextEntry::make('stage_history')
                         ->label('')
                         ->html()
                         ->getStateUsing(function ($record) {
@@ -172,9 +176,9 @@ class CropBatchInfolist
         
         // Germination stage
         if ($firstCrop->germination_at) {
-            $germStart = \Carbon\Carbon::parse($firstCrop->germination_at);
+            $germStart = Carbon::parse($firstCrop->germination_at);
             if ($currentStageCode === 'germination') {
-                $duration = $germStart->diffForHumans(now(), ['parts' => 2, 'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE]);
+                $duration = $germStart->diffForHumans(now(), ['parts' => 2, 'syntax' => CarbonInterface::DIFF_ABSOLUTE]);
                 $timeline['germination'] = ['name' => 'Germination', 'status' => 'current (' . $duration . ')'];
             } else {
                 $timeline['germination'] = ['name' => 'Germination', 'status' => 'completed'];
@@ -187,9 +191,9 @@ class CropBatchInfolist
         $hasBlackout = $firstCrop->recipe && $firstCrop->recipe->blackout_days > 0;
         if ($hasBlackout) {
             if ($firstCrop->blackout_at) {
-                $blackoutStart = \Carbon\Carbon::parse($firstCrop->blackout_at);
+                $blackoutStart = Carbon::parse($firstCrop->blackout_at);
                 if ($currentStageCode === 'blackout') {
-                    $duration = $blackoutStart->diffForHumans(now(), ['parts' => 2, 'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE]);
+                    $duration = $blackoutStart->diffForHumans(now(), ['parts' => 2, 'syntax' => CarbonInterface::DIFF_ABSOLUTE]);
                     $timeline['blackout'] = ['name' => 'Blackout', 'status' => 'current (' . $duration . ')'];
                 } else if (in_array($currentStageCode, ['light', 'harvested'])) {
                     $timeline['blackout'] = ['name' => 'Blackout', 'status' => 'completed'];
@@ -208,9 +212,9 @@ class CropBatchInfolist
             if ($currentStageCode === 'light') {
                 // Calculate duration from when light stage started
                 $lightStart = $firstCrop->blackout_at ? 
-                    \Carbon\Carbon::parse($firstCrop->blackout_at) : 
-                    \Carbon\Carbon::parse($firstCrop->germination_at);
-                $duration = $lightStart->diffForHumans(now(), ['parts' => 2, 'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE]);
+                    Carbon::parse($firstCrop->blackout_at) : 
+                    Carbon::parse($firstCrop->germination_at);
+                $duration = $lightStart->diffForHumans(now(), ['parts' => 2, 'syntax' => CarbonInterface::DIFF_ABSOLUTE]);
                 $timeline['light'] = ['name' => 'Light', 'status' => 'current (' . $duration . ')'];
             } else if ($currentStageCode === 'harvested') {
                 $timeline['light'] = ['name' => 'Light', 'status' => 'completed'];
@@ -223,7 +227,7 @@ class CropBatchInfolist
         
         // Harvested stage
         if ($firstCrop->harvested_at) {
-            $harvestTime = \Carbon\Carbon::parse($firstCrop->harvested_at);
+            $harvestTime = Carbon::parse($firstCrop->harvested_at);
             $timeline['harvested'] = ['name' => 'Harvested', 'status' => 'completed (' . $harvestTime->format('M j') . ')'];
         } else {
             $timeline['harvested'] = ['name' => 'Harvested', 'status' => 'pending'];

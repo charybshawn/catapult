@@ -2,8 +2,20 @@
 
 namespace App\Filament\Resources\RecipeResource\RelationManagers;
 
+use Filament\Schemas\Schema;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\Textarea;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Actions\CreateAction;
+use Filament\Actions\Action;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
 use Filament\Forms;
-use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -20,11 +32,11 @@ class WateringScheduleRelationManager extends RelationManager
     
     protected static ?string $title = 'Watering Schedule';
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Select::make('growth_stage')
+        return $schema
+            ->components([
+                Select::make('growth_stage')
                     ->label('Growth Stage')
                     ->options([
                         'planting' => 'Planting (Day 1)',
@@ -63,19 +75,19 @@ class WateringScheduleRelationManager extends RelationManager
                         }
                     }),
                 
-                Forms\Components\TextInput::make('day_number')
+                TextInput::make('day_number')
                     ->label('Day')
                     ->numeric()
                     ->minValue(1)
                     ->required(),
                     
-                Forms\Components\TextInput::make('water_amount_ml')
+                TextInput::make('water_amount_ml')
                     ->label('Water Amount (ml)')
                     ->numeric()
                     ->minValue(0)
                     ->required(),
                     
-                Forms\Components\Select::make('watering_method')
+                Select::make('watering_method')
                     ->options([
                         'top' => 'Top Watering',
                         'bottom' => 'Bottom Watering',
@@ -83,11 +95,11 @@ class WateringScheduleRelationManager extends RelationManager
                     ])
                     ->required(),
                     
-                Forms\Components\Toggle::make('needs_liquid_fertilizer')
+                Toggle::make('needs_liquid_fertilizer')
                     ->label('Add Liquid Fertilizer')
                     ->default(false),
                     
-                Forms\Components\Textarea::make('notes')
+                Textarea::make('notes')
                     ->maxLength(65535),
             ]);
     }
@@ -96,11 +108,11 @@ class WateringScheduleRelationManager extends RelationManager
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('day_number')
+                TextColumn::make('day_number')
                     ->label('Day')
                     ->sortable(),
                     
-                Tables\Columns\TextColumn::make('stage')
+                TextColumn::make('stage')
                     ->label('Stage')
                     ->getStateUsing(function ($record) {
                         $recipe = $this->getOwnerRecord();
@@ -116,12 +128,12 @@ class WateringScheduleRelationManager extends RelationManager
                         default => 'gray',
                     }),
                     
-                Tables\Columns\TextColumn::make('water_amount_ml')
+                TextColumn::make('water_amount_ml')
                     ->label('Water Amount')
                     ->suffix(' ml')
                     ->sortable(),
                     
-                Tables\Columns\TextColumn::make('watering_method')
+                TextColumn::make('watering_method')
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'top' => 'Top',
@@ -136,11 +148,11 @@ class WateringScheduleRelationManager extends RelationManager
                         default => 'gray',
                     }),
                     
-                Tables\Columns\IconColumn::make('needs_liquid_fertilizer')
+                IconColumn::make('needs_liquid_fertilizer')
                     ->label('Fertilizer')
                     ->boolean(),
                     
-                Tables\Columns\TextColumn::make('notes')
+                TextColumn::make('notes')
                     ->limit(30)
                     ->wrap(),
             ])
@@ -149,7 +161,7 @@ class WateringScheduleRelationManager extends RelationManager
                 //
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make()
+                CreateAction::make()
                     ->label('Add Watering Day')
                     ->before(function (array $data) {
                         $recipe = $this->getOwnerRecord();
@@ -162,20 +174,20 @@ class WateringScheduleRelationManager extends RelationManager
                         return $data;
                     }),
                     
-                Tables\Actions\Action::make('generate_schedule')
+                Action::make('generate_schedule')
                     ->label('Generate Default Schedule')
                     ->action(function () {
                         $recipe = $this->getOwnerRecord();
                         $this->generateDefaultSchedule($recipe);
                     }),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+            ->recordActions([
+                EditAction::make(),
+                DeleteAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\CropResource\Pages;
 
+use Filament\Actions\DeleteAction;
 use App\Filament\Resources\CropResource;
 use App\Models\Crop;
 use Filament\Actions;
@@ -18,7 +19,7 @@ class EditCrop extends BaseEditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make()
+            DeleteAction::make()
                 ->action(function () {
                     // Get all trays in this grow batch
                     $record = $this->getRecord();
