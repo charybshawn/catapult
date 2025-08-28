@@ -44,6 +44,8 @@ use Carbon\Carbon;
  * Some methods deprecated in favor of CropBatchListView for performance optimization.
  * View-based calculations reduce real-time computation for dashboard displays.
  */
+class CropTimeCalculator
+{
     /**
      * Update all time-related calculated fields for a crop batch.
      * 

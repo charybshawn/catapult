@@ -5,14 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Carbon;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
 /**
- * Represents an agricultural harvest record for microgreens production, tracking
- * yield data, tray counts, and harvest performance metrics. This model is central
+ * Represents a simplified agricultural harvest record for microgreens production, tracking
+ * yield data per cultivar with streamlined data collection. This model is central
  * to production analytics and supports agricultural planning and optimization.
  *
  * @business_domain Agricultural Production & Yield Management
@@ -23,8 +22,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
  * @property int $id Primary identifier for harvest record
  * @property int $master_cultivar_id Reference to cultivar being harvested
  * @property int $user_id Worker/user who performed the harvest
- * @property float $total_weight_grams Total yield weight in grams for this harvest
- * @property float $tray_count Number of trays harvested
+ * @property float $total_weight_grams Total yield weight in grams for this cultivar harvest
  * @property Carbon $harvest_date Date when harvest was completed
  * @property string|null $notes Harvest notes and observations
  * @property Carbon $created_at Record creation timestamp
@@ -32,15 +30,15 @@ use Spatie\Activitylog\Traits\LogsActivity;
  *
  * @relationship masterCultivar BelongsTo relationship to MasterCultivar for variety data
  * @relationship user BelongsTo relationship to User who performed harvest
- * @relationship crops BelongsToMany relationship through crop_harvest pivot table
  *
- * @business_rule Harvests track actual production yields against planned crop targets
+ * @business_rule Each harvest record represents one cultivar-weight-date combination
+ * @business_rule Multiple records per session enable multi-cultivar harvest tracking
  * @business_rule Weekly harvest periods run Wednesday to Tuesday for consistent reporting
- * @business_rule Supports partial harvests through percentage tracking in pivot table
+ * @business_rule Cumulative harvests achieved through multiple records with same cultivar/date
  *
- * @agricultural_metric Average weight per tray indicates cultivation success
- * @agricultural_metric Total weight tracks production volume for order fulfillment
+ * @agricultural_metric Total weight per cultivar tracks production volume for order fulfillment
  * @agricultural_metric Harvest dates enable production scheduling and planning
+ * @agricultural_metric Cultivar-specific yields support variety performance analysis
  */
 class Harvest extends Model
 {
@@ -50,14 +48,12 @@ class Harvest extends Model
         'master_cultivar_id',
         'user_id',
         'total_weight_grams',
-        'tray_count',
         'harvest_date',
         'notes',
     ];
 
     protected $casts = [
         'total_weight_grams' => 'decimal:2',
-        'tray_count' => 'decimal:2',
         'harvest_date' => 'date',
     ];
 
@@ -87,27 +83,6 @@ class Harvest extends Model
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * Get crops that contributed to this harvest with detailed pivot data.
-     * Supports partial harvesting and multi-crop consolidation workflows.
-     *
-     * @return BelongsToMany Crops relationship with pivot table data
-     * @pivot_data harvested_weight_grams Individual crop contribution weight
-     * @pivot_data percentage_harvested Percentage of crop harvested (0-100)
-     * @pivot_data notes Crop-specific harvest notes
-     * @agricultural_workflow Enables tracking partial harvests and staggered production
-     * @business_rule Multiple crops can contribute to a single harvest record
-     */
-    public function crops(): BelongsToMany
-    {
-        return $this->belongsToMany(Crop::class, 'crop_harvest')
-            ->withPivot([
-                'harvested_weight_grams',
-                'percentage_harvested',
-                'notes'
-            ])
-            ->withTimestamps();
-    }
 
     /**
      * Get the start date of the agricultural week containing this harvest.
@@ -135,19 +110,6 @@ class Harvest extends Model
         return $this->harvest_date->copy()->endOfWeek(Carbon::TUESDAY);
     }
 
-    /**
-     * Calculate average weight per tray for this harvest.
-     * Key agricultural metric for production efficiency and quality assessment.
-     *
-     * @return float Average grams per tray (0 if no trays)
-     * @agricultural_metric Indicates growing conditions and cultivation success
-     * @business_usage Used in quality control and production optimization
-     * @calculation total_weight_grams / tray_count with division by zero protection
-     */
-    public function getAverageWeightPerTrayAttribute(): float
-    {
-        return $this->tray_count > 0 ? $this->total_weight_grams / $this->tray_count : 0;
-    }
 
     /**
      * Get the full variety name for display purposes.
@@ -179,7 +141,6 @@ class Harvest extends Model
                 'master_cultivar_id',
                 'user_id',
                 'total_weight_grams',
-                'tray_count',
                 'harvest_date',
                 'notes',
             ])

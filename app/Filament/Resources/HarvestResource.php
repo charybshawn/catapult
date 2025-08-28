@@ -179,17 +179,17 @@ class HarvestResource extends BaseResource
     }
     
     /**
-     * Define CSV export columns for comprehensive harvest analysis reporting.
+     * Define CSV export columns for simplified harvest analysis reporting.
      * 
-     * Configures detailed harvest data export including variety information,
-     * yield metrics, and harvester attribution for production analysis, yield
+     * Configures streamlined harvest data export including variety information,
+     * weight metrics, and harvester attribution for production analysis, yield
      * optimization, and quality control assessment across different varieties
-     * and time periods.
+     * and time periods using the simplified cultivar-based approach.
      * 
      * @return array Export column definitions with variety and user context
      * @includes Variety details for performance comparison across cultivars
      * @harvester User information for staff performance and quality tracking
-     * @yield_metrics Total weight, tray count, and calculated averages
+     * @yield_metrics Total weight per cultivar for simplified yield tracking
      * @temporal Harvest dates for seasonal and trend analysis
      * @quality Notes field for quality issue tracking and improvement
      */
@@ -199,7 +199,6 @@ class HarvestResource extends BaseResource
             'id' => 'ID',
             'master_cultivar_id' => 'Cultivar ID',
             'total_weight_grams' => 'Total Weight (g)',
-            'tray_count' => 'Tray Count',
             'harvest_date' => 'Harvest Date',
             'user_id' => 'User ID',
             'notes' => 'Notes',
