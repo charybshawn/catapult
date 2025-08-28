@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use Filament\Schemas\Schema;
 use App\Filament\Resources\HarvestResource\Pages\ListHarvests;
 use App\Filament\Resources\HarvestResource\Pages\EditHarvest;
+use App\Filament\Resources\HarvestResource\Pages\CreateHarvest;
 use App\Filament\Resources\HarvestResource\Forms\HarvestForm;
 use App\Filament\Resources\HarvestResource\Pages;
 use App\Filament\Resources\HarvestResource\Tables\HarvestTable;
@@ -160,20 +161,21 @@ class HarvestResource extends BaseResource
     /**
      * Define the page routes and classes for harvest resource.
      * 
-     * Provides streamlined harvest management workflow focused on list view for
-     * analysis and edit capability for corrections. No create page as harvests
-     * are typically created through production workflow integration, and no
-     * separate view page as edit provides comprehensive harvest data access.
+     * Provides streamlined harvest management workflow with create, list, and edit
+     * capabilities. Create page handles the simplified cultivar-based harvest entry,
+     * list view provides analysis and filtering, and edit supports data corrections.
+     * No separate view page as edit provides comprehensive harvest data access.
      * 
      * @return array<string, class-string> Page route mappings
-     * @routes List and edit workflow optimized for harvest data management
-     * @workflow Edit-focused interface supports harvest data corrections and analysis
-     * @integration Harvest creation typically handled through production workflow
+     * @routes Complete CRUD workflow optimized for harvest data management
+     * @workflow Create, list, and edit workflow for simplified harvest recording
+     * @simplified_create Cultivar-based harvest entry without complex tray relationships
      */
     public static function getPages(): array
     {
         return [
             'index' => ListHarvests::route('/'),
+            'create' => CreateHarvest::route('/create'),
             'edit' => EditHarvest::route('/{record}/edit'),
         ];
     }
