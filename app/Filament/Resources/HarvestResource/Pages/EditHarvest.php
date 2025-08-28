@@ -3,24 +3,25 @@
 namespace App\Filament\Resources\HarvestResource\Pages;
 
 use Filament\Actions\DeleteAction;
-use App\Actions\Harvest\CreateHarvestAction;
 use App\Filament\Resources\HarvestResource;
+use App\Filament\Resources\HarvestResource\Forms\HarvestForm;
 use Filament\Actions;
 use App\Filament\Pages\Base\BaseEditRecord;
+use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Filament page for editing agricultural harvest records.
+ * Filament page for editing simplified agricultural harvest records.
  *
- * Provides comprehensive harvest record editing capabilities with complex
- * crop relationship management and pivot data handling. Integrates with
- * agricultural business actions for data consistency and validation.
- * Supports multi-tray harvest modifications and production data updates.
+ * Provides streamlined harvest record editing capabilities for the simplified
+ * cultivar-based harvest approach. Supports editing of cultivar-specific harvest
+ * data including weight adjustments and date modifications without complex
+ * tray relationship management.
  *
  * @filament_page
- * @business_domain Agricultural harvest modification and production record updates
- * @related_models Harvest, Crop, MasterCultivar
- * @workflow_support Harvest record editing, tray relationship management
+ * @business_domain Agricultural harvest modification with simplified workflow
+ * @related_models Harvest, MasterCultivar
+ * @workflow_support Direct harvest record editing for cultivar-based entries
  * @author Catapult Development Team
  * @since Laravel 12.x + Filament v4
  */
@@ -36,51 +37,21 @@ class EditHarvest extends BaseEditRecord
     }
 
     /**
-     * Transform harvest record data for form display including crop relationships.
-     *
-     * Loads existing crop relationships from pivot table and formats them for
-     * the repeater component. Maps pivot data including weight, percentage, and
-     * notes for each associated crop in the harvest operation.
-     *
-     * @param array $data Raw harvest record data from database
-     * @return array Transformed data with crops array formatted for form repeater
-     * @filament_hook Pre-fill data transformation hook
-     * @agricultural_context Loads multi-tray harvest data for editing interface
-     * @pivot_handling Maps crop pivot data (weight, percentage, notes) to form structure
+     * Override form schema for edit context to use direct fields instead of repeater.
+     * 
+     * Provides single harvest record editing with direct cultivar selection and weight
+     * input fields, eliminating the repeater structure used for multi-cultivar creation.
+     * 
+     * @param Schema $schema The Filament form schema builder
+     * @return Schema Configured form with direct harvest field editing
+     * @edit_context Uses direct fields for single record modification
+     * @agricultural_workflow Individual harvest record editing for corrections and updates
      */
-    protected function mutateFormDataBeforeFill(array $data): array
+    public function form(Schema $schema): Schema
     {
-        // Load existing crop relationships
-        $data['crops'] = $this->record->crops->map(function ($crop) {
-            return [
-                'crop_id' => $crop->id,
-                'harvested_weight_grams' => $crop->pivot->harvested_weight_grams,
-                'percentage_harvested' => $crop->pivot->percentage_harvested,
-                'notes' => $crop->pivot->notes,
-            ];
-        })->toArray();
-        
-        return $data;
+        return $schema->components(HarvestForm::schema(true));
     }
 
-    /**
-     * Handle harvest record updates using agricultural business action.
-     *
-     * Delegates record updates to CreateHarvestAction which provides comprehensive
-     * business logic for harvest modifications including crop relationship updates,
-     * pivot data management, and agricultural validation rules.
-     *
-     * @param Model $record Existing harvest record to update
-     * @param array $data Updated form data from user input
-     * @return Model Updated harvest record with relationships
-     * @filament_hook Record update handler
-     * @action_integration Uses CreateHarvestAction for business logic consistency
-     * @agricultural_workflow Maintains harvest data integrity and crop status updates
-     */
-    protected function handleRecordUpdate(Model $record, array $data): Model
-    {
-        return app(CreateHarvestAction::class)->update($record, $data);
-    }
 
     /**
      * Provide custom success notification for harvest updates.

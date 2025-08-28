@@ -13,52 +13,51 @@ use Filament\Tables\Table;
 use App\Filament\Traits\CsvExportAction;
 
 /**
- * Harvest tracking and yield management interface for agricultural operations.
+ * Simplified harvest tracking and yield management interface for agricultural operations.
  * 
- * Manages comprehensive harvest data collection including crop selection, yield
- * tracking, quality assessment, and performance analysis for microgreens production.
- * Provides critical data for production optimization, yield forecasting, and
- * quality control with detailed variety-specific performance metrics.
+ * Manages streamlined harvest data collection with cultivar-based recording for
+ * microgreens production. Focuses on essential yield tracking with weight measurement
+ * per cultivar, eliminating complex tray relationships for efficient data entry.
+ * Provides critical data for production optimization and variety performance analysis.
  * 
  * @filament_resource
- * @business_domain Agricultural harvest tracking and yield management
- * @workflow_support Crop selection, yield recording, performance analysis, quality control
- * @related_models Harvest, Crop, MasterCultivar, User
- * @ui_features Bulk harvest recording, variety grouping, yield statistics, CSV export
- * @production_integration Direct connection to crop lifecycle completion
- * @analytics Yield per tray, variety performance, seasonal trend analysis
+ * @business_domain Simplified agricultural harvest tracking and yield management
+ * @workflow_support Cultivar-based yield recording, performance analysis, quality control
+ * @related_models Harvest, MasterCultivar, User
+ * @ui_features Multi-cultivar harvest recording, variety grouping, weight statistics, CSV export
+ * @production_integration Streamlined harvest workflow without complex crop relationships
+ * @analytics Cultivar performance analysis, seasonal yield trends, weight-based metrics
  * 
- * Harvest Data Collection:
- * - Crop Selection: Available crops ready for harvest based on growth stage
- * - Yield Tracking: Total weight and tray count for production metrics
- * - Quality Assessment: Visual quality indicators and harvest notes
- * - Timing Documentation: Harvest date and duration for schedule optimization
- * - Staff Attribution: Harvester identification for quality accountability
+ * Simplified Harvest Data Collection:
+ * - Cultivar Selection: Active varieties available for harvest recording
+ * - Weight Tracking: Direct weight measurement per cultivar in grams
+ * - Quality Documentation: Harvest notes and observations
+ * - Date Recording: Harvest date with validation to prevent future dates
+ * - Staff Attribution: User identification for harvest accountability
  * 
  * Agricultural Business Features:
- * - Variety Performance Analysis: Compare yields across different cultivars
+ * - Variety Performance Analysis: Compare yields across different cultivars by weight
  * - Seasonal Yield Tracking: Monitor production consistency over time
- * - Quality Control Documentation: Track quality issues and their patterns
- * - Staff Performance Metrics: Individual harvester productivity and quality
- * - Production Efficiency Analysis: Time and resource utilization optimization
+ * - Quality Control Documentation: Track harvest notes and quality observations
+ * - Staff Performance Metrics: Individual harvester productivity tracking
+ * - Production Efficiency Analysis: Streamlined data entry for operational efficiency
  * 
- * Production Operations:
- * - Real-time harvest recording during production operations
- * - Batch harvest processing for multiple trays and varieties
- * - Quality checkpoint documentation for customer satisfaction
- * - Yield prediction modeling based on historical performance data
- * - Resource utilization analysis for cost optimization
- * - Integration with order fulfillment for harvest scheduling
+ * Simplified Production Operations:
+ * - Modal-based harvest recording for efficient data entry
+ * - Multi-cultivar harvest support in single session
+ * - Cumulative harvest tracking through multiple records per cultivar/date
+ * - Direct weight entry without tray complexity
+ * - Integration with order fulfillment through cultivar-based planning
  * 
  * Business Intelligence:
- * - Variety profitability analysis based on yield and market prices
- * - Seasonal demand forecasting using historical harvest patterns
- * - Quality trend identification for production process improvements
- * - Staff training needs identification based on performance metrics
- * - Customer satisfaction correlation with harvest quality indicators
+ * - Variety profitability analysis based on cultivar weight yields
+ * - Seasonal demand forecasting using simplified harvest patterns
+ * - Quality trend identification through harvest note analysis
+ * - Staff productivity analysis through streamlined workflow metrics
+ * - Simplified reporting focused on cultivar performance and weight yields
  * 
  * @delegation Delegates to HarvestForm and HarvestTable for modular architecture
- * @csv_export Comprehensive harvest data export for analysis and reporting
+ * @csv_export Comprehensive harvest data export optimized for cultivar-based analysis
  */
 class HarvestResource extends BaseResource
 {
@@ -86,17 +85,17 @@ class HarvestResource extends BaseResource
      * Build the Filament form schema for agricultural harvest data collection.
      * 
      * Delegates to HarvestForm for complex harvest recording logic including
-     * crop selection from available ready crops, yield tracking with multiple
-     * measurement options, and quality assessment documentation. Form provides
-     * efficient batch harvest processing capabilities for production workflow.
+     * cultivar selection, yield tracking with weight measurement, and quality 
+     * assessment documentation. Form provides efficient harvest recording
+     * capabilities with support for both create and edit modes.
      * 
      * @param Schema $schema The Filament form schema builder
      * @return Schema Configured form with harvest tracking and yield measurement
-     * @delegation HarvestForm::schema() handles crop selection and yield recording logic
-     * @crop_integration Dynamic crop selection based on readiness for harvest
-     * @yield_tracking Multiple measurement options for weight and tray counts
-     * @quality_control Notes and assessment fields for quality documentation
-     * @batch_processing Efficient multi-tray harvest recording capabilities
+     * @delegation HarvestForm::schema() handles cultivar selection and yield recording logic
+     * @cultivar_integration Dynamic cultivar selection based on active varieties
+     * @yield_tracking Weight measurement options for production tracking
+     * @quality_control Notes field for harvest observations and quality documentation
+     * @dual_mode Supports both multi-cultivar creation and single-record editing
      */
     public static function form(Schema $schema): Schema
     {
@@ -152,9 +151,7 @@ class HarvestResource extends BaseResource
      */
     public static function getRelations(): array
     {
-        return [
-            //
-        ];
+        return [];
     }
 
     /**

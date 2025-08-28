@@ -235,6 +235,36 @@ section[class*="fi-section"] {
     background-color: rgb(17 24 39) !important;
 }
 
+/* Modal background fixes */
+.fi-modal,
+.fi-modal-content,
+.fi-modal-window,
+[class*="fi-modal"] {
+    background-color: white !important;
+}
+
+.dark .fi-modal,
+.dark .fi-modal-content, 
+.dark .fi-modal-window,
+.dark [class*="fi-modal"] {
+    background-color: rgb(17 24 39) !important;
+}
+
+/* Form input background fixes for modals */
+.fi-modal input,
+.fi-modal textarea,
+.fi-modal select,
+.fi-modal [class*="fi-fo-"] {
+    background-color: white !important;
+}
+
+.dark .fi-modal input,
+.dark .fi-modal textarea,
+.dark .fi-modal select,
+.dark .fi-modal [class*="fi-fo-"] {
+    background-color: rgb(31 41 55) !important;
+}
+
 /* Global border and shadow removal */
 [class*="fi-"] {
     box-shadow: none !important;
@@ -251,4 +281,55 @@ section[class*="fi-section"] {
 [class*="fi-section"] {
     border: none !important;
     box-shadow: none !important;
+}
+
+/* Compact Stats Widgets - Remove spacing and fill available space */
+.harvest-stats-compact.fi-wi-stats-overview {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    grid-template-rows: 1fr 1fr 1fr !important;
+    gap: 0.25rem !important;
+    height: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+.harvest-stats-compact .fi-wi-stats-overview-stat {
+    margin: 0 !important;
+    padding: 0.75rem !important;
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    background: white !important;
+    border-radius: 0.5rem !important;
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1) !important;
+}
+
+.harvest-stats-compact .fi-wi-stats-overview-stat:where(.dark, .dark *) {
+    background: rgb(17 24 39) !important;
+}
+
+.harvest-stats-compact .fi-wi-stats-overview-stat-content {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    text-align: center !important;
+}
+
+.harvest-stats-compact .fi-wi-stats-overview-stat-value {
+    font-size: 1.5rem !important;
+    font-weight: 600 !important;
+    margin: 0.25rem 0 !important;
+}
+
+.harvest-stats-compact .fi-wi-stats-overview-stat-label {
+    font-size: 0.875rem !important;
+    font-weight: 500 !important;
+}
+
+.harvest-stats-compact .fi-wi-stats-overview-stat-description {
+    font-size: 0.75rem !important;
+    margin-top: 0.25rem !important;
 }

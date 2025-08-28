@@ -33,6 +33,9 @@ class WeeklyVarietyComparison extends Widget
         'lg' => 1,
     ];
     
+    /** @var string Polling interval for reactive updates */
+    protected ?string $pollingInterval = '30s';
+    
     /**
      * Generate comprehensive variety comparison data for harvest performance analysis.
      *
@@ -48,10 +51,10 @@ class WeeklyVarietyComparison extends Widget
      */
     public function getVarietyComparisonData(): Collection
     {
-        $thisWeekStart = Carbon::now()->startOfWeek();
-        $thisWeekEnd = Carbon::now()->endOfWeek();
-        $lastWeekStart = Carbon::now()->subWeek()->startOfWeek();
-        $lastWeekEnd = Carbon::now()->subWeek()->endOfWeek();
+        $thisWeekStart = Carbon::now()->startOfWeek(Carbon::MONDAY);
+        $thisWeekEnd = Carbon::now()->endOfWeek(Carbon::SUNDAY);
+        $lastWeekStart = Carbon::now()->subWeek()->startOfWeek(Carbon::MONDAY);
+        $lastWeekEnd = Carbon::now()->subWeek()->endOfWeek(Carbon::SUNDAY);
         
         // Get this week's harvests by variety
         $thisWeekHarvests = Harvest::with('masterCultivar.masterSeedCatalog')

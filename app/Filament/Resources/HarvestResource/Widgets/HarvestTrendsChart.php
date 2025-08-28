@@ -12,29 +12,29 @@ use Illuminate\Support\Collection;
  * Agricultural harvest trends analytics widget for production performance tracking.
  *
  * Provides comprehensive visualization of microgreens harvest trends across varieties
- * and time periods. Displays top-performing varieties by total harvest weight or
- * individual variety performance over 8-week periods to support agricultural
- * production planning and variety optimization decisions.
+ * showing actual harvest dates and weights. Displays top-performing varieties by total 
+ * harvest weight or individual variety performance on specific harvest dates to support 
+ * agricultural production planning and variety optimization decisions.
  *
  * @filament_widget Chart widget for harvest performance analytics
  * @business_domain Agricultural harvest tracking and variety performance analysis
- * @analytics_context 8-week trends with variety-specific or comparative displays
- * @harvest_metrics Weight-based performance tracking in grams for precision
+ * @analytics_context Daily harvest tracking with variety-specific or comparative displays
+ * @harvest_metrics Weight-based performance tracking in grams showing actual harvest dates
  * @production_planning Supports variety selection and capacity planning decisions
  */
 class HarvestTrendsChart extends ChartWidget
 {
     /** @var string Widget heading for harvest trends display */
-    protected ?string $heading = 'Harvest Trends by Variety';
+    protected ?string $heading = 'Daily Harvest by Variety';
     
     /** @var array Responsive column span configuration */
-    protected int | string | array $columnSpan = [
-        'default' => 'full',
-        'lg' => 1,
-    ];
+    protected int | string | array $columnSpan = 'full';
     
     /** @var string|null Current variety filter selection */
     public ?string $filter = 'all';
+    
+    /** @var string Polling interval for reactive chart updates */
+    protected ?string $pollingInterval = '30s';
     
     /**
      * Generate variety filter options for harvest trend analysis.
@@ -63,39 +63,44 @@ class HarvestTrendsChart extends ChartWidget
     /**
      * Generate comprehensive harvest trend data for agricultural analytics.
      *
-     * Creates 8-week trend visualization showing either top 5 varieties by
-     * total harvest (comparative mode) or individual variety performance
-     * (focused mode). Processes harvest data with weekly aggregation for
-     * strategic production planning and variety optimization.
+     * Creates daily trend visualization showing all varieties with harvests
+     * (comparative mode) or individual variety performance (focused mode).
+     * Processes harvest data with daily aggregation for strategic production
+     * planning and complete variety performance analysis.
      *
      * @return array Chart.js compatible dataset with harvest trend data
-     * @business_logic Top 5 varieties by total weight for comparative analysis
-     * @agricultural_analytics 8-week weekly aggregation for trend identification
-     * @production_metrics Weight-based performance tracking in grams
+     * @business_logic All varieties with harvests for complete analysis
+     * @agricultural_analytics Daily harvest tracking showing actual harvest dates
+     * @production_metrics Weight-based performance tracking in grams per actual harvest date
      */
     protected function getData(): array
     {
-        $weeks = collect();
+        $dates = collect();
         $datasets = collect();
         
-        // Get last 8 weeks of data
-        for ($i = 7; $i >= 0; $i--) {
-            $weekStart = Carbon::now()->subWeeks($i)->startOfWeek();
-            $weekEnd = Carbon::now()->subWeeks($i)->endOfWeek();
-            $weeks->push([
-                'label' => $weekStart->format('M j'),
-                'start' => $weekStart,
-                'end' => $weekEnd,
-            ]);
-        }
+        // Get last 60 days of dates with actual harvests
+        $harvestDates = Harvest::where('harvest_date', '>=', Carbon::now()->subDays(60))
+            ->orderBy('harvest_date')
+            ->pluck('harvest_date')
+            ->map(fn($date) => $date->format('Y-m-d'))
+            ->unique()
+            ->values();
+            
+        // Create labels from actual harvest dates
+        $dates = $harvestDates->map(function($date) {
+            return [
+                'label' => Carbon::parse($date)->format('M j'),
+                'date' => $date,
+            ];
+        });
         
         if ($this->filter === 'all') {
-            // Show top 5 varieties by total harvest
-            $topVarieties = Harvest::with('masterCultivar.masterSeedCatalog')
+            // Show all varieties with harvests
+            $allVarieties = Harvest::with('masterCultivar.masterSeedCatalog')
+                ->where('harvest_date', '>=', Carbon::now()->subDays(60))
                 ->selectRaw('master_cultivar_id, SUM(total_weight_grams) as total_weight')
                 ->groupBy('master_cultivar_id')
                 ->orderByDesc('total_weight')
-                ->limit(5)
                 ->get();
                 
             $colors = [
@@ -106,58 +111,57 @@ class HarvestTrendsChart extends ChartWidget
                 'rgb(139, 92, 246)',   // Purple
             ];
             
-            foreach ($topVarieties as $index => $harvest) {
+            foreach ($allVarieties as $index => $harvest) {
                 $variety = $harvest->masterCultivar;
-                $weeklyData = $this->getWeeklyDataForVariety($variety->id, $weeks);
+                $dailyData = $this->getDailyDataForVariety($variety->id, $dates);
                 
                 $datasets->push([
                     'label' => $variety->full_name,
-                    'data' => $weeklyData,
+                    'data' => $dailyData,
                     'borderColor' => $colors[$index % count($colors)],
-                    'backgroundColor' => $colors[$index % count($colors)] . '20',
-                    'tension' => 0.4,
+                    'backgroundColor' => $colors[$index % count($colors)],
+                    'borderWidth' => 1,
                 ]);
             }
         } else {
             // Show single variety
             $variety = MasterCultivar::find($this->filter);
             if ($variety) {
-                $weeklyData = $this->getWeeklyDataForVariety($variety->id, $weeks);
+                $dailyData = $this->getDailyDataForVariety($variety->id, $dates);
                 
                 $datasets->push([
                     'label' => $variety->full_name,
-                    'data' => $weeklyData,
+                    'data' => $dailyData,
                     'borderColor' => 'rgb(59, 130, 246)',
-                    'backgroundColor' => 'rgb(59, 130, 246, 0.2)',
-                    'tension' => 0.4,
-                    'fill' => true,
+                    'backgroundColor' => 'rgb(59, 130, 246)',
+                    'borderWidth' => 1,
                 ]);
             }
         }
         
         return [
             'datasets' => $datasets->toArray(),
-            'labels' => $weeks->pluck('label')->toArray(),
+            'labels' => $dates->pluck('label')->toArray(),
         ];
     }
     
     /**
-     * Extract weekly harvest data for specific variety trend analysis.
+     * Extract daily harvest data for specific variety trend analysis.
      *
-     * Aggregates harvest weights by week for individual variety performance
-     * tracking. Provides granular weekly data points for trend visualization
-     * and production pattern analysis in microgreens operations.
+     * Gets harvest weights by actual harvest date for individual variety performance
+     * tracking. Provides precise daily data points for trend visualization
+     * showing exactly when harvests occurred in microgreens operations.
      *
      * @param int $varietyId Master cultivar ID for data extraction
-     * @param Collection $weeks Collection of week periods for aggregation
-     * @return array Weekly harvest totals in grams for chart plotting
-     * @aggregation_logic Sums total_weight_grams within each week period
+     * @param Collection $dates Collection of actual harvest dates
+     * @return array Daily harvest totals in grams for chart plotting
+     * @aggregation_logic Sums total_weight_grams for each actual harvest date
      */
-    protected function getWeeklyDataForVariety(int $varietyId, Collection $weeks): array
+    protected function getDailyDataForVariety(int $varietyId, Collection $dates): array
     {
-        return $weeks->map(function ($week) use ($varietyId) {
+        return $dates->map(function ($dateInfo) use ($varietyId) {
             return Harvest::where('master_cultivar_id', $varietyId)
-                ->whereBetween('harvest_date', [$week['start'], $week['end']])
+                ->whereDate('harvest_date', $dateInfo['date'])
                 ->sum('total_weight_grams');
         })->toArray();
     }
@@ -165,11 +169,11 @@ class HarvestTrendsChart extends ChartWidget
     /**
      * Get chart type for harvest trends visualization.
      *
-     * @return string Chart.js chart type identifier for line chart display
+     * @return string Chart.js chart type identifier for bar chart display
      */
     protected function getType(): string
     {
-        return 'line';
+        return 'bar';
     }
     
     /**
@@ -203,7 +207,7 @@ class HarvestTrendsChart extends ChartWidget
                 'x' => [
                     'title' => [
                         'display' => true,
-                        'text' => 'Week Starting',
+                        'text' => 'Harvest Date',
                     ],
                 ],
             ],

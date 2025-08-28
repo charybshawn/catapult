@@ -11,9 +11,9 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Repeater;
 use Filament\Schemas\Components\Grid;
-use App\Filament\Resources\HarvestResource\Widgets\WeeklyHarvestStats;
 use App\Filament\Resources\HarvestResource\Widgets\WeeklyVarietyComparison;
 use App\Filament\Resources\HarvestResource\Widgets\HarvestTrendsChart;
+use App\Filament\Resources\HarvestResource\Widgets\HarvestTotalsStats;
 use App\Filament\Resources\HarvestResource;
 use App\Models\Harvest;
 use App\Models\MasterCultivar;
@@ -34,7 +34,7 @@ use Illuminate\Database\Eloquent\Model;
  * @business_domain Agricultural harvest listing and simplified creation operations
  * @related_models Harvest, MasterCultivar, MasterSeedCatalog
  * @workflow_support Harvest listing, inline creation, analytics dashboard
- * @widget_integration WeeklyHarvestStats, WeeklyVarietyComparison, HarvestTrendsChart
+ * @widget_integration HarvestTotalsStats, WeeklyVarietyComparison, HarvestTrendsChart
  * @author Catapult Development Team
  * @since Laravel 12.x + Filament v4
  */
@@ -58,10 +58,7 @@ class ListHarvests extends ListRecords
                                 ->required()
                                 ->default(now())
                                 ->maxDate(now())
-                                ->reactive()
-                                ->extraInputAttributes([
-                                    'class' => 'dark:bg-gray-900 dark:border-gray-700 dark:text-white dark:placeholder-gray-400',
-                                ]),
+                                ->reactive(),
                             Hidden::make('user_id')
                                 ->default(auth()->id()),
                         ])
@@ -88,22 +85,13 @@ class ListHarvests extends ListRecords
                                                 })
                                                 ->required()
                                                 ->searchable()
-                                                ->reactive()
-                                                ->extraAttributes([
-                                                    'class' => 'dark:bg-gray-900 dark:border-gray-700 dark:text-white',
-                                                ])
-                                                ->extraInputAttributes([
-                                                    'class' => 'dark:bg-gray-900 dark:border-gray-700 dark:text-white dark:placeholder-gray-400',
-                                                ]),
+                                                ->reactive(),
                                             TextInput::make('total_weight_grams')
                                                 ->label('Weight (g)')
                                                 ->required()
                                                 ->numeric()
                                                 ->minValue(0)
-                                                ->step(0.01)
-                                                ->extraInputAttributes([
-                                                    'class' => 'dark:bg-gray-900 dark:border-gray-700 dark:text-white dark:placeholder-gray-400',
-                                                ]),
+                                                ->step(0.01),
                                         ]),
                                 ])
                                 ->addActionLabel('Add Another Cultivar')
@@ -125,10 +113,7 @@ class ListHarvests extends ListRecords
                             Textarea::make('notes')
                                 ->label('General Notes')
                                 ->rows(3)
-                                ->columnSpanFull()
-                                ->extraInputAttributes([
-                                    'class' => 'dark:bg-gray-900 dark:border-gray-700 dark:text-white dark:placeholder-gray-400',
-                                ]),
+                                ->columnSpanFull(),
                         ])
                         ->columns(1),
                 ])
@@ -156,9 +141,9 @@ class ListHarvests extends ListRecords
     protected function getHeaderWidgets(): array
     {
         return [
-            WeeklyHarvestStats::class,
-            WeeklyVarietyComparison::class,
             HarvestTrendsChart::class,
+            HarvestTotalsStats::class,
+            WeeklyVarietyComparison::class,
         ];
     }
 

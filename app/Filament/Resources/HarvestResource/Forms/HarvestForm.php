@@ -36,15 +36,37 @@ class HarvestForm
      * Creates structured form sections for harvest details and cultivar-based harvest entry.
      * Simplified approach focuses on harvest date, cultivar selection, and weight tracking
      * without complex tray relationships for efficient harvest data collection.
+     * 
+     * Supports both create mode (with repeater for multiple cultivars) and edit mode
+     * (with direct fields for single harvest record editing).
      *
-     * @return array Complete Filament form schema array with sections and cultivar repeater
+     * @param bool $isEdit Whether this is for editing an existing record
+     * @return array Complete Filament form schema array with sections and cultivar fields
      * @filament_method Primary form schema generator for simplified harvest workflow
      * @agricultural_workflow Harvest recording with multi-cultivar selection support
      * @business_rules Validates weight minimums, enforces cultivar selection requirements
      * @simple_design Eliminates tray complexity for streamlined harvest data entry
      */
-    public static function schema(): array
+    public static function schema(bool $isEdit = false): array
     {
+        if ($isEdit) {
+            return [
+                Section::make('Harvest Details')
+                    ->schema([
+                        static::getHarvestDatePicker(),
+                        static::getUserIdField(),
+                    ])
+                    ->columns(1),
+                Section::make('Harvest Information')
+                    ->schema([
+                        static::getCultivarSelectDirect(),
+                        static::getWeightInput(),
+                        static::getGeneralNotesField(),
+                    ])
+                    ->columns(2),
+            ];
+        }
+        
         return [
             Section::make('Harvest Details')
                 ->schema([
@@ -176,6 +198,38 @@ class HarvestForm
             ->required()
             ->searchable()
             ->reactive();
+    }
+
+    /**
+     * Generate direct cultivar selection field for single harvest editing.
+     *
+     * Creates searchable dropdown of active cultivars for editing individual harvest
+     * records. Uses same options as repeater but configured for direct field use
+     * without repeater context.
+     *
+     * @return Select Configured Filament Select component for direct cultivar selection
+     * @agricultural_context Cultivar selection for individual harvest record editing
+     * @business_logic Only shows active cultivars with active seed catalog entries
+     * @display_format Uses MasterCultivar::full_name for comprehensive variety identification
+     * @edit_context Used in EditHarvest page for single record modification
+     */
+    protected static function getCultivarSelectDirect(): Select
+    {
+        return Select::make('master_cultivar_id')
+            ->label('Cultivar')
+            ->options(function () {
+                return MasterCultivar::with('masterSeedCatalog')
+                    ->where('is_active', true)
+                    ->whereHas('masterSeedCatalog', function ($query) {
+                        $query->where('is_active', true);
+                    })
+                    ->get()
+                    ->mapWithKeys(function ($cultivar) {
+                        return [$cultivar->id => $cultivar->full_name];
+                    });
+            })
+            ->required()
+            ->searchable();
     }
 
     /**

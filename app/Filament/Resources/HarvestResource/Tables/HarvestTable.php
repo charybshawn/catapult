@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\HarvestResource\Tables;
 
 use Filament\Actions\ActionGroup;
-use Filament\Actions\ViewAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\BulkActionGroup;
@@ -11,7 +10,6 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Tables\Grouping\Group;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\Summarizers\Sum;
-use Filament\Tables\Columns\Summarizers\Average;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\Filter;
 use Filament\Forms\Components\DatePicker;
@@ -41,15 +39,16 @@ use Illuminate\Database\Eloquent\Builder;
 class HarvestTable
 {
     /**
-     * Generate comprehensive table column configuration for harvest data display.
+     * Generate comprehensive table column configuration for simplified harvest data display.
      *
-     * Creates complete column set including harvest date, cultivar information,
-     * weight metrics with summarizers, tray counts, and user attribution.
-     * Optimized for agricultural production analytics and harvest performance tracking.
+     * Creates streamlined column set including harvest date, cultivar information,
+     * weight metrics with summarizers, and user attribution. Simplified approach
+     * eliminates tray complexity and focuses on cultivar-weight tracking for
+     * agricultural production analytics and harvest performance.
      *
-     * @return array Complete Filament table columns array with agricultural context
-     * @filament_method Primary table columns generator
-     * @agricultural_metrics Weight totals, tray counts, average calculations with summarizers
+     * @return array Complete Filament table columns array with simplified agricultural context
+     * @filament_method Primary table columns generator for simplified harvest approach
+     * @agricultural_metrics Weight totals with summarizers for cultivar-based tracking
      * @business_context Cultivar tracking, user attribution, harvest date organization
      */
     public static function columns(): array
@@ -58,8 +57,6 @@ class HarvestTable
             static::getHarvestDateColumn(),
             static::getCultivarColumn(),
             static::getTotalWeightColumn(),
-            static::getTrayCountColumn(),
-            static::getAverageWeightColumn(),
             static::getHarvestedByColumn(),
             static::getCreatedAtColumn(),
         ];
@@ -101,7 +98,6 @@ class HarvestTable
     {
         return [
             ActionGroup::make([
-                ViewAction::make()->tooltip('View record'),
                 EditAction::make()->tooltip('Edit record'),
                 DeleteAction::make()->tooltip('Delete record'),
             ])
@@ -208,38 +204,6 @@ class HarvestTable
             ]);
     }
 
-    /**
-     * Tray count column with summarizer
-     */
-    protected static function getTrayCountColumn(): TextColumn
-    {
-        return TextColumn::make('tray_count')
-            ->label('Trays')
-            ->numeric()
-            ->sortable()
-            ->summarize([
-                Sum::make()
-                    ->label('Total'),
-            ]);
-    }
-
-    /**
-     * Average weight per tray column with summarizer
-     */
-    protected static function getAverageWeightColumn(): TextColumn
-    {
-        return TextColumn::make('average_weight_per_tray')
-            ->label('Avg/Tray')
-            ->suffix(' g')
-            ->numeric(1)
-            ->sortable()
-            ->summarize([
-                Average::make()
-                    ->label('Average')
-                    ->numeric(1)
-                    ->suffix(' g'),
-            ]);
-    }
 
     /**
      * Harvested by user column
@@ -321,6 +285,13 @@ class HarvestTable
         if (!$joins->pluck('table')->contains('master_seed_catalog')) {
             $query->join('master_seed_catalog', 'master_cultivars.master_seed_catalog_id', '=', 'master_seed_catalog.id');
         }
+        
+        // Select specific columns to avoid duplicate ID column conflicts
+        $query->select([
+            'harvests.*',
+            'master_cultivars.cultivar_name',
+            'master_seed_catalog.common_name'
+        ]);
         
         return $query;
     }
