@@ -15,6 +15,7 @@ use Illuminate\Support\HtmlString;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\TextInput;
 use App\Models\Consumable;
+use App\Models\ConsumableType;
 use App\Models\Recipe;
 use Filament\Forms;
 use Filament\Forms\Set;
@@ -55,17 +56,13 @@ class RecipeForm
     public static function schema(): array
     {
         return [
-            Section::make('Recipe Information')
+            Section::make('Recipe')
                 ->schema([
-                    static::getVarietyField(),
-                    static::getCultivarField(),
-                    ...static::getHiddenFields(),
-                    static::getLotNumberField(),
                     static::getSeedConsumableField(),
-                    static::getLotStatusPlaceholder(),
+                    static::getSoilConsumableField(),
+                    ...static::getHiddenFields(),
                     static::getActiveToggle(),
-                ])
-                ->columns(2),
+                ]),
 
             Section::make('Growing Parameters')
                 ->schema([
@@ -76,223 +73,109 @@ class RecipeForm
                     static::getLightDaysField(),
                     static::getSeedDensityField(),
                     static::getExpectedYieldField(),
-                ])
-                ->columns(2),
+                ]),
         ];
     }
 
-    protected static function getVarietyField(): Select
-    {
-        return Select::make('master_seed_catalog_id')
-            ->label('Variety')
-            ->options(function () {
-                return MasterSeedCatalog::query()
-                    ->where('is_active', true)
-                    ->orderBy('common_name')
-                    ->pluck('common_name', 'id');
-            })
-            ->searchable()
-            ->preload()
-            ->native(false)
-            ->required()
-            ->reactive()
-            ->afterStateUpdated(function ($state, callable $set, ?Recipe $record) {
-                if ($state && ! $record) {
-                    // When creating new recipe, set common_name based on selection
-                    $catalog = MasterSeedCatalog::find($state);
-                    if ($catalog) {
-                        $set('common_name', $catalog->common_name);
-                    }
-                }
-                // Reset cultivar when variety changes
-                $set('master_cultivar_id', null);
-            });
-    }
-
-    protected static function getCultivarField(): Select
-    {
-        return Select::make('master_cultivar_id')
-            ->label('Cultivar')
-            ->options(function (callable $get) {
-                $catalogId = $get('master_seed_catalog_id');
-                if (! $catalogId) {
-                    return [];
-                }
-
-                return MasterCultivar::where('master_seed_catalog_id', $catalogId)
-                    ->where('is_active', true)
-                    ->pluck('cultivar_name', 'id');
-            })
-            ->searchable()
-            ->reactive()
-            ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                if ($state) {
-                    $cultivar = MasterCultivar::find($state);
-                    if ($cultivar) {
-                        $set('cultivar_name', $cultivar->cultivar_name);
-                        // Update recipe name
-                        $catalog = MasterSeedCatalog::find($get('master_seed_catalog_id'));
-                        if ($catalog && $cultivar) {
-                            $name = $catalog->common_name.' ('.$cultivar->cultivar_name.')';
-                            $set('name', $name);
-                        }
-                    }
-                }
-            });
-    }
 
     protected static function getHiddenFields(): array
     {
         return [
+            Hidden::make('name'),
+            Hidden::make('lot_number'),
             Hidden::make('common_name'),
             Hidden::make('cultivar_name'),
         ];
     }
 
-    protected static function getLotNumberField(): Select
-    {
-        return Select::make('lot_number')
-            ->label('Seed Lot')
-            ->options(fn () => static::getAvailableLotsForSelection())
-            ->searchable()
-            ->nullable()
-            ->helperText('Shows only lots with available stock')
-            ->rules([
-                'nullable',
-                'string',
-                'max:255',
-                function ($attribute, $value, $fail) {
-                    if ($value) {
-                        $lotInventoryService = app(InventoryManagementService::class);
-
-                        // Check if lot exists
-                        if (! $lotInventoryService->lotExists($value)) {
-                            $fail("The selected lot '{$value}' does not exist.");
-
-                            return;
-                        }
-
-                        // Check if lot has available stock
-                        if ($lotInventoryService->isLotDepleted($value)) {
-                            $fail("The selected lot '{$value}' is depleted and cannot be used.");
-
-                            return;
-                        }
-
-                        // Check if lot has sufficient quantity for typical recipe requirements
-                        $availableQuantity = $lotInventoryService->getLotQuantity($value);
-                        if ($availableQuantity < 10) { // Minimum 10g threshold
-                            $fail("The selected lot '{$value}' has insufficient stock (".round($availableQuantity, 1).'g available). Minimum 10g required.');
-                        }
-                    }
-                },
-            ])
-            ->live(onBlur: true)
-            ->afterStateUpdated(function ($state, callable $set, Get $get) {
-                // Clear lot_depleted_at when lot is changed
-                if ($state && $state !== $get('lot_number')) {
-                    $set('lot_depleted_at', null);
-                }
-            })
-            ->suffixAction(
-                Action::make('refresh_lots')
-                    ->icon('heroicon-o-arrow-path')
-                    ->tooltip('Refresh available lots')
-                    ->action(function ($livewire) {
-                        $livewire->dispatch('refresh-form');
-                    })
-            );
-    }
 
     protected static function getSeedConsumableField(): Select
     {
         return Select::make('seed_consumable_id')
             ->label('Seed Consumable')
             ->options(function () {
-                return Consumable::query()
-                    ->whereHas('consumableType', function ($q) {
-                        $q->where('name', 'like', '%seed%');
-                    })
+                $consumables = \Illuminate\Support\Facades\DB::table('consumables')
+                    ->where('consumable_type_id', 8)
                     ->where('is_active', true)
+                    ->select('id', 'name', 'lot_no', 'total_quantity', 'consumed_quantity', 'quantity_unit')
                     ->orderBy('name')
-                    ->pluck('name', 'id');
+                    ->get();
+                    
+                return $consumables->mapWithKeys(function ($consumable) {
+                    $totalQty = $consumable->total_quantity ?? 0;
+                    $consumedQty = $consumable->consumed_quantity ?? 0;
+                    $availableQty = $totalQty - $consumedQty;
+                    $unit = $consumable->quantity_unit ?? 'g';
+                    $lotInfo = $consumable->lot_no ? " - Lot {$consumable->lot_no}" : '';
+                    $label = "{$consumable->name}{$lotInfo} [Available QTY: {$availableQty}{$unit}]";
+                    return [$consumable->id => $label];
+                });
+            })
+            ->searchable()
+            ->required()
+            ->live()
+            ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                if ($state) {
+                    $consumable = Consumable::find($state);
+                    if ($consumable) {
+                        // Set the lot number from the consumable
+                        if ($consumable->lot_no) {
+                            $set('lot_number', $consumable->lot_no);
+                        }
+                        
+                        // Auto-generate recipe name from consumable name and lot
+                        if ($consumable->lot_no) {
+                            $name = $consumable->name . ' - Lot ' . $consumable->lot_no;
+                        } else {
+                            $name = $consumable->name;
+                        }
+                        $set('name', $name);
+                    }
+                }
+            })
+            ->helperText('Select the seed consumable for this recipe or create a new one')
+            ->createOptionForm(Consumable::getSeedFormSchema())
+            ->createOptionUsing(function (array $data) {
+                $seedTypeId = ConsumableType::where('code', 'seed')->value('id');
+                $data['consumable_type_id'] = $seedTypeId;
+                $data['consumed_quantity'] = 0;
+
+                return Consumable::create($data)->id;
+            });
+    }
+
+    protected static function getSoilConsumableField(): Select
+    {
+        return Select::make('soil_consumable_id')
+            ->label('Soil')
+            ->relationship('soilConsumable', 'name')
+            ->options(function () {
+                return Consumable::whereHas('consumableType', function ($query) {
+                    $query->where('code', 'soil');
+                })
+                    ->where('is_active', true)
+                    ->get()
+                    ->mapWithKeys(function ($soil) {
+                        $quantityInfo = '';
+                        if ($soil->total_quantity && $soil->quantity_unit) {
+                            $quantityInfo = ' - '.number_format($soil->total_quantity, 1)." {$soil->quantity_unit} available";
+                        }
+
+                        return [$soil->id => $soil->name.$quantityInfo];
+                    });
             })
             ->searchable()
             ->preload()
-            ->helperText('Select the seed consumable for this recipe');
-    }
+            ->helperText('Select a soil from inventory or add a new one')
+            ->required()
+            ->createOptionForm(Consumable::getSoilFormSchema())
+            ->createOptionUsing(function (array $data) {
+                $soilTypeId = ConsumableType::where('code', 'soil')->value('id');
+                $data['consumable_type_id'] = $soilTypeId;
+                $data['consumed_quantity'] = 0;
 
-    protected static function getLotStatusPlaceholder(): Placeholder
-    {
-        return Placeholder::make('lot_status')
-            ->label('Current Lot Status')
-            ->content(function (Get $get, ?Recipe $record) {
-                if (! $record || ! $record->lot_number) {
-                    return 'No lot assigned';
-                }
-
-                $lotInventoryService = app(InventoryManagementService::class);
-                $summary = $lotInventoryService->getLotSummary($record->lot_number);
-
-                if ($summary['available'] <= 0) {
-                    return new HtmlString(
-                        '<div class="flex items-center gap-2 text-sm text-red-600">'.
-                        '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">'.
-                        '<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>'.
-                        '</svg>'.
-                        "Lot {$record->lot_number} is depleted (0 available)".
-                        '</div>'
-                    );
-                }
-
-                $seedTypeId = $lotInventoryService->getSeedTypeId();
-                $consumable = null;
-                if ($seedTypeId) {
-                    $consumable = Consumable::where('consumable_type_id', $seedTypeId)
-                        ->where('lot_no', $record->lot_number)
-                        ->where('is_active', true)
-                        ->first();
-                }
-
-                if (! $consumable) {
-                    return new HtmlString(
-                        '<div class="flex items-center gap-2 text-sm text-red-600">'.
-                        '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">'.
-                        '<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>'.
-                        '</svg>'.
-                        "Lot {$record->lot_number} not found".
-                        '</div>'
-                    );
-                }
-
-                $unit = $consumable->quantity_unit ?? 'g';
-                $available = $summary['available'];
-
-                // Check if lot is running low (less than 20% remaining)
-                $totalOriginal = $summary['total'];
-                $percentRemaining = $totalOriginal > 0 ? ($available / $totalOriginal) * 100 : 0;
-
-                if ($percentRemaining < 20) {
-                    return new HtmlString(
-                        '<div class="flex items-center gap-2 text-sm text-yellow-600">'.
-                        '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">'.
-                        '<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>'.
-                        '</svg>'.
-                        "Lot {$record->lot_number}: {$available}{$unit} available (Low stock: ".round($percentRemaining, 1).'% remaining)'.
-                        '</div>'
-                    );
-                }
-
-                return new HtmlString(
-                    '<div class="flex items-center gap-2 text-sm text-green-600">'.
-                    '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">'.
-                    '<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>'.
-                    '</svg>'.
-                    "Lot {$record->lot_number}: {$available}{$unit} available (".round($percentRemaining, 1).'% remaining)'.
-                    '</div>'
-                );
-            })
-            ->visible(fn (?Recipe $record) => $record && $record->lot_number);
+                return Consumable::create($data)->id;
+            });
     }
 
     protected static function getActiveToggle(): Toggle
@@ -417,46 +300,4 @@ class RecipeForm
             ->step(0.01);
     }
 
-
-    /**
-     * Get available lots for selection with formatted display names.
-     */
-    protected static function getAvailableLotsForSelection(): array
-    {
-        $lotInventoryService = app(InventoryManagementService::class);
-        $lotNumbers = $lotInventoryService->getAllLotNumbers();
-        $options = [];
-
-        foreach ($lotNumbers as $lotNumber) {
-            $summary = $lotInventoryService->getLotSummary($lotNumber);
-
-            // Skip depleted lots
-            if ($summary['available'] <= 0) {
-                continue;
-            }
-
-            // Get the first consumable entry for this lot to get seed info
-            $seedTypeId = $lotInventoryService->getSeedTypeId();
-            if (! $seedTypeId) {
-                continue;
-            }
-
-            $consumable = Consumable::where('consumable_type_id', $seedTypeId)
-                ->where('lot_no', $lotNumber)
-                ->where('is_active', true)
-                ->first();
-
-            if ($consumable) {
-                $unit = $consumable->quantity_unit ?? 'g';
-                $seedName = $consumable->name ?? 'Unknown Seed';
-                $available = $summary['available'];
-
-                // Format: "LOT123 (1500g available) - Broccoli (Broccoli)"
-                $label = "{$lotNumber} ({$available}{$unit} available) - {$seedName}";
-                $options[$lotNumber] = $label;
-            }
-        }
-
-        return $options;
-    }
 }

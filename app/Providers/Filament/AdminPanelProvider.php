@@ -92,10 +92,7 @@ class AdminPanelProvider extends PanelProvider
             ->homeUrl('/admin')
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->viteTheme('resources/css/filament/admin/theme.css')
-            ->renderHook(
-                \Filament\View\PanelsRenderHook::HEAD_START,
-                fn () => '<link rel="stylesheet" href="' . asset('build/assets/css/theme-0N0z5ztr.css') . '">'
-            )
+            ->spa()
             ->plugins([
                 CalendarPlugin::make(),
             ])
