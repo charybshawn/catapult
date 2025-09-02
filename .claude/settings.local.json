@@ -49,7 +49,8 @@
       "Bash(npm run build:*)",
       "WebFetch(domain:filamentphp.com)",
       "Bash(sed:*)",
-      "Bash(git rebase:*)"
+      "Bash(git rebase:*)",
+      "Bash(git pull:*)"
     ],
     "deny": []
   },
@@ -69,7 +70,7 @@
         "matcher": "Edit",
         "hooks": [
           {
-            "type": "command", 
+            "type": "command",
             "command": "./.claude/hooks/validate-php-documentation.sh \"$CLAUDE_TOOL_ARGS\" \"edited\"",
             "timeout": 15
           }
@@ -80,7 +81,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./.claude/hooks/validate-php-documentation.sh \"$CLAUDE_TOOL_ARGS\" \"batch-edited\"", 
+            "command": "./.claude/hooks/validate-php-documentation.sh \"$CLAUDE_TOOL_ARGS\" \"batch-edited\"",
             "timeout": 15
           }
         ]
