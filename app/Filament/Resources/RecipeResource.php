@@ -114,7 +114,7 @@ class RecipeResource extends BaseResource
      */
     public static function form(Schema $schema): Schema
     {
-        return $schema->components(RecipeForm::schema());
+        return $schema->components(RecipeForm::schema())->columns(1);
     }
 
     /**

@@ -50,7 +50,8 @@
       "WebFetch(domain:filamentphp.com)",
       "Bash(sed:*)",
       "Bash(git rebase:*)",
-      "Bash(git merge:*)"
+      "Bash(git merge:*)",
+      "Bash(git pull:*)"
     ],
     "deny": []
   },
