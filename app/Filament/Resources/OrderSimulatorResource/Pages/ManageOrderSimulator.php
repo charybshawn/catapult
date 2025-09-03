@@ -146,17 +146,6 @@ class ManageOrderSimulator extends Page implements HasForms, HasTable
                     ->label('Quantity')
                     ->view('filament.tables.columns.quantity-input'),
             ])
-            ->recordActions([
-                \Filament\Actions\Action::make('hide')
-                    ->label('Hide')
-                    ->icon('heroicon-o-eye-slash')
-                    ->color('gray')
-                    ->action(function ($record) {
-                        // Use variation_id directly as the key
-                        $this->hideRow((string) $record->variation_id);
-                    })
-                    ->tooltip('Hide this row from the list'),
-            ])
             ->headerActions([
                 \Filament\Actions\Action::make('calculate')
                     ->label('Calculate Requirements')
