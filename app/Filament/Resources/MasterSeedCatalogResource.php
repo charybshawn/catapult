@@ -30,40 +30,23 @@ class MasterSeedCatalogResource extends BaseResource
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('common_name')
-                    ->required()
-                    ->maxLength(255)
-                    ->unique(ignoreRecord: true)
-                    ->helperText('e.g. Radish, Cress, Peas, Sunflower'),
-                Forms\Components\Select::make('cultivar_id')
-                    ->label('Primary Cultivar')
-                    ->relationship('cultivar', 'cultivar_name')
-                    ->searchable()
-                    ->preload()
-                    ->createOptionForm([
-                        Forms\Components\TextInput::make('cultivar_name')
+                Forms\Components\Section::make('Seed Information')
+                    ->schema([
+                        Forms\Components\TextInput::make('common_name')
                             ->required()
-                            ->maxLength(255),
-                        Forms\Components\Textarea::make('description'),
-                        Forms\Components\TagsInput::make('aliases')
-                            ->helperText('Alternative names for this cultivar'),
+                            ->maxLength(255)
+                            ->unique(ignoreRecord: true)
+                            ->live(onBlur: true)
+                            ->helperText('e.g. Radish, Cress, Peas, Sunflower'),
+                        Forms\Components\TagsInput::make('cultivars')
+                            ->label('Cultivars')
+                            ->helperText('Enter cultivar names for this seed type (e.g. Cherry Belle, French Breakfast)'),
+
+
+                        Forms\Components\Textarea::make('description')
+                            ->columnSpanFull(),
                     ])
-                    ->helperText('Select or create the primary cultivar for this seed type'),
-                Forms\Components\Select::make('category')
-                    ->options([
-                        'Herbs' => 'Herbs',
-                        'Brassicas' => 'Brassicas',
-                        'Legumes' => 'Legumes',
-                        'Greens' => 'Greens',
-                        'Grains' => 'Grains',
-                        'Shoots' => 'Shoots',
-                        'Other' => 'Other',
-                    ])
-                    ->searchable(),
-                Forms\Components\TagsInput::make('aliases')
-                    ->helperText('Alternative names for this seed type'),
-                Forms\Components\Textarea::make('description')
-                    ->columnSpanFull(),
+                    ->columns(1),
             ]);
     }
 
@@ -74,26 +57,24 @@ class MasterSeedCatalogResource extends BaseResource
                 Tables\Columns\TextColumn::make('common_name')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('cultivar.cultivar_name')
-                    ->label('Primary Cultivar')
+                Tables\Columns\TextColumn::make('cultivars')
+                    ->label('Cultivars')
+                    ->formatStateUsing(fn ($state) => is_array($state) ? implode(', ', $state) : $state)
                     ->searchable()
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('category')
-                    ->badge()
-                    ->sortable()
-                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('category'),
+
             ])
             ->actions([
                 Tables\Actions\ActionGroup::make([
-                    Tables\Actions\ViewAction::make()->tooltip('View record'),
+
                     Tables\Actions\EditAction::make()->tooltip('Edit record'),
                     Tables\Actions\DeleteAction::make()->tooltip('Delete record'),
                 ])
