@@ -132,16 +132,11 @@ class MasterSeedCatalogResource extends BaseResource
 
     protected static function getCsvExportColumns(): array
     {
-        $autoColumns = static::getColumnsFromSchema();
-
-        return static::addRelationshipColumns($autoColumns, [
-            'products' => ['name', 'base_price'],
-            'recipes' => ['name'],
-        ]);
+        return static::getColumnsFromSchema();
     }
 
     protected static function getCsvExportRelationships(): array
     {
-        return ['products', 'recipes'];
+        return [];
     }
 }
