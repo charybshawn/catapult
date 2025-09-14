@@ -32,77 +32,68 @@ class EditRecipe extends BaseEditRecord
                         ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
                         ->columnSpanFull(),
 
-                    Select::make('seed_variety_helper')
-                        ->label('Seed Variety')
+                    Select::make('variety_cultivar_selection')
+                        ->label('Variety & Cultivar (Available Stock Only)')
                         ->options(function () {
-                            // Get unique seed varieties with lot information
-                            $varieties = Consumable::whereHas('consumableType', function ($query) {
-                                $query->where('code', 'seed');
-                            })
-                                ->where('is_active', true)
-                                ->whereNotNull('lot_no')
-                                ->whereNotNull('master_seed_catalog_id')
-                                ->whereNotNull('master_cultivar_id')
-                                ->whereRaw('(total_quantity - consumed_quantity) > 0')
-                                ->with(['consumableType', 'masterSeedCatalog', 'masterCultivar'])
-                                ->get()
-                                ->groupBy('name')
-                                ->map(function ($group, $name) {
-                                    return $name;
-                                })
-                                ->unique();
-
-                            return $varieties->toArray();
-                        })
-                        ->afterStateHydrated(function (callable $set, callable $get, $state, $record) {
-                            // Pre-populate variety helper based on existing lot_number
-                            if (! $state && $record && $record->lot_number) {
-                                $consumable = Consumable::whereHas('consumableType', function ($query) {
-                                    $query->where('code', 'seed');
-                                })
-                                    ->where('lot_no', $record->lot_number)
-                                    ->where('is_active', true)
-                                    ->first();
-
-                                if ($consumable) {
-                                    $set('seed_variety_helper', $consumable->name);
-                                }
-                            }
+                            return \App\Models\Consumable::getAvailableSeedSelectOptionsWithStock();
                         })
                         ->searchable()
                         ->preload()
+                        ->required()
+                        ->afterStateHydrated(function (callable $set, callable $get, $state, $record) {
+                            // Pre-populate selection based on existing recipe data
+                            if (! $state && $record && $record->master_seed_catalog_id && $record->cultivar_name) {
+                                $value = "{$record->master_seed_catalog_id}:{$record->cultivar_name}";
+                                $set('variety_cultivar_selection', $value);
+                            }
+                        })
                         ->live(onBlur: true)
                         ->afterStateUpdated(function (callable $set, $state, callable $get) {
-                            // Don't clear lot_number if we're just hydrating from existing data
-                            if ($state !== $get('seed_variety_helper')) {
+                            if ($state) {
+                                $parsed = \App\Models\MasterSeedCatalog::parseCombinedValue($state);
+
+                                // Set the catalog and cultivar information
+                                $set('master_seed_catalog_id', $parsed['catalog_id']);
+                                $set('cultivar_name', $parsed['cultivar_name']);
+
+                                if ($parsed['catalog']) {
+                                    $set('common_name', $parsed['catalog']->common_name);
+                                }
+
+                                // Reset lot when variety changes
                                 $set('lot_number', null);
                             }
                         })
-                        ->helperText('Choose seed variety to see available lots')
+                        ->helperText('Only varieties with available seed stock are shown')
                         ->columnSpan(1),
 
                     Select::make('lot_number')
                         ->label('Available Lots (Required)')
                         ->options(function (callable $get) {
-                            $selectedVariety = $get('seed_variety_helper');
-                            if (! $selectedVariety) {
+                            $varietyCultivarSelection = $get('variety_cultivar_selection');
+                            if (!$varietyCultivarSelection) {
                                 return [];
                             }
 
-                            $lots = Consumable::whereHas('consumableType', function ($query) {
-                                $query->where('code', 'seed');
-                            })
+                            $parsed = \App\Models\MasterSeedCatalog::parseCombinedValue($varietyCultivarSelection);
+
+                            $consumables = Consumable::whereHas('consumableType', function ($query) {
+                                    $query->where('code', 'seed');
+                                })
                                 ->where('is_active', true)
+                                ->where('master_seed_catalog_id', $parsed['catalog_id'])
                                 ->whereNotNull('lot_no')
-                                ->whereNotNull('master_seed_catalog_id')
-                                ->whereNotNull('master_cultivar_id')
+                                ->where(function ($query) use ($parsed) {
+                                    if ($parsed['cultivar_name']) {
+                                        $query->where('cultivar', $parsed['cultivar_name'])
+                                              ->orWhereHas('masterCultivar', function ($q) use ($parsed) {
+                                                  $q->where('cultivar_name', $parsed['cultivar_name']);
+                                              });
+                                    }
+                                })
                                 ->whereRaw('(total_quantity - consumed_quantity) > 0')
-                                ->with(['consumableType', 'masterSeedCatalog', 'masterCultivar'])
                                 ->orderBy('created_at', 'asc') // FIFO ordering
                                 ->get()
-                                ->filter(function ($consumable) use ($selectedVariety) {
-                                    return $consumable->name === $selectedVariety;
-                                })
                                 ->mapWithKeys(function ($consumable) {
                                     $available = max(0, $consumable->total_quantity - $consumable->consumed_quantity);
                                     $unit = $consumable->quantity_unit ?? 'g';
@@ -114,13 +105,38 @@ class EditRecipe extends BaseEditRecord
                                     return [$consumable->lot_no => $display];
                                 });
 
-                            return $lots->toArray();
+                            return $consumables->toArray();
                         })
                         ->searchable()
                         ->preload()
                         ->live(onBlur: true)
+                        ->afterStateUpdated(function (callable $set, $state, callable $get) {
+                            // Set seed_consumable_id based on selected lot
+                            if ($state && $get('variety_cultivar_selection')) {
+                                $parsed = \App\Models\MasterSeedCatalog::parseCombinedValue($get('variety_cultivar_selection'));
+                                $consumable = Consumable::whereHas('consumableType', function ($query) {
+                                        $query->where('code', 'seed');
+                                    })
+                                    ->where('is_active', true)
+                                    ->where('master_seed_catalog_id', $parsed['catalog_id'])
+                                    ->where('lot_no', $state)
+                                    ->where(function ($query) use ($parsed) {
+                                        if ($parsed['cultivar_name']) {
+                                            $query->where('cultivar', $parsed['cultivar_name'])
+                                                  ->orWhereHas('masterCultivar', function ($q) use ($parsed) {
+                                                      $q->where('cultivar_name', $parsed['cultivar_name']);
+                                                  });
+                                        }
+                                    })
+                                    ->first();
+
+                                if ($consumable) {
+                                    $set('seed_consumable_id', $consumable->id);
+                                }
+                            }
+                        })
                         ->helperText('Select specific lot (oldest shown first for FIFO)')
-                        ->disabled(fn (callable $get) => ! $get('seed_variety_helper'))
+                        ->disabled(fn (callable $get) => ! $get('variety_cultivar_selection'))
                         ->required()
                         ->columnSpan(1),
 
@@ -170,13 +186,15 @@ class EditRecipe extends BaseEditRecord
                         ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
                         ->columnSpan(1),
 
-                    // Hidden fields for legacy compatibility
+                    // Hidden fields for form processing
                     Forms\Components\Hidden::make('seed_density')
                         ->default(0),
-
-
-                    Forms\Components\Hidden::make('seed_consumable_id')
-                        ->default(null),
+                    Forms\Components\Hidden::make('common_name'),
+                    Forms\Components\Hidden::make('cultivar_name'),
+                    Forms\Components\Hidden::make('master_seed_catalog_id'),
+                    Forms\Components\Hidden::make('seed_consumable_id'),
+                    Forms\Components\Hidden::make('variety_cultivar_selection')
+                        ->dehydrated(false), // Don't save to database, it's just a form helper
 
                     TextInput::make('expected_yield_grams')
                         ->label('Expected Yield (g/tray)')

@@ -8,89 +8,186 @@ use App\Models\Consumable;
 use Filament\Forms;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\MarkdownEditor;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\Wizard;
+use Filament\Forms\Components\Wizard\Step;
 use Filament\Forms\Form;
+use Filament\Resources\Pages\CreateRecord;
+use Illuminate\Support\HtmlString;
+use Illuminate\Support\Facades\Blade;
 
 class CreateRecipe extends BaseCreateRecord
 {
+    use CreateRecord\Concerns\HasWizard;
     protected static string $resource = RecipeResource::class;
+
+    /**
+     * Generate comprehensive recipe name from form data
+     * Format: "Variety (Cultivar) [Lot# XXXX] [Plant Xg] [XDTM, XG, XB, XL]"
+     */
+    protected function generateRecipeName(callable $get): ?string
+    {
+        $varietyCultivarSelection = $get('variety_cultivar_selection');
+        $lotNumber = $get('lot_number');
+        $plantingDensity = $get('seed_density_grams_per_tray');
+        $dtm = $get('days_to_maturity');
+        $germinationDays = $get('germination_days');
+        $blackoutDays = $get('blackout_days');
+        $lightDays = $get('light_days');
+
+        if (!$varietyCultivarSelection) {
+            return null;
+        }
+
+        $parsed = \App\Models\MasterSeedCatalog::parseCombinedValue($varietyCultivarSelection);
+        if (!$parsed['catalog']) {
+            return null;
+        }
+
+        // Build variety name with cultivar
+        $varietyName = $parsed['cultivar_name']
+            ? $parsed['catalog']->common_name . ' (' . $parsed['cultivar_name'] . ')'
+            : $parsed['catalog']->common_name;
+
+        // Start with variety name
+        $nameComponents = [$varietyName];
+
+        // Add lot number in brackets
+        if ($lotNumber) {
+            $nameComponents[] = "[Lot# {$lotNumber}]";
+        }
+
+        // Add planting density in brackets
+        if ($plantingDensity) {
+            $density = number_format((float)$plantingDensity, 1);
+            $nameComponents[] = "[Plant {$density}g]";
+        }
+
+        // Add DTM and stage breakdown in brackets
+        if ($dtm) {
+            $dtmFormatted = number_format((float)$dtm, 0);
+            $stageParts = ["{$dtmFormatted}DTM"];
+
+            if ($germinationDays) {
+                $germFormatted = number_format((float)$germinationDays, 0);
+                $stageParts[] = "{$germFormatted}G";
+            }
+
+            if ($blackoutDays) {
+                $blackoutFormatted = number_format((float)$blackoutDays, 0);
+                $stageParts[] = "{$blackoutFormatted}B";
+            }
+
+            if ($lightDays) {
+                $lightFormatted = number_format((float)$lightDays, 0);
+                $stageParts[] = "{$lightFormatted}L";
+            }
+
+            $nameComponents[] = "[" . implode(', ', $stageParts) . "]";
+        }
+
+        return implode(' ', $nameComponents);
+    }
 
     public function form(Form $form): Form
     {
         return $form->schema([
-            Section::make('Basic Information')
-                ->description('Enter the basic recipe information')
+            // Persistent Recipe Name field at the top
+            TextInput::make('name')
+                ->label('Recipe Name')
+                ->required()
+                ->maxLength(255)
+                ->helperText('Auto-generated format: "Variety (Cultivar) [Lot# XXXX] [Plant Xg] [XDTM, XG, XB, XL]"')
+                ->columnSpanFull(),
+
+            // Wizard with steps
+            Wizard::make($this->getSteps())
+                ->columnSpanFull()
+                ->submitAction(
+                    new HtmlString(Blade::render(<<<BLADE
+                        <x-filament::button
+                            type="submit"
+                            size="sm"
+                        >
+                            Create Recipe
+                        </x-filament::button>
+                    BLADE))
+                ),
+        ]);
+    }
+
+    protected function getSteps(): array
+    {
+        return [
+            Step::make('Recipe Details')
+                ->description('Configure the basic recipe information and ingredients')
                 ->schema([
-                    TextInput::make('name')
-                        ->label('Recipe Name')
-                        ->required()
-                        ->maxLength(255)
-                        ->helperText('Recipe name will be auto-generated from variety and lot if left blank')
-                        ->columnSpanFull(),
-
-                    Select::make('seed_variety_helper')
-                        ->label('Seed Variety')
+                    Select::make('variety_cultivar_selection')
+                        ->label('Variety & Cultivar (Available Stock Only)')
                         ->options(function () {
-                            // Get unique seed varieties with lot information
-                            $varieties = Consumable::whereHas('consumableType', function ($query) {
-                                $query->where('code', 'seed');
-                            })
-                                ->where('is_active', true)
-                                ->whereNotNull('lot_no')
-                                ->whereNotNull('master_seed_catalog_id')
-                                ->whereNotNull('master_cultivar_id')
-                                ->whereRaw('(total_quantity - consumed_quantity) > 0')
-                                ->with(['consumableType', 'masterSeedCatalog', 'masterCultivar'])
-                                ->get()
-                                ->groupBy('name')
-                                ->map(function ($group, $name) {
-                                    return $name;
-                                })
-                                ->unique();
-
-                            return $varieties->toArray();
+                            return \App\Models\Consumable::getAvailableSeedSelectOptionsWithStock();
                         })
                         ->searchable()
                         ->preload()
+                        ->required()
                         ->live(onBlur: true)
                         ->afterStateUpdated(function (callable $set, $state, callable $get) {
                             // Clear lot number when variety changes
                             $set('lot_number', null);
-                            
-                            // Auto-generate recipe name if not manually set
-                            if ($state && !$get('name')) {
-                                $set('name', $state);
+
+                            if ($state) {
+                                $parsed = \App\Models\MasterSeedCatalog::parseCombinedValue($state);
+
+                                // Set the catalog and cultivar information
+                                $set('master_seed_catalog_id', $parsed['catalog_id']);
+                                $set('cultivar_name', $parsed['cultivar_name']);
+
+                                if ($parsed['catalog']) {
+                                    $set('common_name', $parsed['catalog']->common_name);
+
+                                    // Auto-generate comprehensive recipe name
+                                    $generatedName = $this->generateRecipeName($get);
+                                    if ($generatedName && !$get('name')) {
+                                        $set('name', $generatedName);
+                                    }
+                                }
                             }
                         })
-                        ->helperText('Choose seed variety to see available lots')
+                        ->helperText('Only varieties with available seed stock are shown')
                         ->columnSpan(1),
 
                     Select::make('lot_number')
                         ->label('Available Lots (Required)')
                         ->options(function (callable $get) {
-                            $selectedVariety = $get('seed_variety_helper');
-                            if (! $selectedVariety) {
+                            $varietyCultivarSelection = $get('variety_cultivar_selection');
+                            if (!$varietyCultivarSelection) {
                                 return [];
                             }
 
-                            $lots = Consumable::whereHas('consumableType', function ($query) {
-                                $query->where('code', 'seed');
-                            })
+                            $parsed = \App\Models\MasterSeedCatalog::parseCombinedValue($varietyCultivarSelection);
+
+                            $consumables = Consumable::whereHas('consumableType', function ($query) {
+                                    $query->where('code', 'seed');
+                                })
                                 ->where('is_active', true)
+                                ->where('master_seed_catalog_id', $parsed['catalog_id'])
                                 ->whereNotNull('lot_no')
-                                ->whereNotNull('master_seed_catalog_id')
-                                ->whereNotNull('master_cultivar_id')
-                                ->whereRaw('(total_quantity - consumed_quantity) > 0')
-                                ->with(['consumableType', 'masterSeedCatalog', 'masterCultivar'])
+                                ->where(function ($query) use ($parsed) {
+                                    if ($parsed['cultivar_name']) {
+                                        $query->where('cultivar', $parsed['cultivar_name'])
+                                              ->orWhereHas('masterCultivar', function ($q) use ($parsed) {
+                                                  $q->where('cultivar_name', $parsed['cultivar_name']);
+                                              });
+                                    }
+                                })
+                                ->whereRaw('(total_quantity * consumed_quantity) > 0')
                                 ->orderBy('created_at', 'asc') // FIFO ordering
                                 ->get()
-                                ->filter(function ($consumable) use ($selectedVariety) {
-                                    return $consumable->name === $selectedVariety;
-                                })
                                 ->mapWithKeys(function ($consumable) {
-                                    $available = max(0, $consumable->total_quantity - $consumable->consumed_quantity);
+                                    $available = max(0, $consumable->total_quantity * $consumable->consumed_quantity);
                                     $unit = $consumable->quantity_unit ?? 'g';
                                     $createdDate = $consumable->created_at->format('M j, Y');
                                     $ageIndicator = $consumable->created_at->diffInDays(now()) > 30 ? 'Old' : 'New';
@@ -100,20 +197,20 @@ class CreateRecipe extends BaseCreateRecord
                                     return [$consumable->lot_no => $display];
                                 });
 
-                            return $lots->toArray();
+                            return $consumables->toArray();
                         })
                         ->searchable()
                         ->preload()
                         ->live(onBlur: true)
                         ->afterStateUpdated(function (callable $set, $state, callable $get) {
-                            // Auto-generate recipe name if not manually set
-                            $variety = $get('seed_variety_helper');
-                            if ($variety && $state && !$get('name')) {
-                                $set('name', "{$variety} - Lot {$state}");
+                            // Auto-generate comprehensive recipe name
+                            $generatedName = $this->generateRecipeName($get);
+                            if ($generatedName) {
+                                $set('name', $generatedName);
                             }
                         })
                         ->helperText('Select specific lot (oldest shown first for FIFO)')
-                        ->disabled(fn (callable $get) => ! $get('seed_variety_helper'))
+
                         ->required()
                         ->columnSpan(1),
 
@@ -129,7 +226,7 @@ class CreateRecipe extends BaseCreateRecord
                                 ->mapWithKeys(function ($soil) {
                                     $quantityInfo = '';
                                     if ($soil->total_quantity && $soil->quantity_unit) {
-                                        $quantityInfo = ' - '.number_format($soil->total_quantity, 1)." {$soil->quantity_unit} available";
+                                        $quantityInfo = ' * '.number_format($soil->total_quantity, 1)." {$soil->quantity_unit} available";
                                     }
 
                                     return [$soil->id => $soil->name.$quantityInfo];
@@ -156,12 +253,16 @@ class CreateRecipe extends BaseCreateRecord
                         ->minValue(0)
                         ->step(0.01)
                         ->dehydrated(true)
+                        ->live(onBlur: true)
+                        ->afterStateUpdated(function (callable $set, $state, callable $get) {
+                            // Auto-generate comprehensive recipe name
+                            $generatedName = $this->generateRecipeName($get);
+                            if ($generatedName) {
+                                $set('name', $generatedName);
+                            }
+                        })
                         ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
                         ->columnSpan(1),
-
-                    // Hidden fields for legacy compatibility
-                    Forms\Components\Hidden::make('seed_consumable_id')
-                        ->default(null),
 
                     TextInput::make('expected_yield_grams')
                         ->label('Expected Yield (g/tray)')
@@ -181,21 +282,35 @@ class CreateRecipe extends BaseCreateRecord
                         ->suffix('%')
                         ->columnSpan(1),
 
-                    Textarea::make('notes')
+                    MarkdownEditor::make('notes')
                         ->label('Recipe Notes')
-                        ->rows(5)
+                        ->default("# Planting Method
+* 
+
+# Growth Cycle
+* 
+
+# Other
+* ")
                         ->columnSpanFull(),
 
                     Toggle::make('is_active')
                         ->label('Active')
                         ->default(true)
                         ->columnSpanFull(),
-                ])
-                ->columns(2)
-                ->collapsible(),
 
-            Section::make('Grow Plan')
-                ->description('Specify the duration for each growth stage and watering plan')
+                    // Hidden fields for form processing
+                    Forms\Components\Hidden::make('common_name'),
+                    Forms\Components\Hidden::make('cultivar_name'),
+                    Forms\Components\Hidden::make('master_seed_catalog_id'),
+                    Forms\Components\Hidden::make('seed_consumable_id'),
+                    Forms\Components\Hidden::make('variety_cultivar_selection')
+                        ->dehydrated(false), // Don't save to database, it's just a form helper
+                ])
+                ->columns(2),
+
+            Step::make('Growth Schedule')
+                ->description('Define the timing for each growth stage and watering plan')
                 ->schema([
                     TextInput::make('days_to_maturity')
                         ->label('Days to Maturity (DTM)')
@@ -213,6 +328,12 @@ class CreateRecipe extends BaseCreateRecord
 
                             $lightDays = max(0, $dtm - ($germ + $blackout));
                             $set('light_days', $lightDays);
+
+                            // Auto-generate comprehensive recipe name
+                            $generatedName = $this->generateRecipeName($get);
+                            if ($generatedName) {
+                                $set('name', $generatedName);
+                            }
                         }),
 
                     TextInput::make('seed_soak_hours')
@@ -238,6 +359,12 @@ class CreateRecipe extends BaseCreateRecord
 
                             $lightDays = max(0, $dtm - ($germ + $blackout));
                             $set('light_days', $lightDays);
+
+                            // Auto-generate comprehensive recipe name
+                            $generatedName = $this->generateRecipeName($get);
+                            if ($generatedName) {
+                                $set('name', $generatedName);
+                            }
                         })
                         ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
                         ->columnSpan(1),
@@ -257,6 +384,12 @@ class CreateRecipe extends BaseCreateRecord
 
                             $lightDays = max(0, $dtm - ($germ + $blackout));
                             $set('light_days', $lightDays);
+
+                            // Auto-generate comprehensive recipe name
+                            $generatedName = $this->generateRecipeName($get);
+                            if ($generatedName) {
+                                $set('name', $generatedName);
+                            }
                         })
                         ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
                         ->columnSpan(1),
@@ -292,40 +425,40 @@ class CreateRecipe extends BaseCreateRecord
                         ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
                         ->columnSpan(1),
                 ])
-                ->columns(2)
-                ->collapsible(),
-
-        ])->columns(null);
+                ->columns(2),
+        ];
     }
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        // If seed_variety_helper is selected, find the corresponding master_seed_catalog_id and master_cultivar_id
-        if (isset($data['seed_variety_helper']) && $data['seed_variety_helper']) {
-            // Find the consumable for the selected variety and lot
-            // We need to use the raw name from database since the computed name attribute causes issues
-            $consumable = Consumable::with(['masterSeedCatalog', 'masterCultivar', 'consumableType'])
-                ->whereHas('consumableType', function ($query) {
+        // If lot_number is selected, find the corresponding consumable and set seed_consumable_id
+        if (isset($data['lot_number']) && $data['lot_number'] &&
+            isset($data['master_seed_catalog_id']) && isset($data['cultivar_name'])) {
+
+            $consumable = Consumable::whereHas('consumableType', function ($query) {
                     $query->where('code', 'seed');
                 })
-                ->whereRaw('name = ?', [$data['seed_variety_helper']])
-                ->where('lot_no', $data['lot_number'] ?? null)
+                ->where('is_active', true)
+                ->where('master_seed_catalog_id', $data['master_seed_catalog_id'])
+                ->where('lot_no', $data['lot_number'])
+                ->where(function ($query) use ($data) {
+                    if ($data['cultivar_name']) {
+                        $query->where('cultivar', $data['cultivar_name'])
+                              ->orWhereHas('masterCultivar', function ($q) use ($data) {
+                                  $q->where('cultivar_name', $data['cultivar_name']);
+                              });
+                    }
+                })
                 ->first();
-            
+
             if ($consumable) {
-                $data['master_seed_catalog_id'] = $consumable->master_seed_catalog_id;
-                $data['master_cultivar_id'] = $consumable->master_cultivar_id;
-                $data['common_name'] = $consumable->masterSeedCatalog?->common_name;
-                $data['cultivar_name'] = $consumable->masterCultivar?->cultivar_name;
-                
-                // Set seed_consumable_id to the consumable that matches the lot
                 $data['seed_consumable_id'] = $consumable->id;
             }
         }
-        
+
         // Remove the helper field as it's not a database column
-        unset($data['seed_variety_helper']);
-        
+        unset($data['variety_cultivar_selection']);
+
         return $data;
     }
 }

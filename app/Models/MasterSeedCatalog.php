@@ -121,4 +121,5 @@ class MasterSeedCatalog extends Model
             ? "{$this->common_name} ({$cultivar})"
             : $this->common_name;
     }
+
 }

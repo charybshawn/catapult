@@ -41,6 +41,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Arugula (Arugula)',
                 'lot_no' => 'AR2-01',
+                'master_seed_catalog_id' => 2,
+                'cultivar' => 'Arugula',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -54,6 +56,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Borage (Borage)',
                 'lot_no' => 'BOR0Y',
+                'master_seed_catalog_id' => 5,
+                'cultivar' => 'Borage',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -67,6 +71,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Kale (Red)',
                 'lot_no' => 'KR3Y-01',
+                'master_seed_catalog_id' => 12,
+                'cultivar' => 'Red',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -80,6 +86,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Kohlrabi (Purple)',
                 'lot_no' => 'KOH3-01',
+                'master_seed_catalog_id' => 13,
+                'cultivar' => 'Purple',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -93,6 +101,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Kale (Green)',
                 'lot_no' => 'KG2N2',
+                'master_seed_catalog_id' => 12,
+                'cultivar' => 'Green',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -106,6 +116,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Beet (Ruby)',
                 'lot_no' => 'BER2L',
+                'master_seed_catalog_id' => 4,
+                'cultivar' => 'Ruby',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -119,6 +131,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Mustard (Oriental)',
                 'lot_no' => 'MO12',
+                'master_seed_catalog_id' => 14,
+                'cultivar' => 'Oriental',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -132,6 +146,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Radish (Red)',
                 'lot_no' => 'RR4196LL',
+                'master_seed_catalog_id' => 16,
+                'cultivar' => 'Red',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -145,6 +161,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Broccoli (Broccoli)',
                 'lot_no' => 'RR4196LL',
+                'master_seed_catalog_id' => 6,
+                'cultivar' => 'Broccoli',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -158,6 +176,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Broccoli (Broccoli)',
                 'lot_no' => 'RR4196LL-2',
+                'master_seed_catalog_id' => 6,
+                'cultivar' => 'Broccoli',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -171,6 +191,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Broccoli (Raab Rapini)',
                 'lot_no' => 'BR9',
+                'master_seed_catalog_id' => 6,
+                'cultivar' => 'Raab (Rapini)',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -184,6 +206,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Beet (Ruby)',
                 'lot_no' => 'BER2L-2',
+                'master_seed_catalog_id' => 4,
+                'cultivar' => 'Ruby',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -197,6 +221,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Swiss Chard (Yellow)',
                 'lot_no' => '38124',
+                'master_seed_catalog_id' => 18,
+                'cultivar' => 'Yellow',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -210,6 +236,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Basil (Genovese)',
                 'lot_no' => 'BAS8Y',
+                'master_seed_catalog_id' => 3,
+                'cultivar' => 'Genovese',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -223,6 +251,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Basil (Thai)',
                 'lot_no' => 'BAST7L',
+                'master_seed_catalog_id' => 3,
+                'cultivar' => 'Thai',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -236,6 +266,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Amaranth (Red)',
                 'lot_no' => '38637',
+                'master_seed_catalog_id' => 1,
+                'cultivar' => 'Red',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -249,6 +281,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Cress (Curly Garden)',
                 'lot_no' => 'CC9257SG',
+                'master_seed_catalog_id' => 10,
+                'cultivar' => 'Curly (Garden )',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -262,6 +296,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Fenugreek (Fenugreek)',
                 'lot_no' => 'F91S',
+                'master_seed_catalog_id' => 11,
+                'cultivar' => 'Fenugreek',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -275,6 +311,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Mustard (Oriental)',
                 'lot_no' => 'MO12-2',
+                'master_seed_catalog_id' => 14,
+                'cultivar' => 'Oriental',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -288,6 +326,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Sunflower (Black Oilseed)',
                 'lot_no' => 'SFR16',
+                'master_seed_catalog_id' => 17,
+                'cultivar' => 'Black Oilseed',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -301,6 +341,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Coriander (Coriander)',
                 'lot_no' => 'COR3',
+                'master_seed_catalog_id' => 9,
+                'cultivar' => 'Coriander',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -314,6 +356,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             [
                 'name' => 'Peas (Speckled)',
                 'lot_no' => 'PS4M',
+                'master_seed_catalog_id' => 15,
+                'cultivar' => 'Speckled',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -326,6 +370,9 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             ],
             [
                 'name' => 'Radish (Ruby Stem)',
+                'lot_no' => 'RRS01',
+                'master_seed_catalog_id' => 16,
+                'cultivar' => 'Ruby Stem',
                 'consumable_type_id' => $seedTypeId,
                 'consumable_unit_id' => $gramUnitId,
                 'supplier_id' => $seedSupplierId,
@@ -346,6 +393,8 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             $data['is_active'] = true;
             $data['created_at'] = $timestamp;
             $data['updated_at'] = $timestamp;
+
+
 
             Consumable::updateOrCreate(
                 [

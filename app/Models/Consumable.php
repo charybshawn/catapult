@@ -872,4 +872,61 @@ class Consumable extends Model
             $metadata
         );
     }
+
+    /**
+     * Get available seed options with stock filtering
+     * Extends MasterSeedCatalog::getCombinedSelectOptions() to only show varieties with available stock
+     */
+    public static function getAvailableSeedSelectOptionsWithStock(): array
+    {
+        $options = [];
+
+        $catalogs = MasterSeedCatalog::where('is_active', true)->get();
+
+        foreach ($catalogs as $catalog) {
+            $cultivars = $catalog->cultivars ?? [];
+
+            if (!empty($cultivars) && is_array($cultivars)) {
+                foreach ($cultivars as $cultivar) {
+                    // Check if there are consumables with available stock for this catalog/cultivar combination
+                    $availableStock = static::whereHas('consumableType', function ($query) {
+                            $query->where('code', 'seed');
+                        })
+                        ->where('is_active', true)
+                        ->where('master_seed_catalog_id', $catalog->id)
+                        ->where(function ($query) use ($cultivar) {
+                            // Match by cultivar name in the cultivar field or through master_cultivar relationship
+                            $query->where('cultivar', $cultivar)
+                                  ->orWhereHas('masterCultivar', function ($q) use ($cultivar) {
+                                      $q->where('cultivar_name', $cultivar);
+                                  });
+                        })
+                        ->whereRaw('(total_quantity - consumed_quantity) > 0')
+                        ->sum(DB::raw('total_quantity - consumed_quantity'));
+
+                    if ($availableStock > 0) {
+                        $displayName = "{$catalog->common_name} ({$cultivar}) - " . number_format($availableStock, 1) . 'g available';
+                        $value = "{$catalog->id}:{$cultivar}";
+                        $options[$value] = $displayName;
+                    }
+                }
+            } else {
+                // Fallback for entries without cultivars - check if there's available stock
+                $availableStock = static::whereHas('consumableType', function ($query) {
+                        $query->where('code', 'seed');
+                    })
+                    ->where('is_active', true)
+                    ->where('master_seed_catalog_id', $catalog->id)
+                    ->whereRaw('(total_quantity - consumed_quantity) > 0')
+                    ->sum(DB::raw('total_quantity - consumed_quantity'));
+
+                if ($availableStock > 0) {
+                    $displayName = $catalog->common_name . ' - ' . number_format($availableStock, 1) . 'g available';
+                    $options["{$catalog->id}:"] = $displayName;
+                }
+            }
+        }
+
+        return $options;
+    }
 }

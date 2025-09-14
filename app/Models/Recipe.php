@@ -27,7 +27,6 @@ class Recipe extends Model
     protected $fillable = [
         'name',
         'master_seed_catalog_id',
-        'master_cultivar_id',
         'common_name',
         'cultivar_name',
         'seed_consumable_id',
@@ -39,7 +38,7 @@ class Recipe extends Model
         'days_to_maturity',
         'light_days',
         'seed_soak_hours',
-        'expected_yield_grams', 
+        'expected_yield_grams',
         'buffer_percentage',
         'seed_density_grams_per_tray',
         'is_active',
@@ -74,13 +73,6 @@ class Recipe extends Model
         return $this->belongsTo(MasterSeedCatalog::class);
     }
     
-    /**
-     * Get the master cultivar for this recipe.
-     */
-    public function masterCultivar(): BelongsTo
-    {
-        return $this->belongsTo(MasterCultivar::class);
-    }
     
     /**
      * Get the soil consumable for this recipe.

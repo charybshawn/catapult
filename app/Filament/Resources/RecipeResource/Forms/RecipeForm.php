@@ -15,11 +15,9 @@ class RecipeForm
         return [
             Forms\Components\Section::make('Recipe Information')
                 ->schema([
-                    static::getVarietyField(),
-                    static::getCultivarField(),
+                    static::getVarietyCultivarField(),
                     ...static::getHiddenFields(),
                     static::getLotNumberField(),
-                    static::getSeedConsumableField(),
                     static::getLotStatusPlaceholder(),
                     static::getActiveToggle(),
                 ])
@@ -39,15 +37,12 @@ class RecipeForm
         ];
     }
 
-    protected static function getVarietyField(): Forms\Components\Select
+    protected static function getVarietyCultivarField(): Forms\Components\Select
     {
-        return Forms\Components\Select::make('master_seed_catalog_id')
-            ->label('Variety')
+        return Forms\Components\Select::make('variety_cultivar_selection')
+            ->label('Variety & Cultivar (Available Stock Only)')
             ->options(function () {
-                return \App\Models\MasterSeedCatalog::query()
-                    ->where('is_active', true)
-                    ->orderBy('common_name')
-                    ->pluck('common_name', 'id');
+                return \App\Models\Consumable::getAvailableSeedSelectOptionsWithStock();
             })
             ->searchable()
             ->preload()
@@ -55,48 +50,30 @@ class RecipeForm
             ->required()
             ->reactive()
             ->afterStateUpdated(function ($state, callable $set, ?Recipe $record) {
-                if ($state && ! $record) {
-                    // When creating new recipe, set common_name based on selection
-                    $catalog = \App\Models\MasterSeedCatalog::find($state);
-                    if ($catalog) {
-                        $set('common_name', $catalog->common_name);
-                    }
-                }
-                // Reset cultivar when variety changes
-                $set('master_cultivar_id', null);
-            });
-    }
-
-    protected static function getCultivarField(): Forms\Components\Select
-    {
-        return Forms\Components\Select::make('master_cultivar_id')
-            ->label('Cultivar')
-            ->options(function (callable $get) {
-                $catalogId = $get('master_seed_catalog_id');
-                if (! $catalogId) {
-                    return [];
-                }
-
-                return \App\Models\MasterCultivar::where('master_seed_catalog_id', $catalogId)
-                    ->where('is_active', true)
-                    ->pluck('cultivar_name', 'id');
-            })
-            ->searchable()
-            ->reactive()
-            ->afterStateUpdated(function ($state, callable $set, callable $get) {
                 if ($state) {
-                    $cultivar = \App\Models\MasterCultivar::find($state);
-                    if ($cultivar) {
-                        $set('cultivar_name', $cultivar->cultivar_name);
-                        // Update recipe name
-                        $catalog = \App\Models\MasterSeedCatalog::find($get('master_seed_catalog_id'));
-                        if ($catalog && $cultivar) {
-                            $name = $catalog->common_name.' ('.$cultivar->cultivar_name.')';
+                    $parsed = \App\Models\MasterSeedCatalog::parseCombinedValue($state);
+
+                    // Set the catalog and cultivar information
+                    $set('master_seed_catalog_id', $parsed['catalog_id']);
+                    $set('cultivar_name', $parsed['cultivar_name']);
+
+                    if ($parsed['catalog']) {
+                        $set('common_name', $parsed['catalog']->common_name);
+
+                        // Auto-generate recipe name if not set
+                        if (!$record || !$record->name) {
+                            $name = $parsed['cultivar_name']
+                                ? $parsed['catalog']->common_name . ' (' . $parsed['cultivar_name'] . ')'
+                                : $parsed['catalog']->common_name;
                             $set('name', $name);
                         }
                     }
                 }
-            });
+
+                // Reset lot when variety changes
+                $set('lot_number', null);
+            })
+            ->helperText('Only varieties with available seed stock are shown');
     }
 
     protected static function getHiddenFields(): array
@@ -104,6 +81,10 @@ class RecipeForm
         return [
             Forms\Components\Hidden::make('common_name'),
             Forms\Components\Hidden::make('cultivar_name'),
+            Forms\Components\Hidden::make('master_seed_catalog_id'),
+            Forms\Components\Hidden::make('seed_consumable_id'),
+            Forms\Components\Hidden::make('variety_cultivar_selection')
+                ->dehydrated(false), // Don't save to database, it's just a form helper
         ];
     }
 
@@ -111,10 +92,21 @@ class RecipeForm
     {
         return Forms\Components\Select::make('lot_number')
             ->label('Seed Lot')
-            ->options(fn () => static::getAvailableLotsForSelection())
+            ->options(function (callable $get) {
+                $varietyCultivarSelection = $get('variety_cultivar_selection');
+                if (!$varietyCultivarSelection) {
+                    return [];
+                }
+
+                $parsed = \App\Models\MasterSeedCatalog::parseCombinedValue($varietyCultivarSelection);
+
+                return static::getAvailableLotsForCatalogCultivar($parsed['catalog_id'], $parsed['cultivar_name']);
+            })
             ->searchable()
             ->nullable()
-            ->helperText('Shows only lots with available stock')
+            ->helperText('Shows only lots with available stock for selected variety')
+            ->disabled(fn (callable $get) => ! $get('variety_cultivar_selection'))
+            ->reactive()
             ->rules([
                 'nullable',
                 'string',
@@ -151,6 +143,30 @@ class RecipeForm
                 if ($state && $state !== $get('lot_number')) {
                     $set('lot_depleted_at', null);
                 }
+
+                // Set seed_consumable_id based on selected lot
+                if ($state && $get('variety_cultivar_selection')) {
+                    $parsed = \App\Models\MasterSeedCatalog::parseCombinedValue($get('variety_cultivar_selection'));
+                    $consumable = \App\Models\Consumable::whereHas('consumableType', function ($query) {
+                            $query->where('code', 'seed');
+                        })
+                        ->where('is_active', true)
+                        ->where('master_seed_catalog_id', $parsed['catalog_id'])
+                        ->where('lot_no', $state)
+                        ->where(function ($query) use ($parsed) {
+                            if ($parsed['cultivar_name']) {
+                                $query->where('cultivar', $parsed['cultivar_name'])
+                                      ->orWhereHas('masterCultivar', function ($q) use ($parsed) {
+                                          $q->where('cultivar_name', $parsed['cultivar_name']);
+                                      });
+                            }
+                        })
+                        ->first();
+
+                    if ($consumable) {
+                        $set('seed_consumable_id', $consumable->id);
+                    }
+                }
             })
             ->suffixAction(
                 Forms\Components\Actions\Action::make('refresh_lots')
@@ -162,23 +178,6 @@ class RecipeForm
             );
     }
 
-    protected static function getSeedConsumableField(): Forms\Components\Select
-    {
-        return Forms\Components\Select::make('seed_consumable_id')
-            ->label('Seed Consumable')
-            ->options(function () {
-                return \App\Models\Consumable::query()
-                    ->whereHas('consumableType', function ($q) {
-                        $q->where('name', 'like', '%seed%');
-                    })
-                    ->where('is_active', true)
-                    ->orderBy('name')
-                    ->pluck('name', 'id');
-            })
-            ->searchable()
-            ->preload()
-            ->helperText('Select the seed consumable for this recipe');
-    }
 
     protected static function getLotStatusPlaceholder(): Forms\Components\Placeholder
     {
@@ -377,42 +376,38 @@ class RecipeForm
 
 
     /**
-     * Get available lots for selection with formatted display names.
+     * Get available lots for a specific catalog ID and cultivar name.
      */
-    protected static function getAvailableLotsForSelection(): array
+    protected static function getAvailableLotsForCatalogCultivar(int $catalogId, ?string $cultivarName = null): array
     {
-        $lotInventoryService = app(\App\Services\InventoryManagementService::class);
-        $lotNumbers = $lotInventoryService->getAllLotNumbers();
         $options = [];
 
-        foreach ($lotNumbers as $lotNumber) {
-            $summary = $lotInventoryService->getLotSummary($lotNumber);
+        $consumables = \App\Models\Consumable::whereHas('consumableType', function ($query) {
+                $query->where('code', 'seed');
+            })
+            ->where('is_active', true)
+            ->where('master_seed_catalog_id', $catalogId)
+            ->whereNotNull('lot_no')
+            ->where(function ($query) use ($cultivarName) {
+                if ($cultivarName) {
+                    $query->where('cultivar', $cultivarName)
+                          ->orWhereHas('masterCultivar', function ($q) use ($cultivarName) {
+                              $q->where('cultivar_name', $cultivarName);
+                          });
+                }
+            })
+            ->whereRaw('(total_quantity - consumed_quantity) > 0')
+            ->orderBy('created_at', 'asc') // FIFO ordering
+            ->get();
 
-            // Skip depleted lots
-            if ($summary['available'] <= 0) {
-                continue;
-            }
+        foreach ($consumables as $consumable) {
+            $available = max(0, $consumable->total_quantity - $consumable->consumed_quantity);
+            $unit = $consumable->quantity_unit ?? 'g';
+            $createdDate = $consumable->created_at->format('M j, Y');
+            $ageIndicator = $consumable->created_at->diffInDays(now()) > 30 ? 'Old' : 'New';
 
-            // Get the first consumable entry for this lot to get seed info
-            $seedTypeId = $lotInventoryService->getSeedTypeId();
-            if (! $seedTypeId) {
-                continue;
-            }
-
-            $consumable = Consumable::where('consumable_type_id', $seedTypeId)
-                ->where('lot_no', $lotNumber)
-                ->where('is_active', true)
-                ->first();
-
-            if ($consumable) {
-                $unit = $consumable->quantity_unit ?? 'g';
-                $seedName = $consumable->name ?? 'Unknown Seed';
-                $available = $summary['available'];
-
-                // Format: "LOT123 (1500g available) - Broccoli (Broccoli)"
-                $label = "{$lotNumber} ({$available}{$unit} available) - {$seedName}";
-                $options[$lotNumber] = $label;
-            }
+            $display = "Lot {$consumable->lot_no} - {$available} {$unit} ({$ageIndicator}, Added: {$createdDate})";
+            $options[$consumable->lot_no] = $display;
         }
 
         return $options;
