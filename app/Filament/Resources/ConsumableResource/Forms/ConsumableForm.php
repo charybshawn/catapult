@@ -178,13 +178,6 @@ class ConsumableForm
         return [
             FormCommon::supplierSelect(),
 
-            // Read-only name field that will be auto-generated
-            Forms\Components\TextInput::make('name')
-                ->label('Generated Name')
-                ->readonly()
-                ->helperText('Auto-generated from seed catalog and cultivar selection')
-                ->placeholder('Will be generated automatically'),
-
             // Hidden cultivar field for storage
             Forms\Components\Hidden::make('cultivar'),
         ];
@@ -254,18 +247,10 @@ class ConsumableForm
      */
     protected static function getSupplierField(Get $get, $record = null): array
     {
-        $typeId = $get('consumable_type_id') ?? $record?->consumable_type_id;
-        $type = $typeId ? ConsumableType::find($typeId) : null;
-
-        if ($type && $type->isSeed()) {
-            // For seed type, supplier is already in the grid with master_seed_catalog_id
-            return [];
-        } else {
-            // For other types, show supplier field here
-            return [
-                FormCommon::supplierSelect(),
-            ];
-        }
+        // Show supplier field for all types now
+        return [
+            FormCommon::supplierSelect(),
+        ];
     }
 
     /**
@@ -274,15 +259,10 @@ class ConsumableForm
     protected static function getSeedCatalogFields(): array
     {
         return [
-            // Seed catalog field - simplified approach
-            Forms\Components\Select::make('master_seed_catalog_id')
-                ->label('Seed Catalog')
-                ->options(function () {
-                    return \App\Models\MasterSeedCatalog::query()
-                        ->where('is_active', true)
-                        ->pluck('common_name', 'id')
-                        ->toArray();
-                })
+            // Combined seed catalog + cultivar field
+            Forms\Components\Select::make('seed_selection')
+                ->label('Seed Type & Cultivar')
+                ->options(\App\Models\MasterSeedCatalog::getCombinedSelectOptions())
                 ->searchable()
                 ->visible(function (Get $get, $record = null): bool {
                     $typeId = $get('consumable_type_id') ?? $record?->consumable_type_id;
@@ -297,93 +277,19 @@ class ConsumableForm
                     return $type && $type->isSeed();
                 })
                 ->live(onBlur: true)
-                ->afterStateUpdated(function ($state, Set $set, Get $get) {
+                ->afterStateUpdated(function ($state, Set $set) {
                     if ($state) {
-                        $masterCatalog = \App\Models\MasterSeedCatalog::find($state);
-                        if ($masterCatalog) {
-                            static::handleSeedCatalogUpdate($masterCatalog, $set, $get);
-                        }
-                    }
-                }),
+                        $parsed = \App\Models\MasterSeedCatalog::parseCombinedValue($state);
 
-            // Cultivar field - now uses proper relationships
-            Forms\Components\Select::make('master_cultivar_id')
-                ->label('Cultivar')
-                ->options(function (Get $get) {
-                    $catalogId = $get('master_seed_catalog_id');
-                    if ($catalogId) {
-                        return \App\Models\MasterCultivar::where('master_seed_catalog_id', $catalogId)
-                            ->where('is_active', true)
-                            ->pluck('cultivar_name', 'id')
-                            ->toArray();
-                    }
-
-                    return [];
-                })
-                ->searchable()
-                ->visible(function (Get $get, $record = null): bool {
-                    $typeId = $get('consumable_type_id') ?? $record?->consumable_type_id;
-                    $type = $typeId ? ConsumableType::find($typeId) : null;
-
-                    return $type && $type->isSeed();
-                })
-                ->required(function (Get $get, $record = null): bool {
-                    $typeId = $get('consumable_type_id') ?? $record?->consumable_type_id;
-                    $type = $typeId ? ConsumableType::find($typeId) : null;
-
-                    return $type && $type->isSeed();
-                })
-                ->live(onBlur: true)
-                ->afterStateUpdated(function ($state, Set $set, Get $get) {
-                    // Generate name from common name and cultivar
-                    $catalogId = $get('master_seed_catalog_id');
-                    $cultivarId = $state;
-
-                    if ($catalogId && $cultivarId) {
-                        $masterCatalog = \App\Models\MasterSeedCatalog::find($catalogId);
-                        $masterCultivar = \App\Models\MasterCultivar::find($cultivarId);
-                        
-                        if ($masterCatalog && $masterCultivar) {
-                            $name = $masterCatalog->common_name.' ('.$masterCultivar->cultivar_name.')';
-                            $set('name', $name);
-                            // Also set the cultivar string for backwards compatibility if needed
-                            $set('cultivar', $masterCultivar->cultivar_name);
-                        }
+                        $set('master_seed_catalog_id', $parsed['catalog_id']);
+                        $set('cultivar', $parsed['cultivar_name']);
+                        $set('name', $parsed['catalog']->getDisplayNameWithCultivar($parsed['cultivar_name']));
                     }
                 })
                 ->columnSpanFull(),
         ];
     }
 
-    /**
-     * Handle seed catalog selection update
-     */
-    protected static function handleSeedCatalogUpdate($masterCatalog, Set $set, Get $get): void
-    {
-        // Auto-select first cultivar if none selected
-        $cultivarId = $get('master_cultivar_id');
-        if (! $cultivarId) {
-            // Get first active cultivar from the relationship
-            $firstCultivar = \App\Models\MasterCultivar::where('master_seed_catalog_id', $masterCatalog->id)
-                ->where('is_active', true)
-                ->first();
-            
-            if ($firstCultivar) {
-                $set('master_cultivar_id', $firstCultivar->id);
-                $set('cultivar', $firstCultivar->cultivar_name);
-                $name = $masterCatalog->common_name.' ('.$firstCultivar->cultivar_name.')';
-                $set('name', $name);
-            }
-        } else {
-            // Update name with existing cultivar
-            $masterCultivar = \App\Models\MasterCultivar::find($cultivarId);
-            if ($masterCultivar) {
-                $name = $masterCatalog->common_name.' ('.$masterCultivar->cultivar_name.')';
-                $set('name', $name);
-                $set('cultivar', $masterCultivar->cultivar_name);
-            }
-        }
-    }
 
     /**
      * Get seed-specific inventory fields

@@ -71,4 +71,54 @@ class MasterSeedCatalog extends Model
         // Fallback to existing relationship for backward compatibility
         return $this->cultivar?->cultivar_name;
     }
+
+    /**
+     * Get combined seed catalog + cultivar options for select fields
+     */
+    public static function getCombinedSelectOptions(): array
+    {
+        $options = [];
+
+        $catalogs = static::where('is_active', true)->get();
+
+        foreach ($catalogs as $catalog) {
+            $cultivars = $catalog->cultivars ?? [];
+
+            if (!empty($cultivars) && is_array($cultivars)) {
+                foreach ($cultivars as $cultivar) {
+                    $displayName = "{$catalog->common_name} ({$cultivar})";
+                    $value = "{$catalog->id}:{$cultivar}";
+                    $options[$value] = $displayName;
+                }
+            } else {
+                // Fallback for entries without cultivars
+                $options["{$catalog->id}:"] = $catalog->common_name;
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * Parse combined value and return catalog ID and cultivar name
+     */
+    public static function parseCombinedValue(string $value): array
+    {
+        [$catalogId, $cultivarName] = explode(':', $value, 2);
+        return [
+            'catalog_id' => (int) $catalogId,
+            'cultivar_name' => $cultivarName ?: null,
+            'catalog' => static::find($catalogId)
+        ];
+    }
+
+    /**
+     * Generate display name from catalog and cultivar
+     */
+    public function getDisplayNameWithCultivar(?string $cultivar = null): string
+    {
+        return $cultivar
+            ? "{$this->common_name} ({$cultivar})"
+            : $this->common_name;
+    }
 }
