@@ -176,10 +176,37 @@ class ConsumableForm
     protected static function getSeedNameFields(): array
     {
         return [
+            // Supplier field for seeds
             FormCommon::supplierSelect(),
 
-            // Hidden cultivar field for storage
+            // Combined seed catalog + cultivar field - this is the primary field for seeds
+            Forms\Components\Select::make('seed_selection')
+                ->label('Seed Type & Cultivar')
+                ->options(\App\Models\MasterSeedCatalog::getCombinedSelectOptions())
+                ->searchable()
+                ->required()
+                ->live(onBlur: true)
+                ->afterStateUpdated(function ($state, Set $set) {
+                    if ($state) {
+                        $parsed = \App\Models\MasterSeedCatalog::parseCombinedValue($state);
+                        
+                        $set('master_seed_catalog_id', $parsed['catalog_id']);
+                        $set('cultivar', $parsed['cultivar_name']);
+                        $set('name', $parsed['catalog']->getDisplayNameWithCultivar($parsed['cultivar_name']));
+                    }
+                })
+                ->columnSpanFull(),
+
+            // Lot/batch number for seeds
+            Forms\Components\TextInput::make('lot_no')
+                ->label('Lot/Batch Number')
+                ->helperText('Optional: Batch identifier')
+                ->maxLength(100),
+
+            // Hidden fields for storage - these get populated by the afterStateUpdated callback
             Forms\Components\Hidden::make('cultivar'),
+            Forms\Components\Hidden::make('master_seed_catalog_id'),
+            Forms\Components\Hidden::make('name'),
         ];
     }
 
@@ -258,36 +285,9 @@ class ConsumableForm
      */
     protected static function getSeedCatalogFields(): array
     {
-        return [
-            // Combined seed catalog + cultivar field
-            Forms\Components\Select::make('seed_selection')
-                ->label('Seed Type & Cultivar')
-                ->options(\App\Models\MasterSeedCatalog::getCombinedSelectOptions())
-                ->searchable()
-                ->visible(function (Get $get, $record = null): bool {
-                    $typeId = $get('consumable_type_id') ?? $record?->consumable_type_id;
-                    $type = $typeId ? ConsumableType::find($typeId) : null;
-
-                    return $type && $type->isSeed();
-                })
-                ->required(function (Get $get, $record = null): bool {
-                    $typeId = $get('consumable_type_id') ?? $record?->consumable_type_id;
-                    $type = $typeId ? ConsumableType::find($typeId) : null;
-
-                    return $type && $type->isSeed();
-                })
-                ->live(onBlur: true)
-                ->afterStateUpdated(function ($state, Set $set) {
-                    if ($state) {
-                        $parsed = \App\Models\MasterSeedCatalog::parseCombinedValue($state);
-
-                        $set('master_seed_catalog_id', $parsed['catalog_id']);
-                        $set('cultivar', $parsed['cultivar_name']);
-                        $set('name', $parsed['catalog']->getDisplayNameWithCultivar($parsed['cultivar_name']));
-                    }
-                })
-                ->columnSpanFull(),
-        ];
+        // Seed catalog fields are now handled in getSeedNameFields() to avoid duplication
+        // This method is kept for compatibility but returns empty array
+        return [];
     }
 
 
@@ -309,10 +309,10 @@ class ConsumableForm
                         ->required()
                         ->default(0)
                         ->step(0.001)
-                        ->reactive()
+                        ->live(onBlur: true)
                         ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
-                            // When initial quantity changes, update remaining if it hasn't been manually set
-                            if (! $get('remaining_quantity') || $get('remaining_quantity') == 0) {
+                            // Only update remaining if it's currently empty or zero, and we have a valid state
+                            if ($state && (!$get('remaining_quantity') || $get('remaining_quantity') == 0)) {
                                 $set('remaining_quantity', $state);
                             }
                         }),
@@ -328,7 +328,12 @@ class ConsumableForm
                         ])
                         ->required()
                         ->default('g')
-                        ->reactive(),
+                        ->afterStateHydrated(function ($component, $state) {
+                            if (!$state) {
+                                $component->state('g');
+                            }
+                        })
+                        ->live(onBlur: true),
                 ])
                 ->columnSpan(2),
 
@@ -342,19 +347,15 @@ class ConsumableForm
                     return (float) $get('total_quantity');
                 })
                 ->step(0.001)
-                ->reactive()
+                ->live(onBlur: true)
                 ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
-                    $total = (float) $get('total_quantity');
-                    $remaining = (float) $state;
-                    $consumed = max(0, $total - $remaining);
-                    $set('consumed_quantity', $consumed);
-
-                    // Log the calculation for debugging
-                    Log::info('Remaining quantity updated:', [
-                        'total' => $total,
-                        'remaining' => $remaining,
-                        'consumed' => $consumed,
-                    ]);
+                    // Only calculate if we have valid values
+                    if ($state !== null && $state !== '') {
+                        $total = (float) $get('total_quantity');
+                        $remaining = (float) $state;
+                        $consumed = max(0, $total - $remaining);
+                        $set('consumed_quantity', $consumed);
+                    }
                 }),
 
             // Consumed quantity display
@@ -369,11 +370,7 @@ class ConsumableForm
                     return number_format($consumed, 3).' '.$unit.' used';
                 }),
 
-            // Lot/batch number for seeds
-            Forms\Components\TextInput::make('lot_no')
-                ->label('Lot/Batch Number')
-                ->helperText('Optional: Batch identifier')
-                ->maxLength(100),
+
 
             // Hidden fields for compatibility
             Forms\Components\Hidden::make('consumed_quantity')
@@ -383,6 +380,12 @@ class ConsumableForm
                 ->default(1),
             Forms\Components\Hidden::make('quantity_per_unit')
                 ->default(1),
+            Forms\Components\Hidden::make('consumable_unit_id')
+                ->afterStateHydrated(function ($component, $state) {
+                    // Default to 'unit' consumable unit for seeds
+                    $unitType = \App\Models\ConsumableUnit::where('code', 'unit')->first();
+                    $component->state($unitType?->id ?? 1);
+                }),
             Forms\Components\Hidden::make('restock_threshold')
                 ->default(0),
             Forms\Components\Hidden::make('restock_quantity')
