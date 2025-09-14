@@ -57,9 +57,7 @@ return [
     */
 
     'ignored_routes' => [
-        'debugbar.*',
         'horizon.*',
-        'telescope.*',
         '_ignition.*',
         'livewire.*',
         'sanctum.*',

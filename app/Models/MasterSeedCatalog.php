@@ -14,6 +14,7 @@ class MasterSeedCatalog extends Model
     protected $fillable = [
         'common_name',
         'cultivar_id',
+        'cultivars',
         'category',
         'aliases',
         'growing_notes',
@@ -23,6 +24,7 @@ class MasterSeedCatalog extends Model
 
     protected $casts = [
         'aliases' => 'array',
+        'cultivars' => 'array',
         'is_active' => 'boolean',
     ];
 
@@ -57,10 +59,16 @@ class MasterSeedCatalog extends Model
     }
 
     /**
-     * Get the cultivar name from the related MasterCultivar
+     * Get the cultivar name - check JSON column first, fallback to relationship
      */
     public function getCultivarNameAttribute(): ?string
     {
+        // Check new JSON cultivars column first
+        if (!empty($this->cultivars) && is_array($this->cultivars)) {
+            return $this->cultivars[0];
+        }
+
+        // Fallback to existing relationship for backward compatibility
         return $this->cultivar?->cultivar_name;
     }
 }

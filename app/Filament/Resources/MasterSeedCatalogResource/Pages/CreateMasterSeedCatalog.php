@@ -2,9 +2,8 @@
 
 namespace App\Filament\Resources\MasterSeedCatalogResource\Pages;
 
-use App\Filament\Resources\MasterSeedCatalogResource;
-use Filament\Actions;
 use App\Filament\Pages\Base\BaseCreateRecord;
+use App\Filament\Resources\MasterSeedCatalogResource;
 
 class CreateMasterSeedCatalog extends BaseCreateRecord
 {
@@ -12,6 +11,6 @@ class CreateMasterSeedCatalog extends BaseCreateRecord
 
     public function getTitle(): string
     {
-        return 'Create New Catalog Entry';
+        return 'Create Entry';
     }
 }

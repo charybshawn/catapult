@@ -142,7 +142,7 @@ class ProductMixesTableSeeder extends Seeder
             ],
             // Brassica Mix components
             [
-                'id' => 10,
+                'id' => 13,
                 'product_mix_id' => 3,
                 'master_seed_catalog_id' => 6,
                 'percentage' => 34.00000,

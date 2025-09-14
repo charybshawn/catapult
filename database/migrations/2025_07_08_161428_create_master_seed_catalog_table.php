@@ -14,15 +14,13 @@ return new class extends Migration
         Schema::create('master_seed_catalog', function (Blueprint $table) {
             $table->id();
             $table->string('common_name', 255);
-            $table->unsignedBigInteger('cultivar_id')->nullable();
             $table->string('category', 255)->nullable();
             $table->json('aliases')->nullable();
             $table->text('growing_notes')->nullable();
             $table->text('description')->nullable();
             $table->integer('is_active')->default(1);
             $table->timestamps();
-            
-            $table->foreign('cultivar_id')->references('id')->on('master_cultivars')->onDelete('set null');
+            $table->softDeletes();
         });
     }
 

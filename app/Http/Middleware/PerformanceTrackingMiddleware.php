@@ -210,9 +210,7 @@ class PerformanceTrackingMiddleware
     protected function shouldSkip(Request $request): bool
     {
         $skipPaths = config('logging.performance_skip_paths', [
-            'telescope/*',
             'horizon/*',
-            '_debugbar/*',
         ]);
 
         foreach ($skipPaths as $pattern) {
