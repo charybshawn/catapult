@@ -7,5 +7,4 @@ return [
     App\Providers\Filament\AdminPanelProvider::class,
     App\Providers\ResourceMonitorServiceProvider::class,
     App\Providers\SlidingNavigationServiceProvider::class,
-    App\Providers\TelescopeServiceProvider::class,
 ];

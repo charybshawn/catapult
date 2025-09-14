@@ -185,7 +185,7 @@ class SchemaComparisonService
             $tableName = $table->$key;
             
             // Skip system tables and views
-            if (!in_array($tableName, ['migrations', 'failed_jobs', 'telescope_entries', 'telescope_entries_tags', 'telescope_monitoring'])) {
+            if (!in_array($tableName, ['migrations', 'failed_jobs'])) {
                 // Check if it's a table (not a view)
                 $tableInfo = DB::select("SHOW CREATE TABLE `{$tableName}`");
                 if (isset($tableInfo[0]->{'Create Table'})) {

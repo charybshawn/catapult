@@ -30,7 +30,6 @@
         "laravel/pail": "^1.2.2",
         "laravel/pint": "^1.13",
         "laravel/sail": "^1.41",
-        "laravel/telescope": "^5.10",
         "mockery/mockery": "^1.6",
         "nette/php-generator": "^4.1",
         "nunomaduro/collision": "^8.6",
