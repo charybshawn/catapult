@@ -9,6 +9,7 @@ use Filament\Actions;
 use Filament\Forms;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\MarkdownEditor;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -214,9 +215,8 @@ class EditRecipe extends BaseEditRecord
                         ->suffix('%')
                         ->columnSpan(1),
 
-                    Textarea::make('notes')
+                    MarkdownEditor::make('notes')
                         ->label('Recipe Notes')
-                        ->rows(5)
                         ->columnSpanFull(),
 
                     Toggle::make('is_active')

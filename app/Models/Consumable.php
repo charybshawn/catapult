@@ -486,9 +486,9 @@ class Consumable extends Model
      */
     public function getCurrentStockAttribute()
     {
-        // For seeds, return the total_quantity directly 
+        // For seeds, return available stock (total_quantity - consumed_quantity)
         if ($this->consumableType && $this->consumableType->code === 'seed') {
-            return $this->total_quantity;
+            return max(0, $this->total_quantity - $this->consumed_quantity);
         }
         
         // For other consumables, use the original calculation
@@ -905,7 +905,7 @@ class Consumable extends Model
                         ->sum(DB::raw('total_quantity - consumed_quantity'));
 
                     if ($availableStock > 0) {
-                        $displayName = "{$catalog->common_name} ({$cultivar}) - " . number_format($availableStock, 1) . 'g available';
+                        $displayName = "{$catalog->common_name} ({$cultivar})";
                         $value = "{$catalog->id}:{$cultivar}";
                         $options[$value] = $displayName;
                     }
@@ -921,7 +921,7 @@ class Consumable extends Model
                     ->sum(DB::raw('total_quantity - consumed_quantity'));
 
                 if ($availableStock > 0) {
-                    $displayName = $catalog->common_name . ' - ' . number_format($availableStock, 1) . 'g available';
+                    $displayName = $catalog->common_name;
                     $options["{$catalog->id}:"] = $displayName;
                 }
             }

@@ -183,11 +183,15 @@ class CreateRecipe extends BaseCreateRecord
                                               });
                                     }
                                 })
-                                ->whereRaw('(total_quantity * consumed_quantity) > 0')
                                 ->orderBy('created_at', 'asc') // FIFO ordering
                                 ->get()
+                                ->filter(function ($consumable) {
+                                    // Use the model's built-in current_stock accessor for robust calculation
+                                    return $consumable->current_stock > 0;
+                                })
                                 ->mapWithKeys(function ($consumable) {
-                                    $available = max(0, $consumable->total_quantity * $consumable->consumed_quantity);
+                                    // Use the model's built-in current_stock accessor
+                                    $available = $consumable->current_stock;
                                     $unit = $consumable->quantity_unit ?? 'g';
                                     $createdDate = $consumable->created_at->format('M j, Y');
                                     $ageIndicator = $consumable->created_at->diffInDays(now()) > 30 ? 'Old' : 'New';
