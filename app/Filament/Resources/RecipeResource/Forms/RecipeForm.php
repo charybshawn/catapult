@@ -61,9 +61,9 @@ class RecipeForm
                         $set('common_name', $parsed['catalog']->common_name);
 
                         // Auto-generate recipe name if not set
-                        if (!$record || !$record->name) {
+                        if (! $record || ! $record->name) {
                             $name = $parsed['cultivar_name']
-                                ? $parsed['catalog']->common_name . ' (' . $parsed['cultivar_name'] . ')'
+                                ? $parsed['catalog']->common_name.' ('.$parsed['cultivar_name'].')'
                                 : $parsed['catalog']->common_name;
                             $set('name', $name);
                         }
@@ -94,7 +94,7 @@ class RecipeForm
             ->label('Seed Lot')
             ->options(function (callable $get) {
                 $varietyCultivarSelection = $get('variety_cultivar_selection');
-                if (!$varietyCultivarSelection) {
+                if (! $varietyCultivarSelection) {
                     return [];
                 }
 
@@ -148,17 +148,17 @@ class RecipeForm
                 if ($state && $get('variety_cultivar_selection')) {
                     $parsed = \App\Models\MasterSeedCatalog::parseCombinedValue($get('variety_cultivar_selection'));
                     $consumable = \App\Models\Consumable::whereHas('consumableType', function ($query) {
-                            $query->where('code', 'seed');
-                        })
+                        $query->where('code', 'seed');
+                    })
                         ->where('is_active', true)
                         ->where('master_seed_catalog_id', $parsed['catalog_id'])
                         ->where('lot_no', $state)
                         ->where(function ($query) use ($parsed) {
                             if ($parsed['cultivar_name']) {
                                 $query->where('cultivar', $parsed['cultivar_name'])
-                                      ->orWhereHas('masterCultivar', function ($q) use ($parsed) {
-                                          $q->where('cultivar_name', $parsed['cultivar_name']);
-                                      });
+                                    ->orWhereHas('masterCultivar', function ($q) use ($parsed) {
+                                        $q->where('cultivar_name', $parsed['cultivar_name']);
+                                    });
                             }
                         })
                         ->first();
@@ -177,7 +177,6 @@ class RecipeForm
                     })
             );
     }
-
 
     protected static function getLotStatusPlaceholder(): Forms\Components\Placeholder
     {
@@ -374,7 +373,6 @@ class RecipeForm
             ->step(0.01);
     }
 
-
     /**
      * Get available lots for a specific catalog ID and cultivar name.
      */
@@ -383,25 +381,29 @@ class RecipeForm
         $options = [];
 
         $consumables = \App\Models\Consumable::whereHas('consumableType', function ($query) {
-                $query->where('code', 'seed');
-            })
+            $query->where('code', 'seed');
+        })
             ->where('is_active', true)
             ->where('master_seed_catalog_id', $catalogId)
             ->whereNotNull('lot_no')
             ->where(function ($query) use ($cultivarName) {
                 if ($cultivarName) {
                     $query->where('cultivar', $cultivarName)
-                          ->orWhereHas('masterCultivar', function ($q) use ($cultivarName) {
-                              $q->where('cultivar_name', $cultivarName);
-                          });
+                        ->orWhereHas('masterCultivar', function ($q) use ($cultivarName) {
+                            $q->where('cultivar_name', $cultivarName);
+                        });
                 }
             })
-            ->whereRaw('(total_quantity - consumed_quantity) > 0')
             ->orderBy('created_at', 'asc') // FIFO ordering
-            ->get();
+            ->get()
+            ->filter(function ($consumable) {
+                // Use the model's built-in current_stock accessor for robust calculation
+                return $consumable->current_stock > 0;
+            });
 
         foreach ($consumables as $consumable) {
-            $available = max(0, $consumable->total_quantity - $consumable->consumed_quantity);
+            // Use the model's built-in current_stock accessor
+            $available = $consumable->current_stock;
             $unit = $consumable->quantity_unit ?? 'g';
             $createdDate = $consumable->created_at->format('M j, Y');
             $ageIndicator = $consumable->created_at->diffInDays(now()) > 30 ? 'Old' : 'New';
