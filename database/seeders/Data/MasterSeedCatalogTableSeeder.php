@@ -95,7 +95,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             [
                 'id' => 7,
                 'common_name' => 'Cabbage',
-                'cultivars' => '["Red"]',
+                'cultivars' => '["Red","Yellow","Red Acre"]',
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,
@@ -107,7 +107,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             [
                 'id' => 8,
                 'common_name' => 'Clover',
-                'cultivars' => null,
+                'cultivars' => '["Red"]',
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,
@@ -239,7 +239,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             [
                 'id' => 19,
                 'common_name' => 'Kale',
-                'cultivars' => null,
+                'cultivars' => '["Kale"]',
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,
@@ -251,7 +251,7 @@ class MasterSeedCatalogTableSeeder extends Seeder
             [
                 'id' => 20,
                 'common_name' => 'Sorel',
-                'cultivars' => null,
+                'cultivars' => '["Red Veined"]',
                 'category' => null,
                 'aliases' => null,
                 'growing_notes' => null,

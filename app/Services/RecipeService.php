@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Recipe;
 use App\Models\Consumable;
 use App\Models\ConsumableType;
+use App\Models\MasterSeedCatalog;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -26,61 +27,12 @@ class RecipeService
     }
     /**
      * Generate recipe name from variety, cultivar, seed density, DTM, and lot number.
-     * Format: Variety (Cultivar) - Seed Density - DTM - LOT NO
+     * Format: "Variety (Cultivar) [Lot# XXXX] [Plant Xg] [XDTM, XG, XB, XL]"
      * 
      * @param Recipe $recipe
      * @return void
      */
-    public function generateRecipeName(Recipe $recipe): void
-    {
-        // Extract variety and cultivar from the consumable based on lot_number
-        if (!$recipe->lot_number) {
-            return;
-        }
-
-        $seedTypeId = ConsumableType::where('code', 'seed')->first()?->id;
-        $consumable = Consumable::where('consumable_type_id', $seedTypeId)
-            ->where('lot_no', $recipe->lot_number)
-            ->where('is_active', true)
-            ->first();
-        
-        if (!$consumable || !$consumable->name) {
-            return;
-        }
-
-        // Parse consumable name format: "Variety (Cultivar)"
-        if (!preg_match('/^(.+?)\s*\((.+?)\)$/', $consumable->name, $matches)) {
-            return;
-        }
-
-        $variety = trim($matches[1]);
-        $cultivar = trim($matches[2]);
-        
-        $nameParts = [];
-        
-        // Add variety (cultivar) part
-        $nameParts[] = $variety . ' (' . $cultivar . ')';
-        
-        // Add seed density if available
-        if ($recipe->seed_density_grams_per_tray) {
-            $nameParts[] = $recipe->seed_density_grams_per_tray . 'G';
-        }
-        
-        // Add DTM if available
-        if ($recipe->days_to_maturity) {
-            $nameParts[] = $recipe->days_to_maturity . ' DTM';
-        }
-        
-        // Add lot number
-        $nameParts[] = $recipe->lot_number;
-        
-        $baseName = implode(' - ', $nameParts);
-        $recipe->name = $this->ensureUniqueRecipeName($recipe, $baseName);
-        
-        // Also populate the common_name and cultivar_name fields for consistency
-        $recipe->common_name = $variety;
-        $recipe->cultivar_name = $cultivar;
-    }
+    
 
     /**
      * Ensure the recipe name is unique by appending a number if necessary.
@@ -205,10 +157,8 @@ class RecipeService
      */
     public function updateDependentFields(Recipe $recipe): void
     {
-        // Auto-generate name if needed
-        if ($recipe->isDirty(['lot_number', 'seed_density_grams_per_tray', 'days_to_maturity'])) {
-            $this->generateRecipeName($recipe);
-        }
+        // Name generation is now handled in the form layer
+        // This method is kept for any future field dependencies
     }
 
     /**

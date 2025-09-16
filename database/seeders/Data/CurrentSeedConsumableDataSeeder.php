@@ -383,6 +383,51 @@ class CurrentSeedConsumableDataSeeder extends Seeder
                 'restock_threshold' => 250,
                 'restock_quantity' => 1000,
             ],
+            [
+                'name' => 'Sunflower (Black Oilseed)',
+                'lot_no' => 'SFM2',
+                'master_seed_catalog_id' => 17,
+                'cultivar' => 'Black Oilseed',
+                'consumable_type_id' => $seedTypeId,
+                'consumable_unit_id' => $gramUnitId,
+                'supplier_id' => $seedSupplierId,
+                'initial_stock' => 10000,
+                'consumed_quantity' => 0,
+                'total_quantity' => 10000,
+                'quantity_unit' => 'g',
+                'restock_threshold' => 250,
+                'restock_quantity' => 1000,
+            ],
+            [
+                'name' => 'Cabbage (Red)',
+                'lot_no' => 'CAB1',
+                'master_seed_catalog_id' => 7,
+                'cultivar' => 'Red Acre',
+                'consumable_type_id' => $seedTypeId,
+                'consumable_unit_id' => $gramUnitId,
+                'supplier_id' => $seedSupplierId,
+                'initial_stock' => 2,
+                'consumed_quantity' => 0,
+                'total_quantity' => 2,
+                'quantity_unit' => 'g',
+                'restock_threshold' => 250,
+                'restock_quantity' => 1000,
+            ],
+            [
+                'name' => 'Sorel (Red Veined)',
+                'lot_no' => 'SOR1',
+                'master_seed_catalog_id' => 20,
+                'cultivar' => 'Red Veined',
+                'consumable_type_id' => $seedTypeId,
+                'consumable_unit_id' => $gramUnitId,
+                'supplier_id' => $seedSupplierId,
+                'initial_stock' => 400,
+                'consumed_quantity' => 6,
+                'total_quantity' => 400,
+                'quantity_unit' => 'g',
+                'restock_threshold' => 250,
+                'restock_quantity' => 1000,
+            ],
         ];
 
         $timestamp = now();
@@ -393,8 +438,6 @@ class CurrentSeedConsumableDataSeeder extends Seeder
             $data['is_active'] = true;
             $data['created_at'] = $timestamp;
             $data['updated_at'] = $timestamp;
-
-
 
             Consumable::updateOrCreate(
                 [

@@ -18,104 +18,22 @@ use Filament\Forms\Form;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Log;
 
 class CreateRecipe extends BaseCreateRecord
 {
     use CreateRecord\Concerns\HasWizard;
     protected static string $resource = RecipeResource::class;
 
-    /**
-     * Generate comprehensive recipe name from form data
-     * Format: "Variety (Cultivar) [Lot# XXXX] [Plant Xg] [XDTM, XG, XB, XL]"
-     */
-    protected function generateRecipeName(callable $get): ?string
-    {
-        $varietyCultivarSelection = $get('variety_cultivar_selection');
-        $lotNumber = $get('lot_number');
-        $plantingDensity = $get('seed_density_grams_per_tray');
-        $dtm = $get('days_to_maturity');
-        $germinationDays = $get('germination_days');
-        $blackoutDays = $get('blackout_days');
-        $lightDays = $get('light_days');
 
-        if (!$varietyCultivarSelection) {
-            return null;
-        }
-
-        $parsed = \App\Models\MasterSeedCatalog::parseCombinedValue($varietyCultivarSelection);
-        if (!$parsed['catalog']) {
-            return null;
-        }
-
-        // Build variety name with cultivar
-        $varietyName = $parsed['cultivar_name']
-            ? $parsed['catalog']->common_name . ' (' . $parsed['cultivar_name'] . ')'
-            : $parsed['catalog']->common_name;
-
-        // Start with variety name
-        $nameComponents = [$varietyName];
-
-        // Add lot number in brackets
-        if ($lotNumber) {
-            $nameComponents[] = "[Lot# {$lotNumber}]";
-        }
-
-        // Add planting density in brackets
-        if ($plantingDensity) {
-            $density = number_format((float)$plantingDensity, 1);
-            $nameComponents[] = "[Plant {$density}g]";
-        }
-
-        // Add DTM and stage breakdown in brackets
-        if ($dtm) {
-            $dtmFormatted = number_format((float)$dtm, 0);
-            $stageParts = ["{$dtmFormatted}DTM"];
-
-            if ($germinationDays) {
-                $germFormatted = number_format((float)$germinationDays, 0);
-                $stageParts[] = "{$germFormatted}G";
-            }
-
-            if ($blackoutDays) {
-                $blackoutFormatted = number_format((float)$blackoutDays, 0);
-                $stageParts[] = "{$blackoutFormatted}B";
-            }
-
-            if ($lightDays) {
-                $lightFormatted = number_format((float)$lightDays, 0);
-                $stageParts[] = "{$lightFormatted}L";
-            }
-
-            $nameComponents[] = "[" . implode(', ', $stageParts) . "]";
-        }
-
-        return implode(' ', $nameComponents);
-    }
 
     public function form(Form $form): Form
     {
         return $form->schema([
-            // Persistent Recipe Name field at the top
-            TextInput::make('name')
-                ->label('Recipe Name')
-                ->required()
-                ->maxLength(255)
-                ->helperText('Auto-generated format: "Variety (Cultivar) [Lot# XXXX] [Plant Xg] [XDTM, XG, XB, XL]"')
-                ->columnSpanFull(),
-
             // Wizard with steps
             Wizard::make($this->getSteps())
                 ->columnSpanFull()
-                ->submitAction(
-                    new HtmlString(Blade::render(<<<BLADE
-                        <x-filament::button
-                            type="submit"
-                            size="sm"
-                        >
-                            Create Recipe
-                        </x-filament::button>
-                    BLADE))
-                ),
+                ->submitAction(new \Illuminate\Support\HtmlString('<button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded">Create</button>')),
         ]);
     }
 
@@ -133,7 +51,7 @@ class CreateRecipe extends BaseCreateRecord
                         ->searchable()
                         ->preload()
                         ->required()
-                        ->live(onBlur: true)
+                        ->reactive()
                         ->afterStateUpdated(function (callable $set, $state, callable $get) {
                             // Clear lot number when variety changes
                             $set('lot_number', null);
@@ -147,14 +65,9 @@ class CreateRecipe extends BaseCreateRecord
 
                                 if ($parsed['catalog']) {
                                     $set('common_name', $parsed['catalog']->common_name);
-
-                                    // Auto-generate comprehensive recipe name
-                                    $generatedName = $this->generateRecipeName($get);
-                                    if ($generatedName && !$get('name')) {
-                                        $set('name', $generatedName);
-                                    }
                                 }
                             }
+                            
                         })
                         ->helperText('Only varieties with available seed stock are shown')
                         ->columnSpan(1),
@@ -205,13 +118,8 @@ class CreateRecipe extends BaseCreateRecord
                         })
                         ->searchable()
                         ->preload()
-                        ->live(onBlur: true)
+                        ->reactive()
                         ->afterStateUpdated(function (callable $set, $state, callable $get) {
-                            // Auto-generate comprehensive recipe name
-                            $generatedName = $this->generateRecipeName($get);
-                            if ($generatedName) {
-                                $set('name', $generatedName);
-                            }
                         })
                         ->helperText('Select specific lot (oldest shown first for FIFO)')
 
@@ -257,15 +165,10 @@ class CreateRecipe extends BaseCreateRecord
                         ->minValue(0)
                         ->step(0.01)
                         ->dehydrated(true)
-                        ->live(onBlur: true)
+                        ->reactive()
                         ->afterStateUpdated(function (callable $set, $state, callable $get) {
-                            // Auto-generate comprehensive recipe name
-                            $generatedName = $this->generateRecipeName($get);
-                            if ($generatedName) {
-                                $set('name', $generatedName);
-                            }
                         })
-                        ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
+
                         ->columnSpan(1),
 
                     TextInput::make('expected_yield_grams')
@@ -324,7 +227,7 @@ class CreateRecipe extends BaseCreateRecord
                         ->step(0.1)
                         ->default(config('crops.stage_durations.germination', 2) + config('crops.stage_durations.blackout', 3) + config('crops.stage_durations.light', 7))
                         ->required()
-                        ->live(onBlur: true)
+                        ->reactive()
                         ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
                             $germ = floatval($get('germination_days') ?? 0);
                             $blackout = floatval($get('blackout_days') ?? 0);
@@ -333,11 +236,6 @@ class CreateRecipe extends BaseCreateRecord
                             $lightDays = max(0, $dtm - ($germ + $blackout));
                             $set('light_days', $lightDays);
 
-                            // Auto-generate comprehensive recipe name
-                            $generatedName = $this->generateRecipeName($get);
-                            if ($generatedName) {
-                                $set('name', $generatedName);
-                            }
                         }),
 
                     TextInput::make('seed_soak_hours')
@@ -345,7 +243,7 @@ class CreateRecipe extends BaseCreateRecord
                         ->numeric()
                         ->minValue(0)
                         ->default(0)
-                        ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
+
                         ->columnSpan(1),
 
                     TextInput::make('germination_days')
@@ -355,7 +253,7 @@ class CreateRecipe extends BaseCreateRecord
                         ->minValue(0)
                         ->step(0.1)
                         ->default(config('crops.stage_durations.germination', 2))
-                        ->live(onBlur: true)
+                        ->reactive()
                         ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
                             $germ = floatval($state ?? 0);
                             $blackout = floatval($get('blackout_days') ?? 0);
@@ -364,13 +262,8 @@ class CreateRecipe extends BaseCreateRecord
                             $lightDays = max(0, $dtm - ($germ + $blackout));
                             $set('light_days', $lightDays);
 
-                            // Auto-generate comprehensive recipe name
-                            $generatedName = $this->generateRecipeName($get);
-                            if ($generatedName) {
-                                $set('name', $generatedName);
-                            }
                         })
-                        ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
+
                         ->columnSpan(1),
 
                     TextInput::make('blackout_days')
@@ -380,7 +273,7 @@ class CreateRecipe extends BaseCreateRecord
                         ->minValue(0)
                         ->step(0.1)
                         ->default(config('crops.stage_durations.blackout', 3))
-                        ->live(onBlur: true)
+                        ->reactive()
                         ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
                             $germ = floatval($get('germination_days') ?? 0);
                             $blackout = floatval($state ?? 0);
@@ -389,13 +282,8 @@ class CreateRecipe extends BaseCreateRecord
                             $lightDays = max(0, $dtm - ($germ + $blackout));
                             $set('light_days', $lightDays);
 
-                            // Auto-generate comprehensive recipe name
-                            $generatedName = $this->generateRecipeName($get);
-                            if ($generatedName) {
-                                $set('name', $generatedName);
-                            }
                         })
-                        ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
+
                         ->columnSpan(1),
 
                     TextInput::make('light_days')
@@ -417,7 +305,7 @@ class CreateRecipe extends BaseCreateRecord
                                 $set('light_days', $lightDays);
                             }
                         })
-                        ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
+
                         ->columnSpan(1),
 
                     TextInput::make('suspend_water_hours')
@@ -426,7 +314,7 @@ class CreateRecipe extends BaseCreateRecord
                         ->minValue(0)
                         ->default(config('crops.watering.default_suspension_hours', 24))
                         ->helperText('Stop watering this many hours before the calculated harvest time.')
-                        ->extraInputAttributes(['onkeydown' => 'if(event.key === "Enter") { event.preventDefault(); }'])
+
                         ->columnSpan(1),
                 ])
                 ->columns(2),
@@ -460,9 +348,61 @@ class CreateRecipe extends BaseCreateRecord
             }
         }
 
+
+
+        // Generate recipe name automatically
+        $data['name'] = $this->generateRecipeNameFromData($data);
+
         // Remove the helper field as it's not a database column
         unset($data['variety_cultivar_selection']);
 
         return $data;
     }
+
+
+    protected function generateRecipeNameFromData(array $data): string
+    {
+        if (!isset($data['master_seed_catalog_id']) || !isset($data['cultivar_name'])) {
+            return 'Unnamed Recipe';
+        }
+
+        $catalog = \App\Models\MasterSeedCatalog::find($data['master_seed_catalog_id']);
+        if (!$catalog) {
+            return 'Unnamed Recipe';
+        }
+
+        $variety = $catalog->common_name;
+        $cultivarName = $data['cultivar_name'];
+        $nameComponents = [$variety . ' (' . $cultivarName . ')'];
+
+        if (isset($data['lot_number']) && $data['lot_number']) {
+            $nameComponents[] = "[Lot# {$data['lot_number']}]";
+        }
+
+        if (isset($data['seed_density_grams_per_tray']) && $data['seed_density_grams_per_tray']) {
+            $formattedDensity = number_format((float)$data['seed_density_grams_per_tray'], 1);
+            $nameComponents[] = "[Plant {$formattedDensity}g]";
+        }
+
+        $stages = [];
+        if (isset($data['days_to_maturity']) && $data['days_to_maturity']) {
+            $stages[] = number_format((float)$data['days_to_maturity'], 1) . 'DTM';
+        }
+        if (isset($data['germination_days']) && $data['germination_days']) {
+            $stages[] = number_format((float)$data['germination_days'], 1) . 'G';
+        }
+        if (isset($data['blackout_days']) && $data['blackout_days']) {
+            $stages[] = number_format((float)$data['blackout_days'], 1) . 'B';
+        }
+        if (isset($data['light_days']) && $data['light_days']) {
+            $stages[] = number_format((float)$data['light_days'], 1) . 'L';
+        }
+
+        if (!empty($stages)) {
+            $nameComponents[] = '[' . implode(', ', $stages) . ']';
+        }
+
+        return implode(' ', $nameComponents);
+    }
+
 }

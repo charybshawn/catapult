@@ -486,8 +486,18 @@ class Consumable extends Model
      */
     public function getCurrentStockAttribute()
     {
+        // Check if this is a seed consumable without triggering lazy loading
+        $isSeed = false;
+        if ($this->relationLoaded('consumableType')) {
+            $isSeed = $this->consumableType && $this->consumableType->code === 'seed';
+        } else {
+            // Check directly using consumable_type_id to avoid lazy loading
+            $seedTypeId = \App\Models\ConsumableType::where('code', 'seed')->value('id');
+            $isSeed = $this->consumable_type_id === $seedTypeId;
+        }
+        
         // For seeds, return available stock (total_quantity - consumed_quantity)
-        if ($this->consumableType && $this->consumableType->code === 'seed') {
+        if ($isSeed) {
             return max(0, $this->total_quantity - $this->consumed_quantity);
         }
         

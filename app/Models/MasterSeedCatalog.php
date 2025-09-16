@@ -122,4 +122,20 @@ class MasterSeedCatalog extends Model
             : $this->common_name;
     }
 
+    /**
+     * Boot the model and set up event handlers
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        // Automatically add common name as cultivar if no cultivars are provided
+        static::saving(function ($model) {
+            // If cultivars is empty or null, set it to an array with the common name
+            if (empty($model->cultivars) || !is_array($model->cultivars) || count($model->cultivars) === 0) {
+                $model->cultivars = [$model->common_name];
+            }
+        });
+    }
+
 }
