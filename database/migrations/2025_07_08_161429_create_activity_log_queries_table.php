@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('activity_log_queries', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('activity_log_id');
+            $table->bigInteger('activity_log_id');
             $table->text('sql');
             $table->json('bindings')->nullable();
             $table->decimal('execution_time_ms', 10, 2);

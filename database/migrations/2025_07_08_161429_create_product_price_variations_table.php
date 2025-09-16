@@ -21,14 +21,14 @@ return new class extends Migration
             $table->decimal('weight', 10, 2)->nullable();
             $table->decimal('price', 10, 2);
             $table->decimal('fill_weight', 10, 2)->nullable();
-            $table->unsignedBigInteger('packaging_type_id')->nullable();
+            $table->bigInteger('packaging_type_id')->nullable();
             $table->string('pricing_type', 255)->default('retail');
             $table->decimal('fill_weight_grams', 8, 2)->nullable();
-            $table->unsignedBigInteger('template_id')->nullable();
+            $table->bigInteger('template_id')->nullable();
             $table->integer('is_default')->default(0);
             $table->integer('is_global')->default(0);
             $table->integer('is_active')->default(1);
-            $table->unsignedBigInteger('product_id')->nullable();
+            $table->bigInteger('product_id')->nullable();
             $table->timestamps();
         });
     }

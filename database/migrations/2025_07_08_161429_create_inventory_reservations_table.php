@@ -13,12 +13,12 @@ return new class extends Migration
     {
         Schema::create('inventory_reservations', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('product_inventory_id');
-            $table->unsignedBigInteger('product_id');
-            $table->unsignedBigInteger('order_id');
-            $table->unsignedBigInteger('order_item_id');
+            $table->bigInteger('product_inventory_id');
+            $table->bigInteger('product_id');
+            $table->bigInteger('order_id');
+            $table->bigInteger('order_item_id');
             $table->decimal('quantity', 10, 2);
-            $table->unsignedBigInteger('status_id');
+            $table->bigInteger('status_id');
             $table->timestamp('expires_at')->nullable();
             $table->timestamp('fulfilled_at')->nullable();
             $table->timestamps();

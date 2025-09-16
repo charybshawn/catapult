@@ -15,9 +15,9 @@ return new class extends Migration
         if (!Schema::hasTable('crop_batches')) {
             Schema::create('crop_batches', function (Blueprint $table) {
                 $table->id();
-                $table->unsignedBigInteger('recipe_id');
-                $table->unsignedBigInteger('order_id')->nullable();
-                $table->unsignedBigInteger('crop_plan_id')->nullable();
+                $table->bigInteger('recipe_id');
+                $table->bigInteger('order_id')->nullable();
+                $table->bigInteger('crop_plan_id')->nullable();
                 $table->timestamps();
                 
                 // Foreign keys

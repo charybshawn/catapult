@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::create('product_inventories', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('product_id');
-            $table->unsignedBigInteger('price_variation_id');
+            $table->bigInteger('product_id');
+            $table->bigInteger('price_variation_id');
             $table->string('batch_number', 255)->nullable();
             $table->string('lot_number', 255)->nullable();
             $table->decimal('quantity', 10, 2);
@@ -25,7 +25,7 @@ return new class extends Migration
             $table->date('production_date')->nullable();
             $table->string('location', 255)->nullable();
             $table->text('notes')->nullable();
-            $table->unsignedBigInteger('product_inventory_status_id');
+            $table->bigInteger('product_inventory_status_id');
             $table->timestamps();
         });
     }

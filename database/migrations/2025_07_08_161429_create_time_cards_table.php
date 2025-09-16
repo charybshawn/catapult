@@ -13,12 +13,12 @@ return new class extends Migration
     {
         Schema::create('time_cards', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('user_id');
+            $table->bigInteger('user_id');
             $table->dateTime('clock_in');
             $table->dateTime('clock_out')->nullable();
             $table->integer('duration_minutes')->nullable();
             $table->date('work_date');
-            $table->unsignedBigInteger('time_card_status_id');
+            $table->bigInteger('time_card_status_id');
             $table->integer('max_shift_exceeded')->default(0);
             $table->dateTime('max_shift_exceeded_at')->nullable();
             $table->integer('requires_review')->default(0);

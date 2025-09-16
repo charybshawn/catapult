@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::create('order_packagings', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('order_id');
-            $table->unsignedBigInteger('packaging_type_id');
+            $table->bigInteger('order_id');
+            $table->bigInteger('packaging_type_id');
             $table->integer('quantity');
             $table->decimal('price_per_unit', 10, 2);
             $table->decimal('total_price', 10, 2);

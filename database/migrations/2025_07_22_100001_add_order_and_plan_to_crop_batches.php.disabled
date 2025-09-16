@@ -14,8 +14,8 @@ return new class extends Migration
         // Only add columns if they don't exist (in case table was created with them)
         if (!Schema::hasColumn('crop_batches', 'order_id')) {
             Schema::table('crop_batches', function (Blueprint $table) {
-                $table->unsignedBigInteger('order_id')->nullable()->after('recipe_id');
-                $table->unsignedBigInteger('crop_plan_id')->nullable()->after('order_id');
+                $table->bigInteger('order_id')->nullable()->after('recipe_id');
+                $table->bigInteger('crop_plan_id')->nullable()->after('order_id');
                 
                 $table->foreign('order_id')->references('id')->on('orders')->nullOnDelete();
                 $table->foreign('crop_plan_id')->references('id')->on('crop_plans')->nullOnDelete();

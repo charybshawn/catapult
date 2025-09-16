@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('common_name', 255)->nullable();
             $table->string('cultivar_name', 255)->nullable();
             $table->string('supplier_product_title', 255);
-            $table->unsignedBigInteger('supplier_id');
+            $table->bigInteger('supplier_id');
             $table->string('supplier_sku', 255)->nullable();
             $table->string('supplier_product_url', 255);
             $table->string('image_url', 255)->nullable();

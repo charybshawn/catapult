@@ -24,7 +24,7 @@ return new class extends Migration
         Schema::create('master_cultivars', function (Blueprint $table) {
             $table->id();
             $table->string('cultivar_name');
-            $table->unsignedBigInteger('master_seed_catalog_id');
+            $table->bigInteger('master_seed_catalog_id');
             $table->boolean('is_active')->default(true);
             $table->timestamps();
 
@@ -34,7 +34,7 @@ return new class extends Migration
         
         // Re-add the cultivar_id column to master_seed_catalog
         Schema::table('master_seed_catalog', function (Blueprint $table) {
-            $table->unsignedBigInteger('cultivar_id')->nullable()->after('id');
+            $table->bigInteger('cultivar_id')->nullable()->after('id');
             $table->foreign('cultivar_id')->references('id')->on('master_cultivars')->onDelete('set null');
         });
     }

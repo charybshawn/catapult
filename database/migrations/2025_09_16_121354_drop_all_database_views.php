@@ -11,11 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('model_has_permissions', function (Blueprint $table) {
-            $table->bigInteger('permission_id');
-            $table->string('model_type', 255);
-            $table->bigInteger('model_id');
-        });
+        //
     }
 
     /**
@@ -23,6 +19,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('model_has_permissions');
+        //
     }
 };

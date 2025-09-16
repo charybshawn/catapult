@@ -13,16 +13,16 @@ return new class extends Migration
     {
         Schema::create('inventory_transactions', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('product_inventory_id')->nullable();
-            $table->unsignedBigInteger('product_id');
-            $table->unsignedBigInteger('inventory_transaction_type_id');
+            $table->bigInteger('product_inventory_id')->nullable();
+            $table->bigInteger('product_id');
+            $table->bigInteger('inventory_transaction_type_id');
             $table->decimal('quantity', 10, 2);
             $table->decimal('balance_after', 10, 2);
             $table->decimal('unit_cost', 10, 2)->nullable();
             $table->decimal('total_cost', 10, 2)->nullable();
             $table->string('reference_type', 255)->nullable();
-            $table->unsignedBigInteger('reference_id')->nullable();
-            $table->unsignedBigInteger('user_id');
+            $table->bigInteger('reference_id')->nullable();
+            $table->bigInteger('user_id');
             $table->text('notes')->nullable();
             $table->json('metadata')->nullable();
             $table->timestamps();

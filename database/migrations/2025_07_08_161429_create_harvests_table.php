@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::create('harvests', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('master_cultivar_id');
-            $table->unsignedBigInteger('user_id');
+            $table->bigInteger('master_cultivar_id');
+            $table->bigInteger('user_id');
             $table->decimal('total_weight_grams', 10, 2);
             $table->decimal('tray_count', 8, 2);
             $table->date('harvest_date');

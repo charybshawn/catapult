@@ -14,12 +14,12 @@ return new class extends Migration
         Schema::create('consumables', function (Blueprint $table) {
             $table->id();
             $table->string('name', 255);
-            $table->unsignedBigInteger('consumable_type_id')->nullable();
-            $table->unsignedBigInteger('consumable_unit_id')->nullable();
-            $table->unsignedBigInteger('supplier_id')->nullable();
-            $table->unsignedBigInteger('packaging_type_id')->nullable();
-            $table->unsignedBigInteger('master_seed_catalog_id')->nullable();
-            $table->unsignedBigInteger('master_cultivar_id')->nullable();
+            $table->bigInteger('consumable_type_id')->nullable();
+            $table->bigInteger('consumable_unit_id')->nullable();
+            $table->bigInteger('supplier_id')->nullable();
+            $table->bigInteger('packaging_type_id')->nullable();
+            $table->bigInteger('master_seed_catalog_id')->nullable();
+            $table->bigInteger('master_cultivar_id')->nullable();
             $table->string('cultivar', 255)->nullable();
             $table->decimal('initial_stock', 10, 3)->default(0.000);
             $table->decimal('current_stock', 10, 2)->default(0.00);

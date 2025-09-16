@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('recipe_watering_schedule', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('recipe_id');
+            $table->bigInteger('recipe_id');
             $table->integer('day_number');
             $table->decimal('water_amount_ml', 8, 2);
             $table->string('watering_method', 255)->nullable();

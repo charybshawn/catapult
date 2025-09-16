@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('activity_log_api_requests', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('activity_log_id')->nullable();
+            $table->bigInteger('activity_log_id')->nullable();
             $table->string('endpoint', 500);
             $table->string('method', 10);
             $table->string('api_version', 20)->nullable();
@@ -30,7 +30,7 @@ return new class extends Migration
             $table->string('ip_address', 45);
             $table->text('user_agent')->nullable();
             $table->integer('is_authenticated')->default(0);
-            $table->unsignedBigInteger('user_id')->nullable();
+            $table->bigInteger('user_id')->nullable();
             $table->text('error_message')->nullable();
             $table->json('rate_limit_info')->nullable();
         });

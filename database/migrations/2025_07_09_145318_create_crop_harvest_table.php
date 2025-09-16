@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::create('crop_harvest', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('crop_id');
-            $table->unsignedBigInteger('harvest_id');
+            $table->bigInteger('crop_id');
+            $table->bigInteger('harvest_id');
             $table->decimal('harvested_weight_grams', 8, 2);
             $table->decimal('percentage_harvested', 5, 2)->default(100.00);
             $table->text('notes')->nullable();

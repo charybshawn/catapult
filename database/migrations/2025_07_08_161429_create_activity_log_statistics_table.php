@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('log_name', 100)->nullable();
             $table->string('event_type', 100)->nullable();
             $table->string('model_type', 255)->nullable();
-            $table->unsignedBigInteger('user_id')->nullable();
+            $table->bigInteger('user_id')->nullable();
             $table->integer('total_activities')->default(0);
             $table->integer('unique_users')->default(0);
             $table->integer('unique_ips')->default(0);

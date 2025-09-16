@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('supplier_source_mappings', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('supplier_id');
+            $table->bigInteger('supplier_id');
             $table->string('source_url', 255)->nullable();
             $table->string('domain', 255)->nullable();
             $table->string('source_name', 255);

@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('seed_price_history', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('seed_variation_id');
+            $table->bigInteger('seed_variation_id');
             $table->decimal('price', 10, 2);
             $table->string('currency', 3)->default('USD');
             $table->integer('is_in_stock')->default(1);

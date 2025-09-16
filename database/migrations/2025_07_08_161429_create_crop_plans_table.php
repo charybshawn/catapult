@@ -13,13 +13,13 @@ return new class extends Migration
     {
         Schema::create('crop_plans', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('aggregated_crop_plan_id')->nullable();
+            $table->bigInteger('aggregated_crop_plan_id')->nullable();
             $table->text('notes')->nullable();
-            $table->unsignedBigInteger('status_id');
-            $table->unsignedBigInteger('created_by');
-            $table->unsignedBigInteger('order_id')->nullable();
-            $table->unsignedBigInteger('recipe_id')->nullable();
-            $table->unsignedBigInteger('variety_id')->nullable();
+            $table->bigInteger('status_id');
+            $table->bigInteger('created_by');
+            $table->bigInteger('order_id')->nullable();
+            $table->bigInteger('recipe_id')->nullable();
+            $table->bigInteger('variety_id')->nullable();
             $table->integer('trays_needed')->default(0);
             $table->decimal('grams_needed', 8, 2)->default(0.00);
             $table->decimal('grams_per_tray', 8, 2)->default(0.00);
@@ -29,7 +29,7 @@ return new class extends Migration
             $table->date('delivery_date')->nullable();
             $table->json('calculation_details')->nullable();
             $table->json('order_items_included')->nullable();
-            $table->unsignedBigInteger('approved_by')->nullable();
+            $table->bigInteger('approved_by')->nullable();
             $table->timestamp('approved_at')->nullable();
             $table->text('admin_notes')->nullable();
             $table->integer('is_missing_recipe')->default(0);

@@ -13,9 +13,9 @@ return new class extends Migration
     {
         Schema::create('seed_variations', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('seed_entry_id');
+            $table->bigInteger('seed_entry_id');
             $table->string('sku', 255)->nullable();
-            $table->unsignedBigInteger('consumable_id')->nullable();
+            $table->bigInteger('consumable_id')->nullable();
             $table->string('size', 255);
             $table->decimal('weight_kg', 8, 4)->nullable();
             $table->decimal('original_weight_value', 8, 4)->nullable();

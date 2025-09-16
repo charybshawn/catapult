@@ -13,13 +13,13 @@ return new class extends Migration
     {
         Schema::create('consumable_transactions', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('consumable_id');
+            $table->bigInteger('consumable_id');
             $table->string('type', 255);
             $table->decimal('quantity', 10, 3);
             $table->decimal('balance_after', 10, 3);
-            $table->unsignedBigInteger('user_id')->nullable();
+            $table->bigInteger('user_id')->nullable();
             $table->string('reference_type', 255)->nullable();
-            $table->unsignedBigInteger('reference_id')->nullable();
+            $table->bigInteger('reference_id')->nullable();
             $table->text('notes')->nullable();
             $table->json('metadata')->nullable();
             $table->timestamps();

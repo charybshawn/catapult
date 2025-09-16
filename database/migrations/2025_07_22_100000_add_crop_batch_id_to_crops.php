@@ -14,7 +14,7 @@ return new class extends Migration
         // Add crop_batch_id to crops table if it doesn't exist
         if (!Schema::hasColumn('crops', 'crop_batch_id')) {
             Schema::table('crops', function (Blueprint $table) {
-                $table->unsignedBigInteger('crop_batch_id')->nullable()->after('id');
+                $table->bigInteger('crop_batch_id')->nullable()->after('id');
                 $table->foreign('crop_batch_id')->references('id')->on('crop_batches')->onDelete('cascade');
                 $table->index('crop_batch_id');
             });
