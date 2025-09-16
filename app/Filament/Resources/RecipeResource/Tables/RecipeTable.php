@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\RecipeResource\Tables;
 
 use App\Models\Recipe;
-use App\Models\RecipeOptimizedView;
+
 use App\Models\Consumable;
 use App\Filament\Resources\Consumables\SeedResource;
 use Filament\Forms;

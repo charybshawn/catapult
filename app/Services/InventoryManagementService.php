@@ -455,6 +455,46 @@ class InventoryManagementService
     }
 
     /**
+     * Get total quantity across all consumable entries for a specific lot.
+     * 
+     * @param string $lotNumber The lot number to check
+     * @return float Total quantity for the lot
+     */
+    public function getLotTotalQuantity(string $lotNumber): float
+    {
+        $entries = $this->getEntriesInLot($lotNumber);
+        
+        return $entries->sum(function (Consumable $consumable) {
+            // Convert to grams if the consumable is in kg (for seed inventory)
+            if ($consumable->quantity_unit === 'kg') {
+                return $consumable->total_quantity * 1000;
+            }
+            
+            return $consumable->total_quantity;
+        });
+    }
+    
+    /**
+     * Get consumed quantity across all consumable entries for a specific lot.
+     * 
+     * @param string $lotNumber The lot number to check
+     * @return float Total consumed quantity for the lot
+     */
+    public function getLotConsumedQuantity(string $lotNumber): float
+    {
+        $entries = $this->getEntriesInLot($lotNumber);
+        
+        return $entries->sum(function (Consumable $consumable) {
+            // Convert to grams if the consumable is in kg (for seed inventory)
+            if ($consumable->quantity_unit === 'kg') {
+                return $consumable->consumed_quantity * 1000;
+            }
+            
+            return $consumable->consumed_quantity;
+        });
+    }
+
+    /**
      * Check if a lot is completely depleted (no available stock).
      * 
      * @param string $lotNumber The lot number to check

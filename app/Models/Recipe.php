@@ -235,6 +235,167 @@ class Recipe extends Model
     }
     
     /**
+     * Get seed consumable name (lot-based or direct)
+     */
+    public function getSeedConsumableNameAttribute(): string
+    {
+        if ($this->lot_number) {
+            // If we have common_name and cultivar_name, use those
+            if ($this->common_name && $this->cultivar_name) {
+                return "{$this->common_name} ({$this->cultivar_name})";
+            }
+            // Otherwise, try to get info from master seed catalog
+            if ($this->masterSeedCatalog) {
+                $cultivar = $this->cultivar_name ?: $this->masterSeedCatalog->cultivar_name;
+                return $cultivar 
+                    ? "{$this->masterSeedCatalog->common_name} ({$cultivar})"
+                    : $this->masterSeedCatalog->common_name;
+            }
+            // Fallback to lot number
+            return "Lot: {$this->lot_number}";
+        }
+        
+        return $this->seedConsumable?->name ?? '';
+    }
+    
+    /**
+     * Get total seed quantity (lot-based or direct)
+     */
+    public function getSeedTotalQuantityAttribute(): float
+    {
+        if ($this->lot_number) {
+            return app(InventoryManagementService::class)->getLotTotalQuantity($this->lot_number);
+        }
+        
+        return $this->seedConsumable?->total_quantity ?? 0.0;
+    }
+    
+    /**
+     * Get consumed seed quantity (lot-based or direct)
+     */
+    public function getSeedConsumedQuantityAttribute(): float
+    {
+        if ($this->lot_number) {
+            return app(InventoryManagementService::class)->getLotConsumedQuantity($this->lot_number);
+        }
+        
+        return $this->seedConsumable?->consumed_quantity ?? 0.0;
+    }
+    
+    /**
+     * Get available seed quantity (lot-based or direct)
+     */
+    public function getSeedAvailableQuantityAttribute(): float
+    {
+        if ($this->lot_number) {
+            return app(InventoryManagementService::class)->getLotQuantity($this->lot_number);
+        }
+        
+        $seedConsumable = $this->seedConsumable;
+        if (!$seedConsumable) {
+            return 0.0;
+        }
+        
+        return max(0, $seedConsumable->total_quantity - $seedConsumable->consumed_quantity);
+    }
+    
+    /**
+     * Get seed quantity unit (lot-based or direct)
+     */
+    public function getSeedQuantityUnitAttribute(): string
+    {
+        if ($this->lot_number) {
+            $lotConsumables = $this->lotConsumables();
+            return $lotConsumables->first()?->quantity_unit ?? 'g';
+        }
+        
+        return $this->seedConsumable?->quantity_unit ?? 'g';
+    }
+    
+    /**
+     * Get soil consumable name
+     */
+    public function getSoilConsumableNameAttribute(): string
+    {
+        return $this->soilConsumable?->name ?? '';
+    }
+    
+    /**
+     * Get soil total quantity
+     */
+    public function getSoilTotalQuantityAttribute(): float
+    {
+        return $this->soilConsumable?->total_quantity ?? 0.0;
+    }
+    
+    /**
+     * Get soil consumed quantity
+     */
+    public function getSoilConsumedQuantityAttribute(): float
+    {
+        return $this->soilConsumable?->consumed_quantity ?? 0.0;
+    }
+    
+    /**
+     * Get soil available quantity
+     */
+    public function getSoilAvailableQuantityAttribute(): float
+    {
+        $soilConsumable = $this->soilConsumable;
+        if (!$soilConsumable) {
+            return 0.0;
+        }
+        
+        return max(0, $soilConsumable->total_quantity - $soilConsumable->consumed_quantity);
+    }
+    
+    /**
+     * Get soil quantity unit
+     */
+    public function getSoilQuantityUnitAttribute(): string
+    {
+        return $this->soilConsumable?->quantity_unit ?? '';
+    }
+    
+    /**
+     * Get count of active crops (not harvested)
+     */
+    public function getActiveCropsCountAttribute(): int
+    {
+        return $this->crops()
+            ->whereHas('currentStage', function ($query) {
+                $query->where('code', '!=', 'harvested');
+            })
+            ->count();
+    }
+    
+    /**
+     * Get total count of crops
+     */
+    public function getTotalCropsCountAttribute(): int
+    {
+        return $this->crops()->count();
+    }
+    
+    /**
+     * Format seed lot display with availability
+     */
+    public function getSeedLotDisplayAttribute(): string
+    {
+        if (!$this->lot_number) {
+            if ($this->seed_consumable_name) {
+                $unit = $this->seed_quantity_unit;
+                return $this->seed_consumable_name . " ({$this->seed_available_quantity} {$unit} available)";
+            }
+            return '-';
+        }
+        
+        return $this->seed_available_quantity <= 0 
+            ? "{$this->lot_number} (Depleted)" 
+            : "{$this->lot_number} ({$this->seed_available_quantity}g)";
+    }
+    
+    /**
      * Mark the lot as depleted with timestamp.
      * 
      * @return void

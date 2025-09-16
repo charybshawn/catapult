@@ -4,7 +4,7 @@ namespace App\Filament\Resources\RecipeResource\Pages;
 
 use App\Filament\Resources\RecipeResource;
 use App\Models\Recipe;
-use App\Models\RecipeOptimizedView;
+
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Tables\Actions\BulkActionGroup;
@@ -24,11 +24,12 @@ class ListRecipes extends ListRecords
     
     /**
      * Get the query for the list page.
-     * Use the optimized view for better performance.
+     * Use eager loading for better performance.
      */
     public function getTableQuery(): ?\Illuminate\Database\Eloquent\Builder
     {
-        return RecipeOptimizedView::query();
+        return Recipe::query()
+            ->with(['seedConsumable', 'soilConsumable', 'masterSeedCatalog', 'crops.currentStage']);
     }
     
     /**

@@ -176,9 +176,6 @@ class ConsumableForm
     protected static function getSeedNameFields(): array
     {
         return [
-            // Supplier field for seeds
-            FormCommon::supplierSelect(),
-
             // Combined seed catalog + cultivar field - this is the primary field for seeds
             Forms\Components\Select::make('seed_selection')
                 ->label('Seed Type & Cultivar')
@@ -186,6 +183,15 @@ class ConsumableForm
                 ->searchable()
                 ->required()
                 ->live(onBlur: true)
+                ->afterStateHydrated(function ($component, $state, $record) {
+                    // Reconstruct the seed_selection value from existing data when editing
+                    if ($record && $record->master_seed_catalog_id) {
+                        $catalogId = $record->master_seed_catalog_id;
+                        $cultivar = $record->cultivar ?? '';
+                        $combinedValue = "{$catalogId}:{$cultivar}";
+                        $component->state($combinedValue);
+                    }
+                })
                 ->afterStateUpdated(function ($state, Set $set) {
                     if ($state) {
                         $parsed = \App\Models\MasterSeedCatalog::parseCombinedValue($state);

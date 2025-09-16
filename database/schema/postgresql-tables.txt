@@ -1,0 +1,173 @@
+                                                     List of relations
+ Schema |                 Name                  |   Type   | Owner | Persistence | Access method |    Size    | Description 
+--------+---------------------------------------+----------+-------+-------------+---------------+------------+-------------
+ public | activity_log                          | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | activity_log_api_requests             | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | activity_log_api_requests_id_seq      | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | activity_log_background_jobs          | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | activity_log_background_jobs_id_seq   | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | activity_log_bulk_operations          | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | activity_log_bulk_operations_id_seq   | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | activity_log_id_seq                   | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | activity_log_queries                  | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | activity_log_queries_id_seq           | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | activity_log_statistics               | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | activity_log_statistics_id_seq        | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | categories                            | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | categories_id_seq                     | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | consumable_transactions               | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | consumable_transactions_id_seq        | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | consumable_types                      | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | consumable_types_id_seq               | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | consumable_units                      | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | consumable_units_id_seq               | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | consumables                           | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | consumables_id_seq                    | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | crop_alerts                           | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | crop_alerts_id_seq                    | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | crop_batches                          | table    | shawn | permanent   | heap          | 0 bytes    | 
+ public | crop_batches_id_seq                   | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | crop_batches_list_view                | view     | shawn | permanent   |               | 0 bytes    | 
+ public | crop_harvest                          | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | crop_harvest_id_seq                   | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | crop_plan_statuses                    | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | crop_plan_statuses_id_seq             | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | crop_plans                            | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | crop_plans_aggregate                  | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | crop_plans_aggregate_id_seq           | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | crop_plans_id_seq                     | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | crop_stages                           | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | crop_stages_id_seq                    | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | crop_statuses                         | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | crop_statuses_id_seq                  | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | crops                                 | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | crops_id_seq                          | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | currencies                            | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | currencies_id_seq                     | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | customer_types                        | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | customer_types_id_seq                 | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | customers                             | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | customers_id_seq                      | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | delivery_statuses                     | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | delivery_statuses_id_seq              | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | fulfillment_statuses                  | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | fulfillment_statuses_id_seq           | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | harvests                              | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | harvests_id_seq                       | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | inventory_reservation_statuses        | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | inventory_reservation_statuses_id_seq | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | inventory_reservations                | table    | shawn | permanent   | heap          | 0 bytes    | 
+ public | inventory_reservations_id_seq         | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | inventory_transaction_types           | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | inventory_transaction_types_id_seq    | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | inventory_transactions                | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | inventory_transactions_id_seq         | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | invoice_statuses                      | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | invoice_statuses_id_seq               | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | invoices                              | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | invoices_id_seq                       | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | job_batches                           | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | jobs                                  | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | jobs_id_seq                           | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | master_seed_catalog                   | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | master_seed_catalog_id_seq            | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | migrations                            | table    | shawn | permanent   | heap          | 40 kB      | 
+ public | migrations_id_seq                     | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | model_has_permissions                 | table    | shawn | permanent   | heap          | 0 bytes    | 
+ public | model_has_roles                       | table    | shawn | permanent   | heap          | 0 bytes    | 
+ public | notification_settings                 | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | notification_settings_id_seq          | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | notifications                         | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | order_classifications                 | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | order_classifications_id_seq          | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | order_packagings                      | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | order_packagings_id_seq               | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | order_products                        | table    | shawn | permanent   | heap          | 0 bytes    | 
+ public | order_products_id_seq                 | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | order_statuses                        | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | order_statuses_id_seq                 | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | order_types                           | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | order_types_id_seq                    | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | orders                                | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | orders_id_seq                         | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | packaging_type_categories             | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | packaging_type_categories_id_seq      | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | packaging_types                       | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | packaging_types_id_seq                | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | packaging_unit_types                  | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | packaging_unit_types_id_seq           | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | password_reset_tokens                 | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | payment_methods                       | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | payment_methods_id_seq                | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | payment_statuses                      | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | payment_statuses_id_seq               | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | payments                              | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | payments_id_seq                       | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | permissions                           | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | permissions_id_seq                    | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | personal_access_tokens                | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | personal_access_tokens_id_seq         | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | product_inventories                   | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | product_inventories_id_seq            | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | product_inventory_statuses            | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | product_inventory_statuses_id_seq     | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | product_mix_components                | table    | shawn | permanent   | heap          | 0 bytes    | 
+ public | product_mix_components_id_seq         | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | product_mixes                         | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | product_mixes_id_seq                  | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | product_photos                        | table    | shawn | permanent   | heap          | 0 bytes    | 
+ public | product_photos_id_seq                 | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | product_price_variations              | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | product_price_variations_id_seq       | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | product_stock_statuses                | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | product_stock_statuses_id_seq         | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | products                              | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | products_id_seq                       | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | recipe_stage_types                    | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | recipe_stage_types_id_seq             | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | recipe_watering_schedule              | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | recipe_watering_schedule_id_seq       | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | recipes                               | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | recipes_id_seq                        | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | role_has_permissions                  | table    | shawn | permanent   | heap          | 0 bytes    | 
+ public | roles                                 | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | roles_id_seq                          | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | seed_categories                       | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | seed_categories_id_seq                | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | seed_entries                          | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | seed_entries_id_seq                   | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | seed_price_history                    | table    | shawn | permanent   | heap          | 0 bytes    | 
+ public | seed_price_history_id_seq             | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | seed_scrape_uploads                   | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | seed_scrape_uploads_id_seq            | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | seed_variations                       | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | seed_variations_id_seq                | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | sessions                              | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | settings                              | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | settings_id_seq                       | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | supplier_source_mappings              | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | supplier_source_mappings_id_seq       | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | supplier_types                        | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | supplier_types_id_seq                 | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | suppliers                             | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | suppliers_id_seq                      | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | task_schedules                        | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | task_schedules_id_seq                 | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | task_types                            | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | task_types_id_seq                     | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | tasks                                 | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | tasks_id_seq                          | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | time_card_statuses                    | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | time_card_statuses_id_seq             | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | time_card_tasks                       | table    | shawn | permanent   | heap          | 0 bytes    | 
+ public | time_card_tasks_id_seq                | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | time_cards                            | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | time_cards_id_seq                     | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | users                                 | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | users_id_seq                          | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | volume_units                          | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | volume_units_id_seq                   | sequence | shawn | permanent   |               | 8192 bytes | 
+ public | weight_units                          | table    | shawn | permanent   | heap          | 8192 bytes | 
+ public | weight_units_id_seq                   | sequence | shawn | permanent   |               | 8192 bytes | 
+(168 rows)
+
