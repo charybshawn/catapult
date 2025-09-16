@@ -3,10 +3,8 @@
 namespace App\Filament\Resources\CropBatchResource\Pages;
 
 use App\Filament\Resources\CropBatchResource;
-use App\Models\CropBatchListView;
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
-use Illuminate\Database\Eloquent\Builder;
 
 class ListCropBatches extends ListRecords
 {
@@ -28,13 +26,5 @@ class ListCropBatches extends ListRecords
                 ->url('/admin/crops')
                 ->tooltip('Switch to individual crop view'),
         ];
-    }
-
-    /**
-     * Override the table query to use CropBatchListView for performance
-     */
-    protected function getTableQuery(): ?Builder
-    {
-        return CropBatchListView::query();
     }
 }

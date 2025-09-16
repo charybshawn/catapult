@@ -7,7 +7,7 @@ use App\Models\Crop;
 use App\Models\Order;
 use App\Models\Consumable;
 use App\Models\CropAlert;
-use App\Models\CropBatchListView;
+use App\Models\CropBatch;
 use Carbon\Carbon;
 
 class DailyOperations extends Page
@@ -30,11 +30,12 @@ class DailyOperations extends Page
     protected function getStats(): array
     {
         $today = Carbon::today();
-        
+
         return [
-            'crops_to_advance' => CropBatchListView::where('current_stage_code', '!=', 'harvested')
-                ->whereRaw("time_to_next_stage_minutes <= 0")
-                ->sum('crop_count'),
+            'crops_to_advance' => Crop::whereHas('currentStage', function($query) {
+                    $query->where('code', '!=', 'harvested');
+                })
+                ->count(),
             'todays_alerts' => CropAlert::whereDate('next_run_at', $today)
                 ->where('is_active', true)
                 ->count(),
@@ -43,9 +44,10 @@ class DailyOperations extends Page
             'pending_orders' => Order::join('order_statuses', 'orders.status_id', '=', 'order_statuses.id')
                 ->where('order_statuses.code', '=', 'pending')
                 ->count(),
-            'crops_ready_to_harvest' => CropBatchListView::where('current_stage_code', '=', 'light')
-                ->whereRaw("time_to_next_stage_minutes <= 0")
-                ->sum('crop_count'),
+            'crops_ready_to_harvest' => Crop::whereHas('currentStage', function($query) {
+                    $query->where('code', '=', 'light');
+                })
+                ->count(),
         ];
     }
     

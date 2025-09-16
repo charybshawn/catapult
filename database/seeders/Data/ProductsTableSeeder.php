@@ -13,9 +13,7 @@ class ProductsTableSeeder extends Seeder
     public function run(): void
     {
         // Clear existing data safely (disable foreign key checks temporarily)
-        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
         DB::table('products')->truncate();
-        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
         // Insert data
         DB::table('products')->insert([

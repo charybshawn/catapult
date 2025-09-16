@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use Database\Seeders\Data\CategoriesTableSeeder;
 use Database\Seeders\Data\CurrentSeedConsumableDataSeeder;
 use Database\Seeders\Data\CustomerSeeder;
-use Database\Seeders\Data\MasterCultivarsTableSeeder;
 use Database\Seeders\Data\MasterSeedCatalogTableSeeder;
 use Database\Seeders\Data\PackagingSeeder;
 use Database\Seeders\Data\PackagingTypesTableSeeder;
@@ -27,7 +26,6 @@ class DataSeeder extends Seeder
             CategoriesTableSeeder::class,
             CurrentSeedConsumableDataSeeder::class,
             CustomerSeeder::class,
-            MasterCultivarsTableSeeder::class,
             MasterSeedCatalogTableSeeder::class,
             PackagingSeeder::class,
             PackagingTypesTableSeeder::class,
