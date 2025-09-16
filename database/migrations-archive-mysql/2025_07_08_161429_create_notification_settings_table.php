@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('notification_settings', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('user_id');
+            $table->bigInteger('user_id');
             $table->enum('channel', ['email','sms','push']);
             $table->string('type', 255);
             $table->integer('is_enabled')->default(1);

@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::create('product_mix_components', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('product_mix_id');
-            $table->unsignedBigInteger('master_seed_catalog_id')->nullable();
+            $table->bigInteger('product_mix_id');
+            $table->bigInteger('master_seed_catalog_id')->nullable();
             $table->decimal('percentage', 8, 5);
             $table->string('cultivar', 255)->nullable();
             $table->timestamps();

@@ -13,9 +13,9 @@ return new class extends Migration
     {
         Schema::create('invoices', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('order_id')->nullable();
+            $table->bigInteger('order_id')->nullable();
             $table->decimal('amount', 10, 2);
-            $table->unsignedBigInteger('payment_status_id')->nullable();
+            $table->bigInteger('payment_status_id')->nullable();
             $table->timestamp('sent_at')->nullable();
             $table->timestamp('paid_at')->nullable();
             $table->date('due_date')->nullable();
@@ -24,7 +24,7 @@ return new class extends Migration
             $table->integer('is_consolidated')->default(0);
             $table->integer('consolidated_order_count')->default(1);
             $table->json('consolidated_order_ids')->nullable();
-            $table->unsignedBigInteger('customer_id')->nullable();
+            $table->bigInteger('customer_id')->nullable();
             $table->timestamps();
         });
     }

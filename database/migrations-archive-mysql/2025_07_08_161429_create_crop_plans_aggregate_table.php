@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('crop_plans_aggregate', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('variety_id');
+            $table->bigInteger('variety_id');
             $table->date('harvest_date');
             $table->decimal('total_grams_needed', 10, 2);
             $table->integer('total_trays_needed');
@@ -22,8 +22,8 @@ return new class extends Migration
             $table->date('seed_soak_date')->nullable();
             $table->enum('status', ['draft','confirmed','in_progress','completed'])->default('draft');
             $table->json('calculation_details')->nullable();
-            $table->unsignedBigInteger('created_by');
-            $table->unsignedBigInteger('updated_by')->nullable();
+            $table->bigInteger('created_by');
+            $table->bigInteger('updated_by')->nullable();
             $table->timestamps();
         });
     }

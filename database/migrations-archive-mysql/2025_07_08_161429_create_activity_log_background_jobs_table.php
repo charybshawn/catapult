@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('activity_log_background_jobs', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('activity_log_id')->nullable();
+            $table->bigInteger('activity_log_id')->nullable();
             $table->string('job_id', 100)->nullable();
             $table->string('job_class', 500);
             $table->string('queue_name', 100)->nullable();
@@ -29,7 +29,7 @@ return new class extends Migration
             $table->decimal('memory_peak_mb', 10, 2)->nullable();
             $table->text('exception_message')->nullable();
             $table->text('exception_trace')->nullable();
-            $table->unsignedBigInteger('user_id')->nullable();
+            $table->bigInteger('user_id')->nullable();
             $table->json('tags')->nullable();
         });
     }

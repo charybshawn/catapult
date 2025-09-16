@@ -13,9 +13,9 @@ return new class extends Migration
     {
         Schema::create('time_card_tasks', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('time_card_id');
+            $table->bigInteger('time_card_id');
             $table->string('task_name', 255);
-            $table->unsignedBigInteger('task_type_id')->nullable();
+            $table->bigInteger('task_type_id')->nullable();
             $table->integer('is_custom')->default(0);
             $table->timestamps();
         });

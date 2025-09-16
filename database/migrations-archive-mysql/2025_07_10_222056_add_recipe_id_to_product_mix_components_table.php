@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('product_mix_components', function (Blueprint $table) {
-            $table->unsignedBigInteger('recipe_id')->nullable()->after('cultivar');
+            $table->bigInteger('recipe_id')->nullable()->after('cultivar');
             $table->foreign('recipe_id')->references('id')->on('recipes')->onDelete('set null');
         });
     }

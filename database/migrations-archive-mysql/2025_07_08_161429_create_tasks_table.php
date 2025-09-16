@@ -18,7 +18,7 @@ return new class extends Migration
             $table->enum('task_type', ['watering','harvesting','seeding','general']);
             $table->date('due_date')->nullable();
             $table->timestamp('completed_at')->nullable();
-            $table->unsignedBigInteger('assigned_to')->nullable();
+            $table->bigInteger('assigned_to')->nullable();
             $table->enum('priority', ['low','medium','high','urgent'])->default('medium');
             $table->enum('status', ['pending','in_progress','completed','cancelled'])->default('pending');
             $table->timestamps();

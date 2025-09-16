@@ -23,7 +23,7 @@ return new class extends Migration
                 cb.updated_at,
                 r.name as recipe_name,
                 COUNT(c.id) as crop_count,
-                GROUP_CONCAT(c.tray_number ORDER BY c.tray_number SEPARATOR ', ') as tray_numbers,
+                STRING_AGG(c.tray_number::TEXT, ', ' ORDER BY c.tray_number) as tray_numbers,
                 MIN(c.current_stage_id) as current_stage_id,
                 cs.name as current_stage_name,
                 cs.code as current_stage_code,
@@ -37,10 +37,8 @@ return new class extends Migration
                 -- Calculate expected harvest date
                 CASE 
                     WHEN r.days_to_maturity IS NOT NULL AND r.days_to_maturity > 0 THEN
-                        DATE_ADD(
-                            COALESCE(MIN(c.germination_at), MIN(c.blackout_at), MIN(c.light_at), cb.created_at),
-                            INTERVAL r.days_to_maturity DAY
-                        )
+                        COALESCE(MIN(c.germination_at), MIN(c.blackout_at), MIN(c.light_at), cb.created_at) + 
+                        INTERVAL '1 day' * r.days_to_maturity
                     ELSE NULL
                 END as expected_harvest_at,
                 
@@ -48,13 +46,13 @@ return new class extends Migration
                 CASE 
                     WHEN cs.code = 'harvested' THEN 0
                     WHEN cs.code = 'soaking' AND MIN(c.soaking_at) IS NOT NULL AND r.seed_soak_hours > 0 THEN
-                        GREATEST(0, TIMESTAMPDIFF(MINUTE, NOW(), DATE_ADD(MIN(c.soaking_at), INTERVAL r.seed_soak_hours HOUR)))
+                        GREATEST(0, EXTRACT(EPOCH FROM (MIN(c.soaking_at) + INTERVAL '1 hour' * r.seed_soak_hours - CURRENT_TIMESTAMP))/60)
                     WHEN cs.code = 'germination' AND MIN(c.germination_at) IS NOT NULL AND r.germination_days > 0 THEN
-                        GREATEST(0, TIMESTAMPDIFF(MINUTE, NOW(), DATE_ADD(MIN(c.germination_at), INTERVAL r.germination_days DAY)))
+                        GREATEST(0, EXTRACT(EPOCH FROM (MIN(c.germination_at) + INTERVAL '1 day' * r.germination_days - CURRENT_TIMESTAMP))/60)
                     WHEN cs.code = 'blackout' AND MIN(c.blackout_at) IS NOT NULL AND r.blackout_days > 0 THEN
-                        GREATEST(0, TIMESTAMPDIFF(MINUTE, NOW(), DATE_ADD(MIN(c.blackout_at), INTERVAL r.blackout_days DAY)))
+                        GREATEST(0, EXTRACT(EPOCH FROM (MIN(c.blackout_at) + INTERVAL '1 day' * r.blackout_days - CURRENT_TIMESTAMP))/60)
                     WHEN cs.code = 'light' AND MIN(c.light_at) IS NOT NULL AND r.light_days > 0 THEN
-                        GREATEST(0, TIMESTAMPDIFF(MINUTE, NOW(), DATE_ADD(MIN(c.light_at), INTERVAL r.light_days DAY)))
+                        GREATEST(0, EXTRACT(EPOCH FROM (MIN(c.light_at) + INTERVAL '1 day' * r.light_days - CURRENT_TIMESTAMP))/60)
                     ELSE 0
                 END as time_to_next_stage_minutes,
                 
@@ -63,47 +61,14 @@ return new class extends Migration
                     WHEN cs.code = 'harvested' THEN 'Harvested'
                     WHEN cs.code = 'soaking' AND MIN(c.soaking_at) IS NOT NULL AND r.seed_soak_hours > 0 THEN
                         CASE
-                            WHEN TIMESTAMPDIFF(MINUTE, NOW(), DATE_ADD(MIN(c.soaking_at), INTERVAL r.seed_soak_hours HOUR)) <= 0 THEN 'Ready to advance'
-                            WHEN TIMESTAMPDIFF(HOUR, NOW(), DATE_ADD(MIN(c.soaking_at), INTERVAL r.seed_soak_hours HOUR)) >= 24 THEN 
-                                CONCAT(FLOOR(TIMESTAMPDIFF(HOUR, NOW(), DATE_ADD(MIN(c.soaking_at), INTERVAL r.seed_soak_hours HOUR)) / 24), 'd ', 
-                                       MOD(TIMESTAMPDIFF(HOUR, NOW(), DATE_ADD(MIN(c.soaking_at), INTERVAL r.seed_soak_hours HOUR)), 24), 'h')
-                            WHEN TIMESTAMPDIFF(HOUR, NOW(), DATE_ADD(MIN(c.soaking_at), INTERVAL r.seed_soak_hours HOUR)) > 0 THEN 
-                                CONCAT(TIMESTAMPDIFF(HOUR, NOW(), DATE_ADD(MIN(c.soaking_at), INTERVAL r.seed_soak_hours HOUR)), 'h ', 
-                                       MOD(TIMESTAMPDIFF(MINUTE, NOW(), DATE_ADD(MIN(c.soaking_at), INTERVAL r.seed_soak_hours HOUR)), 60), 'm')
-                            ELSE CONCAT(TIMESTAMPDIFF(MINUTE, NOW(), DATE_ADD(MIN(c.soaking_at), INTERVAL r.seed_soak_hours HOUR)), 'm')
-                        END
-                    WHEN cs.code = 'germination' AND MIN(c.germination_at) IS NOT NULL AND r.germination_days > 0 THEN
-                        CASE
-                            WHEN TIMESTAMPDIFF(MINUTE, NOW(), DATE_ADD(MIN(c.germination_at), INTERVAL r.germination_days DAY)) <= 0 THEN 'Ready to advance'
-                            WHEN TIMESTAMPDIFF(DAY, NOW(), DATE_ADD(MIN(c.germination_at), INTERVAL r.germination_days DAY)) > 0 THEN 
-                                CONCAT(TIMESTAMPDIFF(DAY, NOW(), DATE_ADD(MIN(c.germination_at), INTERVAL r.germination_days DAY)), 'd ', 
-                                       MOD(TIMESTAMPDIFF(HOUR, NOW(), DATE_ADD(MIN(c.germination_at), INTERVAL r.germination_days DAY)), 24), 'h')
-                            WHEN TIMESTAMPDIFF(HOUR, NOW(), DATE_ADD(MIN(c.germination_at), INTERVAL r.germination_days DAY)) > 0 THEN 
-                                CONCAT(TIMESTAMPDIFF(HOUR, NOW(), DATE_ADD(MIN(c.germination_at), INTERVAL r.germination_days DAY)), 'h ', 
-                                       MOD(TIMESTAMPDIFF(MINUTE, NOW(), DATE_ADD(MIN(c.germination_at), INTERVAL r.germination_days DAY)), 60), 'm')
-                            ELSE CONCAT(TIMESTAMPDIFF(MINUTE, NOW(), DATE_ADD(MIN(c.germination_at), INTERVAL r.germination_days DAY)), 'm')
-                        END
-                    WHEN cs.code = 'blackout' AND MIN(c.blackout_at) IS NOT NULL AND r.blackout_days > 0 THEN
-                        CASE
-                            WHEN TIMESTAMPDIFF(MINUTE, NOW(), DATE_ADD(MIN(c.blackout_at), INTERVAL r.blackout_days DAY)) <= 0 THEN 'Ready to advance'
-                            WHEN TIMESTAMPDIFF(DAY, NOW(), DATE_ADD(MIN(c.blackout_at), INTERVAL r.blackout_days DAY)) > 0 THEN 
-                                CONCAT(TIMESTAMPDIFF(DAY, NOW(), DATE_ADD(MIN(c.blackout_at), INTERVAL r.blackout_days DAY)), 'd ', 
-                                       MOD(TIMESTAMPDIFF(HOUR, NOW(), DATE_ADD(MIN(c.blackout_at), INTERVAL r.blackout_days DAY)), 24), 'h')
-                            WHEN TIMESTAMPDIFF(HOUR, NOW(), DATE_ADD(MIN(c.blackout_at), INTERVAL r.blackout_days DAY)) > 0 THEN 
-                                CONCAT(TIMESTAMPDIFF(HOUR, NOW(), DATE_ADD(MIN(c.blackout_at), INTERVAL r.blackout_days DAY)), 'h ', 
-                                       MOD(TIMESTAMPDIFF(MINUTE, NOW(), DATE_ADD(MIN(c.blackout_at), INTERVAL r.blackout_days DAY)), 60), 'm')
-                            ELSE CONCAT(TIMESTAMPDIFF(MINUTE, NOW(), DATE_ADD(MIN(c.blackout_at), INTERVAL r.blackout_days DAY)), 'm')
-                        END
-                    WHEN cs.code = 'light' AND MIN(c.light_at) IS NOT NULL AND r.light_days > 0 THEN
-                        CASE
-                            WHEN TIMESTAMPDIFF(MINUTE, NOW(), DATE_ADD(MIN(c.light_at), INTERVAL r.light_days DAY)) <= 0 THEN 'Ready to advance'
-                            WHEN TIMESTAMPDIFF(DAY, NOW(), DATE_ADD(MIN(c.light_at), INTERVAL r.light_days DAY)) > 0 THEN 
-                                CONCAT(TIMESTAMPDIFF(DAY, NOW(), DATE_ADD(MIN(c.light_at), INTERVAL r.light_days DAY)), 'd ', 
-                                       MOD(TIMESTAMPDIFF(HOUR, NOW(), DATE_ADD(MIN(c.light_at), INTERVAL r.light_days DAY)), 24), 'h')
-                            WHEN TIMESTAMPDIFF(HOUR, NOW(), DATE_ADD(MIN(c.light_at), INTERVAL r.light_days DAY)) > 0 THEN 
-                                CONCAT(TIMESTAMPDIFF(HOUR, NOW(), DATE_ADD(MIN(c.light_at), INTERVAL r.light_days DAY)), 'h ', 
-                                       MOD(TIMESTAMPDIFF(MINUTE, NOW(), DATE_ADD(MIN(c.light_at), INTERVAL r.light_days DAY)), 60), 'm')
-                            ELSE CONCAT(TIMESTAMPDIFF(MINUTE, NOW(), DATE_ADD(MIN(c.light_at), INTERVAL r.light_days DAY)), 'm')
+                            WHEN EXTRACT(EPOCH FROM (MIN(c.soaking_at) + INTERVAL '1 hour' * r.seed_soak_hours - CURRENT_TIMESTAMP))/60 <= 0 THEN 'Ready to advance'
+                            WHEN EXTRACT(EPOCH FROM (MIN(c.soaking_at) + INTERVAL '1 hour' * r.seed_soak_hours - CURRENT_TIMESTAMP))/3600 >= 24 THEN 
+                                FLOOR(EXTRACT(EPOCH FROM (MIN(c.soaking_at) + INTERVAL '1 hour' * r.seed_soak_hours - CURRENT_TIMESTAMP))/3600 / 24)::TEXT || 'd ' || 
+                                (FLOOR(EXTRACT(EPOCH FROM (MIN(c.soaking_at) + INTERVAL '1 hour' * r.seed_soak_hours - CURRENT_TIMESTAMP))/3600) % 24)::TEXT || 'h'
+                            WHEN EXTRACT(EPOCH FROM (MIN(c.soaking_at) + INTERVAL '1 hour' * r.seed_soak_hours - CURRENT_TIMESTAMP))/3600 > 0 THEN 
+                                FLOOR(EXTRACT(EPOCH FROM (MIN(c.soaking_at) + INTERVAL '1 hour' * r.seed_soak_hours - CURRENT_TIMESTAMP))/3600)::TEXT || 'h ' || 
+                                (FLOOR(EXTRACT(EPOCH FROM (MIN(c.soaking_at) + INTERVAL '1 hour' * r.seed_soak_hours - CURRENT_TIMESTAMP))/60) % 60)::TEXT || 'm'
+                            ELSE FLOOR(EXTRACT(EPOCH FROM (MIN(c.soaking_at) + INTERVAL '1 hour' * r.seed_soak_hours - CURRENT_TIMESTAMP))/60)::TEXT || 'm'
                         END
                     ELSE 'Unknown'
                 END as time_to_next_stage_display,
@@ -111,13 +76,13 @@ return new class extends Migration
                 -- Calculate stage age in minutes
                 CASE 
                     WHEN cs.code = 'soaking' AND MIN(c.soaking_at) IS NOT NULL THEN
-                        TIMESTAMPDIFF(MINUTE, MIN(c.soaking_at), NOW())
+                        EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - MIN(c.soaking_at)))/60
                     WHEN cs.code = 'germination' AND MIN(c.germination_at) IS NOT NULL THEN
-                        TIMESTAMPDIFF(MINUTE, MIN(c.germination_at), NOW())
+                        EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - MIN(c.germination_at)))/60
                     WHEN cs.code = 'blackout' AND MIN(c.blackout_at) IS NOT NULL THEN
-                        TIMESTAMPDIFF(MINUTE, MIN(c.blackout_at), NOW())
+                        EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - MIN(c.blackout_at)))/60
                     WHEN cs.code = 'light' AND MIN(c.light_at) IS NOT NULL THEN
-                        TIMESTAMPDIFF(MINUTE, MIN(c.light_at), NOW())
+                        EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - MIN(c.light_at)))/60
                     WHEN cs.code = 'harvested' THEN
                         0
                     ELSE 0
@@ -127,43 +92,13 @@ return new class extends Migration
                 CASE 
                     WHEN cs.code = 'soaking' AND MIN(c.soaking_at) IS NOT NULL THEN
                         CASE
-                            WHEN TIMESTAMPDIFF(DAY, MIN(c.soaking_at), NOW()) > 0 THEN 
-                                CONCAT(TIMESTAMPDIFF(DAY, MIN(c.soaking_at), NOW()), 'd ', 
-                                       MOD(TIMESTAMPDIFF(HOUR, MIN(c.soaking_at), NOW()), 24), 'h')
-                            WHEN TIMESTAMPDIFF(HOUR, MIN(c.soaking_at), NOW()) > 0 THEN 
-                                CONCAT(TIMESTAMPDIFF(HOUR, MIN(c.soaking_at), NOW()), 'h ', 
-                                       MOD(TIMESTAMPDIFF(MINUTE, MIN(c.soaking_at), NOW()), 60), 'm')
-                            ELSE CONCAT(TIMESTAMPDIFF(MINUTE, MIN(c.soaking_at), NOW()), 'm')
-                        END
-                    WHEN cs.code = 'germination' AND MIN(c.germination_at) IS NOT NULL THEN
-                        CASE
-                            WHEN TIMESTAMPDIFF(DAY, MIN(c.germination_at), NOW()) > 0 THEN 
-                                CONCAT(TIMESTAMPDIFF(DAY, MIN(c.germination_at), NOW()), 'd ', 
-                                       MOD(TIMESTAMPDIFF(HOUR, MIN(c.germination_at), NOW()), 24), 'h')
-                            WHEN TIMESTAMPDIFF(HOUR, MIN(c.germination_at), NOW()) > 0 THEN 
-                                CONCAT(TIMESTAMPDIFF(HOUR, MIN(c.germination_at), NOW()), 'h ', 
-                                       MOD(TIMESTAMPDIFF(MINUTE, MIN(c.germination_at), NOW()), 60), 'm')
-                            ELSE CONCAT(TIMESTAMPDIFF(MINUTE, MIN(c.germination_at), NOW()), 'm')
-                        END
-                    WHEN cs.code = 'blackout' AND MIN(c.blackout_at) IS NOT NULL THEN
-                        CASE
-                            WHEN TIMESTAMPDIFF(DAY, MIN(c.blackout_at), NOW()) > 0 THEN 
-                                CONCAT(TIMESTAMPDIFF(DAY, MIN(c.blackout_at), NOW()), 'd ', 
-                                       MOD(TIMESTAMPDIFF(HOUR, MIN(c.blackout_at), NOW()), 24), 'h')
-                            WHEN TIMESTAMPDIFF(HOUR, MIN(c.blackout_at), NOW()) > 0 THEN 
-                                CONCAT(TIMESTAMPDIFF(HOUR, MIN(c.blackout_at), NOW()), 'h ', 
-                                       MOD(TIMESTAMPDIFF(MINUTE, MIN(c.blackout_at), NOW()), 60), 'm')
-                            ELSE CONCAT(TIMESTAMPDIFF(MINUTE, MIN(c.blackout_at), NOW()), 'm')
-                        END
-                    WHEN cs.code = 'light' AND MIN(c.light_at) IS NOT NULL THEN
-                        CASE
-                            WHEN TIMESTAMPDIFF(DAY, MIN(c.light_at), NOW()) > 0 THEN 
-                                CONCAT(TIMESTAMPDIFF(DAY, MIN(c.light_at), NOW()), 'd ', 
-                                       MOD(TIMESTAMPDIFF(HOUR, MIN(c.light_at), NOW()), 24), 'h')
-                            WHEN TIMESTAMPDIFF(HOUR, MIN(c.light_at), NOW()) > 0 THEN 
-                                CONCAT(TIMESTAMPDIFF(HOUR, MIN(c.light_at), NOW()), 'h ', 
-                                       MOD(TIMESTAMPDIFF(MINUTE, MIN(c.light_at), NOW()), 60), 'm')
-                            ELSE CONCAT(TIMESTAMPDIFF(MINUTE, MIN(c.light_at), NOW()), 'm')
+                            WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - MIN(c.soaking_at)))/86400 > 0 THEN 
+                                FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - MIN(c.soaking_at)))/86400)::TEXT || 'd ' || 
+                                (FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - MIN(c.soaking_at)))/3600) % 24)::TEXT || 'h'
+                            WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - MIN(c.soaking_at)))/3600 > 0 THEN 
+                                FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - MIN(c.soaking_at)))/3600)::TEXT || 'h ' || 
+                                (FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - MIN(c.soaking_at)))/60) % 60)::TEXT || 'm'
+                            ELSE FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - MIN(c.soaking_at)))/60)::TEXT || 'm'
                         END
                     WHEN cs.code = 'harvested' THEN
                         'Harvested'
@@ -171,20 +106,19 @@ return new class extends Migration
                 END as stage_age_display,
                 
                 -- Calculate total age from the earliest timestamp
-                TIMESTAMPDIFF(MINUTE, 
-                    COALESCE(MIN(c.soaking_at), MIN(c.germination_at), MIN(c.blackout_at), MIN(c.light_at), cb.created_at),
-                    NOW()
-                ) as total_age_minutes,
+                EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - 
+                    COALESCE(MIN(c.soaking_at), MIN(c.germination_at), MIN(c.blackout_at), MIN(c.light_at), cb.created_at)
+                ))/60 as total_age_minutes,
                 
                 -- Format total age display
                 CASE
-                    WHEN TIMESTAMPDIFF(DAY, COALESCE(MIN(c.soaking_at), MIN(c.germination_at), MIN(c.blackout_at), MIN(c.light_at), cb.created_at), NOW()) > 0 THEN 
-                        CONCAT(TIMESTAMPDIFF(DAY, COALESCE(MIN(c.soaking_at), MIN(c.germination_at), MIN(c.blackout_at), MIN(c.light_at), cb.created_at), NOW()), 'd ', 
-                               MOD(TIMESTAMPDIFF(HOUR, COALESCE(MIN(c.soaking_at), MIN(c.germination_at), MIN(c.blackout_at), MIN(c.light_at), cb.created_at), NOW()), 24), 'h')
-                    WHEN TIMESTAMPDIFF(HOUR, COALESCE(MIN(c.soaking_at), MIN(c.germination_at), MIN(c.blackout_at), MIN(c.light_at), cb.created_at), NOW()) > 0 THEN 
-                        CONCAT(TIMESTAMPDIFF(HOUR, COALESCE(MIN(c.soaking_at), MIN(c.germination_at), MIN(c.blackout_at), MIN(c.light_at), cb.created_at), NOW()), 'h ', 
-                               MOD(TIMESTAMPDIFF(MINUTE, COALESCE(MIN(c.soaking_at), MIN(c.germination_at), MIN(c.blackout_at), MIN(c.light_at), cb.created_at), NOW()), 60), 'm')
-                    ELSE CONCAT(TIMESTAMPDIFF(MINUTE, COALESCE(MIN(c.soaking_at), MIN(c.germination_at), MIN(c.blackout_at), MIN(c.light_at), cb.created_at), NOW()), 'm')
+                    WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(MIN(c.soaking_at), MIN(c.germination_at), MIN(c.blackout_at), MIN(c.light_at), cb.created_at)))/86400 > 0 THEN 
+                        FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(MIN(c.soaking_at), MIN(c.germination_at), MIN(c.blackout_at), MIN(c.light_at), cb.created_at)))/86400)::TEXT || 'd ' || 
+                        (FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(MIN(c.soaking_at), MIN(c.germination_at), MIN(c.blackout_at), MIN(c.light_at), cb.created_at)))/3600) % 24)::TEXT || 'h'
+                    WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(MIN(c.soaking_at), MIN(c.germination_at), MIN(c.blackout_at), MIN(c.light_at), cb.created_at)))/3600 > 0 THEN 
+                        FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(MIN(c.soaking_at), MIN(c.germination_at), MIN(c.blackout_at), MIN(c.light_at), cb.created_at)))/3600)::TEXT || 'h ' || 
+                        (FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(MIN(c.soaking_at), MIN(c.germination_at), MIN(c.blackout_at), MIN(c.light_at), cb.created_at)))/60) % 60)::TEXT || 'm'
+                    ELSE FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(MIN(c.soaking_at), MIN(c.germination_at), MIN(c.blackout_at), MIN(c.light_at), cb.created_at)))/60)::TEXT || 'm'
                 END as total_age_display,
                 
                 -- Calculate planting_at as the earliest timestamp

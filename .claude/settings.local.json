@@ -42,7 +42,15 @@
       "mcp__serena__write_memory",
       "mcp__serena__think_about_task_adherence",
       "mcp__serena__activate_project",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(cp:*)",
+      "Bash(brew install:*)",
+      "Bash(pgloader:*)",
+      "Bash(export:*)",
+      "Bash(brew services start:*)",
+      "Bash(createdb:*)",
+      "Bash(createuser:*)",
+      "Bash(psql:*)"
     ],
     "deny": []
   }

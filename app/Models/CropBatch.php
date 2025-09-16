@@ -75,6 +75,30 @@ class CropBatch extends Model
     }
 
     /**
+     * Scope for active crop batches (not harvested)
+     */
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->whereHas('crops', function ($query) {
+            $query->whereHas('currentStage', function ($stageQuery) {
+                $stageQuery->where('code', '!=', 'harvested');
+            });
+        });
+    }
+
+    /**
+     * Scope for harvested crop batches
+     */
+    public function scopeHarvested(Builder $query): Builder
+    {
+        return $query->whereHas('crops', function ($query) {
+            $query->whereHas('currentStage', function ($stageQuery) {
+                $stageQuery->where('code', '=', 'harvested');
+            });
+        });
+    }
+
+    /**
      * Get the current stage ID attribute from the first crop.
      */
     public function getCurrentStageIdAttribute(): ?int

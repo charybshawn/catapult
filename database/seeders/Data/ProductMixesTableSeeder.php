@@ -13,10 +13,11 @@ class ProductMixesTableSeeder extends Seeder
     public function run(): void
     {
         // Clear existing data safely (disable foreign key checks temporarily)
-        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        // Disable foreign key checks for PostgreSQL
+        DB::statement('SET session_replication_role = \'replica\';');
         DB::table('product_mix_components')->truncate();
         DB::table('product_mixes')->truncate();
-        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        DB::statement('SET session_replication_role = \'origin\';');
 
         // Insert product mixes
         DB::table('product_mixes')->insert([

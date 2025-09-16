@@ -15,7 +15,7 @@ return new class extends Migration
             $table->string('id');
             $table->string('type', 255);
             $table->string('notifiable_type', 255);
-            $table->unsignedBigInteger('notifiable_id');
+            $table->bigInteger('notifiable_id');
             $table->text('data');
             $table->timestamp('read_at')->nullable();
             $table->timestamps();

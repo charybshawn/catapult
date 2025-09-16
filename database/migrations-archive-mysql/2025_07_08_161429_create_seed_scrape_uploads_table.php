@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('seed_scrape_uploads', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('supplier_id');
+            $table->bigInteger('supplier_id');
             $table->string('filename', 255);
             $table->integer('total_entries')->default(0);
             $table->integer('new_entries')->default(0);
@@ -21,7 +21,7 @@ return new class extends Migration
             $table->integer('failed_entries_count')->default(0);
             $table->string('status', 255)->default('pending');
             $table->json('failed_entries')->nullable();
-            $table->unsignedBigInteger('uploaded_by');
+            $table->bigInteger('uploaded_by');
             $table->timestamp('uploaded_at');
             $table->dateTime('processed_at')->nullable();
             $table->text('notes')->nullable();

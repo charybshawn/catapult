@@ -14,27 +14,27 @@ return new class extends Migration
     {
         Schema::create('orders', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('user_id');
-            $table->unsignedBigInteger('customer_id')->nullable();
+            $table->bigInteger('user_id');
+            $table->bigInteger('customer_id')->nullable();
             $table->date('harvest_date')->nullable();
             $table->date('delivery_date')->nullable();
-            $table->unsignedBigInteger('status_id')->nullable();
-            $table->unsignedBigInteger('crop_status_id')->nullable();
-            $table->unsignedBigInteger('fulfillment_status_id')->nullable();
-            $table->unsignedBigInteger('payment_status_id')->nullable();
-            $table->unsignedBigInteger('delivery_status_id')->nullable();
+            $table->bigInteger('status_id')->nullable();
+            $table->bigInteger('crop_status_id')->nullable();
+            $table->bigInteger('fulfillment_status_id')->nullable();
+            $table->bigInteger('payment_status_id')->nullable();
+            $table->bigInteger('delivery_status_id')->nullable();
             $table->enum('customer_type', ['b2b','website order','farmers market'])->default('b2b');
-            $table->unsignedBigInteger('order_type_id')->nullable();
+            $table->bigInteger('order_type_id')->nullable();
             $table->string('billing_frequency', 255)->nullable();
             $table->integer('requires_invoice')->default(0);
             $table->date('billing_period_start')->nullable();
             $table->date('billing_period_end')->nullable();
-            $table->unsignedBigInteger('consolidated_invoice_id')->nullable();
+            $table->bigInteger('consolidated_invoice_id')->nullable();
             $table->json('billing_preferences')->nullable();
-            $table->unsignedBigInteger('order_classification_id')->nullable();
+            $table->bigInteger('order_classification_id')->nullable();
             $table->string('billing_period', 255)->nullable();
             $table->integer('is_recurring')->default(0);
-            $table->unsignedBigInteger('parent_recurring_order_id')->nullable();
+            $table->bigInteger('parent_recurring_order_id')->nullable();
             $table->string('recurring_frequency', 255)->nullable();
             $table->date('recurring_start_date')->nullable();
             $table->date('recurring_end_date')->nullable();

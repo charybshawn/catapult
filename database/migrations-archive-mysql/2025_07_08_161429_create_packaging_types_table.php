@@ -14,8 +14,8 @@ return new class extends Migration
         Schema::create('packaging_types', function (Blueprint $table) {
             $table->id();
             $table->string('name', 255);
-            $table->unsignedBigInteger('type_category_id');
-            $table->unsignedBigInteger('unit_type_id');
+            $table->bigInteger('type_category_id');
+            $table->bigInteger('unit_type_id');
             $table->decimal('capacity_volume', 10, 2)->nullable();
             $table->string('volume_unit', 20)->nullable();
             $table->text('description')->nullable();

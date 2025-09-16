@@ -19,7 +19,6 @@ return new class extends Migration
                     $table->bigInteger('supplier_id')->nullable();
                     $table->bigInteger('packaging_type_id')->nullable();
                     $table->bigInteger('master_seed_catalog_id')->nullable();
-                    $table->bigInteger('master_cultivar_id')->nullable();
                     $table->string('cultivar', 255)->nullable();
                     $table->decimal('initial_stock', 10, 3);
                     $table->decimal('current_stock', 10, 2)->nullable();

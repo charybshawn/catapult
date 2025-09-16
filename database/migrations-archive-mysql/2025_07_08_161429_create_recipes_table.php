@@ -14,10 +14,10 @@ return new class extends Migration
         Schema::create('recipes', function (Blueprint $table) {
             $table->id();
             $table->string('name', 255);
-            $table->unsignedBigInteger('master_seed_catalog_id')->nullable();
-            $table->unsignedBigInteger('master_cultivar_id')->nullable();
-            $table->unsignedBigInteger('soil_consumable_id')->nullable();
-            $table->unsignedBigInteger('seed_consumable_id')->nullable();
+            $table->bigInteger('master_seed_catalog_id')->nullable();
+            $table->bigInteger('master_cultivar_id')->nullable();
+            $table->bigInteger('soil_consumable_id')->nullable();
+            $table->bigInteger('seed_consumable_id')->nullable();
             $table->string('lot_number', 255)->nullable();
             $table->timestamp('lot_depleted_at')->nullable();
             $table->decimal('seed_soak_hours', 5, 2)->default(0.00);

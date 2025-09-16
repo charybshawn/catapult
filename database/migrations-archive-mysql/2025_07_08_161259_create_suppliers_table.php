@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('suppliers', function (Blueprint $table) {
             $table->id();
             $table->string('name', 255);
-            $table->unsignedBigInteger('supplier_type_id');
+            $table->bigInteger('supplier_type_id');
             $table->string('contact_name', 255)->nullable();
             $table->string('contact_email', 255)->nullable();
             $table->string('contact_phone', 255)->nullable();

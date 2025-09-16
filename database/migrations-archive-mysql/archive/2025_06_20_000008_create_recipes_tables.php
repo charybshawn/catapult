@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->foreignId('supplier_soil_id')->nullable()->constrained('suppliers')->onDelete('set null');
-            $table->unsignedBigInteger('soil_consumable_id')->nullable()->index();
+            $table->bigInteger('soil_consumable_id')->nullable()->index();
             $table->decimal('seed_soak_hours', 5, 2)->default(0);
             $table->integer('germination_days');
             $table->integer('blackout_days');

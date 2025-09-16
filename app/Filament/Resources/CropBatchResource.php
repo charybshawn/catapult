@@ -10,7 +10,6 @@ use App\Filament\Traits\CsvExportAction;
 use App\Filament\Traits\HasStandardActions;
 use App\Filament\Traits\HasTimestamps;
 use App\Models\CropBatch;
-use App\Models\CropBatchListView;
 use Filament\Forms\Form;
 use Filament\Infolists\Infolist;
 use Filament\Tables\Table;

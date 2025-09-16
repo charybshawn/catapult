@@ -23,7 +23,7 @@ return new class extends Migration
             $table->json('parameters')->nullable();
             $table->json('results')->nullable();
             $table->text('error_message')->nullable();
-            $table->unsignedBigInteger('initiated_by')->nullable();
+            $table->bigInteger('initiated_by')->nullable();
             $table->timestamp('started_at')->nullable();
             $table->timestamp('completed_at')->nullable();
             $table->decimal('execution_time_seconds', 10, 2)->nullable();

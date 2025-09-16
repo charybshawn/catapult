@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('phone', 255)->nullable();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password', 255)->nullable();
-            $table->unsignedBigInteger('customer_type_id')->nullable();
+            $table->bigInteger('customer_type_id')->nullable();
             $table->decimal('wholesale_discount_percentage', 5, 2)->default(0.00);
             $table->string('company_name', 255)->nullable();
             $table->text('address')->nullable();

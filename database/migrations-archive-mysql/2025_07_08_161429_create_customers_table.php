@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('email', 255);
             $table->string('cc_email', 255)->nullable();
             $table->string('phone', 255)->nullable();
-            $table->unsignedBigInteger('customer_type_id');
+            $table->bigInteger('customer_type_id');
             $table->string('business_name', 255)->nullable();
             $table->decimal('wholesale_discount_percentage', 5, 2)->default(0.00);
             $table->text('address')->nullable();
@@ -25,7 +25,7 @@ return new class extends Migration
             $table->string('province', 255)->nullable();
             $table->string('postal_code', 20)->nullable();
             $table->string('country', 2)->default('CA');
-            $table->unsignedBigInteger('user_id')->nullable();
+            $table->bigInteger('user_id')->nullable();
             $table->timestamps();
         });
     }

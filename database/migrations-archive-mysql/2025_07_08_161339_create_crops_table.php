@@ -13,11 +13,11 @@ return new class extends Migration
     {
         Schema::create('crops', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('recipe_id');
-            $table->unsignedBigInteger('order_id')->nullable();
-            $table->unsignedBigInteger('crop_plan_id')->nullable();
+            $table->bigInteger('recipe_id');
+            $table->bigInteger('order_id')->nullable();
+            $table->bigInteger('crop_plan_id')->nullable();
             $table->string('tray_number', 255);
-            $table->unsignedBigInteger('current_stage_id');
+            $table->bigInteger('current_stage_id');
             $table->timestamp('stage_updated_at')->nullable();
             $table->timestamp('planting_at')->nullable();
             $table->timestamp('germination_at')->nullable();
