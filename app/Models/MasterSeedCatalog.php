@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class MasterSeedCatalog extends Model
 {
     protected $table = 'master_seed_catalog';
-    
+
     protected $fillable = [
         'common_name',
         'cultivar_id',
@@ -42,7 +42,7 @@ class MasterSeedCatalog extends Model
     {
         return $this->hasMany(MasterCultivar::class, 'master_seed_catalog_id')->where('is_active', true);
     }
-    
+
     public function primaryCultivar(): HasOne
     {
         return $this->hasOne(MasterCultivar::class, 'master_seed_catalog_id');
@@ -64,7 +64,7 @@ class MasterSeedCatalog extends Model
     public function getCultivarNameAttribute(): ?string
     {
         // Check new JSON cultivars column first
-        if (!empty($this->cultivars) && is_array($this->cultivars)) {
+        if (! empty($this->cultivars) && is_array($this->cultivars)) {
             return $this->cultivars[0];
         }
 
@@ -84,7 +84,7 @@ class MasterSeedCatalog extends Model
         foreach ($catalogs as $catalog) {
             $cultivars = $catalog->cultivars ?? [];
 
-            if (!empty($cultivars) && is_array($cultivars)) {
+            if (! empty($cultivars) && is_array($cultivars)) {
                 foreach ($cultivars as $cultivar) {
                     $displayName = "{$catalog->common_name} ({$cultivar})";
                     $value = "{$catalog->id}:{$cultivar}";
@@ -105,10 +105,11 @@ class MasterSeedCatalog extends Model
     public static function parseCombinedValue(string $value): array
     {
         [$catalogId, $cultivarName] = explode(':', $value, 2);
+
         return [
             'catalog_id' => (int) $catalogId,
             'cultivar_name' => $cultivarName ?: null,
-            'catalog' => static::find($catalogId)
+            'catalog' => static::find($catalogId),
         ];
     }
 
@@ -121,5 +122,4 @@ class MasterSeedCatalog extends Model
             ? "{$this->common_name} ({$cultivar})"
             : $this->common_name;
     }
-
 }
