@@ -12,9 +12,6 @@ class MasterSeedCatalogTableSeeder extends Seeder
      */
     public function run(): void
     {
-        // Disable foreign key checks temporarily
-        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-
         // Clear existing data
         DB::table('master_seed_catalog')->truncate();
 
@@ -261,8 +258,5 @@ class MasterSeedCatalogTableSeeder extends Seeder
                 'updated_at' => '2025-07-03 09:19:08',
             ],
         ]);
-
-        // Re-enable foreign key checks
-        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
     }
 }
