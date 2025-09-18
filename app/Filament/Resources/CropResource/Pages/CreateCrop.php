@@ -29,6 +29,8 @@ class CreateCrop extends BaseCreateRecord
                 'crop_plan_id' => $data['crop_plan_id'] ?? null,
                 'tray_count' => $data['tray_count'] ?? 1,
                 'tray_numbers' => $data['tray_numbers'] ?? null, // Fixed: use plural form
+                'germination_at' => $data['germination_at'] ?? null,
+                'soaking_at' => $data['soaking_at'] ?? null,
                 'notes' => $data['notes'] ?? null,
             ];
             

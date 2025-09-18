@@ -28,8 +28,7 @@ class ListRecipes extends ListRecords
      */
     public function getTableQuery(): ?\Illuminate\Database\Eloquent\Builder
     {
-        return Recipe::query()
-            ->with(['seedConsumable', 'soilConsumable', 'masterSeedCatalog', 'crops.currentStage']);
+        return Recipe::query();
     }
     
     /**

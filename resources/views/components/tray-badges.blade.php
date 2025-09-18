@@ -1,6 +1,7 @@
 @if($getState())
     @php
-        $trayNumbers = explode(', ', $getState());
+        $state = $getState();
+        $trayNumbers = is_array($state) ? $state : explode(', ', $state);
     @endphp
     
     <div class="flex flex-wrap gap-1">

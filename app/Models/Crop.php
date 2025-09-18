@@ -38,7 +38,6 @@ class Crop extends Model
         'order_id',
         'crop_plan_id',
         'tray_number',
-        'tray_count',
         'current_stage_id',
         'germination_at',
         'blackout_at',
@@ -55,7 +54,7 @@ class Crop extends Model
      *
      * @var array
      */
-    protected $appends = ['variety_name', 'current_stage'];
+    protected $appends = ['variety_name', 'current_stage_code', 'current_stage'];
     
     /**
      * The attributes that should be cast.
@@ -164,7 +163,7 @@ class Crop extends Model
      * Get the current_stage attribute for backward compatibility.
      * Maps the current_stage_id to the stage code.
      */
-    public function getCurrentStageAttribute(): string
+    public function getCurrentStageCodeAttribute(): string
     {
         // If we have a current_stage_id, try to get from the relationship
         if ($this->current_stage_id && $this->relationLoaded('currentStage')) {
@@ -182,6 +181,27 @@ class Crop extends Model
         ];
         
         return $stageMap[$this->current_stage_id ?? 2] ?? 'germination';
+    }
+    
+    /**
+     * Get the current_stage attribute for backward compatibility.
+     * Maps the current_stage_id to the stage code.
+     */
+    public function getCurrentStageAttribute(): string
+    {
+        return $this->getCurrentStageCodeAttribute();
+    }
+    
+    /**
+     * Set the current_stage attribute for backward compatibility.
+     * Maps the stage code to current_stage_id.
+     */
+    public function setCurrentStageCodeAttribute(string $value): void
+    {
+        $stage = CropStage::findByCode($value);
+        if ($stage) {
+            $this->current_stage_id = $stage->id;
+        }
     }
     
     /**
@@ -316,7 +336,17 @@ class Crop extends Model
      */
     public function getNextStage(): ?CropStage
     {
-        return $this->currentStage?->getNextStage();
+        if (!$this->currentStage) {
+            return null;
+        }
+
+        // Load recipe if not already loaded
+        if (!$this->relationLoaded('recipe')) {
+            $this->load('recipe');
+        }
+
+        // Use recipe-aware next stage logic to skip stages with 0 days
+        return $this->currentStage->getNextViableStage($this->recipe);
     }
     
     /**
@@ -456,8 +486,8 @@ class Crop extends Model
      */
     public function isReadyToHarvest(): bool
     {
-        // The current_stage attribute returns a string code, not the object
-        return $this->current_stage === 'light';
+        // The current_stage_code attribute returns a string code, not the object
+        return $this->current_stage_code === 'light';
     }
 
     /**

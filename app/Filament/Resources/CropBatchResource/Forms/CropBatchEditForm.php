@@ -74,7 +74,7 @@ class CropBatchEditForm
                                 ->label('Soaking Started')
                                 ->helperText('When soaking stage began')
                                 ->seconds(false),
-                            Forms\Components\DateTimePicker::make('planting_at')
+                            Forms\Components\DateTimePicker::make('germination_at')
                                 ->label('Planting Date')
                                 ->helperText('When crops were planted')
                                 ->seconds(false),
@@ -103,7 +103,7 @@ class CropBatchEditForm
                                 if ($firstCrop) {
                                     $component->fill([
                                         'soaking_at' => $firstCrop->soaking_at,
-                                        'planting_at' => $firstCrop->planting_at,
+                                        'germination_at' => $firstCrop->germination_at,
                                         'germination_at' => $firstCrop->germination_at,
                                         'blackout_at' => $firstCrop->blackout_at,
                                         'light_at' => $firstCrop->light_at,

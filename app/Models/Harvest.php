@@ -15,7 +15,7 @@ class Harvest extends Model
     use HasFactory, LogsActivity;
 
     protected $fillable = [
-        'master_cultivar_id',
+        'recipe_id',
         'user_id',
         'total_weight_grams',
         'tray_count',
@@ -29,9 +29,9 @@ class Harvest extends Model
         'harvest_date' => 'date',
     ];
 
-    public function masterCultivar(): BelongsTo
+    public function recipe(): BelongsTo
     {
-        return $this->belongsTo(MasterCultivar::class);
+        return $this->belongsTo(Recipe::class);
     }
 
     public function user(): BelongsTo
@@ -67,7 +67,21 @@ class Harvest extends Model
 
     public function getVarietyNameAttribute(): string
     {
-        return $this->masterCultivar ? $this->masterCultivar->full_name : 'Unknown Variety';
+        if (!$this->relationLoaded('recipe')) {
+            $this->load('recipe.masterSeedCatalog');
+        }
+
+        if (!$this->recipe) {
+            return 'Unknown Variety';
+        }
+
+        $commonName = $this->recipe->masterSeedCatalog?->common_name ?? $this->recipe->common_name ?? 'Unknown';
+
+        if ($this->recipe->cultivar_name) {
+            return $commonName . ' (' . $this->recipe->cultivar_name . ')';
+        }
+
+        return $commonName;
     }
 
 
@@ -75,7 +89,7 @@ class Harvest extends Model
     {
         return LogOptions::defaults()
             ->logOnly([
-                'master_cultivar_id',
+                'recipe_id',
                 'user_id',
                 'total_weight_grams',
                 'tray_count',

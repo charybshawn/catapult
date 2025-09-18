@@ -52,7 +52,7 @@ class ListCrops extends ListRecords
 
         // Add additional logging for debugging
         Log::info('Recipe and Seed Entry Data:', [
-            'recipes' => \App\Models\Recipe::with('masterSeedCatalog', 'masterCultivar')->get()->map(function ($recipe) {
+            'recipes' => \App\Models\Recipe::with('masterSeedCatalog')->get()->map(function ($recipe) {
                 return [
                     'id' => $recipe->id,
                     'name' => $recipe->name,
