@@ -279,31 +279,6 @@
             @endif
         </div>
     </div>
-                                        </div>
-                                    </div>
-                                    <div class="text-right">
-                                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                            {{ $history->duration_display ?? 'In Progress' }}
-                                        </span>
-                                    </div>
-                                </div>
-                                @if($history->notes)
-                                    <div class="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                                        {{ $history->notes }}
-                                    </div>
-                                @endif
-                                @if($history->createdBy)
-                                    <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                                        By: {{ $history->createdBy->name }}
-                                    </div>
-                                @endif
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-        </div>
-    @endif
 
     {{-- Time Calculations --}}
     <div>

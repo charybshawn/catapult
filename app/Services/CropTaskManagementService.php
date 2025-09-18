@@ -263,7 +263,7 @@ class CropTaskManagementService
 
             // Get current and next stage
             $currentStage = $this->getCurrentStage($crops->first());
-            $nextStage = $this->getNextStage($currentStage);
+            $nextStage = $this->getNextStage($currentStage, $crops->first());
 
             if (!$nextStage) {
                 throw ValidationException::withMessages([
@@ -1012,14 +1012,28 @@ class CropTaskManagementService
      */
     private function getCurrentStage(Crop $crop): CropStage
     {
-        return $crop->currentStage ?? CropStage::find($crop->current_stage_id);
+        // Use the loaded relationship if available, otherwise query for it
+        if ($crop->relationLoaded('currentStage')) {
+            $stage = $crop->getRelation('currentStage');
+            if ($stage) return $stage;
+        }
+        
+        // Fallback to direct query
+        $stage = $crop->currentStage()->first();
+        return $stage ?? CropStage::find($crop->current_stage_id);
     }
 
     /**
-     * Get next stage in progression
+     * Get next stage in progression (recipe-aware)
      */
-    private function getNextStage(CropStage $currentStage): ?CropStage
+    private function getNextStage(CropStage $currentStage, ?Crop $crop = null): ?CropStage
     {
+        // If we have a crop with recipe, use the recipe-aware logic
+        if ($crop && $crop->recipe) {
+            return $currentStage->getNextViableStage($crop->recipe);
+        }
+
+        // Fallback to basic progression
         return CropStage::where('sort_order', '>', $currentStage->sort_order)
             ->where('is_active', true)
             ->orderBy('sort_order')

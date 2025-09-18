@@ -22,54 +22,20 @@ class RecipeVarietyService
             return 'Unknown';
         }
 
-        // Load relationships if not already loaded
-        if (! $recipe->relationLoaded('masterCultivar')) {
-            $recipe->load('masterCultivar');
-        }
+        // Load masterSeedCatalog relationship if not already loaded
         if (! $recipe->relationLoaded('masterSeedCatalog')) {
             $recipe->load('masterSeedCatalog');
         }
 
-        // Try to get from relationships first
-        if ($recipe->masterCultivar && $recipe->masterSeedCatalog) {
-            $commonName = $recipe->masterSeedCatalog->common_name;
-            $cultivarName = $recipe->masterCultivar->cultivar_name;
+        // Get common name from relationship or direct field
+        $commonName = $recipe->masterSeedCatalog?->common_name ?? $recipe->common_name ?? 'Unknown';
 
-            return $commonName.' ('.$cultivarName.')';
-        }
-
-        // If masterCultivar exists but no masterSeedCatalog, check if masterCultivar has its own masterSeedCatalog
-        if ($recipe->relationLoaded('masterCultivar') && $recipe->masterCultivar) {
-            $cultivarName = $recipe->masterCultivar->cultivar_name;
-
-            // Load the masterSeedCatalog relationship on cultivar if needed
-            if (! $recipe->masterCultivar->relationLoaded('masterSeedCatalog')) {
-                $recipe->masterCultivar->load('masterSeedCatalog');
-            }
-
-            if ($recipe->masterCultivar->masterSeedCatalog) {
-                $commonName = $recipe->masterCultivar->masterSeedCatalog->common_name;
-
-                return $commonName.' ('.$cultivarName.')';
-            }
-
-            // Fallback to just cultivar name if no seed catalog available
-            return $cultivarName;
-        }
-
-        // If only masterSeedCatalog is available
-        if ($recipe->relationLoaded('masterSeedCatalog') && $recipe->masterSeedCatalog) {
-            return $recipe->masterSeedCatalog->common_name;
-        }
-
-        // Fallback to direct fields if relationships not loaded
+        // Add cultivar name if available
         if ($recipe->cultivar_name) {
-            $commonName = $recipe->common_name ?? 'Unknown';
-
-            return $commonName.' ('.$recipe->cultivar_name.')';
+            return $commonName . ' (' . $recipe->cultivar_name . ')';
         }
 
-        return $recipe->common_name ?? 'Unknown';
+        return $commonName;
     }
 
     /**
@@ -100,15 +66,6 @@ class RecipeVarietyService
     {
         if (! $recipe) {
             return null;
-        }
-
-        // Load relationship if not already loaded
-        if (! $recipe->relationLoaded('masterCultivar')) {
-            $recipe->load('masterCultivar');
-        }
-
-        if ($recipe->masterCultivar) {
-            return $recipe->masterCultivar->cultivar_name;
         }
 
         return $recipe->cultivar_name;

@@ -59,7 +59,7 @@ class CropBatchResource extends BaseResource
         return static::configureTableDefaults($table)
             ->defaultSort('id', 'desc')
             ->deferLoading()
-            ->recordAction('view')
+            ->recordAction('edit')
             ->recordUrl(null)
             ->columns(CropBatchTable::columns())
             ->groups(CropBatchTable::groups())
@@ -102,7 +102,7 @@ class CropBatchResource extends BaseResource
             'recipe_name' => 'Recipe Name',
             'crop_count' => 'Tray Count',
             'current_stage_name' => 'Current Stage',
-            'planting_at' => 'Planted Date',
+            'germination_at' => 'Planted Date',
             'expected_harvest_at' => 'Expected Harvest',
             'stage_age_display' => 'Time in Stage',
             'total_age_display' => 'Total Age',

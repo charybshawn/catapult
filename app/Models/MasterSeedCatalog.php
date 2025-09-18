@@ -48,4 +48,21 @@ class MasterSeedCatalog extends Model
         // Fallback to existing relationship for backward compatibility
         return $this->cultivar?->cultivar_name;
     }
+
+    /**
+     * Parse combined value format: {catalog_id}:{cultivar_name}
+     */
+    public static function parseCombinedValue(string $combinedValue): array
+    {
+        $parts = explode(':', $combinedValue, 2);
+
+        if (count($parts) !== 2) {
+            throw new \InvalidArgumentException('Invalid combined value format. Expected: catalog_id:cultivar_name');
+        }
+
+        return [
+            'catalog_id' => (int) $parts[0],
+            'cultivar_name' => $parts[1],
+        ];
+    }
 }

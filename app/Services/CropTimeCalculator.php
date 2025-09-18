@@ -28,7 +28,7 @@ class CropTimeCalculator
             $crop->load('recipe');
         }
 
-        if (!$crop->recipe || $crop->current_stage === 'harvested') {
+        if (!$crop->recipe || $crop->current_stage_code === 'harvested') {
             return 'Calculating...';
         }
 
@@ -76,7 +76,7 @@ class CropTimeCalculator
             $crop->load('recipe');
         }
 
-        if (!$crop->recipe || $crop->current_stage === 'harvested') {
+        if (!$crop->recipe || $crop->current_stage_code === 'harvested') {
             return null;
         }
 
@@ -236,7 +236,7 @@ class CropTimeCalculator
      */
     private function getCurrentStageStartTime(Crop $crop): ?Carbon
     {
-        $timestamp = match ($crop->current_stage) {
+        $timestamp = match ($crop->current_stage_code) {
             'soaking' => $crop->soaking_at,
             'germination' => $crop->germination_at,
             'blackout' => $crop->blackout_at,
@@ -262,7 +262,7 @@ class CropTimeCalculator
             return null;
         }
 
-        return match ($crop->current_stage) {
+        return match ($crop->current_stage_code) {
             'soaking' => $crop->recipe->seed_soak_hours ? ($crop->recipe->seed_soak_hours / 24) : null,
             'germination' => $crop->recipe->germination_days,
             'blackout' => $crop->recipe->blackout_days,  

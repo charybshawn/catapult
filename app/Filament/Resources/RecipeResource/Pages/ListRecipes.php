@@ -4,7 +4,7 @@ namespace App\Filament\Resources\RecipeResource\Pages;
 
 use App\Filament\Resources\RecipeResource;
 use App\Models\Recipe;
-use App\Models\RecipeOptimizedView;
+
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Tables\Actions\BulkActionGroup;
@@ -28,7 +28,7 @@ class ListRecipes extends ListRecords
      */
     public function getTableQuery(): ?\Illuminate\Database\Eloquent\Builder
     {
-        return RecipeOptimizedView::query();
+        return Recipe::query();
     }
     
     /**

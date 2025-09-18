@@ -18,7 +18,6 @@ class CropTable
         // Eager load relationships for optimal performance
         return $query->with([
             'recipe',
-            'recipe.masterCultivar',
             'recipe.masterSeedCatalog',
             'currentStage'
         ]);

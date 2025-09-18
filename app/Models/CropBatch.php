@@ -114,11 +114,10 @@ class CropBatch extends Model
     {
         return $query->with([
             'crops' => function ($query) {
-                $query->with(['recipe', 'recipe.masterCultivar', 'recipe.masterSeedCatalog'])
+                $query->with(['recipe', 'recipe.masterSeedCatalog'])
                       ->orderBy('tray_number');
             },
             'recipe',
-            'recipe.masterCultivar',
             'recipe.masterSeedCatalog',
         ])
         ->withCount('crops');
@@ -191,7 +190,7 @@ class CropBatch extends Model
         return $firstCrop?->germination_at ? Carbon::parse($firstCrop->germination_at) : null;
     }
 
-    /**
+/**
      * Get sorted array of tray numbers from all crops.
      */
     public function getTrayNumbersAttribute(): array
@@ -297,8 +296,8 @@ class CropBatch extends Model
             return null;
         }
 
-        // Use planting_at if available, otherwise fall back to germination_at
-        $startDate = $firstCrop->planting_at ?: $firstCrop->germination_at;
+        // Use germination_at as the planting date
+        $startDate = $firstCrop->germination_at;
         
         if (!$startDate) {
             return null;

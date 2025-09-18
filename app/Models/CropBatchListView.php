@@ -29,7 +29,7 @@ class CropBatchListView extends Model
      * The attributes that should be cast.
      */
     protected $casts = [
-        'planting_at' => 'datetime',
+        'germination_at' => 'datetime',
         'expected_harvest_at' => 'datetime',
         'watering_suspended_at' => 'datetime',
         'created_at' => 'datetime',

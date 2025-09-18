@@ -42,7 +42,7 @@ class EditCropBatch extends EditRecord
             $data['current_stage_id'] = $firstCrop->current_stage_id;
             $data['notes'] = $firstCrop->notes;
             $data['soaking_at'] = $firstCrop->soaking_at;
-            $data['planting_at'] = $firstCrop->planting_at;
+            $data['germination_at'] = $firstCrop->germination_at;
             $data['germination_at'] = $firstCrop->germination_at;
             $data['blackout_at'] = $firstCrop->blackout_at;
             $data['light_at'] = $firstCrop->light_at;
@@ -65,7 +65,7 @@ class EditCropBatch extends EditRecord
                 'current_stage_id' => $data['current_stage_id'] ?? null,
                 'notes' => $data['notes'] ?? null,
                 'soaking_at' => $data['soaking_at'] ?? null,
-                'planting_at' => $data['planting_at'] ?? null,
+                'germination_at' => $data['germination_at'] ?? null,
                 'germination_at' => $data['germination_at'] ?? null,
                 'blackout_at' => $data['blackout_at'] ?? null,
                 'light_at' => $data['light_at'] ?? null,

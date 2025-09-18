@@ -31,7 +31,7 @@ class CropBatchTable
     public static function columns(): array
     {
         return [
-            Tables\Columns\TextColumn::make('recipe_name')
+            Tables\Columns\TextColumn::make('recipe.name')
                 ->label('Recipe')
                 ->weight('bold')
                 ->searchable()
@@ -42,7 +42,7 @@ class CropBatchTable
                 ->searchable()
                 ->sortable(false)
                 ->toggleable(),
-            Tables\Columns\TextColumn::make('planting_at')
+            Tables\Columns\TextColumn::make('germination_at')
                 ->label('Planted')
                 ->date()
                 ->sortable()
@@ -102,45 +102,15 @@ class CropBatchTable
     public static function actions(): array
     {
         return [
+            Tables\Actions\EditAction::make(),
             Tables\Actions\ActionGroup::make([
-                Tables\Actions\ViewAction::make()
-                ->tooltip('View crop details')
-                ->modalHeading('Crop Details')
-                ->modalWidth('sm')
-                ->slideOver()
-                ->modalIcon('heroicon-o-eye')
-                ->extraModalFooterActions([
-                    Tables\Actions\Action::make('advance_stage')
-                        ->label('Advance Stage')
-                        ->icon('heroicon-o-chevron-double-right')
-                        ->color('success')
-                        ->visible(function ($record) {
-                            $stage = CropStageCache::find($record->current_stage_id);
-                            return $stage?->code !== 'harvested';
-                        })
-                        ->action(function ($record, $livewire) {
-                            // Close the view modal and trigger the main advance stage action
-                            $livewire->mountTableAction('advanceStage', $record->id);
-                        }),
-                    Tables\Actions\Action::make('edit_crop')
-                        ->label('Edit Crop')
-                        ->icon('heroicon-o-pencil-square')
-                        ->color('primary')
-                        ->url(fn ($record) => \App\Filament\Resources\CropResource::getUrl('edit', ['record' => $record])),
-                    Tables\Actions\Action::make('view_all_crops')
-                        ->label('View All Crops')
-                        ->icon('heroicon-o-list-bullet')
-                        ->color('gray')
-                        ->url(fn ($record) => \App\Filament\Resources\CropResource::getUrl('index')),
-                ]),
             CropBatchDebugAction::make(),
             static::getFixTimestampsAction(),
-            
+
             StageTransitionActions::advanceStage(),
             StageTransitionActions::harvest(),
             StageTransitionActions::rollbackStage(),
             static::getSuspendWateringAction(),
-            Tables\Actions\EditAction::make(),
             Tables\Actions\DeleteAction::make()
                 ->requiresConfirmation()
                 ->modalHeading('Delete Entire Grow Batch?')
@@ -207,7 +177,7 @@ class CropBatchTable
         return [
             Tables\Grouping\Group::make('recipe.name')
                 ->label('Recipe'),
-            Tables\Grouping\Group::make('planting_at')
+            Tables\Grouping\Group::make('germination_at')
                 ->label('Plant Date')
                 ->date(),
             Tables\Grouping\Group::make('current_stage_name')
@@ -381,10 +351,10 @@ class CropBatchTable
                         }
                     } catch (\Illuminate\Validation\ValidationException $e) {
                         $failedBatches++;
-                        $warnings[] = "Batch {$record->batch_number}: " . implode(', ', $e->errors()['stage'] ?? $e->errors()['target'] ?? ['Unknown error']);
+                        $warnings[] = "Batch #{$record->id}: " . implode(', ', $e->errors()['stage'] ?? $e->errors()['target'] ?? ['Unknown error']);
                     } catch (\Exception $e) {
                         $failedBatches++;
-                        $warnings[] = "Batch {$record->batch_number}: " . $e->getMessage();
+                        $warnings[] = "Batch #{$record->id}: " . $e->getMessage();
                     }
                 }
                 
@@ -472,11 +442,11 @@ class CropBatchTable
                             $skippedCount++;
                         } else {
                             $failedBatches++;
-                            $warnings[] = "Batch {$record->batch_number}: " . implode(', ', $errors['stage'] ?? $errors['target'] ?? ['Unknown error']);
+                            $warnings[] = "Batch #{$record->id}: " . implode(', ', $errors['stage'] ?? $errors['target'] ?? ['Unknown error']);
                         }
                     } catch (\Exception $e) {
                         $failedBatches++;
-                        $warnings[] = "Batch {$record->batch_number}: " . $e->getMessage();
+                        $warnings[] = "Batch #{$record->id}: " . $e->getMessage();
                     }
                 }
                 

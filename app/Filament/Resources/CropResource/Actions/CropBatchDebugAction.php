@@ -27,7 +27,7 @@ class CropBatchDebugAction
                 $firstCrop = \App\Models\Crop::where('crop_batch_id', $record->id)->first();
                 
                 // Get recipe data
-                $recipe = Recipe::find($record->recipe_id);
+                $recipe = $record->recipe;
                 
                 // Get stage history for the batch
                 $stageHistory = \App\Models\CropStageHistory::where('crop_batch_id', $record->id)

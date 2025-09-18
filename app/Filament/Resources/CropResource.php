@@ -61,8 +61,6 @@ class CropResource extends BaseResource
                             ->badge(),
                         Infolists\Components\TextEntry::make('tray_number')
                             ->label('Tray Number'),
-                        Infolists\Components\TextEntry::make('tray_count')
-                            ->label('Tray Count'),
                     ])
                     ->columns(2),
 

@@ -1013,7 +1013,7 @@ class Order extends Model
         
         // Check crop stages
         $allHarvested = $crops->every(fn($crop) => $crop->current_stage === 'harvested');
-        $anyPlanted = $crops->contains(fn($crop) => $crop->planting_at !== null);
+        $anyPlanted = $crops->contains(fn($crop) => $crop->germination_at !== null);
         $allReady = $crops->every(fn($crop) => $crop->isReadyToHarvest());
         
         if ($allHarvested) {
@@ -1248,7 +1248,7 @@ class Order extends Model
             'status' => ['id', 'name', 'code', 'stage'],
             'orderType' => ['id', 'name', 'code'],
             'orderItems' => ['id', 'product_id', 'quantity', 'price'],
-            'crops' => ['id', 'recipe_id', 'tray_number', 'current_stage_id', 'planting_at'],
+            'crops' => ['id', 'recipe_id', 'tray_number', 'current_stage_id', 'germination_at'],
         ];
     }
     

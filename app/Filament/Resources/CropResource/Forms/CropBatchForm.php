@@ -28,26 +28,7 @@ class CropBatchForm
                         ->options(Recipe::pluck('name', 'id'))
                         ->required()
                         ->searchable()
-                        ->preload()
-                        ->reactive()
-                        ->createOptionForm(\App\Filament\Resources\RecipeResource\Forms\RecipeForm::schema())
-                        ->afterStateUpdated(function ($state, Set $set, Get $get) {
-                            // Update soaking information when recipe changes
-                            if ($state) {
-                                $recipe = Recipe::find($state);
-                                if ($recipe && $recipe->requiresSoaking()) {
-                                    $set('soaking_duration_display', $recipe->seed_soak_hours . ' hours');
-                                    
-                                    // Only set soaking_at if it's not already set by the user
-                                    if (!$get('soaking_at')) {
-                                        $set('soaking_at', now());
-                                    }
-                                    
-                                    static::updatePlantingDate($set, $get);
-                                    static::updateSeedQuantityCalculation($set, $get);
-                                }
-                            }
-                        }),
+                        ->preload(),
 
                     Forms\Components\Section::make('Soaking Information')
                         ->schema([
@@ -92,17 +73,42 @@ class CropBatchForm
                             static::updatePlantingDate($set, $get);
                         }),
 
-                    Forms\Components\DateTimePicker::make('planting_at')
-                        ->label('Planting Date')
-                        ->required(fn (Get $get) => !static::checkRecipeRequiresSoaking($get))
-                        ->default(now())
-                        ->seconds(false)
-                        ->helperText(fn (Get $get) => static::checkRecipeRequiresSoaking($get)
-                            ? 'Auto-calculated from soaking start time + duration. You can override if needed.'
-                            : 'When the crop will be planted'),
+                    Forms\Components\Section::make('Planting Time')
+                        ->schema([
+                            Forms\Components\Radio::make('planting_time_option')
+                                ->label('When would you like to plant?')
+                                ->options([
+                                    'now' => 'Right now',
+                                    'scheduled' => 'Set a specific date and time',
+                                ])
+                                ->default('now')
+                                ->live()
+                                ->afterStateUpdated(function (Set $set, $state) {
+                                    if ($state === 'now') {
+                                        $set('germination_at', now());
+                                    } elseif ($state === 'scheduled') {
+                                        // Clear the field so user can set their own time
+                                        $set('germination_at', null);
+                                    }
+                                })
+                                ->visible(fn (Get $get) => !static::checkRecipeRequiresSoaking($get))
+                                ->columnSpanFull(),
+
+                            Forms\Components\DateTimePicker::make('germination_at')
+                                ->label('Planting Date')
+                                ->required(fn (Get $get) => !static::checkRecipeRequiresSoaking($get))
+                                ->default(now())
+                                ->seconds(false)
+                                ->helperText(fn (Get $get) => static::checkRecipeRequiresSoaking($get)
+                                    ? 'Auto-calculated from soaking start time + duration. You can override if needed.'
+                                    : 'When the crop will be planted')
+                                ->columnSpanFull(),
+                        ])
+                        ->compact()
+                        ->columnSpanFull(),
                     Forms\Components\Select::make('current_stage_id')
                         ->label('Current Stage')
-                        ->relationship('currentStage', 'name')
+                        ->options(\App\Services\CropStageCache::all()->pluck('name', 'id'))
                         ->required()
                         ->default(function (Get $get) {
                             $recipeId = $get('recipe_id');
@@ -118,7 +124,7 @@ class CropBatchForm
                             $germination = CropStageCache::findByCode('germination');
                             return $germination ? $germination->id : null;
                         })
-                        ->visible(fn ($livewire) => !($livewire instanceof \App\Filament\Resources\CropResource\Pages\CreateCrop)),
+                        ->visible(fn ($livewire) => !($livewire instanceof \App\Filament\Resources\CropBatchResource\Pages\CreateCropBatch)),
                     Forms\Components\Textarea::make('notes')
                         ->label('Notes')
                         ->rows(3)
@@ -139,7 +145,7 @@ class CropBatchForm
                             ? ['array'] 
                             : ['array', 'min:1'])
                         ->nestedRecursiveRules(['string', 'max:20'])
-                        ->visible(fn ($livewire) => $livewire instanceof \App\Filament\Resources\CropResource\Pages\CreateCrop),
+                        ->visible(fn ($livewire) => $livewire instanceof \App\Filament\Resources\CropBatchResource\Pages\CreateCropBatch),
                     
                     Forms\Components\TagsInput::make('tray_numbers')
                         ->label('Tray Numbers')
@@ -148,7 +154,7 @@ class CropBatchForm
                         ->helperText('Edit the tray numbers or IDs for this grow batch (alphanumeric supported)')
                         ->rules(['array', 'min:1'])
                         ->nestedRecursiveRules(['string', 'max:20'])
-                        ->visible(fn ($livewire) => !($livewire instanceof \App\Filament\Resources\CropResource\Pages\CreateCrop))
+                        ->visible(fn ($livewire) => !($livewire instanceof \App\Filament\Resources\CropBatchResource\Pages\CreateCropBatch))
                         ->afterStateHydrated(function ($component, $state) {
                             if (is_array($state)) {
                                 $component->state(array_values($state));
@@ -165,14 +171,11 @@ class CropBatchForm
                                 ->label('Soaking')
                                 ->helperText('When soaking stage began')
                                 ->seconds(false),
-                            Forms\Components\DateTimePicker::make('planting_at')
+                            Forms\Components\DateTimePicker::make('germination_at')
                                 ->label('Planting')
                                 ->helperText('Changes to planting date will adjust all stage timestamps proportionally')
                                 ->seconds(false),
-                            Forms\Components\DateTimePicker::make('germination_at')
-                                ->label('Germination')
-                                ->helperText('When germination stage began')
-                                ->seconds(false),
+                            
                             Forms\Components\DateTimePicker::make('blackout_at')
                                 ->label('Blackout')
                                 ->helperText('When blackout stage began')
@@ -207,7 +210,7 @@ class CropBatchForm
             if ($recipe && $recipe->seed_soak_hours > 0) {
                 $soakingStart = \Carbon\Carbon::parse($soakingAt);
                 $plantingDate = $soakingStart->copy()->addHours($recipe->seed_soak_hours);
-                $set('planting_at', $plantingDate);
+                $set('germination_at', $plantingDate);
             }
         }
     }

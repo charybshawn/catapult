@@ -161,7 +161,7 @@ class Dashboard extends BaseDashboard
             $query->where('code', 'light');
         })
             ->where('light_at', '<', now()->subDays(7)) // Example logic
-            ->with(['recipe.masterSeedCatalog', 'recipe.masterCultivar'])
+            ->with(['recipe.masterSeedCatalog'])
             ->take(5)
             ->get();
     }
@@ -172,7 +172,7 @@ class Dashboard extends BaseDashboard
             $query->where('code', 'planting');
         })
             ->orderBy('germination_at', 'desc')
-            ->with(['recipe.masterSeedCatalog', 'recipe.masterCultivar'])
+            ->with(['recipe.masterSeedCatalog'])
             ->take(5)
             ->get();
     }
@@ -352,10 +352,10 @@ class Dashboard extends BaseDashboard
 
         // Pre-load all crops to avoid N+1 queries
         $cropIds = $alerts->map(fn ($alert) => $alert->conditions['crop_id'] ?? null)->filter()->unique();
-        $crops = Crop::with(['recipe.masterSeedCatalog', 'recipe.masterCultivar'])->whereIn('id', $cropIds)->get()->keyBy('id');
+        $crops = Crop::with(['recipe.masterSeedCatalog'])->whereIn('id', $cropIds)->get()->keyBy('id');
 
         // Pre-load all batch crops to avoid N+1 queries
-        $allCrops = Crop::with(['recipe.masterSeedCatalog', 'recipe.masterCultivar', 'currentStage'])->get()->groupBy(function ($crop) {
+        $allCrops = Crop::with(['recipe.masterSeedCatalog', 'currentStage'])->get()->groupBy(function ($crop) {
             $plantedAt = $crop->germination_at ? $crop->germination_at->format('Y-m-d') : 'unknown';
             $stageCode = 'unknown';
 
@@ -549,7 +549,7 @@ class Dashboard extends BaseDashboard
         return Crop::whereHas('currentStage', function ($query) {
             $query->where('code', 'light');
         })
-            ->with(['recipe.masterSeedCatalog', 'recipe.masterCultivar', 'order'])
+            ->with(['recipe.masterSeedCatalog', 'order'])
             ->get()
             ->filter(function ($crop) use ($nextWeek) {
                 $expectedHarvest = $crop->expectedHarvestDate();
@@ -573,7 +573,7 @@ class Dashboard extends BaseDashboard
         $cropsByVariety = Crop::whereHas('currentStage', function ($query) {
             $query->where('code', '!=', 'harvested');
         })
-            ->with(['recipe.masterSeedCatalog', 'recipe.masterCultivar.masterSeedCatalog'])
+            ->with(['recipe.masterSeedCatalog'])
             ->get()
             ->groupBy(function ($crop) {
                 return $crop->recipe->cultivar_name ?? 'Unknown';
@@ -629,11 +629,10 @@ class Dashboard extends BaseDashboard
         $harvestedCrops = Crop::whereHas('currentStage', function ($query) {
             $query->where('code', 'harvested');
         })
-            ->whereNotNull('harvested_at')
-            ->whereHas('recipe.masterCultivar', function ($query) use ($varietyName) {
+            ->whereHas('recipe', function ($query) use ($varietyName) {
                 $query->where('cultivar_name', $varietyName);
             })
-            ->with(['recipe.masterSeedCatalog', 'recipe.masterCultivar'])
+            ->with(['recipe.masterSeedCatalog'])
             ->get();
 
         if ($harvestedCrops->isEmpty()) {
@@ -719,7 +718,7 @@ class Dashboard extends BaseDashboard
             $harvests = Crop::whereHas('currentStage', function ($query) {
                 $query->where('code', 'light');
             })
-                ->with(['recipe.masterSeedCatalog', 'recipe.masterCultivar'])
+                ->with(['recipe.masterSeedCatalog'])
                 ->get()
                 ->filter(function ($crop) use ($date) {
                     $expectedHarvest = $crop->expectedHarvestDate();
@@ -918,7 +917,7 @@ class Dashboard extends BaseDashboard
      */
     protected function getUrgentCropPlans()
     {
-        return CropPlan::with(['recipe.masterSeedCatalog', 'recipe.masterCultivar', 'order.customer', 'status'])
+        return CropPlan::with(['recipe.masterSeedCatalog', 'order.customer', 'status'])
             ->whereHas('status', function ($query) {
                 $query->where('code', 'active');
             })
@@ -936,7 +935,7 @@ class Dashboard extends BaseDashboard
      */
     protected function getOverdueCropPlans()
     {
-        return CropPlan::with(['recipe.masterSeedCatalog', 'recipe.masterCultivar', 'order.customer', 'status'])
+        return CropPlan::with(['recipe.masterSeedCatalog', 'order.customer', 'status'])
             ->whereHas('status', function ($query) {
                 $query->where('code', 'active');
             })
@@ -1003,7 +1002,7 @@ class Dashboard extends BaseDashboard
         }
 
         // Add crop planting dates
-        $cropPlans = CropPlan::with(['recipe.masterSeedCatalog', 'recipe.masterCultivar', 'order', 'status'])
+        $cropPlans = CropPlan::with(['recipe.masterSeedCatalog', 'order', 'status'])
             ->where('plant_by_date', '>=', now()->subDays(30))
             ->where('plant_by_date', '<=', now()->addDays(60))
             ->get();

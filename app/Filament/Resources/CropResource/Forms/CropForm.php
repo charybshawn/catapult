@@ -18,6 +18,35 @@ class CropForm
             static::getRecipeField()
                 ->columnSpanFull(),
             
+            // Planting time section
+            Forms\Components\Section::make('Planting Time')
+                ->schema([
+                    Forms\Components\Radio::make('planting_time_option')
+                        ->label('When would you like to plant?')
+                        ->options([
+                            'now' => 'Right now',
+                            'scheduled' => 'Set a specific date and time',
+                        ])
+                        ->default('now')
+                        ->live()
+                        ->afterStateUpdated(function (Set $set, $state) {
+                            if ($state === 'now') {
+                                $set('germination_at', now());
+                            } elseif ($state === 'scheduled') {
+                                // Clear the field so user can set their own time
+                                $set('germination_at', null);
+                            }
+                        })
+                        ->columnSpanFull(),
+                    
+                    Forms\Components\DateTimePicker::make('germination_at')
+                        ->label('Planting Date & Time')
+                        ->default(now())
+                        ->required()
+                        ->columnSpanFull(),
+                ])
+                ->compact(),
+            
             // Conditional tray fields based on soaking requirement
             static::getTrayCountField()
                 ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get)),
@@ -41,17 +70,11 @@ class CropForm
                 ->columns(2)
                 ->compact(),
             
-            // Optional advanced fields
-            Forms\Components\Section::make('Advanced Options')
-                ->schema([
-                    ...static::getTimelineFields(),
-                    Forms\Components\Textarea::make('notes')
-                        ->label('Notes')
-                        ->rows(3)
-                        ->columnSpanFull(),
-                ])
-                ->collapsed()
-                ->compact(),
+            // Notes field (moved out of advanced options)
+            Forms\Components\Textarea::make('notes')
+                ->label('Notes')
+                ->rows(3)
+                ->columnSpanFull(),
         ];
     }
     

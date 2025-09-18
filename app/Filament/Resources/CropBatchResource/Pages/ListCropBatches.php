@@ -4,6 +4,7 @@ namespace App\Filament\Resources\CropBatchResource\Pages;
 
 use App\Filament\Resources\CropBatchResource;
 use Filament\Actions;
+use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 
 class ListCropBatches extends ListRecords
@@ -13,12 +14,10 @@ class ListCropBatches extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\Action::make('createCrop')
-                ->label('New Crop')
+            Actions\CreateAction::make('createBatch')
+                ->label('New Crop Batch')
                 ->icon('heroicon-o-plus')
-                ->color('primary')
-                ->url('/admin/crops/create')
-                ->button(),
+                ->color('primary'),
             Actions\Action::make('viewIndividual')
                 ->label('View Individual Crops')
                 ->icon('heroicon-o-list-bullet')
