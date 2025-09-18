@@ -35,11 +35,11 @@ class OrderCalculationService
             }
 
             $product = Product::with([
-                    'masterSeedCatalog.cultivar',
-                    'masterSeedCatalog.primaryCultivar', 
+                    //'masterSeedCatalog.cultivar',
+                    //'masterSeedCatalog.primaryCultivar', 
                     'productMix',
                     'productMix.masterSeedCatalogs',
-                    'productMix.masterSeedCatalogs.cultivar',
+                    //'productMix.masterSeedCatalogs.cultivar',
                     'productMix.masterSeedCatalogs.primaryCultivar'
                 ])
                 ->find($item['product_id']);
@@ -90,7 +90,7 @@ class OrderCalculationService
                     if (!isset($varietyTotals[$varietyKey])) {
                         $varietyTotals[$varietyKey] = [
                             'variety_id' => $variety->id,
-                            'variety_name' => $variety->common_name . ($variety->cultivar_name ? ' - ' . $variety->cultivar_name : ''),
+                            'variety_name' => $variety->common_name //. ($variety->cultivar_name ? ' - ' . $variety->cultivar_name : ''),
                             'total_grams' => 0,
                             'products' => collect()
                         ];
@@ -115,7 +115,7 @@ class OrderCalculationService
                         'type' => 'single',
                         'varieties' => [
                             [
-                                'name' => $variety->common_name . ($variety->cultivar_name ? ' - ' . $variety->cultivar_name : ''),
+                                'name' => $variety->common_name //. ($variety->cultivar_name ? ' - ' . $variety->cultivar_name : ''),
                                 'grams' => $totalWeight,
                                 'percentage' => 100
                             ]
@@ -155,7 +155,7 @@ class OrderCalculationService
                     if (!isset($varietyTotals[$varietyKey])) {
                         $varietyTotals[$varietyKey] = [
                             'variety_id' => $variety->id,
-                            'variety_name' => $variety->common_name . ($variety->cultivar_name ? ' - ' . $variety->cultivar_name : ''),
+                            'variety_name' => $variety->common_name //. ($variety->cultivar_name ? ' - ' . $variety->cultivar_name : ''),
                             'total_grams' => 0,
                             'products' => collect()
                         ];
@@ -172,7 +172,7 @@ class OrderCalculationService
                     ]);
 
                     $mixVarieties[] = [
-                        'name' => $variety->common_name . ($variety->cultivar_name ? ' - ' . $variety->cultivar_name : ''),
+                        'name' => $variety->common_name //. ($variety->cultivar_name ? ' - ' . $variety->cultivar_name : ''),
                         'grams' => round($varietyWeight, 2),
                         'percentage' => $variety->pivot->percentage
                     ];
