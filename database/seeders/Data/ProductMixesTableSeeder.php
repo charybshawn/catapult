@@ -14,10 +14,8 @@ class ProductMixesTableSeeder extends Seeder
     {
         // Clear existing data safely (disable foreign key checks temporarily)
         // Disable foreign key checks for PostgreSQL
-        DB::statement('SET session_replication_role = \'replica\';');
         DB::table('product_mix_components')->truncate();
         DB::table('product_mixes')->truncate();
-        DB::statement('SET session_replication_role = \'origin\';');
 
         // Insert product mixes
         DB::table('product_mixes')->insert([
