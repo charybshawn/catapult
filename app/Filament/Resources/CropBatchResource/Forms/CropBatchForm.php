@@ -28,7 +28,8 @@ class CropBatchForm
                         ->options(Recipe::pluck('name', 'id'))
                         ->required()
                         ->searchable()
-                        ->preload(),
+                        ->preload()
+                        ->live(),
 
                     Forms\Components\Section::make('Soaking Information')
                         ->schema([
@@ -40,7 +41,13 @@ class CropBatchForm
                                 ->label('Soaking Duration')
                                 ->disabled()
                                 ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
-                                ->dehydrated(false),
+                                ->dehydrated(false)
+                                ->default(function (Get $get) {
+                                    $recipeId = $get('recipe_id');
+                                    if (!$recipeId) return '';
+                                    $recipe = Recipe::find($recipeId);
+                                    return $recipe?->seed_soak_hours ? "{$recipe->seed_soak_hours} hours" : '';
+                                }),
                             Forms\Components\TextInput::make('soaking_tray_count')
                                 ->label('Number of Trays to Soak')
                                 ->numeric()
