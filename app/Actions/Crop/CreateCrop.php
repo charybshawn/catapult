@@ -7,21 +7,18 @@ use App\Models\CropStage;
 use App\Models\Recipe;
 use App\Actions\Crops\RecordStageHistory;
 use Carbon\Carbon;
-use Illuminate\Support\Arr;
 
 class CreateCrop
 {
-    protected StartSoaking $startSoaking;
     protected RecordStageHistory $recordStageHistory;
-    
-    public function __construct(StartSoaking $startSoaking, RecordStageHistory $recordStageHistory)
+
+    public function __construct(RecordStageHistory $recordStageHistory)
     {
-        $this->startSoaking = $startSoaking;
         $this->recordStageHistory = $recordStageHistory;
     }
-    
+
     /**
-     * Create a new crop, handling both soaking and non-soaking recipes.
+     * Create a single crop (for individual crop creation, not batch creation)
      *
      * @param array $data
      * @return Crop
@@ -29,64 +26,43 @@ class CreateCrop
     public function execute(array $data): Crop
     {
         $recipe = Recipe::findOrFail($data['recipe_id']);
-        
-        // If recipe requires soaking, delegate to StartSoaking action
-        if ($recipe->requiresSoaking()) {
-            return $this->startSoaking->execute($data);
-        }
-        
-        // Otherwise, create crop in germination stage
-        $germinationStage = CropStage::findByCode('germination');
-        if (!$germinationStage) {
-            throw new \RuntimeException('Germination stage not found in database.');
-        }
-        
-        $plantingTime = isset($data['germination_at']) ? Carbon::parse($data['germination_at']) : Carbon::now();
-        
-        // Create a crop batch first
-        $cropBatch = \App\Models\CropBatch::create([
+
+        // Determine the appropriate stage
+        $stageCode = $data['stage_code'] ?? ($recipe->requiresSoaking() ? 'soaking' : 'germination');
+        $stage = CropStage::where('code', $stageCode)->firstOrFail();
+
+        // Set timestamp based on stage
+        $timestamp = $this->getTimestampForStage($stageCode, $data);
+
+        // Create the crop
+        $crop = Crop::create([
+            'crop_batch_id' => $data['crop_batch_id'] ?? null,
             'recipe_id' => $recipe->id,
             'order_id' => $data['order_id'] ?? null,
             'crop_plan_id' => $data['crop_plan_id'] ?? null,
+            'tray_number' => $data['tray_number'] ?? 'UNASSIGNED-' . time(),
+            'current_stage_id' => $stage->id,
+            'requires_soaking' => $recipe->requiresSoaking(),
+            'soaking_at' => $stageCode === 'soaking' ? $timestamp : null,
+            'germination_at' => $stageCode === 'germination' ? $timestamp : null,
+            'notes' => $data['notes'] ?? null,
         ]);
-        
-        // Handle tray numbers - for non-soaking recipes, create multiple crops if multiple tray numbers
-        $trayNumbers = $data['tray_numbers'] ?? [];
 
-        // Ensure tray_numbers is always an array and handle various input formats
-        if (!is_array($trayNumbers)) {
-            $trayNumbers = is_string($trayNumbers) ? [$trayNumbers] : [];
-        }
+        // Record stage history
+        $this->recordStageHistory->execute($crop, $stage, $timestamp);
 
-        // Filter out empty values and flatten nested arrays
-        $trayNumbers = array_filter(array_map('trim', Arr::flatten($trayNumbers)));
-
-        if (empty($trayNumbers)) {
-            $trayNumbers = ['UNASSIGNED-' . time()]; // Single crop with temporary tray number
-        }
-        
-        $crops = [];
-        foreach ($trayNumbers as $trayNumber) {
-            $crops[] = Crop::create([
-                'crop_batch_id' => $cropBatch->id,
-                'recipe_id' => $recipe->id,
-                'order_id' => $data['order_id'] ?? null,
-                'crop_plan_id' => $data['crop_plan_id'] ?? null,
-                'tray_number' => $trayNumber,
-                'current_stage_id' => $germinationStage->id,
-                'requires_soaking' => false,
-                'germination_at' => $plantingTime,
-                'notes' => $data['notes'] ?? null,
-            ]);
-        }
-        
-        // Create stage history records for all crops
-        foreach ($crops as $crop) {
-            $this->recordStageHistory->execute($crop, $germinationStage, $plantingTime);
-        }
-        
-        $crop = $crops[0]; // Return first crop for compatibility
-        
         return $crop;
+    }
+
+    /**
+     * Get the appropriate timestamp for a given stage
+     */
+    protected function getTimestampForStage(string $stageCode, array $data): Carbon
+    {
+        return match ($stageCode) {
+            'soaking' => isset($data['soaking_at']) ? Carbon::parse($data['soaking_at']) : Carbon::now(),
+            'germination' => isset($data['germination_at']) ? Carbon::parse($data['germination_at']) : Carbon::now(),
+            default => Carbon::now(),
+        };
     }
 }

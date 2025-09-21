@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Resources\CropResource\Forms;
+namespace App\Filament\Resources\CropBatchResource\Forms;
 
 use App\Filament\Resources\RecipeResource;
 use App\Models\Recipe;
@@ -136,33 +136,15 @@ class CropBatchForm
                 ->schema([
                     Forms\Components\TagsInput::make('tray_numbers')
                         ->label('Tray Numbers')
-                        ->placeholder(fn ($livewire) => $livewire instanceof \App\Filament\Resources\CropBatchResource\Pages\CreateCropBatch
-                            ? 'Add tray numbers'
-                            : 'Edit tray numbers')
+                        ->placeholder('Add tray numbers (e.g., 1, 2, 3)')
                         ->separator(',')
-                        ->helperText(function (Get $get, $livewire) {
-                            if ($livewire instanceof \App\Filament\Resources\CropBatchResource\Pages\CreateCropBatch) {
-                                return static::checkRecipeRequiresSoaking($get)
-                                    ? 'Optional for soaking crops - tray numbers can be assigned later'
-                                    : 'Enter tray numbers or IDs for this grow batch (alphanumeric supported)';
-                            }
-                            return 'Edit the tray numbers or IDs for this grow batch (alphanumeric supported)';
-                        })
-                        ->rules(function (Get $get, $livewire) {
-                            if ($livewire instanceof \App\Filament\Resources\CropBatchResource\Pages\CreateCropBatch) {
-                                return static::checkRecipeRequiresSoaking($get)
-                                    ? ['array']
-                                    : ['array', 'min:1'];
-                            }
-                            return ['array', 'min:1'];
-                        })
-                        ->nestedRecursiveRules(['string', 'max:20'])
-                        ->afterStateHydrated(function ($component, $state, $livewire) {
-                            // Only apply this logic for edit pages
-                            if (!($livewire instanceof \App\Filament\Resources\CropBatchResource\Pages\CreateCropBatch) && is_array($state)) {
-                                $component->state(array_values($state));
-                            }
-                        }),
+                        ->helperText(fn (Get $get) => static::checkRecipeRequiresSoaking($get)
+                            ? 'Optional for soaking crops - tray numbers can be assigned later'
+                            : 'Enter tray numbers or IDs for this grow batch (alphanumeric supported)')
+                        ->rules(fn (Get $get) => static::checkRecipeRequiresSoaking($get)
+                            ? ['array']
+                            : ['array', 'min:1'])
+                        ->nestedRecursiveRules(['string', 'max:20']),
                 ]),
             
             Forms\Components\Section::make('Growth Stage Timestamps')

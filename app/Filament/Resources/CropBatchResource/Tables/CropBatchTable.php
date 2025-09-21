@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Resources\CropResource\Tables;
+namespace App\Filament\Resources\CropBatchResource\Tables;
 
 use App\Models\Crop;
 use App\Models\CropBatch;
