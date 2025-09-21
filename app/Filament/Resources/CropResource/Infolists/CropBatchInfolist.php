@@ -278,14 +278,19 @@ class CropBatchInfolist
      */
     protected static function generateTrayNumberBadges($record): string
     {
-        $trayNumbers = $record->tray_numbers_array;
-        
+        $trayNumbers = $record->tray_numbers;
+
+        // Handle case where tray numbers might be null or empty
+        if (empty($trayNumbers)) {
+            return '<div class="text-gray-500 dark:text-gray-400">No trays assigned</div>';
+        }
+
         $html = '<div class="flex flex-wrap gap-1">';
         foreach ($trayNumbers as $tray) {
             $html .= '<span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-800 dark:bg-gray-800 dark:text-gray-200">' . htmlspecialchars($tray) . '</span>';
         }
         $html .= '</div>';
-        
+
         return $html;
     }
 
