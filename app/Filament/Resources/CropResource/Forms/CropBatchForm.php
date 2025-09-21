@@ -136,27 +136,30 @@ class CropBatchForm
                 ->schema([
                     Forms\Components\TagsInput::make('tray_numbers')
                         ->label('Tray Numbers')
-                        ->placeholder('Add tray numbers')
+                        ->placeholder(fn ($livewire) => $livewire instanceof \App\Filament\Resources\CropBatchResource\Pages\CreateCropBatch
+                            ? 'Add tray numbers'
+                            : 'Edit tray numbers')
                         ->separator(',')
-                        ->helperText(fn (Get $get) => static::checkRecipeRequiresSoaking($get) 
-                            ? 'Optional for soaking crops - tray numbers can be assigned later'
-                            : 'Enter tray numbers or IDs for this grow batch (alphanumeric supported)')
-                        ->rules(fn (Get $get) => static::checkRecipeRequiresSoaking($get) 
-                            ? ['array'] 
-                            : ['array', 'min:1'])
+                        ->helperText(function (Get $get, $livewire) {
+                            if ($livewire instanceof \App\Filament\Resources\CropBatchResource\Pages\CreateCropBatch) {
+                                return static::checkRecipeRequiresSoaking($get)
+                                    ? 'Optional for soaking crops - tray numbers can be assigned later'
+                                    : 'Enter tray numbers or IDs for this grow batch (alphanumeric supported)';
+                            }
+                            return 'Edit the tray numbers or IDs for this grow batch (alphanumeric supported)';
+                        })
+                        ->rules(function (Get $get, $livewire) {
+                            if ($livewire instanceof \App\Filament\Resources\CropBatchResource\Pages\CreateCropBatch) {
+                                return static::checkRecipeRequiresSoaking($get)
+                                    ? ['array']
+                                    : ['array', 'min:1'];
+                            }
+                            return ['array', 'min:1'];
+                        })
                         ->nestedRecursiveRules(['string', 'max:20'])
-                        ->visible(fn ($livewire) => $livewire instanceof \App\Filament\Resources\CropBatchResource\Pages\CreateCropBatch),
-                    
-                    Forms\Components\TagsInput::make('tray_numbers')
-                        ->label('Tray Numbers')
-                        ->placeholder('Edit tray numbers')
-                        ->separator(',')
-                        ->helperText('Edit the tray numbers or IDs for this grow batch (alphanumeric supported)')
-                        ->rules(['array', 'min:1'])
-                        ->nestedRecursiveRules(['string', 'max:20'])
-                        ->visible(fn ($livewire) => !($livewire instanceof \App\Filament\Resources\CropBatchResource\Pages\CreateCropBatch))
-                        ->afterStateHydrated(function ($component, $state) {
-                            if (is_array($state)) {
+                        ->afterStateHydrated(function ($component, $state, $livewire) {
+                            // Only apply this logic for edit pages
+                            if (!($livewire instanceof \App\Filament\Resources\CropBatchResource\Pages\CreateCropBatch) && is_array($state)) {
                                 $component->state(array_values($state));
                             }
                         }),

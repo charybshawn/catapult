@@ -7,6 +7,7 @@ use App\Models\CropStage;
 use App\Models\Recipe;
 use App\Actions\Crops\RecordStageHistory;
 use Carbon\Carbon;
+use Illuminate\Support\Arr;
 
 class CreateCrop
 {
@@ -51,6 +52,15 @@ class CreateCrop
         
         // Handle tray numbers - for non-soaking recipes, create multiple crops if multiple tray numbers
         $trayNumbers = $data['tray_numbers'] ?? [];
+
+        // Ensure tray_numbers is always an array and handle various input formats
+        if (!is_array($trayNumbers)) {
+            $trayNumbers = is_string($trayNumbers) ? [$trayNumbers] : [];
+        }
+
+        // Filter out empty values and flatten nested arrays
+        $trayNumbers = array_filter(array_map('trim', Arr::flatten($trayNumbers)));
+
         if (empty($trayNumbers)) {
             $trayNumbers = ['UNASSIGNED-' . time()]; // Single crop with temporary tray number
         }

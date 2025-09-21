@@ -37,8 +37,8 @@ class StartSoaking
             'crop_plan_id' => $data['crop_plan_id'] ?? null,
         ]);
         
-        // Create multiple crops based on tray_count, each with temp tray numbers
-        $trayCount = $data['tray_count'] ?? 1;
+        // Create multiple crops based on soaking_tray_count, each with temp tray numbers
+        $trayCount = $data['soaking_tray_count'] ?? $data['tray_count'] ?? 1;
         $soakingTime = isset($data['soaking_at']) ? Carbon::parse($data['soaking_at']) : Carbon::now();
         $crops = [];
         
