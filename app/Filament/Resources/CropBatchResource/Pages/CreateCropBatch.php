@@ -74,7 +74,9 @@ class CreateCropBatch extends CreateRecord
     {
         $germinationStage = CropStage::where('code', 'germination')->firstOrFail();
         $plantingTime = isset($data['germination_at']) ? Carbon::parse($data['germination_at']) : Carbon::now();
-        $trayNumbers = $data['tray_numbers'] ?? [];
+
+        // Transform Livewire serialized tray_numbers data
+        $trayNumbers = $this->transformTrayNumbers($data['tray_numbers'] ?? []);
 
         // Ensure we have at least one tray
         if (empty($trayNumbers)) {
@@ -97,6 +99,51 @@ class CreateCropBatch extends CreateRecord
             // Record stage history
             app(RecordStageHistory::class)->execute($crop, $germinationStage, $plantingTime);
         }
+    }
+
+    /**
+     * Transform Livewire serialized tray numbers data into a simple array
+     */
+    protected function transformTrayNumbers($trayNumbers): array
+    {
+        // Handle null or empty
+        if (empty($trayNumbers)) {
+            return [];
+        }
+
+        // If it's already a simple array of strings, return as-is
+        if (is_array($trayNumbers) && !empty($trayNumbers) && is_string($trayNumbers[0] ?? null)) {
+            return array_filter(array_map('trim', $trayNumbers));
+        }
+
+        // Handle Livewire's complex serialized format
+        $result = [];
+
+        if (is_array($trayNumbers)) {
+            foreach ($trayNumbers as $item) {
+                if (is_string($item)) {
+                    $trimmed = trim($item);
+                    if (!empty($trimmed)) {
+                        $result[] = $trimmed;
+                    }
+                } elseif (is_array($item)) {
+                    // Recursively handle nested arrays
+                    $nested = $this->transformTrayNumbers($item);
+                    $result = array_merge($result, $nested);
+                }
+            }
+        } elseif (is_string($trayNumbers)) {
+            // Handle comma-separated string
+            $items = explode(',', $trayNumbers);
+            foreach ($items as $item) {
+                $trimmed = trim($item);
+                if (!empty($trimmed)) {
+                    $result[] = $trimmed;
+                }
+            }
+        }
+
+        return array_unique(array_filter($result));
     }
 
     protected function getRedirectUrl(): string
