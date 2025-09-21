@@ -7,6 +7,7 @@ use App\Models\CropBatch;
 use Filament\Actions;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use App\Filament\Support\NotificationHelper;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -104,11 +105,10 @@ class EditCropBatch extends EditRecord
             
             DB::commit();
             
-            Notification::make()
-                ->success()
-                ->title('Batch updated successfully')
-                ->body("Updated {$record->crops()->count()} crops in the batch")
-                ->send();
+            NotificationHelper::success(
+                'Batch updated successfully',
+                "Updated {$record->crops()->count()} crops in the batch"
+            );
             
             return $record;
             
@@ -121,12 +121,11 @@ class EditCropBatch extends EditRecord
                 'trace' => $e->getTraceAsString()
             ]);
             
-            Notification::make()
-                ->danger()
-                ->title('Update failed')
-                ->body('Failed to update the batch: ' . $e->getMessage())
-                ->persistent()
-                ->send();
+            NotificationHelper::error(
+                'Update failed',
+                'Failed to update the batch: ' . $e->getMessage(),
+                true
+            );
             
             throw $e;
         }
