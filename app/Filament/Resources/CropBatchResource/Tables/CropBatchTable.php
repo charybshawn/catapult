@@ -351,7 +351,16 @@ class CropBatchTable
                         }
                     } catch (\Illuminate\Validation\ValidationException $e) {
                         $failedBatches++;
-                        $warnings[] = "Batch #{$record->id}: " . implode(', ', $e->errors()['stage'] ?? $e->errors()['target'] ?? ['Unknown error']);
+                        $errors = $e->errors();
+                        $errorMessages = [];
+                        if (isset($errors['stage'])) {
+                            $errorMessages = $errors['stage'];
+                        } elseif (isset($errors['target'])) {
+                            $errorMessages = $errors['target'];
+                        } else {
+                            $errorMessages = ['Unknown validation error'];
+                        }
+                        $warnings[] = "Batch #{$record->id}: " . implode(', ', $errorMessages);
                     } catch (\Exception $e) {
                         $failedBatches++;
                         $warnings[] = "Batch #{$record->id}: " . $e->getMessage();
@@ -438,11 +447,19 @@ class CropBatchTable
                         }
                     } catch (\Illuminate\Validation\ValidationException $e) {
                         $errors = $e->errors();
-                        if (isset($errors['stage']) && str_contains($errors['stage'][0], 'already at first stage')) {
+                        if (isset($errors['stage']) && isset($errors['stage'][0]) && str_contains($errors['stage'][0], 'already at first stage')) {
                             $skippedCount++;
                         } else {
                             $failedBatches++;
-                            $warnings[] = "Batch #{$record->id}: " . implode(', ', $errors['stage'] ?? $errors['target'] ?? ['Unknown error']);
+                            $errorMessages = [];
+                            if (isset($errors['stage'])) {
+                                $errorMessages = $errors['stage'];
+                            } elseif (isset($errors['target'])) {
+                                $errorMessages = $errors['target'];
+                            } else {
+                                $errorMessages = ['Unknown validation error'];
+                            }
+                            $warnings[] = "Batch #{$record->id}: " . implode(', ', $errorMessages);
                         }
                     } catch (\Exception $e) {
                         $failedBatches++;
