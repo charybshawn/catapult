@@ -1060,7 +1060,12 @@ class CropTaskManagementService
             try {
                 // Update tray number if advancing from soaking
                 if ($currentStage->code === 'soaking' && isset($options['tray_numbers'][$crop->id])) {
-                    $crop->tray_number = $options['tray_numbers'][$crop->id];
+                    $oldTrayNumber = $crop->tray_number;
+                    $newTrayNumber = $options['tray_numbers'][$crop->id];
+                    $crop->tray_number = $newTrayNumber;
+                    \Log::info("Updated tray number for crop {$crop->id}: {$oldTrayNumber} -> {$newTrayNumber}");
+                } else {
+                    \Log::info("No tray number update for crop {$crop->id}. Current stage: {$currentStage->code}, Options: " . json_encode($options));
                 }
 
                 // Update stage
