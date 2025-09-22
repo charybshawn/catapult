@@ -133,7 +133,7 @@ class StageTransitionActions
                     }
                     
                     // Perform the transition
-                    $results = $transitionService->advanceStage(
+                    $results = $transitionService->advanceStageWithHistory(
                         $targetCrop,
                         $data['advancement_timestamp'],
                         $options
