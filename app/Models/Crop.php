@@ -54,7 +54,7 @@ class Crop extends Model
      *
      * @var array
      */
-    protected $appends = ['variety_name', 'current_stage_code', 'current_stage'];
+    protected $appends = ['variety_name'];
     
     /**
      * The attributes that should be cast.
@@ -110,6 +110,14 @@ class Crop extends Model
     public function currentStage(): BelongsTo
     {
         return $this->belongsTo(CropStage::class, 'current_stage_id');
+    }
+    
+    /**
+     * Get the batch this crop belongs to.
+     */
+    public function batch(): BelongsTo
+    {
+        return $this->belongsTo(CropBatch::class, 'crop_batch_id');
     }
     
     /**
@@ -414,16 +422,9 @@ class Crop extends Model
             $validationService = app(CropValidationService::class);
             $validationService->initializeNewCrop($crop);
         });
-        
-        // Add event listeners to recalculate time_to_next_stage values
-        static::saving(function (Crop $crop) {
-            // Calculate and update the time_to_next_stage values whenever the model is saved
-            if (!$crop->exists || $crop->isDirty(['current_stage_id', 'germination_at', 'blackout_at', 'light_at', 'harvested_at'])) {
-                /** @var CropTimeCalculator $timeCalculator */
-                $timeCalculator = app(CropTimeCalculator::class);
-                $timeCalculator->updateTimeCalculations($crop);
-            }
-        });
+
+        // Note: Time calculations are now handled by CropObserver for consistency
+        // This prevents duplicate calculation systems from conflicting
         
         // Temporarily disabled - causes format() error
         // static::created(function ($crop) {
@@ -499,6 +500,19 @@ class Crop extends Model
     {
         $taskManagementService = app(\App\Services\CropTaskManagementService::class);
         return $taskManagementService->calculateExpectedHarvestDate($this);
+    }
+
+    /**
+     * Advance this crop to the next stage
+     * Delegates to CropStageTransitionService to maintain consistency
+     * 
+     * @param \Carbon\Carbon|null $timestamp When the transition occurred (defaults to now)
+     * @return void
+     */
+    public function advanceStage(?\Carbon\Carbon $timestamp = null): void
+    {
+        $transitionService = app(\App\Services\CropStageTransitionService::class);
+        $transitionService->advanceStage($this, $timestamp ?? \Carbon\Carbon::now());
     }
 
 }

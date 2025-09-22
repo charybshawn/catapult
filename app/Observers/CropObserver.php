@@ -12,52 +12,61 @@ use Illuminate\Support\Facades\Log;
 class CropObserver
 {
     /**
-     * Handle the Crop "saving" event.
+     * Handle the Crop "saving" event with smart time calculations.
      */
     public function saving(Crop $crop): void
     {
-        $this->updateCalculatedColumns($crop);
+        // Skip during bulk operations to prevent performance issues
+        if (Crop::isInBulkOperation()) {
+            return;
+        }
+        
+        // Only recalculate time values when relevant fields change
+        $timeRelevantFields = ['current_stage_id', 'planting_at', 'germination_at', 'blackout_at', 'light_at', 'harvested_at'];
+        if (!$crop->exists || $crop->isDirty($timeRelevantFields)) {
+            $this->updateTimeCalculations($crop);
+        }
+        
+        // Always update tray-related fields
+        $this->updateTrayCalculations($crop);
     }
 
     /**
-     * Update all calculated columns for the crop.
+     * Update time calculations using the sophisticated CropTimeCalculator service.
      */
-    protected function updateCalculatedColumns(Crop $crop): void
+    protected function updateTimeCalculations(Crop $crop): void
     {
-        // Ensure recipe is loaded to avoid lazy loading violations
-        if (!$crop->relationLoaded('recipe')) {
-            $crop->load('recipe');
-        }
-
-        // Note: Calculated columns like stage_age_minutes, time_to_next_stage_display, etc.
-        // have been moved to the crop_batches_list_view and are no longer stored on individual crops.
-        // These values can be accessed through the CropBatchListView when needed.
-        
-        // The only update we might still need is ensuring tray_count is set correctly
-        // if it's still a column in the crops table
-        if ($crop->tray_number && !$crop->tray_count) {
-            $crop->tray_count = 1;
+        try {
+            // Use the sophisticated CropTimeCalculator service for all time calculations
+            $timeCalculator = app(\App\Services\CropTimeCalculator::class);
+            $timeCalculator->updateTimeCalculations($crop);
+        } catch (\Exception $e) {
+            Log::warning('CropObserver: Failed to update time calculations', [
+                'crop_id' => $crop->id,
+                'error' => $e->getMessage()
+            ]);
+            
+            // Set safe fallback values to prevent null database constraints
+            $crop->stage_age_minutes = $crop->stage_age_minutes ?? 0;
+            $crop->stage_age_display = $crop->stage_age_display ?? '0m';
+            $crop->time_to_next_stage_minutes = $crop->time_to_next_stage_minutes ?? 0;
+            $crop->time_to_next_stage_display = $crop->time_to_next_stage_display ?? 'Unknown';
+            $crop->total_age_minutes = $crop->total_age_minutes ?? 0;
+            $crop->total_age_display = $crop->total_age_display ?? '0m';
         }
     }
 
     /**
-     * Format a DateInterval into a human-readable duration.
+     * Update tray-related calculations.
      */
-    public function formatDuration(\DateInterval $interval): string
+    protected function updateTrayCalculations(Crop $crop): void
     {
-        $parts = [];
-        
-        if ($interval->d > 0) {
-            $parts[] = $interval->d . 'd';
+        // Update tray count and tray numbers
+        if ($crop->tray_number && !$crop->isDirty('tray_count')) {
+            // Only set tray_count to 1 if it's not being explicitly changed
+            $crop->tray_count = $crop->tray_count ?: 1;
+            $crop->tray_numbers = (string)$crop->tray_number;
         }
-        if ($interval->h > 0) {
-            $parts[] = $interval->h . 'h';
-        }
-        if ($interval->i > 0 && empty($parts)) {
-            $parts[] = $interval->i . 'm';
-        }
-        
-        return implode(' ', $parts) ?: '0m';
     }
     
     /**
@@ -65,17 +74,13 @@ class CropObserver
      */
     public function updated(Crop $crop): void
     {
-        // Check if crop stage was changed (crop was planted/advanced)
-        if ($crop->wasChanged('current_stage_id') && $crop->current_stage_id && $crop->order_id) {
-            // If moving to germination stage, it means crop was planted
-            $germinationStage = \App\Models\CropStage::findByCode('germination');
-            if ($germinationStage && $crop->current_stage_id == $germinationStage->id) {
-                event(new OrderCropPlanted($crop->order, $crop));
-            }
+        // Check if planting_at was just set (crop was planted)
+        if ($crop->wasChanged('planting_at') && $crop->planting_at && $crop->order_id) {
+            event(new OrderCropPlanted($crop->order, $crop));
         }
         
         // Check if crop is now ready to harvest
-        if ($crop->wasChanged('current_stage_id') && $crop->isReadyToHarvest() && $crop->order_id) {
+        if ($crop->wasChanged(['current_stage', 'stage_age_minutes']) && $crop->isReadyToHarvest() && $crop->order_id) {
             // Check if all crops for this order are ready
             $order = $crop->order;
             if ($order && $order->crops->every(fn($c) => $c->isReadyToHarvest())) {

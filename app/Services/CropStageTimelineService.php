@@ -45,7 +45,7 @@ class CropStageTimelineService
             ],
             'germination' => [
                 'name' => 'Germination', 
-                'timestamp_field' => 'germination_at',
+                'timestamp_field' => 'planting_at',
                 'end_field' => 'germination_at',
                 'duration_field' => 'germination_days',
                 'duration_unit' => 'days',
