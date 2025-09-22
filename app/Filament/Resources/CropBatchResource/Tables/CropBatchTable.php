@@ -363,7 +363,7 @@ class CropBatchTable
                             $options['tray_numbers'] = $data['tray_numbers'];
                         }
                         
-                        $result = $transitionService->advanceStage($firstCrop, $transitionTime, $options);
+                        $result = $transitionService->advanceStageWithHistory($firstCrop, $transitionTime, $options);
                         
                         $totalCount += $result['affected_count'];
                         $batchCount++;
