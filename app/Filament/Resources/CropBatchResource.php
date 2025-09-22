@@ -3,9 +3,9 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\CropBatchResource\Pages;
-use App\Filament\Resources\CropResource\Forms\CropBatchForm;
-use App\Filament\Resources\CropResource\Infolists\CropBatchInfolist;
-use App\Filament\Resources\CropResource\Tables\CropBatchTable;
+use App\Filament\Resources\CropBatchResource\Forms\CropBatchForm;
+use App\Filament\Resources\CropBatchResource\Infolists\CropBatchInfolist;
+use App\Filament\Resources\CropBatchResource\Tables\CropBatchTable;
 use App\Filament\Traits\CsvExportAction;
 use App\Filament\Traits\HasStandardActions;
 use App\Filament\Traits\HasTimestamps;

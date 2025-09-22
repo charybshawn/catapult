@@ -51,16 +51,16 @@ class CropTimeCalculator
     /**
      * Get the stage age display value
      */
-    public function getStageAgeDisplay(Crop $crop): string
+    public function getStageAgeDisplay(Crop $crop): ?string
     {
         $minutes = $this->calculateStageAge($crop);
         return $this->formatTimeDisplay($minutes);
     }
-    
+
     /**
      * Get the total age display value
      */
-    public function getTotalAgeDisplay(Crop $crop): string
+    public function getTotalAgeDisplay(Crop $crop): ?string
     {
         $minutes = $this->calculateTotalAge($crop);
         return $this->formatTimeDisplay($minutes);
