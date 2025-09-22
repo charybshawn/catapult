@@ -20,11 +20,9 @@ class EditCrop extends BaseEditRecord
         return [
             Actions\DeleteAction::make()
                 ->action(function () {
-                    // Get all trays in this grow batch
+                    // Delete all crops in this batch
                     $record = $this->getRecord();
-                    Crop::where('recipe_id', $record->recipe_id)
-                        ->where('germination_at', $record->germination_at)
-                        ->delete();
+                    $record->crops()->delete();
                     
                     $this->redirect($this->getResource()::getUrl('index'));
                 }),
@@ -33,33 +31,26 @@ class EditCrop extends BaseEditRecord
     
     protected function mutateFormDataBeforeFill(array $data): array
     {
-        // Get the current record being edited
+        // Get the current record being edited (CropBatch)
         $record = $this->getRecord();
         
-        // Get all trays in this grow batch
-        $allTrays = Crop::where('recipe_id', $record->recipe_id)
-            ->where('germination_at', $record->germination_at)
-            ->where('current_stage_id', $record->current_stage_id)
-            ->pluck('tray_number')
-            ->toArray();
+        // Add existing tray numbers from the CropBatch
+        $data['tray_numbers'] = $record->tray_numbers;
         
-        // Add existing tray numbers to form data
-        $data['tray_numbers'] = $allTrays;
-        
-        // Since we're using MIN/MAX/AVG for group data, ensure we have accurate values for selected fields
-        if (isset($record->tray_number_list)) {
-            $data['tray_number_list'] = $record->tray_number_list;
-        }
-        
-        // Get the first actual record from this group to ensure we have complete data
-        $firstRecord = Crop::where('recipe_id', $record->recipe_id)
-            ->where('germination_at', $record->germination_at)
-            ->where('current_stage_id', $record->current_stage_id)
-            ->first();
+        // Get the first actual crop record from this batch to get individual crop data
+        $firstCrop = $record->crops()->first();
             
-        if ($firstRecord) {
-            // Copy any fields that might be missed by the aggregation
-            $data['notes'] = $firstRecord->notes ?? '';
+        if ($firstCrop) {
+            // Copy any fields that exist on individual crops but not on the batch
+            $data['notes'] = $firstCrop->notes ?? '';
+            
+            // Copy timestamp fields from the first crop
+            $data['soaking_at'] = $firstCrop->soaking_at;
+            $data['planting_at'] = $firstCrop->planting_at;
+            $data['germination_at'] = $firstCrop->germination_at;
+            $data['blackout_at'] = $firstCrop->blackout_at;
+            $data['light_at'] = $firstCrop->light_at;
+            $data['harvested_at'] = $firstCrop->harvested_at;
         }
         
         return $data;
@@ -67,11 +58,9 @@ class EditCrop extends BaseEditRecord
     
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
-        // Get all current trays in this grow batch
-        $currentTrays = Crop::where('recipe_id', $record->recipe_id)
-            ->where('germination_at', $record->germination_at)
-            ->where('current_stage_id', $record->current_stage_id)
-            ->get();
+        // $record is a CropBatch instance
+        // Get all current crops in this batch
+        $currentCrops = $record->crops;
             
         // Get the new tray numbers from the form and ensure it's a flat array
         $newTrayNumbers = [];
@@ -100,33 +89,39 @@ class EditCrop extends BaseEditRecord
             }
         }
         
-        // Find trays to remove (trays that exist in currentTrays but not in newTrayNumbers)
-        $traysToRemove = $currentTrays->filter(function ($crop) use ($newTrayNumbers) {
+        // Find crops to remove (crops that exist in currentCrops but not in newTrayNumbers)
+        $cropsToRemove = $currentCrops->filter(function ($crop) use ($newTrayNumbers) {
             return !in_array($crop->tray_number, $newTrayNumbers);
         });
         
-        // Find trays to add (numbers in newTrayNumbers but not in currentTrays)
-        $currentTrayNumbers = $currentTrays->pluck('tray_number')->toArray();
+        // Find trays to add (numbers in newTrayNumbers but not in currentCrops)
+        $currentTrayNumbers = $currentCrops->pluck('tray_number')->toArray();
         $traysToAdd = array_diff($newTrayNumbers, $currentTrayNumbers);
-        
-        // Remove trays that are no longer needed
-        foreach ($traysToRemove as $tray) {
-            $tray->delete();
-        }
-        
-        // Add new trays
-        foreach ($traysToAdd as $trayNumber) {
-            $newTray = $record->replicate();
-            $newTray->tray_number = $trayNumber;
-            $newTray->save();
-        }
         
         // Remove the tray_numbers field as it's not a database column
         unset($data['tray_numbers']);
         
-        // Update all remaining crops in the grow batch
-        DB::transaction(function () use ($currentTrays, $data) {
-            foreach ($currentTrays as $crop) {
+        DB::transaction(function () use ($cropsToRemove, $traysToAdd, $currentCrops, $data, $record) {
+            // Remove crops that are no longer needed
+            foreach ($cropsToRemove as $crop) {
+                $crop->delete();
+            }
+            
+            // Add new crops for new tray numbers
+            if (!empty($traysToAdd) && $currentCrops->isNotEmpty()) {
+                // Use the first crop as a template
+                $templateCrop = $currentCrops->first();
+                foreach ($traysToAdd as $trayNumber) {
+                    $newCrop = $templateCrop->replicate();
+                    $newCrop->tray_number = $trayNumber;
+                    $newCrop->save();
+                }
+            }
+            
+            // Update all crops in the batch with the new data
+            // Refresh the crops collection to include newly added ones
+            $record->load('crops');
+            foreach ($record->crops as $crop) {
                 $crop->fill($data)->save();
             }
         });
@@ -140,8 +135,8 @@ class EditCrop extends BaseEditRecord
             $notification->body("Added trays: " . implode(', ', $traysToAdd));
         }
         
-        if ($traysToRemove->isNotEmpty()) {
-            $notification->body("Removed trays: " . implode(', ', $traysToRemove->pluck('tray_number')->toArray()));
+        if ($cropsToRemove->isNotEmpty()) {
+            $notification->body("Removed trays: " . implode(', ', $cropsToRemove->pluck('tray_number')->toArray()));
         }
         
         $notification->success()->send();

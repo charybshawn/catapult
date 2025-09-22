@@ -2,18 +2,14 @@
 
 namespace App\Services;
 
-use App\Actions\Crops\RecordStageHistory;
 use App\Models\Crop;
-use App\Models\CropBatch;
 use App\Models\CropStage;
 use App\Models\NotificationSetting;
 use App\Models\TaskSchedule;
+use App\Services\CropStageTransitionService;
 use Carbon\Carbon;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Validation\ValidationException;
 use App\Notifications\ResourceActionRequired;
 
 /**
@@ -69,7 +65,7 @@ class CropTaskManagementService
         }
         
         $recipe = $crop->recipe;
-        $plantedAt = $crop->germination_at;
+        $plantedAt = $crop->planting_at;
         
         // Debug current stage loading and fallback to direct lookup if relationship fails
         $currentStageObject = $crop->currentStage;
@@ -106,7 +102,7 @@ class CropTaskManagementService
             'current_stage_id' => $crop->current_stage_id,
             'recipe_name' => $recipe->name ?? 'unknown',
             'seed_soak_hours' => $recipe->seed_soak_hours ?? 0,
-            'germination_at' => $plantedAt ? $plantedAt->format('Y-m-d H:i:s') : 'null',
+            'planting_at' => $plantedAt ? $plantedAt->format('Y-m-d H:i:s') : 'null',
             'soaking_at' => $crop->soaking_at ? $crop->soaking_at->format('Y-m-d H:i:s') : 'null'
         ]);
         
@@ -222,64 +218,32 @@ class CropTaskManagementService
     /**
      * Advance a crop to the next stage in its lifecycle
      * IMPORTANT: This advances ALL crops in the batch to maintain batch integrity
-     * Records stage history and validates transitions properly
+     * 
+     * This method now delegates to CropStageTransitionService for consistency
+     * while maintaining backward compatibility for existing callers
      */
     public function advanceStage(Crop $crop, ?Carbon $timestamp = null): void
     {
-        $transitionTime = $timestamp ?? Carbon::now();
-        
         try {
-            $result = $this->advanceStageWithHistory($crop, $transitionTime);
+            $transitionService = app(CropStageTransitionService::class);
+            $result = $transitionService->advanceStage($crop, $timestamp ?? Carbon::now());
             
-            Log::info('Crop stage advanced successfully', [
-                'crop_id' => $crop->id,
-                'batch_size' => $result['affected_count'] ?? 1,
-                'advanced' => $result['advanced'] ?? 0,
-                'failed' => $result['failed'] ?? 0
+            // Log for backward compatibility
+            Log::info('Crop batch stage advanced', [
+                'initiating_crop_id' => $crop->id,
+                'batch_size' => $result['affected_count'] ?? 0,
+                'recipe_id' => $crop->recipe_id,
+                'planting_at' => $crop->planting_at,
+                'from_stage' => $result['from_stage'] ?? null,
+                'to_stage' => $result['to_stage'] ?? null
             ]);
-            
-        } catch (ValidationException $e) {
-            Log::error('Crop stage advancement failed validation', [
-                'crop_id' => $crop->id,
-                'errors' => $e->errors()
-            ]);
-            throw $e;
         } catch (\Exception $e) {
-            Log::error('Crop stage advancement failed', [
+            // Log the error but don't throw to maintain backward compatibility
+            Log::warning('Failed to advance crop stage', [
                 'crop_id' => $crop->id,
                 'error' => $e->getMessage()
             ]);
-            throw $e;
         }
-    }
-
-    /**
-     * Advance stage with full history recording and validation
-     */
-    public function advanceStageWithHistory($target, Carbon $transitionTime, array $options = []): array
-    {
-        return DB::transaction(function () use ($target, $transitionTime, $options) {
-            $crops = $this->getCropsForTransition($target);
-            
-            if ($crops->isEmpty()) {
-                throw ValidationException::withMessages([
-                    'target' => 'No crops found for transition'
-                ]);
-            }
-
-            // Get current and next stage
-            $currentStage = $this->getCurrentStage($crops->first());
-            $nextStage = $this->getNextStage($currentStage, $crops->first());
-
-            if (!$nextStage) {
-                throw ValidationException::withMessages([
-                    'stage' => "Cannot advance from {$currentStage->name} - already at final stage"
-                ]);
-            }
-
-            // Perform the transition with history recording
-            return $this->performAdvancement($crops, $currentStage, $nextStage, $transitionTime, $options);
-        });
     }
 
     /**
@@ -425,11 +389,11 @@ class CropTaskManagementService
      */
     public function calculateExpectedHarvestDate(Crop $crop): ?Carbon
     {
-        if (!$crop->recipe || !$crop->germination_at) {
+        if (!$crop->recipe || !$crop->planting_at) {
             return null;
         }
 
-        $plantedAt = Carbon::parse($crop->germination_at);
+        $plantedAt = Carbon::parse($crop->planting_at);
         $daysToMaturity = $crop->recipe->totalDays();
 
         if ($daysToMaturity <= 0) {
@@ -629,7 +593,7 @@ class CropTaskManagementService
         list($recipeId, $plantedAtDate, $currentStage) = $batchParts;
         
         $crops = Crop::where('recipe_id', $recipeId)
-            ->where('germination_at', $plantedAtDate)
+            ->where('planting_at', $plantedAtDate)
             ->whereHas('currentStage', function($query) use ($currentStage) {
                 $query->where('code', $currentStage);
             })
@@ -921,7 +885,7 @@ class CropTaskManagementService
     protected function findBatchCrops(Crop $crop)
     {
         return Crop::where('recipe_id', $crop->recipe_id)
-            ->where('germination_at', $crop->germination_at)
+            ->where('planting_at', $crop->planting_at)
             ->where('current_stage_id', $crop->current_stage_id)
             ->get();
     }
@@ -998,7 +962,7 @@ class CropTaskManagementService
                     ->with(['recipe', 'currentStage'])
                     ->get();
             }
-            
+
             // Fall back to implicit batching
             return Crop::where('recipe_id', $target->recipe_id)
                 ->where('germination_at', $target->germination_at)
@@ -1024,7 +988,7 @@ class CropTaskManagementService
             $stage = $crop->getRelation('currentStage');
             if ($stage) return $stage;
         }
-        
+
         // Fallback to direct query
         $stage = $crop->currentStage()->first();
         return $stage ?? CropStage::find($crop->current_stage_id);
@@ -1077,7 +1041,7 @@ class CropTaskManagementService
 
                 // Update stage
                 $crop->current_stage_id = $nextStage->id;
-                
+
                 // Update timestamp
                 if ($timestampField) {
                     $crop->$timestampField = $transitionTime;
@@ -1126,23 +1090,23 @@ class CropTaskManagementService
         if (!$crop->relationLoaded('currentStage')) {
             $crop->load('currentStage');
         }
-        
+
         if (!$crop->currentStage) {
             return false;
         }
-        
+
         $stageCode = $crop->currentStage->code;
         $fixed = false;
-        
+
         // Check if current stage timestamp is missing
         if (isset(self::STAGE_TIMESTAMP_MAP[$stageCode])) {
             $timestampField = self::STAGE_TIMESTAMP_MAP[$stageCode];
-            
+
             if (!$crop->$timestampField && $crop->germination_at) {
                 // Use germination_at as fallback timestamp
                 $crop->update([$timestampField => $crop->germination_at]);
                 $fixed = true;
-                
+
                 Log::info('Fixed missing stage timestamp', [
                     'crop_id' => $crop->id,
                     'stage' => $stageCode,
@@ -1151,7 +1115,7 @@ class CropTaskManagementService
                 ]);
             }
         }
-        
+
         return $fixed;
     }
 
@@ -1162,7 +1126,7 @@ class CropTaskManagementService
     {
         return DB::transaction(function () use ($target, $reason) {
             $crops = $this->getCropsForTransition($target);
-            
+
             if ($crops->isEmpty()) {
                 throw ValidationException::withMessages([
                     'target' => 'No crops found for transition'

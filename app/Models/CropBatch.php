@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Collections\CropBatchCollection;
 
 class CropBatch extends Model
 {
@@ -38,6 +39,16 @@ class CropBatch extends Model
         return $this->computedAttributesCache[$key] ?? $default;
     }
     
+    /**
+     * Create a new Eloquent Collection instance.
+     *
+     * @param  array  $models
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
+    public function newCollection(array $models = [])
+    {
+        return new CropBatchCollection($models);
+    }
 
     /**
      * The attributes that are mass assignable.
@@ -75,30 +86,6 @@ class CropBatch extends Model
     }
 
     /**
-     * Scope for active crop batches (not harvested)
-     */
-    public function scopeActive(Builder $query): Builder
-    {
-        return $query->whereHas('crops', function ($query) {
-            $query->whereHas('currentStage', function ($stageQuery) {
-                $stageQuery->where('code', '!=', 'harvested');
-            });
-        });
-    }
-
-    /**
-     * Scope for harvested crop batches
-     */
-    public function scopeHarvested(Builder $query): Builder
-    {
-        return $query->whereHas('crops', function ($query) {
-            $query->whereHas('currentStage', function ($stageQuery) {
-                $stageQuery->where('code', '=', 'harvested');
-            });
-        });
-    }
-
-    /**
      * Get the current stage ID attribute from the first crop.
      */
     public function getCurrentStageIdAttribute(): ?int
@@ -114,15 +101,20 @@ class CropBatch extends Model
     {
         return $query->with([
             'crops' => function ($query) {
-                $query->with(['recipe', 'recipe.masterSeedCatalog'])
+                $query->with(['recipe', 'recipe.masterCultivar', 'recipe.masterSeedCatalog'])
                       ->orderBy('tray_number');
             },
             'recipe',
+            'recipe.masterCultivar',
             'recipe.masterSeedCatalog',
         ])
         ->withCount('crops');
     }
     
+    /**
+     * Get all computed attributes as an array to avoid N+1 queries.
+     * Call this after eager loading relationships.
+     */
     public function getComputedAttributes(): array
     {
         // Return cache if already computed
@@ -134,7 +126,7 @@ class CropBatch extends Model
         
         if (!$firstCrop) {
             $this->computedAttributesCache = [
-                'germination_at' => null,
+                'planting_at' => null,
                 'tray_numbers' => [],
                 'tray_count' => 0,
                 'current_stage_id' => null,
@@ -156,41 +148,37 @@ class CropBatch extends Model
         }
         $stage = $stagesCache->get($firstCrop->current_stage_id);
         
-        // Calculate expected harvest date using germination_at as the primary date
-        $expectedHarvestAt = null;
-        if ($firstCrop->recipe && $firstCrop->recipe->days_to_maturity && $firstCrop->germination_at) {
-            $expectedHarvestAt = Carbon::parse($firstCrop->germination_at)->addDays($firstCrop->recipe->days_to_maturity);
-        }
-        
         $this->computedAttributesCache = [
-            'germination_at' => $firstCrop->germination_at ? Carbon::parse($firstCrop->germination_at) : null,
+            'planting_at' => $firstCrop->planting_at ? Carbon::parse($firstCrop->planting_at) : null,
             'tray_numbers' => $this->crops->pluck('tray_number')->sort()->values()->toArray(),
             'tray_count' => $this->crops_count ?? $this->crops->count(),
             'current_stage_id' => $firstCrop->current_stage_id,
             'current_stage_name' => $stage ? $stage->name : null,
-            'stage_age_display' => $calculator->getStageAgeDisplay($firstCrop),
-            'time_to_next_stage_display' => $calculator->getTimeToNextStageDisplay($firstCrop),
-            'total_age_display' => $calculator->getTotalAgeDisplay($firstCrop),
-            'expected_harvest_at' => $expectedHarvestAt,
+            'stage_age_display' => $calculator->formatTimeDisplay($calculator->calculateStageAge($firstCrop)),
+            'time_to_next_stage_display' => $calculator->formatTimeDisplay($calculator->calculateTimeToNextStage($firstCrop)),
+            'total_age_display' => $calculator->formatTimeDisplay($calculator->calculateTotalAge($firstCrop)),
+            'expected_harvest_at' => $firstCrop->recipe && $firstCrop->recipe->days_to_maturity 
+                ? Carbon::parse($firstCrop->planting_at)->addDays($firstCrop->recipe->days_to_maturity)
+                : null,
         ];
         
         return $this->computedAttributesCache;
     }
 
     /**
-     * Get the germination date from the first crop.
+     * Get the planting date from the first crop.
      */
-    public function getGerminationAtAttribute(): ?Carbon
+    public function getPlantingAtAttribute(): ?Carbon
     {
-        if ($this->computedAttributesCache !== null && isset($this->computedAttributesCache['germination_at'])) {
-            return $this->computedAttributesCache['germination_at'];
+        if ($this->computedAttributesCache !== null && isset($this->computedAttributesCache['planting_at'])) {
+            return $this->computedAttributesCache['planting_at'];
         }
         
         $firstCrop = $this->getFirstCrop();
-        return $firstCrop?->germination_at ? Carbon::parse($firstCrop->germination_at) : null;
+        return $firstCrop?->planting_at ? Carbon::parse($firstCrop->planting_at) : null;
     }
 
-/**
+    /**
      * Get sorted array of tray numbers from all crops.
      */
     public function getTrayNumbersAttribute(): array
@@ -258,7 +246,8 @@ class CropBatch extends Model
         }
 
         $calculator = new CropTimeCalculator();
-        return $calculator->getTimeToNextStageDisplay($firstCrop);
+        $timeToNextStage = $calculator->calculateTimeToNextStage($firstCrop);
+        return $calculator->formatTimeDisplay($timeToNextStage);
     }
 
     /**
@@ -284,7 +273,7 @@ class CropBatch extends Model
     {
         $firstCrop = $this->getFirstCrop();
         
-        if (!$firstCrop) {
+        if (!$firstCrop || !$firstCrop->planting_at) {
             return null;
         }
 
@@ -296,14 +285,7 @@ class CropBatch extends Model
             return null;
         }
 
-        // Use germination_at as the planting date
-        $startDate = $firstCrop->germination_at;
-        
-        if (!$startDate) {
-            return null;
-        }
-
-        return Carbon::parse($startDate)->addDays($firstCrop->recipe->days_to_maturity);
+        return Carbon::parse($firstCrop->planting_at)->addDays($firstCrop->recipe->days_to_maturity);
     }
 
     /**
@@ -321,7 +303,7 @@ class CropBatch extends Model
     public function isInSoaking(): bool
     {
         $firstCrop = $this->crops()->with('currentStage')->first();
-        return $firstCrop?->getRelation('currentStage')?->code === 'soaking';
+        return $firstCrop?->currentStage?->code === 'soaking';
     }
 
     /**

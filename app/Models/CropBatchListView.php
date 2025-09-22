@@ -29,7 +29,7 @@ class CropBatchListView extends Model
      * The attributes that should be cast.
      */
     protected $casts = [
-        'germination_at' => 'datetime',
+        'planting_at' => 'datetime',
         'expected_harvest_at' => 'datetime',
         'watering_suspended_at' => 'datetime',
         'created_at' => 'datetime',
@@ -79,20 +79,11 @@ class CropBatchListView extends Model
     }
     
     /**
-     * Get the crops for this batch
-     * Since this is a view, we return a collection instead of a relationship
-     */
-    public function getCropsAttribute()
-    {
-        return \App\Models\Crop::where('crop_batch_id', $this->id)->get();
-    }
-    
-    /**
-     * For compatibility with code expecting a relationship
-     * Returns a hasMany relationship that won't work perfectly but prevents errors
+     * Get the crops relationship
+     * Since this is a view, we need to query the actual crops table
      */
     public function crops()
     {
-        return $this->hasMany(\App\Models\Crop::class, 'crop_batch_id', 'id');
+        return \App\Models\Crop::where('crop_batch_id', $this->id);
     }
 }
