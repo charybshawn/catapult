@@ -92,8 +92,8 @@ class CropBatchTable
                 ->trueLabel('Active Only')
                 ->falseLabel('Harvested Only')
                 ->queries(
-                    true: fn ($query) => $query->active(),
-                    false: fn ($query) => $query->harvested(),
+                    true: fn ($query) => $query->where('current_stage_code', '<>', 'harvested'),
+                    false: fn ($query) => $query->where('current_stage_code', '=', 'harvested'),
                     blank: fn ($query) => $query,
                 )
                 ->default(true),
