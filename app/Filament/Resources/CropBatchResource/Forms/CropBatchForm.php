@@ -15,13 +15,12 @@ use Filament\Forms\Set;
  */
 class CropBatchForm
 {
-    /**
-     * Returns Filament form schema - NOT a custom form system
-     */
     public static function schema(): array
     {
         return [
-            Forms\Components\Section::make('Grow Details')
+            // Step 1: Recipe Selection
+            Forms\Components\Section::make('Recipe Selection')
+                ->description('Choose the recipe for this grow batch')
                 ->schema([
                     Forms\Components\Select::make('recipe_id')
                         ->label('Recipe')
@@ -29,92 +28,109 @@ class CropBatchForm
                         ->required()
                         ->searchable()
                         ->preload()
-                        ->live(),
+                        ->live()
+                        ->columnSpanFull(),
+                ])
+                ->columns(1),
 
-                    Forms\Components\Section::make('Soaking Information')
-                        ->schema([
-                            Forms\Components\Placeholder::make('soaking_required_info')
-                                ->label('')
-                                ->content(fn (Get $get) => static::getSoakingRequiredInfo($get))
-                                ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get)),
-                            Forms\Components\TextInput::make('soaking_duration_display')
-                                ->label('Soaking Duration')
-                                ->disabled()
-                                ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
-                                ->dehydrated(false)
-                                ->default(function (Get $get) {
-                                    $recipeId = $get('recipe_id');
-                                    if (!$recipeId) return '';
-                                    $recipe = Recipe::find($recipeId);
-                                    return $recipe?->seed_soak_hours ? "{$recipe->seed_soak_hours} hours" : '';
-                                }),
-                            Forms\Components\TextInput::make('soaking_tray_count')
-                                ->label('Number of Trays to Soak')
-                                ->numeric()
-                                ->required(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
-                                ->default(1)
-                                ->minValue(1)
-                                ->maxValue(50)
-                                ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
-                                ->reactive()
-                                ->helperText('How many trays worth of seed will be soaked?')
-                                ->afterStateUpdated(function ($state, Set $set, Get $get) {
-                                    static::updateSeedQuantityCalculation($set, $get);
-                                }),
-                            Forms\Components\Placeholder::make('seed_quantity_display')
-                                ->label('Seed Quantity Required')
-                                ->content(fn (Get $get) => static::getSeedQuantityDisplay($get))
-                                ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get)),
-                        ])
-                        ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
-                        ->compact(),
-
+            // Step 2: Soaking (if required)
+            Forms\Components\Section::make('Seed Soaking')
+                ->description('Pre-planting seed preparation')
+                ->schema([
+                    Forms\Components\Placeholder::make('soaking_info')
+                        ->label('')
+                        ->content(fn (Get $get) => static::getSoakingRequiredInfo($get)),
+                        
+                    Forms\Components\Grid::make(2)->schema([
+                        Forms\Components\TextInput::make('soaking_tray_count')
+                            ->label('Trays to Soak')
+                            ->numeric()
+                            ->required()
+                            ->default(1)
+                            ->minValue(1)
+                            ->maxValue(50)
+                            ->live()
+                            ->afterStateUpdated(function ($state, Set $set, Get $get) {
+                                static::updateSeedQuantityCalculation($set, $get);
+                            }),
+                            
+                        Forms\Components\Placeholder::make('seed_quantity_display')
+                            ->label('Seed Required')
+                            ->content(fn (Get $get) => static::getSeedQuantityDisplay($get)),
+                    ]),
+                    
                     Forms\Components\DateTimePicker::make('soaking_at')
-                        ->label('Soaking Started At')
+                        ->label('Soaking Start Time')
                         ->seconds(false)
                         ->default(now())
-                        ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
-                        ->required(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
-                        ->reactive()
+                        ->required()
+                        ->live()
                         ->afterStateUpdated(function ($state, Set $set, Get $get) {
                             static::updatePlantingDate($set, $get);
-                        }),
+                        })
+                        ->columnSpan(1),
+                ])
+                ->visible(fn (Get $get) => static::checkRecipeRequiresSoaking($get))
+                ->columns(2),
 
-                    Forms\Components\Section::make('Planting Time')
-                        ->schema([
-                            Forms\Components\Radio::make('planting_time_option')
-                                ->label('When would you like to plant?')
-                                ->options([
-                                    'now' => 'Right now',
-                                    'scheduled' => 'Set a specific date and time',
-                                ])
-                                ->default('now')
-                                ->live()
-                                ->afterStateUpdated(function (Set $set, $state) {
-                                    if ($state === 'now') {
-                                        $set('germination_at', now());
-                                    } elseif ($state === 'scheduled') {
-                                        // Clear the field so user can set their own time
-                                        $set('germination_at', null);
-                                    }
-                                })
-                                ->visible(fn (Get $get) => !static::checkRecipeRequiresSoaking($get))
-                                ->columnSpanFull(),
-
-                            Forms\Components\DateTimePicker::make('germination_at')
-                                ->label('Planting Date')
-                                ->required(fn (Get $get) => !static::checkRecipeRequiresSoaking($get))
-                                ->default(now())
-                                ->seconds(false)
-                                ->helperText(fn (Get $get) => static::checkRecipeRequiresSoaking($get)
-                                    ? 'Auto-calculated from soaking start time + duration. You can override if needed.'
-                                    : 'When the crop will be planted')
-                                ->columnSpanFull(),
+            // Step 3: Planting
+            Forms\Components\Section::make('Planting Schedule')
+                ->description('When to plant the seeds')
+                ->schema([
+                    Forms\Components\Radio::make('planting_time_option')
+                        ->label('Planting Time')
+                        ->options([
+                            'now' => 'Plant right now',
+                            'scheduled' => 'Schedule for later',
                         ])
-                        ->compact()
+                        ->default('now')
+                        ->live()
+                        ->afterStateUpdated(function (Set $set, $state) {
+                            if ($state === 'now') {
+                                $set('germination_at', now());
+                            } else {
+                                $set('germination_at', null);
+                            }
+                        })
+                        ->visible(fn (Get $get) => !static::checkRecipeRequiresSoaking($get))
                         ->columnSpanFull(),
+
+                    Forms\Components\DateTimePicker::make('germination_at')
+                        ->label('Planting Date & Time')
+                        ->required()
+                        ->seconds(false)
+                        ->default(now())
+                        ->helperText(fn (Get $get) => static::checkRecipeRequiresSoaking($get)
+                            ? 'Auto-calculated from soaking completion. You can adjust if needed.'
+                            : 'When the seeds will be planted')
+                        ->columnSpan(1),
+                ])
+                ->columns(2),
+
+            // Step 4: Tray Assignment
+            Forms\Components\Section::make('Tray Assignment')
+                ->description('Assign tray numbers for this batch')
+                ->schema([
+                    Forms\Components\TagsInput::make('tray_numbers')
+                        ->label('Tray Numbers')
+                        ->placeholder('Enter tray numbers (e.g., 1, 2, 3)')
+                        ->separator(',')
+                        ->helperText(fn (Get $get) => static::checkRecipeRequiresSoaking($get)
+                            ? 'Optional for soaking batches - can be assigned when planting'
+                            : 'Required - enter the tray numbers for this batch')
+                        ->rules(fn (Get $get) => static::checkRecipeRequiresSoaking($get)
+                            ? ['array']
+                            : ['array', 'min:1'])
+                        ->nestedRecursiveRules(['string', 'max:20'])
+                        ->columnSpanFull(),
+                ])
+                ->columns(1),
+
+            // Step 5: Additional Information
+            Forms\Components\Section::make('Additional Information')
+                ->schema([
                     Forms\Components\Select::make('current_stage_id')
-                        ->label('Current Stage')
+                        ->label('Starting Stage')
                         ->options(\App\Services\CropStageCache::all()->pluck('name', 'id'))
                         ->required()
                         ->default(function (Get $get) {
@@ -131,57 +147,48 @@ class CropBatchForm
                             $germination = CropStageCache::findByCode('germination');
                             return $germination ? $germination->id : null;
                         })
-                        ->visible(fn ($livewire) => !($livewire instanceof \App\Filament\Resources\CropBatchResource\Pages\CreateCropBatch)),
+                        ->visible(fn ($livewire) => !($livewire instanceof \App\Filament\Resources\CropBatchResource\Pages\CreateCropBatch))
+                        ->columnSpan(1),
+                        
                     Forms\Components\Textarea::make('notes')
                         ->label('Notes')
+                        ->placeholder('Any special instructions or observations...')
                         ->rows(3)
-                        ->columnSpanFull(),
+                        ->columnSpan(1),
                 ])
-                ->columns(2),
-            
-            Forms\Components\Section::make('Tray Management')
+                ->columns(2)
+                ->collapsible()
+                ->collapsed(),
+
+            // Advanced: Timestamp Management (for editing only)
+            Forms\Components\Section::make('Growth Stage Timeline')
+                ->description('Historical record of growth stage transitions')
                 ->schema([
-                    Forms\Components\TagsInput::make('tray_numbers')
-                        ->label('Tray Numbers')
-                        ->placeholder('Add tray numbers (e.g., 1, 2, 3)')
-                        ->separator(',')
-                        ->helperText(fn (Get $get) => static::checkRecipeRequiresSoaking($get)
-                            ? 'Optional for soaking crops - tray numbers can be assigned later'
-                            : 'Enter tray numbers or IDs for this grow batch (alphanumeric supported)')
-                        ->rules(fn (Get $get) => static::checkRecipeRequiresSoaking($get)
-                            ? ['array']
-                            : ['array', 'min:1'])
-                        ->nestedRecursiveRules(['string', 'max:20']),
-                ]),
-            
-            Forms\Components\Section::make('Growth Stage Timestamps')
-                ->description('Record of when each growth stage began')
-                ->schema([
-                    Forms\Components\Grid::make()
-                        ->schema([
-                            Forms\Components\DateTimePicker::make('soaking_at')
-                                ->label('Soaking')
-                                ->helperText('When soaking stage began')
-                                ->seconds(false),
-                            Forms\Components\DateTimePicker::make('germination_at')
-                                ->label('Planting')
-                                ->helperText('Changes to planting date will adjust all stage timestamps proportionally')
-                                ->seconds(false),
+                    Forms\Components\Grid::make(3)->schema([
+                        Forms\Components\DateTimePicker::make('soaking_at')
+                            ->label('Soaking Started')
+                            ->seconds(false)
+                            ->disabled(fn ($record) => $record === null),
                             
-                            Forms\Components\DateTimePicker::make('blackout_at')
-                                ->label('Blackout')
-                                ->helperText('When blackout stage began')
-                                ->seconds(false),
-                            Forms\Components\DateTimePicker::make('light_at')
-                                ->label('Light')
-                                ->helperText('When light stage began')
-                                ->seconds(false),
-                            Forms\Components\DateTimePicker::make('harvested_at')
-                                ->label('Harvested')
-                                ->helperText('When crop was harvested')
-                                ->seconds(false),
-                        ])
-                        ->columns(3),
+                        Forms\Components\DateTimePicker::make('germination_at')
+                            ->label('Planted')
+                            ->seconds(false)
+                            ->helperText('Changing this will adjust all subsequent stage times'),
+                            
+                        Forms\Components\DateTimePicker::make('blackout_at')
+                            ->label('Blackout Started')
+                            ->seconds(false),
+                    ]),
+                    
+                    Forms\Components\Grid::make(2)->schema([
+                        Forms\Components\DateTimePicker::make('light_at')
+                            ->label('Light Started')
+                            ->seconds(false),
+                            
+                        Forms\Components\DateTimePicker::make('harvested_at')
+                            ->label('Harvested')
+                            ->seconds(false),
+                    ]),
                 ])
                 ->collapsible()
                 ->collapsed()

@@ -44,11 +44,13 @@ class EditCropBatch extends EditRecord
             $data['notes'] = $firstCrop->notes;
             $data['soaking_at'] = $firstCrop->soaking_at;
             $data['germination_at'] = $firstCrop->germination_at;
-            $data['germination_at'] = $firstCrop->germination_at;
             $data['blackout_at'] = $firstCrop->blackout_at;
             $data['light_at'] = $firstCrop->light_at;
             $data['harvested_at'] = $firstCrop->harvested_at;
         }
+        
+        // Populate tray numbers from all crops in the batch
+        $data['tray_numbers'] = $batch->crops->pluck('tray_number')->toArray();
         
         return $data;
     }

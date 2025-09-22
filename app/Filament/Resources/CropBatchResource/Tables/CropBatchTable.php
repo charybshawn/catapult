@@ -294,29 +294,51 @@ class CropBatchTable
         return Tables\Actions\BulkAction::make('advance_stage_bulk')
             ->label('Advance Stage')
             ->icon('heroicon-o-arrow-right')
-            ->before(function ($records, $action) {
-                // Check if any of the selected batches are in soaking stage
+            ->form(function ($records): array {
+                $formElements = [
+                    Forms\Components\DateTimePicker::make('advancement_timestamp')
+                        ->label('When did this advancement occur?')
+                        ->default(now())
+                        ->seconds(false)
+                        ->required()
+                        ->maxDate(now())
+                        ->helperText('Specify the actual time when the stage advancement happened'),
+                ];
+                
+                // Check if any selected batches are in soaking stage
+                $soakingBatches = [];
                 foreach ($records as $record) {
                     $stage = CropStageCache::find($record->current_stage_id);
                     if ($stage?->code === 'soaking') {
-                        NotificationHelper::warning(
-                            'Cannot Bulk Advance Soaking Crops',
-                            'Crops in the soaking stage require individual tray number assignment. Please use the individual "Advance Stage" action for each soaking batch.'
-                        );
-                        $action->cancel();
-                        return;
+                        $soakingBatches[] = $record;
                     }
                 }
+                
+                // If we have soaking batches, add tray number assignment fields
+                if (!empty($soakingBatches)) {
+                    // Add tray number fields directly to form elements
+                    foreach ($soakingBatches as $batch) {
+                        $crops = \App\Models\Crop::where('crop_batch_id', $batch->id)->get();
+                        
+                        foreach ($crops as $crop) {
+                            $formElements[] = Forms\Components\Grid::make(2)
+                                ->schema([
+                                    Forms\Components\Placeholder::make("current_{$crop->id}")
+                                        ->label('')
+                                        ->content($crop->tray_number),
+                                    Forms\Components\TextInput::make("tray_numbers.{$crop->id}")
+                                        ->label('')
+                                        ->placeholder('Enter new tray number')
+                                        ->required()
+                                        ->maxLength(20),
+                                ])
+                                ->columnSpanFull();
+                        }
+                    }
+                }
+                
+                return $formElements;
             })
-            ->form([
-                Forms\Components\DateTimePicker::make('advancement_timestamp')
-                    ->label('When did this advancement occur?')
-                    ->default(now())
-                    ->seconds(false)
-                    ->required()
-                    ->maxDate(now())
-                    ->helperText('Specify the actual time when the stage advancement happened'),
-            ])
             ->action(function ($records, array $data) {
                 $transitionService = app(\App\Services\CropTaskManagementService::class);
                 $totalCount = 0;
@@ -335,7 +357,13 @@ class CropBatchTable
                         if (!$firstCrop) {
                             throw new \Exception('No crops found in batch');
                         }
-                        $result = $transitionService->advanceStage($firstCrop, $transitionTime);
+                        // Prepare options including tray numbers if provided
+                        $options = [];
+                        if (isset($data['tray_numbers'])) {
+                            $options['tray_numbers'] = $data['tray_numbers'];
+                        }
+                        
+                        $result = $transitionService->advanceStage($firstCrop, $transitionTime, $options);
                         
                         $totalCount += $result['affected_count'];
                         $batchCount++;

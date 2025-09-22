@@ -40,22 +40,36 @@ class CreateCropBatch extends CreateRecord
         });
     }
 
-    /**
-     * Create crops for soaking recipes
-     */
     protected function createSoakingCrops(CropBatch $cropBatch, array $data, Recipe $recipe): void
     {
         $soakingStage = CropStage::where('code', 'soaking')->firstOrFail();
         $trayCount = $data['soaking_tray_count'] ?? 1;
         $soakingTime = isset($data['soaking_at']) ? Carbon::parse($data['soaking_at']) : Carbon::now();
 
-        for ($i = 1; $i <= $trayCount; $i++) {
+        // Get user-provided tray numbers or generate defaults
+        $trayNumbers = $this->transformTrayNumbers($data['tray_numbers'] ?? []);
+        
+        // If no tray numbers provided, or not enough, generate defaults
+        if (empty($trayNumbers)) {
+            for ($i = 1; $i <= $trayCount; $i++) {
+                $trayNumbers[] = 'SOAKING-' . $i;
+            }
+        } elseif (count($trayNumbers) < $trayCount) {
+            // If user provided some but not enough, fill in the rest
+            $existing = count($trayNumbers);
+            for ($i = $existing + 1; $i <= $trayCount; $i++) {
+                $trayNumbers[] = 'SOAKING-' . $i;
+            }
+        }
+
+        // Create crops using the tray numbers (up to the tray count)
+        for ($i = 0; $i < min($trayCount, count($trayNumbers)); $i++) {
             $crop = Crop::create([
                 'crop_batch_id' => $cropBatch->id,
                 'recipe_id' => $recipe->id,
                 'order_id' => $data['order_id'] ?? null,
                 'crop_plan_id' => $data['crop_plan_id'] ?? null,
-                'tray_number' => 'SOAKING-' . $i,
+                'tray_number' => trim($trayNumbers[$i]),
                 'current_stage_id' => $soakingStage->id,
                 'requires_soaking' => true,
                 'soaking_at' => $soakingTime,
