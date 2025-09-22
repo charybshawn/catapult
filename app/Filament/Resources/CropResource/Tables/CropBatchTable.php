@@ -92,9 +92,9 @@ class CropBatchTable
                 ->trueLabel('Active Only')
                 ->falseLabel('Harvested Only')
                 ->queries(
-                    true: fn (Builder $query): Builder => $query->active(),
-                    false: fn (Builder $query): Builder => $query->harvested(),
-                    blank: fn (Builder $query): Builder => $query,
+                    true: fn ($query) => $query->active(),
+                    false: fn ($query) => $query->harvested(),
+                    blank: fn ($query) => $query,
                 )
                 ->default(true),
         ];
