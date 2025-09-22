@@ -32,9 +32,13 @@ class CropBatchTable
     public static function columns(): array
     {
         return [
-            Tables\Columns\TextColumn::make('recipe.name')
-                ->label('Recipe')
+            Tables\Columns\TextColumn::make('recipe.common_name')
+                ->label('Variety')
                 ->weight('bold')
+                ->searchable()
+                ->sortable(),
+            Tables\Columns\TextColumn::make('recipe.cultivar_name')
+                ->label('Cultivar')
                 ->searchable()
                 ->sortable(),
             Tables\Columns\ViewColumn::make('tray_numbers')

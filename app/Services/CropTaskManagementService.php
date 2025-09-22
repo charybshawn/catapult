@@ -129,7 +129,13 @@ class CropTaskManagementService
             $lightTime = $blackoutTime->copy()->addDays($blackoutDays);
             $harvestTime = $lightTime->copy()->addDays($lightDays);
         } else {
-            // For non-soaking crops, use planting_at as base
+            // For non-soaking crops, use germination_at as base
+            if (!$plantedAt) {
+                Log::warning('No germination_at set for non-soaking crop, skipping task scheduling', [
+                    'crop_id' => $crop->id
+                ]);
+                return;
+            }
             $germinationTime = $plantedAt->copy()->addHours($soakHours);
             $blackoutTime = $germinationTime->copy()->addDays($germDays);
             $lightTime = $blackoutTime->copy()->addDays($blackoutDays);
@@ -195,7 +201,7 @@ class CropTaskManagementService
         }
 
         // Schedule Suspend Watering Task (if applicable)
-        if ($recipe->suspend_water_hours > 0) {
+        if ($recipe->suspend_water_hours > 0 && $plantedAt) {
             $suspendTime = $harvestTime->copy()->subHours($recipe->suspend_water_hours);
             if ($suspendTime->isAfter($plantedAt) && $suspendTime->gt($now)) {
                 $this->createWateringSuspensionTask($crop, $suspendTime);
@@ -444,7 +450,8 @@ class CropTaskManagementService
     {
         // Create a batch identifier - handle case where currentStage might be null
         $stageCode = $crop->currentStage?->code ?? 'unknown';
-        $batchIdentifier = "{$crop->recipe_id}_{$crop->planting_at->format('Y-m-d')}_{$stageCode}";
+        $germinationDate = $crop->germination_at?->format('Y-m-d') ?? 'no-date';
+        $batchIdentifier = "{$crop->recipe_id}_{$germinationDate}_{$stageCode}";
         
         // Find and delete all tasks related to this batch
         return TaskSchedule::where('resource_type', 'crops')
@@ -475,7 +482,7 @@ class CropTaskManagementService
         // Create conditions for the task
         $conditions = [
             'crop_id' => (int) $crop->id,
-            'batch_identifier' => "{$crop->recipe_id}_{$crop->planting_at->format('Y-m-d')}_{$currentStageCode}",
+            'batch_identifier' => "{$crop->recipe_id}_" . ($crop->germination_at?->format('Y-m-d') ?? 'no-date') . "_{$currentStageCode}",
             'target_stage' => $targetStage,
             'tray_numbers' => $batchTrays,
             'tray_count' => $batchSize,
@@ -518,7 +525,7 @@ class CropTaskManagementService
         
         $conditions = [
             'crop_id' => (int) $crop->id,
-            'batch_identifier' => "{$crop->recipe_id}_{$crop->planting_at->format('Y-m-d')}_{$currentStageCode}",
+            'batch_identifier' => "{$crop->recipe_id}_" . ($crop->germination_at?->format('Y-m-d') ?? 'no-date') . "_{$currentStageCode}",
             'target_stage' => 'germination', // Soaking leads to germination
             'tray_numbers' => $batchTrays,
             'tray_count' => $batchSize,
@@ -1027,9 +1034,9 @@ class CropTaskManagementService
                     $oldTrayNumber = $crop->tray_number;
                     $newTrayNumber = $options['tray_numbers'][$crop->id];
                     $crop->tray_number = $newTrayNumber;
-                    \Log::info("Updated tray number for crop {$crop->id}: {$oldTrayNumber} -> {$newTrayNumber}");
+                    Log::info("Updated tray number for crop {$crop->id}: {$oldTrayNumber} -> {$newTrayNumber}");
                 } else {
-                    \Log::info("No tray number update for crop {$crop->id}. Current stage: {$currentStage->code}, Options: " . json_encode($options));
+                    Log::info("No tray number update for crop {$crop->id}. Current stage: {$currentStage->code}, Options: " . json_encode($options));
                 }
 
                 // Update stage
