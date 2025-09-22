@@ -9,7 +9,6 @@ use App\Filament\Resources\Consumables\SeedResource;
 use Filament\Forms;
 use Filament\Tables;
 use Filament\Notifications\Notification;
-use App\Filament\Support\NotificationHelper;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -25,12 +24,12 @@ class RecipeTable
                 ->searchable()->sortable()->toggleable(isToggledHiddenByDefault: false),
                 
             Tables\Columns\TextColumn::make('seed_lot_display')
-                ->label('Seed Lot')->sortable(query: function (Builder $query, string $direction): Builder {
+                ->label('Seed Lot')->searchable(['lot_number', 'seed_consumable_name'])->sortable(query: function (Builder $query, string $direction): Builder {
                     return $query->orderBy('lot_number', $direction);
                 })->toggleable(),
                 
             Tables\Columns\TextColumn::make('soil_consumable_name')
-                ->label('Soil')->toggleable(),
+                ->label('Soil')->searchable()->sortable()->toggleable(),
                 
             Tables\Columns\TextColumn::make('total_days')
                 ->label('Total Days')->toggleable()
@@ -153,11 +152,10 @@ class RecipeTable
         
         if ($recipesWithActiveCrops->isNotEmpty()) {
             $action->cancel();
-            NotificationHelper::error(
-                'Cannot Delete Recipes',
-                'Selected recipes have active crops. Consider deactivating instead.',
-                true
-            );
+            Notification::make()
+                ->title('Cannot Delete Recipes')
+                ->body('Selected recipes have active crops. Consider deactivating instead.')
+                ->danger()->persistent()->send();
         }
     }
     
@@ -189,7 +187,7 @@ class RecipeTable
                     $scheduleClone->save();
                 }
                 
-                NotificationHelper::success('Recipe cloned successfully');
+                Notification::make()->success()->title('Recipe cloned successfully')->send();
                 return redirect()->route('filament.admin.resources.recipes.edit', ['record' => $clone->id]);
             });
     }
@@ -202,10 +200,10 @@ class RecipeTable
             ->action(function ($record) {
                 // TODO: Extract to App\Actions\Recipe\UpdateGrowsFromRecipeAction
                 // Complex business logic (~150 lines) should be moved to dedicated Action class
-                NotificationHelper::warning(
-                    'Feature Temporarily Disabled',
-                    'This action needs to be refactored to use dedicated Action classes.'
-                );
+                Notification::make()
+                    ->title('Feature Temporarily Disabled')
+                    ->body('This action needs to be refactored to use dedicated Action classes.')
+                    ->warning()->send();
             });
     }
     
@@ -224,11 +222,10 @@ class RecipeTable
                         ? "This recipe has {$activeCropsCount} active crops in progress."
                         : "This recipe has {$totalCropsCount} completed crops in the system.";
                     
-                    NotificationHelper::error(
-                        'Cannot Delete Recipe',
-                        $message . ' Consider deactivating instead.',
-                        true
-                    );
+                    Notification::make()
+                        ->title('Cannot Delete Recipe')
+                        ->body($message . ' Consider deactivating instead.')
+                        ->danger()->persistent()->send();
                 }
             });
     }
@@ -240,7 +237,8 @@ class RecipeTable
             ->action(function ($record) {
                 // TODO: Extract to App\Actions\Recipe\DeactivateRecipeAction
                 Recipe::where('id', $record->id)->update(['is_active' => false]);
-                NotificationHelper::success('Recipe Deactivated', "'{$record->name}' has been deactivated.");
+                Notification::make()->title('Recipe Deactivated')
+                    ->body("'{$record->name}' has been deactivated.")->success()->send();
             })
             ->visible(fn ($record) => $record->is_active ?? true);
     }
@@ -252,7 +250,8 @@ class RecipeTable
             ->action(function ($record) {
                 // TODO: Extract to App\Actions\Recipe\ActivateRecipeAction
                 Recipe::where('id', $record->id)->update(['is_active' => true]);
-                NotificationHelper::success('Recipe Activated', "'{$record->name}' has been activated.");
+                Notification::make()->title('Recipe Activated')
+                    ->body("'{$record->name}' has been activated.")->success()->send();
             })
             ->visible(fn ($record) => !($record->is_active ?? true));
     }

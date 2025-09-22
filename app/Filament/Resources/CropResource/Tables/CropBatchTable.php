@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Resources\CropBatchResource\Tables;
+namespace App\Filament\Resources\CropResource\Tables;
 
 use App\Models\Crop;
 use App\Models\CropBatch;
@@ -10,7 +10,6 @@ use App\Services\CropStageCache;
 use App\Filament\Resources\CropResource\Actions\StageTransitionActions;
 use App\Filament\Resources\CropResource\Actions\CropBatchDebugAction;
 use App\Services\CropTaskManagementService;
-use App\Filament\Support\NotificationHelper;
 use Filament\Forms;
 use Filament\Tables;
 use Filament\Tables\Actions\Action;
@@ -136,17 +135,19 @@ class CropBatchTable
                         DB::commit();
                         
                         // Show a detailed notification
-                        NotificationHelper::success(
-                            'Grow Batch Deleted',
-                            "Successfully deleted {$count} tray(s): " . implode(', ', $trayNumbers)
-                        );
+                        \Filament\Notifications\Notification::make()
+                            ->title('Grow Batch Deleted')
+                            ->body("Successfully deleted {$count} tray(s): " . implode(', ', $trayNumbers))
+                            ->success()
+                            ->send();
                     } catch (\Exception $e) {
                         DB::rollBack();
                         
-                        NotificationHelper::error(
-                            'Error',
-                            'Failed to delete grow batch: ' . $e->getMessage()
-                        );
+                        \Filament\Notifications\Notification::make()
+                            ->title('Error')
+                            ->body('Failed to delete grow batch: ' . $e->getMessage())
+                            ->danger()
+                            ->send();
                     }
                 }),
             ])
@@ -210,10 +211,11 @@ class CropBatchTable
                     }
                 }
                 
-                NotificationHelper::success(
-                    'Timestamp Fix Complete',
-                    "Fixed timestamps for {$fixedCount} crops in this batch."
-                );
+                Notification::make()
+                    ->title('Timestamp Fix Complete')
+                    ->body("Fixed timestamps for {$fixedCount} crops in this batch.")
+                    ->success()
+                    ->send();
             });
     }
 
@@ -275,17 +277,19 @@ class CropBatchTable
                     
                     DB::commit();
                     
-                    NotificationHelper::success(
-                        'Watering Suspended for Batch',
-                        "Successfully suspended watering for {$count} tray(s)."
-                    );
+                    \Filament\Notifications\Notification::make()
+                        ->title('Watering Suspended for Batch')
+                        ->body("Successfully suspended watering for {$count} tray(s).")
+                        ->success()
+                        ->send();
                 } catch (\Exception $e) {
                     DB::rollBack();
                     
-                    NotificationHelper::error(
-                        'Error',
-                        'Failed to suspend watering: ' . $e->getMessage()
-                    );
+                    \Filament\Notifications\Notification::make()
+                        ->title('Error')
+                        ->body('Failed to suspend watering: ' . $e->getMessage())
+                        ->danger()
+                        ->send();
                 }
             });
     }
@@ -298,51 +302,30 @@ class CropBatchTable
         return Tables\Actions\BulkAction::make('advance_stage_bulk')
             ->label('Advance Stage')
             ->icon('heroicon-o-arrow-right')
-            ->form(function ($records): array {
-                $formElements = [
-                    Forms\Components\DateTimePicker::make('advancement_timestamp')
-                        ->label('When did this advancement occur?')
-                        ->default(now())
-                        ->seconds(false)
-                        ->required()
-                        ->maxDate(now())
-                        ->helperText('Specify the actual time when the stage advancement happened'),
-                ];
-                
-                // Check if any selected batches are in soaking stage
-                $soakingBatches = [];
+            ->before(function ($records, $action) {
+                // Check if any of the selected batches are in soaking stage
                 foreach ($records as $record) {
                     $stage = CropStageCache::find($record->current_stage_id);
                     if ($stage?->code === 'soaking') {
-                        $soakingBatches[] = $record;
+                        \Filament\Notifications\Notification::make()
+                            ->title('Cannot Bulk Advance Soaking Crops')
+                            ->body('Crops in the soaking stage require individual tray number assignment. Please use the individual "Advance Stage" action for each soaking batch.')
+                            ->warning()
+                            ->send();
+                        $action->cancel();
+                        return;
                     }
                 }
-                
-                // If we have soaking batches, add tray number assignment fields
-                if (!empty($soakingBatches)) {
-                    // Add tray number fields directly to form elements
-                    foreach ($soakingBatches as $batch) {
-                        $crops = \App\Models\Crop::where('crop_batch_id', $batch->id)->get();
-                        
-                        foreach ($crops as $crop) {
-                            $formElements[] = Forms\Components\Grid::make(2)
-                                ->schema([
-                                    Forms\Components\Placeholder::make("current_{$crop->id}")
-                                        ->label('')
-                                        ->content($crop->tray_number),
-                                    Forms\Components\TextInput::make("tray_numbers.{$crop->id}")
-                                        ->label('')
-                                        ->placeholder('Enter new tray number')
-                                        ->required()
-                                        ->maxLength(20),
-                                ])
-                                ->columnSpanFull();
-                        }
-                    }
-                }
-                
-                return $formElements;
             })
+            ->form([
+                Forms\Components\DateTimePicker::make('advancement_timestamp')
+                    ->label('When did this advancement occur?')
+                    ->default(now())
+                    ->seconds(false)
+                    ->required()
+                    ->maxDate(now())
+                    ->helperText('Specify the actual time when the stage advancement happened'),
+            ])
             ->action(function ($records, array $data) {
                 $transitionService = app(\App\Services\CropTaskManagementService::class);
                 $totalCount = 0;
@@ -361,13 +344,7 @@ class CropBatchTable
                         if (!$firstCrop) {
                             throw new \Exception('No crops found in batch');
                         }
-                        // Prepare options including tray numbers if provided
-                        $options = [];
-                        if (isset($data['tray_numbers'])) {
-                            $options['tray_numbers'] = $data['tray_numbers'];
-                        }
-                        
-                        $result = $transitionService->advanceStageWithHistory($firstCrop, $transitionTime, $options);
+                        $result = $transitionService->advanceStage($firstCrop, $transitionTime);
                         
                         $totalCount += $result['affected_count'];
                         $batchCount++;
@@ -378,25 +355,42 @@ class CropBatchTable
                         }
                     } catch (\Illuminate\Validation\ValidationException $e) {
                         $failedBatches++;
-                        $errors = $e->errors();
-                        $errorMessages = [];
-                        if (isset($errors['stage'])) {
-                            $errorMessages = $errors['stage'];
-                        } elseif (isset($errors['target'])) {
-                            $errorMessages = $errors['target'];
-                        } else {
-                            $errorMessages = ['Unknown validation error'];
-                        }
-                        $warnings[] = "Batch #{$record->id}: " . implode(', ', $errorMessages);
+                        $warnings[] = "Batch #{$record->id}: " . implode(', ', $e->errors()['stage'] ?? $e->errors()['target'] ?? ['Unknown error']);
                     } catch (\Exception $e) {
                         $failedBatches++;
                         $warnings[] = "Batch #{$record->id}: " . $e->getMessage();
                     }
                 }
                 
-                // Send batch operation notifications
-                NotificationHelper::batchMixed('advanced', $successfulBatches, $failedBatches, 0, 'batch(es)');
-                NotificationHelper::batchWarnings($warnings);
+                // Build notification message
+                $message = "Successfully advanced {$successfulBatches} batch(es) containing {$totalCount} tray(s).";
+                if ($failedBatches > 0) {
+                    $message .= " Failed to advance {$failedBatches} batch(es).";
+                }
+                
+                if ($successfulBatches > 0) {
+                    \Filament\Notifications\Notification::make()
+                        ->title('Batches Advanced')
+                        ->body($message)
+                        ->success()
+                        ->send();
+                } else {
+                    \Filament\Notifications\Notification::make()
+                        ->title('No Batches Advanced')
+                        ->body($message)
+                        ->danger()
+                        ->send();
+                }
+                
+                // Show warnings if any
+                if (!empty($warnings)) {
+                    \Filament\Notifications\Notification::make()
+                        ->title('Warnings')
+                        ->body(implode("\n", array_slice($warnings, 0, 5)) . (count($warnings) > 5 ? "\n...and " . (count($warnings) - 5) . " more" : ''))
+                        ->warning()
+                        ->persistent()
+                        ->send();
+                }
             })
             ->requiresConfirmation()
             ->modalHeading('Advance Selected Batches?')
@@ -448,19 +442,11 @@ class CropBatchTable
                         }
                     } catch (\Illuminate\Validation\ValidationException $e) {
                         $errors = $e->errors();
-                        if (isset($errors['stage']) && isset($errors['stage'][0]) && str_contains($errors['stage'][0], 'already at first stage')) {
+                        if (isset($errors['stage']) && str_contains($errors['stage'][0], 'already at first stage')) {
                             $skippedCount++;
                         } else {
                             $failedBatches++;
-                            $errorMessages = [];
-                            if (isset($errors['stage'])) {
-                                $errorMessages = $errors['stage'];
-                            } elseif (isset($errors['target'])) {
-                                $errorMessages = $errors['target'];
-                            } else {
-                                $errorMessages = ['Unknown validation error'];
-                            }
-                            $warnings[] = "Batch #{$record->id}: " . implode(', ', $errorMessages);
+                            $warnings[] = "Batch #{$record->id}: " . implode(', ', $errors['stage'] ?? $errors['target'] ?? ['Unknown error']);
                         }
                     } catch (\Exception $e) {
                         $failedBatches++;
@@ -468,9 +454,44 @@ class CropBatchTable
                     }
                 }
                 
-                // Send batch operation notifications
-                NotificationHelper::batchMixed('rolled back', $successfulBatches, $failedBatches, $skippedCount, 'batch(es)');
-                NotificationHelper::batchWarnings($warnings);
+                // Build notification message
+                $message = "Successfully rolled back {$successfulBatches} batch(es) containing {$totalCount} tray(s).";
+                if ($skippedCount > 0) {
+                    $message .= " Skipped {$skippedCount} batch(es) already at first stage.";
+                }
+                if ($failedBatches > 0) {
+                    $message .= " Failed to rollback {$failedBatches} batch(es).";
+                }
+                
+                if ($successfulBatches > 0) {
+                    \Filament\Notifications\Notification::make()
+                        ->title('Batches Rolled Back')
+                        ->body($message)
+                        ->success()
+                        ->send();
+                } else if ($skippedCount > 0) {
+                    \Filament\Notifications\Notification::make()
+                        ->title('No Changes Made')
+                        ->body($message)
+                        ->warning()
+                        ->send();
+                } else {
+                    \Filament\Notifications\Notification::make()
+                        ->title('Rollback Failed')
+                        ->body($message)
+                        ->danger()
+                        ->send();
+                }
+                
+                // Show warnings if any
+                if (!empty($warnings)) {
+                    \Filament\Notifications\Notification::make()
+                        ->title('Warnings')
+                        ->body(implode("\n", array_slice($warnings, 0, 5)) . (count($warnings) > 5 ? "\n...and " . (count($warnings) - 5) . " more" : ''))
+                        ->warning()
+                        ->persistent()
+                        ->send();
+                }
             })
             ->requiresConfirmation()
             ->modalHeading('Rollback Selected Batches?')

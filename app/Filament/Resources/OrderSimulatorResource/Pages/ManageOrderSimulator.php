@@ -110,15 +110,21 @@ class ManageOrderSimulator extends Page implements HasForms, HasTable
                 TextColumn::make('package_info')
                     ->label('Package')
                     ->getStateUsing(function ($record) {
-                        return preg_replace('/\s*-\s*\$[\d,]+\.?\d*/', '', $record->variation_name);
+                        $label = $record->variation_name;
+                        if ($record->fill_weight_grams) {
+                            $label .= ' (' . $record->fill_weight_grams . 'g)';
+                        }
+                        if ($record->is_default) {
+                            $label .= ' (Default)';
+                        }
+                        return $label;
                     }),
-
-                TextColumn::make('fill_weight_grams')
-                    ->label('Fill Weight')
-                    ->getStateUsing(function ($record) {
-                        return $record->fill_weight_grams ? $record->fill_weight_grams . 'g' : 'N/A';
-                    }),
-
+                    
+                TextColumn::make('price')
+                    ->label('Price')
+                    ->money('USD')
+                    ->sortable(),
+                    
                 ViewColumn::make('quantity')
                     ->label('Quantity')
                     ->view('filament.tables.columns.quantity-input'),

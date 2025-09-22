@@ -86,7 +86,7 @@ class ListHarvests extends ListRecords
                                 ->defaultItems(0)
                                 ->minItems(0)
                                 ->reorderable()
-                                ->live(onBlur: true)
+                                ->live(onBlur: true)()
                                 ->columnWidths([
                                     'crop_id' => 'auto',
                                     'harvested_weight_grams' => '120px',
@@ -120,7 +120,7 @@ class ListHarvests extends ListRecords
                                         })
                                         ->required()
                                         ->searchable()
-                                        ->live(onBlur: true)
+                                        ->live(onBlur: true)()
                                         ->dehydrated()
                                         ->extraAttributes([
                                             'style' => 'position: relative; z-index: 9998;',

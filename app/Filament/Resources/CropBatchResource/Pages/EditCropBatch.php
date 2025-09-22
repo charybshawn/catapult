@@ -7,7 +7,6 @@ use App\Models\CropBatch;
 use Filament\Actions;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
-use App\Filament\Support\NotificationHelper;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -44,13 +43,11 @@ class EditCropBatch extends EditRecord
             $data['notes'] = $firstCrop->notes;
             $data['soaking_at'] = $firstCrop->soaking_at;
             $data['germination_at'] = $firstCrop->germination_at;
+            $data['germination_at'] = $firstCrop->germination_at;
             $data['blackout_at'] = $firstCrop->blackout_at;
             $data['light_at'] = $firstCrop->light_at;
             $data['harvested_at'] = $firstCrop->harvested_at;
         }
-        
-        // Populate tray numbers from all crops in the batch
-        $data['tray_numbers'] = $batch->crops->pluck('tray_number')->toArray();
         
         return $data;
     }
@@ -107,10 +104,11 @@ class EditCropBatch extends EditRecord
             
             DB::commit();
             
-            NotificationHelper::success(
-                'Batch updated successfully',
-                "Updated {$record->crops()->count()} crops in the batch"
-            );
+            Notification::make()
+                ->success()
+                ->title('Batch updated successfully')
+                ->body("Updated {$record->crops()->count()} crops in the batch")
+                ->send();
             
             return $record;
             
@@ -123,11 +121,12 @@ class EditCropBatch extends EditRecord
                 'trace' => $e->getTraceAsString()
             ]);
             
-            NotificationHelper::error(
-                'Update failed',
-                'Failed to update the batch: ' . $e->getMessage(),
-                true
-            );
+            Notification::make()
+                ->danger()
+                ->title('Update failed')
+                ->body('Failed to update the batch: ' . $e->getMessage())
+                ->persistent()
+                ->send();
             
             throw $e;
         }

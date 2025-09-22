@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Resources\CropBatchResource\Infolists;
+namespace App\Filament\Resources\CropResource\Infolists;
 
 use App\Models\Recipe;
 use App\Models\CropStageHistory;
