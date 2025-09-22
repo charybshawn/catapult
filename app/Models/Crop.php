@@ -463,7 +463,9 @@ class Crop extends Model
     public function timeToNextStage(): ?string
     {
         // Calculate dynamically using CropTimeCalculator
-        return app(CropTimeCalculator::class)->getTimeToNextStageDisplay($this);
+        $calculator = app(CropTimeCalculator::class);
+        $minutes = $calculator->calculateTimeToNextStage($this);
+        return $calculator->formatTimeDisplay($minutes);
     }
     
     

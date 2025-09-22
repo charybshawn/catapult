@@ -86,4 +86,58 @@ class CropBatchListView extends Model
     {
         return \App\Models\Crop::where('crop_batch_id', $this->id);
     }
+
+    /**
+     * Get stage age display from first crop
+     */
+    public function getStageAgeDisplayAttribute(): ?string
+    {
+        $firstCrop = $this->crops()->first();
+        if (!$firstCrop) {
+            return null;
+        }
+
+        $timeCalculator = app(\App\Services\CropTimeCalculator::class);
+        $minutes = $timeCalculator->calculateStageAge($firstCrop);
+        return $timeCalculator->formatTimeDisplay($minutes);
+    }
+
+    /**
+     * Get time to next stage display from first crop
+     */
+    public function getTimeToNextStageDisplayAttribute(): ?string
+    {
+        $firstCrop = $this->crops()->first();
+        if (!$firstCrop) {
+            return null;
+        }
+
+        $timeCalculator = app(\App\Services\CropTimeCalculator::class);
+        $minutes = $timeCalculator->calculateTimeToNextStage($firstCrop);
+        return $timeCalculator->formatTimeDisplay($minutes);
+    }
+
+    /**
+     * Get total age display from first crop
+     */
+    public function getTotalAgeDisplayAttribute(): ?string
+    {
+        $firstCrop = $this->crops()->first();
+        if (!$firstCrop) {
+            return null;
+        }
+
+        $timeCalculator = app(\App\Services\CropTimeCalculator::class);
+        $minutes = $timeCalculator->calculateTotalAge($firstCrop);
+        return $timeCalculator->formatTimeDisplay($minutes);
+    }
+
+    /**
+     * Get expected harvest date from first crop
+     */
+    public function getExpectedHarvestAtAttribute(): ?string
+    {
+        $firstCrop = $this->crops()->first();
+        return $firstCrop?->expected_harvest_at;
+    }
 }
