@@ -50,11 +50,28 @@ class CropBatchTable
                 ->label('Planted')
                 ->date()
                 ->sortable()
-                ->toggleable(),
+                ->toggleable()
+                ->getStateUsing(function ($record) {
+                    $firstCrop = $record->crops->first();
+                    return $firstCrop?->germination_at;
+                }),
             Tables\Columns\TextColumn::make('current_stage_name')
                 ->label('Current Stage')
                 ->badge()
-                ->color(fn ($record) => $record->current_stage_color ?? 'gray')
+                ->color(function ($record) {
+                    $firstCrop = $record->crops->first();
+                    if (!$firstCrop) {
+                        return 'gray';
+                    }
+
+                    // Load currentStage relationship if not already loaded
+                    if (!$firstCrop->relationLoaded('currentStage')) {
+                        $firstCrop->load('currentStage');
+                    }
+
+                    $currentStage = $firstCrop->getRelation('currentStage');
+                    return $currentStage?->color ?? 'gray';
+                })
                 ->searchable()
                 ->sortable(),
             Tables\Columns\TextColumn::make('stage_age_display')
@@ -85,15 +102,30 @@ class CropBatchTable
         return [
             Tables\Filters\SelectFilter::make('current_stage_id')
                 ->label('Stage')
-                ->options(CropStageCache::all()->pluck('name', 'id')),
+                ->options(CropStageCache::all()->pluck('name', 'id'))
+                ->query(function (Builder $query, array $data) {
+                    if (filled($data['value'])) {
+                        $query->whereHas('crops', function ($q) use ($data) {
+                            $q->where('current_stage_id', $data['value']);
+                        });
+                    }
+                }),
             Tables\Filters\TernaryFilter::make('active_crops')
                 ->label('Active Crops')
                 ->placeholder('All Crops')
                 ->trueLabel('Active Only')
                 ->falseLabel('Harvested Only')
                 ->queries(
-                    true: fn ($query) => $query->where('current_stage_code', '<>', 'harvested'),
-                    false: fn ($query) => $query->where('current_stage_code', '=', 'harvested'),
+                    true: fn ($query) => $query->whereHas('crops', function ($q) {
+                        $q->whereHas('currentStage', function ($sq) {
+                            $sq->where('code', '<>', 'harvested');
+                        });
+                    }),
+                    false: fn ($query) => $query->whereHas('crops', function ($q) {
+                        $q->whereHas('currentStage', function ($sq) {
+                            $sq->where('code', '=', 'harvested');
+                        });
+                    }),
                     blank: fn ($query) => $query,
                 )
                 ->default(true),
@@ -126,7 +158,7 @@ class CropBatchTable
                     
                     try {
                         // Get all tray numbers and delete crops in this batch
-                        $trayNumbers = $record->tray_numbers_array;
+                        $trayNumbers = $record->tray_numbers;
                         $count = \App\Models\Crop::where('crop_batch_id', $record->id)->delete();
                         
                         // Also delete the batch itself
@@ -229,7 +261,18 @@ class CropBatchTable
             ->icon('heroicon-o-no-symbol')
             ->color('warning')
             ->visible(function ($record): bool {
-                return $record->current_stage_code === 'light' && !$record->watering_suspended_at;
+                $firstCrop = $record->crops->first();
+                if (!$firstCrop) {
+                    return false;
+                }
+
+                // Load currentStage relationship if not already loaded
+                if (!$firstCrop->relationLoaded('currentStage')) {
+                    $firstCrop->load('currentStage');
+                }
+
+                $currentStage = $firstCrop->getRelation('currentStage');
+                return $currentStage?->code === 'light' && !$firstCrop->watering_suspended_at;
             })
             ->requiresConfirmation()
             ->modalHeading('Suspend Watering?')
@@ -305,8 +348,18 @@ class CropBatchTable
             ->before(function ($records, $action) {
                 // Check if any of the selected batches are in soaking stage
                 foreach ($records as $record) {
-                    $stage = CropStageCache::find($record->current_stage_id);
-                    if ($stage?->code === 'soaking') {
+                    $firstCrop = $record->crops->first();
+                    if (!$firstCrop) {
+                        continue;
+                    }
+
+                    // Load currentStage relationship if not already loaded
+                    if (!$firstCrop->relationLoaded('currentStage')) {
+                        $firstCrop->load('currentStage');
+                    }
+
+                    $currentStage = $firstCrop->getRelation('currentStage');
+                    if ($currentStage?->code === 'soaking') {
                         \Filament\Notifications\Notification::make()
                             ->title('Cannot Bulk Advance Soaking Crops')
                             ->body('Crops in the soaking stage require individual tray number assignment. Please use the individual "Advance Stage" action for each soaking batch.')

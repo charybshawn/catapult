@@ -149,7 +149,7 @@ class CropBatch extends Model
         $stage = $stagesCache->get($firstCrop->current_stage_id);
         
         $this->computedAttributesCache = [
-            'planting_at' => $firstCrop->planting_at ? Carbon::parse($firstCrop->planting_at) : null,
+            'planting_at' => $firstCrop->germination_at ? Carbon::parse($firstCrop->germination_at) : null,
             'tray_numbers' => $this->crops->pluck('tray_number')->sort()->values()->toArray(),
             'tray_count' => $this->crops_count ?? $this->crops->count(),
             'current_stage_id' => $firstCrop->current_stage_id,
@@ -157,8 +157,8 @@ class CropBatch extends Model
             'stage_age_display' => $calculator->formatTimeDisplay($calculator->calculateStageAge($firstCrop)),
             'time_to_next_stage_display' => $calculator->formatTimeDisplay($calculator->calculateTimeToNextStage($firstCrop)),
             'total_age_display' => $calculator->formatTimeDisplay($calculator->calculateTotalAge($firstCrop)),
-            'expected_harvest_at' => $firstCrop->recipe && $firstCrop->recipe->days_to_maturity 
-                ? Carbon::parse($firstCrop->planting_at)->addDays($firstCrop->recipe->days_to_maturity)
+            'expected_harvest_at' => $firstCrop->recipe && $firstCrop->recipe->days_to_maturity && $firstCrop->germination_at
+                ? Carbon::parse($firstCrop->germination_at)->addDays($firstCrop->recipe->days_to_maturity)
                 : null,
         ];
         
@@ -175,7 +175,7 @@ class CropBatch extends Model
         }
         
         $firstCrop = $this->getFirstCrop();
-        return $firstCrop?->planting_at ? Carbon::parse($firstCrop->planting_at) : null;
+        return $firstCrop?->germination_at ? Carbon::parse($firstCrop->germination_at) : null;
     }
 
     /**
@@ -273,7 +273,7 @@ class CropBatch extends Model
     {
         $firstCrop = $this->getFirstCrop();
         
-        if (!$firstCrop || !$firstCrop->planting_at) {
+        if (!$firstCrop || !$firstCrop->germination_at) {
             return null;
         }
 
@@ -285,7 +285,7 @@ class CropBatch extends Model
             return null;
         }
 
-        return Carbon::parse($firstCrop->planting_at)->addDays($firstCrop->recipe->days_to_maturity);
+        return Carbon::parse($firstCrop->germination_at)->addDays($firstCrop->recipe->days_to_maturity);
     }
 
     /**
